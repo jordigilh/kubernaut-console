@@ -69,8 +69,9 @@ spec:
           resources:
             {{- toYaml .Values.resources.oauth2Proxy | nindent 12 }}
 
-        - name: nginx
-          image: registry.access.redhat.io/ubi9/nginx-126
+        - name: console
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: static
               containerPort: 8080
@@ -83,9 +84,6 @@ spec:
           resources:
             {{- toYaml .Values.resources.nginx | nindent 12 }}
           volumeMounts:
-            - name: console-html
-              mountPath: /opt/app-root/src
-              readOnly: true
             - name: nginx-config
               mountPath: /etc/nginx/conf.d
               readOnly: true
@@ -96,8 +94,6 @@ spec:
             - name: nginx-run
               mountPath: /var/run
       volumes:
-        - name: console-html
-          emptyDir: {}
         - name: nginx-config
           configMap:
             name: {{ include "kubernaut-console.fullname" . }}-nginx
