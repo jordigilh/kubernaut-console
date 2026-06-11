@@ -1,0 +1,8 @@
+# Add this redirect URI to the existing kubernaut-apifrontend Dex client.
+#
+# In the Dex ConfigMap (dex-config in kubernaut-system), add to
+# staticClients[0].redirectURIs:
+#   - "http://localhost:4180/oauth2/callback"
+#
+# Then restart Dex:
+#   kubectl rollout restart deployment/dex -n kubernaut-system

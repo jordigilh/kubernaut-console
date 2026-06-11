@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kubernaut-console.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kubernaut-console.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "kubernaut-console.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kubernaut-console.labels" . | nindent 8 }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.9.0
+          args:
+            - --provider={{ .Values.auth.provider }}
+            - --oidc-issuer-url={{ .Values.auth.issuerUrl }}
+            - --redirect-url={{ include "kubernaut-console.redirectUrl" . }}
+            - --http-address=0.0.0.0:4180
+            - --upstream=http://localhost:8080
+            - --pass-authorization-header=true
+            - --skip-provider-button=true
+            - --cookie-name=_kubernaut_console
+            - --cookie-secure={{ include "kubernaut-console.cookieSecure" . }}
+            - --cookie-samesite=lax
+            - --email-domain=*
+            - --scope=openid email profile groups
+            - --skip-jwt-bearer-tokens=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret }}
+                  key: client-id
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret }}
+                  key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret }}
+                  key: cookie-secret
+          ports:
+            - name: http
+              containerPort: 4180
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsUser: 65534
+          readinessProbe:
+            httpGet:
+              path: /oauth2/ping
+              port: 4180
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources.oauth2Proxy | nindent 12 }}
+
+        - name: nginx
+          image: registry.access.redhat.io/ubi9/nginx-126
+          ports:
+            - name: static
+              containerPort: 8080
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsUser: 1001
+          resources:
+            {{- toYaml .Values.resources.nginx | nindent 12 }}
+          volumeMounts:
+            - name: console-html
+              mountPath: /opt/app-root/src
+              readOnly: true
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+            - name: nginx-tmp
+              mountPath: /tmp
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
+      volumes:
+        - name: console-html
+          emptyDir: {}
+        - name: nginx-config
+          configMap:
+            name: {{ include "kubernaut-console.fullname" . }}-nginx
+        - name: nginx-tmp
+          emptyDir: {}
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}

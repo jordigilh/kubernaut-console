@@ -1,0 +1,11 @@
+# The Console SPA is served by the nginx sidecar inside the
+# kubernaut-console deployment (deploy/kind/oauth2-proxy.yaml).
+#
+# To update the static files after a rebuild:
+#   npm run build
+#   CONSOLE_POD=$(kubectl get pods -n kubernaut-system -l app.kubernetes.io/name=kubernaut-console -o jsonpath='{.items[0].metadata.name}')
+#   kubectl cp dist/ kubernaut-system/$CONSOLE_POD:/usr/share/nginx/html/ -c nginx
+#
+# Alternatively, build a Docker image with the files baked in:
+#   docker build -t kubernaut-demo-console:latest .
+#   kind load docker-image kubernaut-demo-console:latest --name kubernaut-demo

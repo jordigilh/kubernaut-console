@@ -1,0 +1,19 @@
+{{- if or .Values.route.enabled (and (eq (include "kubernaut-console.isOpenShift" .) "true") .Values.route.host) }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "kubernaut-console.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kubernaut-console.labels" . | nindent 4 }}
+spec:
+  host: {{ .Values.route.host | quote }}
+  to:
+    kind: Service
+    name: {{ include "kubernaut-console.fullname" . }}
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: {{ .Values.route.tls.termination }}
+{{- end }}

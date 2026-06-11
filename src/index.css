@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@theme {
+  --color-kubernaut-teal-50: #F0FDFA;
+  --color-kubernaut-teal-100: #CCFBF1;
+  --color-kubernaut-teal-600: #0D9488;
+  --color-kubernaut-teal-700: #0F766E;
+  --color-kubernaut-teal-800: #115E59;
+  --color-kubernaut-red-50: #FEF2F2;
+  --color-kubernaut-red-600: #DC2626;
+  --color-kubernaut-red-900: #7F1D1D;
+  --color-kubernaut-green-50: #F0FDF4;
+  --color-kubernaut-green-700: #15803D;
+  --color-kubernaut-green-800: #166534;
+  --color-user-bubble: #E0F2FE;
+  --color-user-text: #0C4A6E;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+  30%           { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out forwards;
+}
+
+.typing-dot:nth-child(1) { animation: typing-dot 1.2s ease-in-out infinite 0s; }
+.typing-dot:nth-child(2) { animation: typing-dot 1.2s ease-in-out infinite 0.2s; }
+.typing-dot:nth-child(3) { animation: typing-dot 1.2s ease-in-out infinite 0.4s; }

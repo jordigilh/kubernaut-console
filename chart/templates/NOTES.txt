@@ -1,0 +1,60 @@
+Kubernaut Demo Console has been deployed.
+
+1. Get the application URL:
+
+{{- if or .Values.route.enabled (and (eq (include "kubernaut-console.isOpenShift" .) "true") .Values.route.host) }}
+
+  OpenShift Route:
+    https://{{ .Values.route.host }}
+
+{{- else if eq .Values.service.type "NodePort" }}
+
+  NodePort service (replace <node-ip> with a cluster node address):
+    http://<node-ip>:{{ .Values.service.nodePort }}
+
+  Or port-forward locally:
+    kubectl port-forward svc/{{ include "kubernaut-console.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+    http://localhost:{{ .Values.service.port }}
+
+{{- else if eq .Values.service.type "LoadBalancer" }}
+
+  LoadBalancer service:
+    NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+    kubectl get svc {{ include "kubernaut-console.fullname" . }} -n {{ .Release.Namespace }} -w
+
+{{- else }}
+
+  ClusterIP service (port-forward to access locally):
+    kubectl port-forward svc/{{ include "kubernaut-console.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+    http://localhost:{{ .Values.service.port }}
+
+{{- end }}
+
+2. OIDC Secret (required before install):
+
+  Create a Secret named "{{ .Values.auth.existingSecret }}" in namespace "{{ .Release.Namespace }}"
+  with the following keys:
+    - client-id
+    - client-secret
+    - cookie-secret
+
+  Example:
+    kubectl create secret generic {{ .Values.auth.existingSecret }} \
+      --from-literal=client-id={{ .Values.auth.clientId }} \
+      --from-literal=client-secret=<your-client-secret> \
+      --from-literal=cookie-secret=<random-32-byte-base64> \
+      -n {{ .Release.Namespace }}
+
+3. Copy static files to the nginx sidecar:
+
+  The console SPA is served from an emptyDir volume. After building the frontend,
+  copy the dist/ directory into the running pod:
+
+    npm run build
+    CONSOLE_POD=$(kubectl get pods -n {{ .Release.Namespace }} \
+      -l app.kubernetes.io/name={{ include "kubernaut-console.name" . }},app.kubernetes.io/instance={{ .Release.Name }} \
+      -o jsonpath='{.items[0].metadata.name}')
+    kubectl cp dist/ {{ .Release.Namespace }}/$CONSOLE_POD:/opt/app-root/src/ -c nginx
+
+  OAuth2 redirect URL: {{ include "kubernaut-console.redirectUrl" . }}
+  Ensure this matches your OIDC client configuration in Dex (or your IdP).

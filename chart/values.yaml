@@ -1,0 +1,56 @@
+replicaCount: 1
+
+image:
+  repository: quay.io/kubernaut-ai/demo-console
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+# Agent discovery — how Console finds AF
+apiFrontend:
+  url: "http://apifrontend-service.kubernaut-system.svc:8443"
+
+# OIDC / OAuth2 Proxy configuration
+auth:
+  provider: oidc
+  issuerUrl: "http://dex.kubernaut-system.svc:5556/dex"
+  clientId: "kubernaut-console"
+  # Reference to a pre-existing Secret containing OIDC credentials
+  # The Secret must have keys: client-id, client-secret, cookie-secret
+  existingSecret: "kubernaut-console-oidc" # pre-commit:allow-sensitive (Secret name, not a value)
+  redirectUrl: ""  # Auto-derived from service if empty
+
+# Ingress / exposure
+service:
+  type: NodePort
+  nodePort: 30418
+  port: 4180
+
+# OCP Route (auto-rendered when OpenShift detected via .Capabilities.APIVersions)
+route:
+  enabled: false  # Override to true if auto-detection insufficient
+  host: ""
+  tls:
+    termination: edge
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# Resources
+resources:
+  oauth2Proxy:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  nginx:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 50m
+      memory: 64Mi
