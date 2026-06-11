@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 1200" font-family="Red Hat Text, Red Hat Display, -apple-system, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 950" font-family="Red Hat Text, Red Hat Display, -apple-system, sans-serif">
   <defs>
     <filter id="cardShadow">
       <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.06"/>
@@ -7,162 +7,118 @@
   </defs>
 
   <!-- Background -->
-  <rect width="820" height="1200" fill="#F9FAFB"/>
+  <rect width="820" height="950" fill="#F9FAFB"/>
   
   <!-- Container -->
-  <rect x="30" y="16" width="760" height="1168" rx="16" fill="white" stroke="#EBEBEB" stroke-width="1" filter="url(#cardShadow)"/>
+  <rect x="30" y="16" width="760" height="920" rx="16" fill="white" stroke="#EBEBEB" stroke-width="1" filter="url(#cardShadow)"/>
 
-  <!-- ===== HEADER (teal gradient) ===== -->
+  <!-- ===== HEADER ===== -->
   <rect x="30" y="16" width="760" height="56" rx="16" fill="#0097A7"/>
   <rect x="30" y="56" width="760" height="16" fill="#0097A7"/>
-  <!-- Logo -->
   <circle cx="62" cy="44" r="14" fill="rgba(255,255,255,0.2)"/>
   <text x="62" y="49" text-anchor="middle" fill="white" font-size="12" font-weight="700">K</text>
-  <text x="86" y="48" fill="white" font-size="14" font-weight="700" font-family="Red Hat Display, sans-serif">Kubernaut Console</text>
-  <!-- Phase indicator -->
-  <rect x="330" y="32" width="180" height="24" rx="12" fill="rgba(255,255,255,0.15)"/>
-  <circle cx="348" cy="44" r="4" fill="#4ade80"/>
-  <text x="360" y="48" fill="rgba(255,255,255,0.9)" font-size="11" font-weight="500">Executing remediation</text>
-  <!-- Actions -->
+  <text x="86" y="48" fill="white" font-size="14" font-weight="600" font-family="Red Hat Display, sans-serif">Kubernaut Console</text>
+  <rect x="556" y="32" width="130" height="24" rx="12" fill="rgba(255,255,255,0.15)"/>
+  <circle cx="572" cy="44" r="4" fill="#4ade80"/>
+  <text x="584" y="48" fill="rgba(255,255,255,0.9)" font-size="11" font-weight="500">Decision pending</text>
   <text x="700" y="48" fill="rgba(255,255,255,0.7)" font-size="11">+ New</text>
   <circle cx="752" cy="44" r="12" fill="rgba(255,255,255,0.2)"/>
-  <text x="752" y="48" text-anchor="middle" fill="white" font-size="10" font-weight="700">JG</text>
+  <text x="752" y="48" text-anchor="middle" fill="white" font-size="11" font-weight="600">JG</text>
 
   <!-- ===== ALERT BANNER ===== -->
   <rect x="46" y="82" width="728" height="44" rx="8" fill="#FEF2F2" stroke="#FECACA" stroke-width="1"/>
   <circle cx="68" cy="104" r="8" fill="#EE0000"/>
   <text x="68" y="108" text-anchor="middle" fill="white" font-size="9" font-weight="700">!</text>
-  <text x="84" y="99" fill="#7F1D1D" font-size="12" font-weight="600">KubePodCrashLooping</text>
-  <text x="214" y="99" fill="#6A6E73" font-size="11">[critical]</text>
-  <text x="84" y="116" fill="#991B1B" font-size="11">worker-79ffc8cd99-tbhgn in demo-checkout (4 restarts, CrashLoopBackOff)</text>
+  <text x="84" y="100" fill="#7F1D1D" font-size="12" font-weight="600">KubePodCrashLooping</text>
+  <text x="248" y="100" fill="#6A6E73" font-size="11">[critical]</text>
+  <text x="84" y="116" fill="#991B1B" font-size="11">web-frontend-c8dc85956-qm7hq in demo-webui (4 restarts, CrashLoopBackOff)</text>
 
   <!-- ===== USER MESSAGE ===== -->
-  <rect x="310" y="140" width="464" height="38" rx="16" fill="#E0F2FE"/>
-  <text x="326" y="163" fill="#0C4A6E" font-size="12">What's happening with the worker pods in demo-checkout?</text>
+  <rect x="346" y="140" width="428" height="36" rx="16" fill="#E0F2FE"/>
+  <text x="362" y="162" fill="#0C4A6E" font-size="12">What's crashing in demo-webui?</text>
 
-  <!-- ===== THINKING PANEL (collapsed, completed) ===== -->
-  <rect x="46" y="192" width="500" height="28" rx="6" fill="#F9FAFB" stroke="#EBEBEB" stroke-width="1"/>
-  <polygon points="60,203 66,207 60,211" fill="#A3A6A9"/>
-  <text x="74" y="210" fill="#6A6E73" font-size="11">Investigated in 4 steps</text>
-  <text x="460" y="210" fill="#A3A6A9" font-size="10">12s</text>
+  <!-- ===== THINKING PANEL ===== -->
+  <rect x="46" y="190" width="728" height="24" rx="6" fill="white"/>
+  <polygon points="56,199 62,203 56,207" fill="#0097A7" transform="rotate(90,59,203)"/>
+  <text x="70" y="206" fill="#6A6E73" font-size="11" font-weight="500">Investigating</text>
+  <circle cx="142" cy="203" r="2" fill="#0097A7" opacity="0.4"/>
+  <circle cx="149" cy="203" r="2" fill="#0097A7" opacity="0.7"/>
+  <circle cx="156" cy="203" r="2" fill="#0097A7" opacity="1"/>
+  <text x="668" y="206" fill="#A3A6A9" font-size="11">2m 31s</text>
 
-  <!-- ===== RCA CARD (the artifact) ===== -->
-  <rect x="46" y="232" width="620" height="158" rx="12" fill="white" stroke="#EBEBEB" stroke-width="1" filter="url(#cardShadow)"/>
-  <!-- Left accent bar -->
-  <rect x="46" y="232" width="5" height="158" rx="3" fill="#EE0000"/>
-  <!-- Content -->
-  <text x="66" y="258" fill="#151515" font-size="14" font-weight="700" font-family="Red Hat Display, sans-serif">Root Cause Analysis</text>
-  <rect x="230" y="244" width="52" height="18" rx="9" fill="#FEF2F2"/>
-  <text x="256" y="256" text-anchor="middle" fill="#EE0000" font-size="9" font-weight="600">critical</text>
-  <!-- Causal chain only (no duplicate summary) -->
-  <text x="66" y="284" fill="#292929" font-size="11">Container command was overridden via kubectl-patch at 12:53 UTC</text>
-  <text x="66" y="302" fill="#292929" font-size="11">to inject a fatal exit script referencing 'bad release 1.1.0'.</text>
-  <line x1="66" y1="316" x2="650" y2="316" stroke="#EBEBEB" stroke-width="1"/>
-  <text x="66" y="336" fill="#6A6E73" font-size="10" font-weight="500">Causal chain:</text>
-  <text x="78" y="354" fill="#6A6E73" font-size="10">1. Deployment patched with fatal command override</text>
-  <text x="78" y="370" fill="#6A6E73" font-size="10">2. New ReplicaSet pods exit immediately (code 1)</text>
-  <text x="78" y="386" fill="#6A6E73" font-size="10">3. Rolling update stuck, 2 healthy old pods remain</text>
+  <rect x="46" y="216" width="728" height="150" rx="8" fill="#F9FAFB" stroke="#EBEBEB" stroke-width="1"/>
+  <text x="62" y="236" fill="#6A6E73" font-size="11" font-style="italic">Analyzing...</text>
+  <text x="62" y="252" fill="#6A6E73" font-size="11">Checking for existing active remediation...</text>
+  <text x="62" y="268" fill="#6A6E73" font-size="11">No active remediation exists. Launching fresh investigation.</text>
+  <text x="62" y="290" fill="#A3A6A9" font-size="11">kubectl_previous_logs Pod/web-frontend-c8dc85956-qm7hq</text>
+  <text x="62" y="306" fill="#A3A6A9" font-size="11">kubectl_describe Pod/web-frontend-c8dc85956-qm7hq</text>
+  <text x="62" y="322" fill="#A3A6A9" font-size="11">kubectl_events Pod/web-frontend-c8dc85956-qm7hq</text>
+  <text x="62" y="338" fill="#6A6E73" font-size="11" font-style="italic">Container failing due to invalid config file. Investigating ConfigMap...</text>
+  <text x="62" y="356" fill="#A3A6A9" font-size="11">kubectl_get_by_name ConfigMap/app-config -n demo-webui</text>
+  <rect x="764" y="220" width="4" height="142" rx="2" fill="#EBEBEB"/>
+  <rect x="764" y="310" width="4" height="44" rx="2" fill="#D1D5DB"/>
 
-  <!-- ===== AGENT CTA (directly present workflows, no intermediate buttons) ===== -->
-  <rect x="46" y="402" width="620" height="32" rx="8" fill="#F0FDFA"/>
-  <text x="62" y="422" fill="#0097A7" font-size="11" font-weight="500">I recommend rolling back. Select a workflow to execute, or type to investigate further.</text>
+  <!-- ===== RCA CARD ===== -->
+  <rect x="46" y="380" width="728" height="190" rx="12" fill="white" stroke="#EBEBEB" stroke-width="1" filter="url(#cardShadow)"/>
+  <rect x="46" y="388" width="4" height="174" fill="#EE0000"/>
+  <text x="66" y="406" fill="#151515" font-size="14" font-weight="700" font-family="Red Hat Display, sans-serif">Root Cause Analysis</text>
+  <rect x="222" y="394" width="52" height="18" rx="9" fill="#FEF2F2"/>
+  <text x="248" y="406" text-anchor="middle" fill="#EE0000" font-size="9" font-weight="600">critical</text>
+  <!-- Summary -->
+  <text x="66" y="430" fill="#292929" font-size="12">ConfigMap app-config contains an invalid directive introduced by Git commit caa704e8, synced by ArgoCD.</text>
+  <text x="66" y="448" fill="#292929" font-size="12">With selfHeal:true, in-cluster patches are futile -- the fix must be applied at the Git source via a revert.</text>
+  <text x="66" y="470" fill="#6A6E73" font-size="11">Target: ConfigMap/app-config in demo-webui | Confidence: 0.95 | 19 tool calls, 17 LLM turns</text>
+  <line x1="66" y1="484" x2="748" y2="484" stroke="#EBEBEB" stroke-width="1"/>
+  <!-- Causal chain (scroll) -->
+  <text x="66" y="502" fill="#6A6E73" font-size="11" font-weight="500">Causal chain:</text>
+  <text x="66" y="520" fill="#6A6E73" font-size="11">Signal:</text>
+  <text x="114" y="520" fill="#292929" font-size="11">Pod web-frontend in CrashLoopBackOff (4 restarts, exit code 1)</text>
+  <text x="66" y="538" fill="#6A6E73" font-size="11">Why?</text>
+  <text x="114" y="538" fill="#292929" font-size="11">[emerg] invalid directive found in /etc/demo-http-server/config.yaml</text>
+  <text x="66" y="556" fill="#6A6E73" font-size="11">Why?</text>
+  <text x="114" y="556" fill="#292929" font-size="11">ConfigMap app-config contains 'invalid_directive: true'</text>
+  <rect x="764" y="388" width="4" height="174" rx="2" fill="#EBEBEB"/>
+  <rect x="764" y="470" width="4" height="50" rx="2" fill="#D1D5DB"/>
 
-  <!-- ===== WORKFLOW CARDS (human-readable titles, visual confidence) ===== -->
+  <!-- ===== AGENT TEXT CTA ===== -->
+  <rect x="46" y="584" width="728" height="48" rx="8" fill="#F0FDFA"/>
+  <text x="62" y="604" fill="#0097A7" font-size="12" font-weight="500">In-cluster patches won't persist -- ArgoCD selfHeal will revert them. I recommend a Git revert.</text>
+  <text x="62" y="622" fill="#0097A7" font-size="12" font-weight="500">Select a workflow, or tell me if you'd like to investigate further.</text>
 
-  <!-- Card 1: Recommended -->
-  <rect x="46" y="448" width="352" height="130" rx="12" fill="white" stroke="#0097A7" stroke-width="2" filter="url(#cardShadow)"/>
-  <!-- Confidence indicator (green circle) -->
-  <circle cx="66" cy="472" r="8" fill="#16A34A"/>
-  <path d="M63,472 L65,474 L69,470" stroke="white" stroke-width="1.5" fill="none"/>
-  <text x="80" y="476" fill="#151515" font-size="13" font-weight="700" font-family="Red Hat Display, sans-serif">Roll Back Deployment</text>
-  <!-- Recommended badge -->
-  <rect x="250" y="464" width="82" height="18" rx="9" fill="#F0FDFA" stroke="#0097A7" stroke-width="0.5"/>
-  <text x="291" y="477" text-anchor="middle" fill="#0097A7" font-size="9" font-weight="600">Recommended</text>
-  <!-- Description (from spec.description.what) -->
-  <text x="66" y="498" fill="#292929" font-size="11">Reverts the entire pod template to the last</text>
-  <text x="66" y="514" fill="#292929" font-size="11">known-good revision. Purpose-built for</text>
-  <text x="66" y="530" fill="#292929" font-size="11">CrashLoopBackOff caused by spec changes.</text>
-  <!-- Rationale -->
-  <text x="66" y="552" fill="#6A6E73" font-size="9" font-style="italic">Matches: bad spec patch causing exit code 1</text>
-  <!-- Fine print -->
-  <text x="66" y="570" fill="#A3A6A9" font-size="9">crashloop-rollback-v1</text>
+  <!-- ===== WORKFLOW CARD 1: EXPANDED with inline countdown ===== -->
+  <rect x="46" y="646" width="728" height="168" rx="12" fill="white" stroke="#0097A7" stroke-width="2" filter="url(#cardShadow)"/>
+  <circle cx="66" cy="670" r="8" fill="#16A34A"/>
+  <path d="M63,670 L65,672 L69,668" stroke="white" stroke-width="1.5" fill="none"/>
+  <text x="80" y="674" fill="#151515" font-size="12" font-weight="700">git-revert-v2</text>
+  <rect x="196" y="662" width="80" height="18" rx="9" fill="#F0FDFA" stroke="#0097A7" stroke-width="0.5"/>
+  <text x="236" y="675" text-anchor="middle" fill="#0097A7" font-size="9" font-weight="600">Recommended</text>
+  <text x="66" y="696" fill="#292929" font-size="11">Reverts the most recent commit in a GitOps-managed repository to undo a bad change.</text>
+  <text x="66" y="712" fill="#292929" font-size="11">ArgoCD will automatically reconcile the reverted healthy state.</text>
+  <!-- Expanded: parameters -->
+  <rect x="66" y="724" width="690" height="34" rx="4" fill="#F9FAFB"/>
+  <text x="78" y="738" fill="#6A6E73" font-size="11" font-family="monospace">TARGET_RESOURCE_NAMESPACE=demo-webui  TARGET_RESOURCE_KIND=v1/ConfigMap</text>
+  <text x="78" y="752" fill="#6A6E73" font-size="11" font-family="monospace">TARGET_RESOURCE_NAME=app-config</text>
+  <!-- Countdown button (50/50 width) -->
+  <rect x="66" y="766" width="344" height="36" rx="8" fill="#0097A7"/>
+  <text x="238" y="789" text-anchor="middle" fill="white" font-size="12" font-weight="600">Executing in 10s...</text>
+  <!-- Progress bar inside execute button -->
+  <rect x="66" y="798" width="344" height="4" rx="2" fill="rgba(0,0,0,0.1)"/>
+  <rect x="66" y="798" width="230" height="4" rx="2" fill="rgba(255,255,255,0.5)"/>
+  <rect x="420" y="766" width="336" height="36" rx="8" fill="white" stroke="#EBEBEB" stroke-width="1"/>
+  <text x="588" y="789" text-anchor="middle" fill="#6A6E73" font-size="12" font-weight="500">Cancel</text>
 
-  <!-- Card 2 -->
-  <rect x="412" y="448" width="352" height="130" rx="12" fill="white" stroke="#EBEBEB" stroke-width="1" filter="url(#cardShadow)"/>
-  <!-- Confidence indicator (yellow/amber) -->
-  <circle cx="432" cy="472" r="8" fill="#F59E0B"/>
-  <text x="432" y="476" text-anchor="middle" fill="white" font-size="8" font-weight="700">2</text>
-  <text x="446" y="476" fill="#151515" font-size="13" font-weight="700" font-family="Red Hat Display, sans-serif">General Rollback</text>
-  <!-- Description -->
-  <text x="432" y="498" fill="#292929" font-size="11">General-purpose rollback for stuck rollouts</text>
-  <text x="432" y="514" fill="#292929" font-size="11">and bad spec changes. Valid fallback,</text>
-  <text x="432" y="530" fill="#292929" font-size="11">less targeted to CrashLoopBackOff.</text>
-  <!-- Rationale -->
-  <text x="432" y="552" fill="#6A6E73" font-size="9" font-style="italic">Less specific than crashloop-rollback-v1</text>
-  <!-- Fine print -->
-  <text x="432" y="570" fill="#A3A6A9" font-size="9">rollback-deployment-v1</text>
-
-  <!-- ===== CONFIRMATION STEP (after user clicks recommended card) ===== -->
-  <rect x="46" y="594" width="620" height="112" rx="12" fill="white" stroke="#0097A7" stroke-width="1" filter="url(#cardShadow)"/>
-  <text x="66" y="618" fill="#151515" font-size="12" font-weight="700" font-family="Red Hat Display, sans-serif">Confirm Execution</text>
-  <text x="66" y="640" fill="#292929" font-size="11">This will roll back Deployment/worker to its previous revision.</text>
-  <!-- Parameters -->
-  <rect x="66" y="652" width="420" height="20" rx="4" fill="#F9FAFB"/>
-  <text x="78" y="666" fill="#6A6E73" font-size="9" font-family="monospace">TARGET_RESOURCE_NAME=worker  NAMESPACE=demo-checkout</text>
-  <!-- Buttons -->
-  <rect x="66" y="680" width="80" height="28" rx="6" fill="#0097A7"/>
-  <text x="106" y="698" text-anchor="middle" fill="white" font-size="11" font-weight="600">Execute</text>
-  <rect x="158" y="680" width="70" height="28" rx="6" fill="white" stroke="#EBEBEB" stroke-width="1"/>
-  <text x="193" y="698" text-anchor="middle" fill="#6A6E73" font-size="11">Cancel</text>
-
-  <!-- ===== EXECUTION PROGRESS ===== -->
-  <rect x="46" y="722" width="620" height="164" rx="12" fill="#F0FDF4" stroke="#BBF7D0" stroke-width="1"/>
-  <!-- Left accent bar -->
-  <rect x="46" y="722" width="5" height="164" rx="3" fill="#16A34A"/>
-  <text x="66" y="748" fill="#166534" font-size="12" font-weight="700" font-family="Red Hat Display, sans-serif">Executing: Roll Back Deployment</text>
-  <text x="66" y="764" fill="#6A6E73" font-size="10">Target: Deployment/worker in demo-checkout</text>
-  <!-- Steps -->
-  <circle cx="78" cy="790" r="6" fill="#16A34A"/>
-  <path d="M75,790 L77,792 L81,788" stroke="white" stroke-width="1.2" fill="none"/>
-  <text x="92" y="794" fill="#166534" font-size="11">Resolving previous healthy revision (worker-5ccfd4c787)</text>
-  <circle cx="78" cy="814" r="6" fill="#16A34A"/>
-  <path d="M75,814 L77,816 L81,812" stroke="white" stroke-width="1.2" fill="none"/>
-  <text x="92" y="818" fill="#166534" font-size="11">Rolling back Deployment/worker to revision 2</text>
-  <circle cx="78" cy="838" r="6" fill="none" stroke="#0097A7" stroke-width="2"/>
-  <circle cx="78" cy="838" r="2.5" fill="#0097A7"/>
-  <text x="92" y="842" fill="#151515" font-size="11" font-weight="500">Waiting for rollout to complete...</text>
-  <circle cx="78" cy="862" r="6" fill="none" stroke="#D1D5DB" stroke-width="1"/>
-  <text x="92" y="866" fill="#A3A6A9" font-size="11">Verify pod health checks pass</text>
-  <!-- Abort button -->
-  <rect x="560" y="860" width="90" height="24" rx="6" fill="white" stroke="#FECACA" stroke-width="1"/>
-  <text x="605" y="876" text-anchor="middle" fill="#EE0000" font-size="10">Cancel exec</text>
-
-  <!-- ===== POST-EXECUTION SUCCESS (shows what it looks like when done) ===== -->
-  <rect x="46" y="902" width="620" height="100" rx="12" fill="#F0FDF4" stroke="#16A34A" stroke-width="1"/>
-  <rect x="46" y="902" width="5" height="100" rx="3" fill="#16A34A"/>
-  <circle cx="66" cy="928" r="10" fill="#16A34A"/>
-  <path d="M62,928 L65,931 L71,925" stroke="white" stroke-width="2" fill="none"/>
-  <text x="82" y="932" fill="#166534" font-size="13" font-weight="700" font-family="Red Hat Display, sans-serif">Remediation Successful</text>
-  <text x="66" y="954" fill="#292929" font-size="11">Deployment/worker rolled back to revision 2. All 3 pods are Running and passing</text>
-  <text x="66" y="970" fill="#292929" font-size="11">health checks. CrashLoopBackOff resolved.</text>
-  <!-- Audit link -->
-  <text x="66" y="992" fill="#0066CC" font-size="10" text-decoration="underline">View RemediationRequest rr-d835a1f68ee8</text>
+  <!-- ===== WORKFLOW CARD 2: Not selected, normal state ===== -->
+  <rect x="46" y="822" width="728" height="44" rx="12" fill="white" stroke="#EBEBEB" stroke-width="1" opacity="0.5"/>
+  <circle cx="66" cy="844" r="8" fill="#DC2626"/>
+  <line x1="62" y1="844" x2="70" y2="844" stroke="white" stroke-width="2"/>
+  <text x="80" y="848" fill="#6A6E73" font-size="12" font-weight="700">patch-configuration-v1</text>
+  <rect x="290" y="836" width="62" height="18" rx="9" fill="#FEF2F2"/>
+  <text x="321" y="849" text-anchor="middle" fill="#DC2626" font-size="9" font-weight="600">Ruled out</text>
+  <text x="370" y="848" fill="#A3A6A9" font-size="11">selfHeal:true will revert in-cluster patches</text>
 
   <!-- ===== INPUT BAR ===== -->
-  <rect x="46" y="1018" width="728" height="44" rx="22" fill="#F9FAFB" stroke="#EBEBEB" stroke-width="1"/>
-  <text x="72" y="1044" fill="#A3A6A9" font-size="12">Ask a follow-up or type a new question...</text>
-  <!-- Send button -->
-  <circle cx="748" cy="1040" r="16" fill="#0097A7"/>
-  <path d="M748,1033 L748,1047 M742,1039 L748,1033 L754,1039" stroke="white" stroke-width="2" fill="none"/>
-
-  <!-- ===== FOOTER ===== -->
-  <text x="410" y="1082" text-anchor="middle" fill="#A3A6A9" font-size="10">Sign out | Powered by Kubernaut A2A</text>
-
-  <!-- ===== ANNOTATIONS (design notes) ===== -->
-  <rect x="46" y="1100" width="728" height="80" rx="8" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1"/>
-  <text x="62" y="1120" fill="#92400E" font-size="10" font-weight="600">Design Notes</text>
-  <text x="62" y="1136" fill="#92400E" font-size="9">1. Phase indicator in header shows current state (Investigating / RCA / Decision / Executing / Complete)</text>
-  <text x="62" y="1150" fill="#92400E" font-size="9">2. No intermediate buttons - workflows presented directly after RCA with inline CTA</text>
-  <text x="62" y="1164" fill="#92400E" font-size="9">3. Confirmation step shows parameters before execution. Abort available during execution.</text>
-  <text x="62" y="1178" fill="#92400E" font-size="9">4. Human-readable titles (from spec.description.what), workflow ID as fine print for audit trail</text>
+  <rect x="46" y="878" width="728" height="44" rx="22" fill="#F9FAFB" stroke="#EBEBEB" stroke-width="1"/>
+  <text x="72" y="904" fill="#A3A6A9" font-size="12">Ask a follow-up or start a new investigation...</text>
+  <circle cx="748" cy="900" r="16" fill="#0097A7"/>
+  <path d="M748,893 L748,907 M742,899 L748,893 L754,899" stroke="white" stroke-width="2" fill="none"/>
 </svg>
