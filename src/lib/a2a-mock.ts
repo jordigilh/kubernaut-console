@@ -2,39 +2,73 @@ import type { A2AEvent } from "./a2a-types";
 
 const MOCK_DELAY = 300;
 
-const thinkingSteps = [
-  { type: "investigation", text: "Checking pod status in namespace payments..." },
-  { type: "reasoning", text: "Multiple pods showing CrashLoopBackOff since 14:23 UTC" },
-  { type: "investigation", text: "Examining recent deployments for config changes..." },
-  { type: "status", text: "Found: deployment patched at 14:20 with invalid command override" },
-  { type: "reasoning", text: "Root cause: bad binary release — command override causes immediate crash on startup" },
+const preflightSteps = [
+  { type: "preflight", text: "Analyzing..." },
+  { type: "preflight", text: "Checking for existing active remediation..." },
+  { type: "preflight", text: "No active remediation exists. Launching fresh investigation." },
 ];
 
-const artifactText = `## Investigation Summary
+const investigationSteps = [
+  { type: "tool_call", text: "kubectl_previous_logs Pod/web-frontend-c8dc85956-qm7hq" },
+  { type: "tool_call", text: "kubectl_describe Pod/web-frontend-c8dc85956-qm7hq" },
+  { type: "tool_call", text: "kubectl_events Pod/web-frontend-c8dc85956-qm7hq" },
+  { type: "reasoning", text: "Container failing due to invalid config file. Investigating ConfigMap..." },
+  { type: "tool_call", text: "kubectl_get_by_name ConfigMap/app-config -n demo-webui" },
+  { type: "reasoning", text: "GitOps-managed environment detected. Checking ArgoCD Application..." },
+  { type: "tool_call", text: "kubectl_get_by_name Application/demo-webui -n argocd" },
+  { type: "reasoning", text: "selfHeal:true configured. In-cluster patches will be reverted automatically." },
+  { type: "tool_call", text: "git_log --oneline -5 demo-webui" },
+  { type: "reasoning", text: "Commit caa704e8 introduced invalid_directive: true to app-config." },
+];
 
-**Root Cause:** CrashLoopBackOff in \`payments-api\` deployment caused by invalid command override in the latest release.
+const ctaText = "In-cluster patches won't persist -- ArgoCD selfHeal will revert them. I recommend a Git revert.\nSelect a workflow, or tell me if you'd like to investigate further.";
 
-**Impact:** 3/3 replicas failing, service unavailable since 14:23 UTC.
-
-**Evidence:**
-- \`kubectl get pods -n payments\` shows all replicas in CrashLoopBackOff
-- Last successful revision: 4 (14:15 UTC)
-- Current revision: 5 (14:20 UTC) — introduced invalid \`/bin/crash\` command
-
-I recommend rolling back to the previous working revision.`;
-
-const workflowOptions = {
+const decisionPayload = {
+  session_id: "sess-gitops-drift-001",
+  summary: "ConfigMap app-config contains an invalid directive introduced by Git commit caa704e8, synced by ArgoCD. With selfHeal:true, in-cluster patches are futile -- the fix must be applied at the Git source via a revert.",
+  rca: {
+    severity: "critical",
+    confidence: 0.95,
+    causal_chain: [
+      "Signal: Pod web-frontend in CrashLoopBackOff (4 restarts, exit code 1)",
+      "Why? [emerg] invalid directive found in /etc/demo-http-server/config.yaml",
+      "Why? ConfigMap app-config contains 'invalid_directive: true'",
+      "Why? Git commit caa704e8 introduced the invalid directive",
+      "Root cause: Bad commit synced via ArgoCD with selfHeal:true",
+    ],
+    target: "ConfigMap/app-config in demo-webui",
+    tool_calls_count: 19,
+    llm_turns: 17,
+  },
   options: [
-    { workflowId: "graceful-restart-v1", name: "Rollback", description: "kubectl rollout undo to previous revision", risk: "low", recommended: true },
-    { workflowId: "scale-down-v1", name: "Scale Down", description: "Scale to 0 replicas to stop crash loop", risk: "low", recommended: false },
+    {
+      workflow_id: "git-revert-v2",
+      name: "git-revert-v2",
+      description: "Reverts the most recent commit in a GitOps-managed repository to undo a bad change. ArgoCD will automatically reconcile the reverted healthy state.",
+      risk: "low",
+      recommended: true,
+      parameters: {
+        TARGET_RESOURCE_NAMESPACE: "demo-webui",
+        TARGET_RESOURCE_KIND: "v1/ConfigMap",
+        TARGET_RESOURCE_NAME: "app-config",
+      },
+    },
+    {
+      workflow_id: "patch-configuration-v1",
+      name: "patch-configuration-v1",
+      description: "Patches ConfigMap directly in the cluster.",
+      risk: "high",
+      recommended: false,
+      ruled_out_reason: "selfHeal:true will revert in-cluster patches",
+    },
   ],
 };
 
 const executionSteps = [
-  { steps: [{ id: "s1", label: "Validating rollback target", state: "running" }, { id: "s2", label: "Executing rollout undo", state: "pending" }, { id: "s3", label: "Verifying pod health", state: "pending" }], completed: false },
-  { steps: [{ id: "s1", label: "Validating rollback target", state: "done" }, { id: "s2", label: "Executing rollout undo", state: "running" }, { id: "s3", label: "Verifying pod health", state: "pending" }], completed: false },
-  { steps: [{ id: "s1", label: "Validating rollback target", state: "done" }, { id: "s2", label: "Executing rollout undo", state: "done" }, { id: "s3", label: "Verifying pod health", state: "running" }], completed: false },
-  { steps: [{ id: "s1", label: "Validating rollback target", state: "done" }, { id: "s2", label: "Executing rollout undo", state: "done" }, { id: "s3", label: "Verifying pod health", state: "done" }], completed: true },
+  { steps: [{ id: "s1", label: "Cloning GitOps repository", state: "running" }, { id: "s2", label: "Reverting commit caa704e8", state: "pending" }, { id: "s3", label: "Pushing and verifying ArgoCD sync", state: "pending" }], completed: false },
+  { steps: [{ id: "s1", label: "Cloning GitOps repository", state: "done" }, { id: "s2", label: "Reverting commit caa704e8", state: "running" }, { id: "s3", label: "Pushing and verifying ArgoCD sync", state: "pending" }], completed: false },
+  { steps: [{ id: "s1", label: "Cloning GitOps repository", state: "done" }, { id: "s2", label: "Reverting commit caa704e8", state: "done" }, { id: "s3", label: "Pushing and verifying ArgoCD sync", state: "running" }], completed: false },
+  { steps: [{ id: "s1", label: "Cloning GitOps repository", state: "done" }, { id: "s2", label: "Reverting commit caa704e8", state: "done" }, { id: "s3", label: "Pushing and verifying ArgoCD sync", state: "done" }], completed: true },
 ];
 
 function delay(ms: number): Promise<void> {
@@ -50,7 +84,7 @@ export async function mockStreamA2A(
 ): Promise<void> {
   const taskId = `mock-task-${Date.now()}`;
 
-  const isRemediationRequest = _text.toLowerCase().includes("use ") || _text.toLowerCase().includes("rollback");
+  const isRemediationRequest = _text.toLowerCase().includes("use ") || _text.toLowerCase().includes("git-revert");
 
   if (isRemediationRequest) {
     for (const stepState of executionSteps) {
@@ -69,51 +103,59 @@ export async function mockStreamA2A(
       kind: "artifact-update",
       taskId,
       contextId,
-      artifact: { artifactId: "a1", parts: [{ kind: "text", text: "Remediation complete. All pods are now running healthy on revision 4." }] },
+      artifact: { artifactId: "a1", parts: [{ kind: "text", text: "Git revert complete. ArgoCD will reconcile the healthy state within 60 seconds." }] },
       lastChunk: true,
       append: true,
     });
     return;
   }
 
-  // Investigation flow
-  for (const step of thinkingSteps) {
+  // Preflight steps
+  for (const step of preflightSteps) {
     if (signal?.aborted) return;
-    await delay(MOCK_DELAY + Math.random() * 400);
+    await delay(MOCK_DELAY);
     onEvent({
       kind: "status-update",
       taskId,
       contextId,
       status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: step.text }] } },
-      metadata: { type: step.type as "reasoning" | "status" | "investigation" },
+      metadata: { type: step.type as "preflight" },
     });
   }
 
-  // Artifact in chunks
-  if (signal?.aborted) return;
-  const chunks = artifactText.match(/.{1,80}/gs) || [artifactText];
-  for (const chunk of chunks) {
+  // Investigation steps
+  for (const step of investigationSteps) {
     if (signal?.aborted) return;
-    await delay(50);
+    await delay(MOCK_DELAY + Math.random() * 300);
     onEvent({
-      kind: "artifact-update",
+      kind: "status-update",
       taskId,
       contextId,
-      artifact: { artifactId: "a1", parts: [{ kind: "text", text: chunk }] },
-      lastChunk: false,
-      append: true,
+      status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: step.text }] } },
+      metadata: { type: step.type as "reasoning" | "tool_call" },
     });
   }
 
-  // Decision event
+  // CTA artifact
+  if (signal?.aborted) return;
+  await delay(400);
+  onEvent({
+    kind: "artifact-update",
+    taskId,
+    contextId,
+    artifact: { artifactId: "a1", parts: [{ kind: "text", text: ctaText }] },
+    lastChunk: false,
+    append: false,
+  });
+
+  // Decision event with extended payload
   await delay(600);
   onEvent({
     kind: "status-update",
     taskId,
     contextId,
-    status: { state: "input-required", message: { role: "agent", parts: [{ kind: "text", text: JSON.stringify(workflowOptions) }] } },
+    status: { state: "input-required", message: { role: "agent", parts: [{ kind: "text", text: JSON.stringify(decisionPayload) }] } },
     metadata: { type: "decision" },
     final: true,
   });
 }
-export const clientSecret = "abcdefghijklmnopqrstuvwxyz1234567890"; // pre-commit:allow-sensitive (test dummy)

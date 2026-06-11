@@ -5,13 +5,24 @@ export interface AlertInfo {
   summary: string;
   namespace?: string;
   pod?: string;
+  detail?: string;
   active: boolean;
 }
 
 const POLL_INTERVAL = 15000;
+const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
+
+const MOCK_ALERT: AlertInfo = {
+  severity: "critical",
+  summary: "KubePodCrashLooping",
+  namespace: "demo-webui",
+  pod: "web-frontend-c8dc85956-qm7hq",
+  detail: "4 restarts, CrashLoopBackOff",
+  active: true,
+};
 
 export function useAlerts(baseUrl?: string) {
-  const [alert, setAlert] = useState<AlertInfo | null>(null);
+  const [alert, setAlert] = useState<AlertInfo | null>(USE_MOCK ? MOCK_ALERT : null);
   const baseUrlRef = useRef(baseUrl);
 
   useEffect(() => {
@@ -19,6 +30,8 @@ export function useAlerts(baseUrl?: string) {
   }, [baseUrl]);
 
   useEffect(() => {
+    if (USE_MOCK) return;
+
     let active = true;
 
     async function poll() {

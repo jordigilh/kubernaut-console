@@ -8,8 +8,18 @@ const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
 export interface ThinkingEntry {
   id: string;
-  type: "reasoning" | "status" | "investigation";
+  type: "reasoning" | "status" | "investigation" | "preflight" | "tool_call";
   text: string;
+}
+
+export interface RCAData {
+  severity: string;
+  confidence: number;
+  causalChain: string[];
+  target: string;
+  toolCallsCount: number;
+  llmTurns: number;
+  summary: string;
 }
 
 export interface WorkflowOption {
@@ -18,6 +28,8 @@ export interface WorkflowOption {
   description: string;
   risk?: string;
   recommended?: boolean;
+  ruledOutReason?: string;
+  parameters?: Record<string, string>;
 }
 
 export interface ChatMessage {
@@ -27,10 +39,11 @@ export interface ChatMessage {
   timestamp: number;
   thinking?: ThinkingEntry[];
   workflowOptions?: WorkflowOption[];
+  rca?: RCAData;
   executionSteps?: ExecutionStep[];
   executionComplete?: boolean;
   isStreaming?: boolean;
-  phase?: "investigation" | "remediation" | "complete";
+  phase?: "investigation" | "decision" | "remediation" | "complete";
 }
 
 export type ConnectionStatus = "idle" | "connected" | "reconnecting" | "lost";
@@ -77,6 +90,7 @@ export function useChat() {
   const artifactRef = useRef("");
   const messageIdRef = useRef(0);
   const lastSendRef = useRef(0);
+  const [investigationStartTime, setInvestigationStartTime] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     if (!isStreaming) {
@@ -112,9 +126,11 @@ export function useChat() {
       timestamp: Date.now(),
       thinking: [],
       isStreaming: true,
+      phase: "investigation",
     };
     setMessages((prev) => [...prev, agentMsg]);
     setIsStreaming(true);
+    setInvestigationStartTime(Date.now());
 
     const request = buildStreamRequest(text, contextIdRef.current);
     const controller = new AbortController();
@@ -169,16 +185,33 @@ export function useChat() {
             return;
           }
           const parsed = JSON.parse(msgText);
+          const updates: Partial<ChatMessage> = { phase: "decision" };
+
+          if (parsed.rca) {
+            updates.rca = {
+              severity: parsed.rca.severity,
+              confidence: parsed.rca.confidence,
+              causalChain: parsed.rca.causal_chain ?? [],
+              target: parsed.rca.target,
+              toolCallsCount: parsed.rca.tool_calls_count ?? 0,
+              llmTurns: parsed.rca.llm_turns ?? 0,
+              summary: parsed.summary ?? "",
+            };
+          }
+
           if (Array.isArray(parsed.options)) {
-            const mapped = parsed.options.map((o: Record<string, unknown>) => ({
+            updates.workflowOptions = parsed.options.map((o: Record<string, unknown>) => ({
               workflowId: o.workflow_id || o.workflowId,
               name: o.name,
               description: o.description,
               risk: o.risk,
               recommended: o.recommended ?? false,
+              ruledOutReason: o.ruled_out_reason as string | undefined,
+              parameters: o.parameters as Record<string, string> | undefined,
             }));
-            update({ workflowOptions: mapped });
           }
+
+          update(updates);
         } catch {
           // Not structured JSON
         }
@@ -212,7 +245,9 @@ export function useChat() {
       if (
         metaType === "reasoning" ||
         metaType === "status" ||
-        metaType === "investigation"
+        metaType === "investigation" ||
+        metaType === "preflight" ||
+        metaType === "tool_call"
       ) {
         const text = event.status.message?.parts
           .filter((p) => p.kind === "text")
@@ -280,5 +315,5 @@ export function useChat() {
     sessionStorage.removeItem(CONTEXT_KEY);
   }, []);
 
-  return { messages, isStreaming, error, connectionStatus, sendMessage, cancelStream, clearHistory };
+  return { messages, isStreaming, error, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime };
 }
