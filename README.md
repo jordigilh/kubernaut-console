@@ -2,6 +2,8 @@
 
 A standalone web console for demonstrating [Kubernaut](https://github.com/jordigilh/kubernaut)'s A2A (Agent-to-Agent) capabilities. This application connects to Kubernaut's API Frontend over the A2A protocol and provides a chat-based interface for interactive incident remediation.
 
+![Kubernaut Console UI](docs/ui-mockup.png)
+
 ## Features
 
 - **A2A SSE streaming** — Real-time streaming via `fetch()` + `ReadableStream` (JSON-RPC `message/stream`)
