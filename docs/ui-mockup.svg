@@ -1,122 +1,168 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1020" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 1200" font-family="Red Hat Text, Red Hat Display, -apple-system, sans-serif">
+  <defs>
+    <filter id="cardShadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.06"/>
+    </filter>
+  </defs>
+
   <!-- Background -->
-  <rect width="800" height="1020" fill="#0f172a"/>
+  <rect width="820" height="1200" fill="#F9FAFB"/>
   
-  <!-- Container card -->
-  <rect x="40" y="20" width="720" height="980" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1"/>
-  
-  <!-- Header -->
-  <rect x="40" y="20" width="720" height="56" rx="12" fill="#1e293b"/>
-  <rect x="40" y="64" width="720" height="1" fill="#334155"/>
-  <circle cx="72" cy="48" r="14" fill="#3b82f6"/>
-  <text x="72" y="53" text-anchor="middle" fill="white" font-size="12" font-weight="bold">K</text>
-  <text x="96" y="53" fill="#f1f5f9" font-size="15" font-weight="600">Kubernaut Console</text>
-  <circle cx="680" cy="48" r="5" fill="#22c55e"/>
-  <text x="694" y="52" fill="#94a3b8" font-size="11">Connected</text>
-  <rect x="580" y="34" width="80" height="28" rx="6" fill="#334155"/>
-  <text x="620" y="52" text-anchor="middle" fill="#94a3b8" font-size="11">+ New Chat</text>
+  <!-- Container -->
+  <rect x="30" y="16" width="760" height="1168" rx="16" fill="white" stroke="#EBEBEB" stroke-width="1" filter="url(#cardShadow)"/>
 
-  <!-- Alert Banner -->
-  <rect x="56" y="76" width="688" height="44" rx="8" fill="#7f1d1d" stroke="#dc2626" stroke-width="1"/>
-  <circle cx="78" cy="98" r="8" fill="#dc2626"/>
-  <text x="78" y="102" text-anchor="middle" fill="white" font-size="10" font-weight="bold">!</text>
-  <text x="94" y="93" fill="#fecaca" font-size="12" font-weight="600">KubePodCrashLooping [critical]</text>
-  <text x="94" y="110" fill="#fca5a5" font-size="11">worker-79ffc8cd99-tbhgn in demo-checkout (CrashLoopBackOff, 4 restarts)</text>
+  <!-- ===== HEADER (teal gradient) ===== -->
+  <rect x="30" y="16" width="760" height="56" rx="16" fill="#0097A7"/>
+  <rect x="30" y="56" width="760" height="16" fill="#0097A7"/>
+  <!-- Logo -->
+  <circle cx="62" cy="44" r="14" fill="rgba(255,255,255,0.2)"/>
+  <text x="62" y="49" text-anchor="middle" fill="white" font-size="12" font-weight="700">K</text>
+  <text x="86" y="48" fill="white" font-size="14" font-weight="700" font-family="Red Hat Display, sans-serif">Kubernaut Console</text>
+  <!-- Phase indicator -->
+  <rect x="330" y="32" width="180" height="24" rx="12" fill="rgba(255,255,255,0.15)"/>
+  <circle cx="348" cy="44" r="4" fill="#4ade80"/>
+  <text x="360" y="48" fill="rgba(255,255,255,0.9)" font-size="11" font-weight="500">Executing remediation</text>
+  <!-- Actions -->
+  <text x="700" y="48" fill="rgba(255,255,255,0.7)" font-size="11">+ New</text>
+  <circle cx="752" cy="44" r="12" fill="rgba(255,255,255,0.2)"/>
+  <text x="752" y="48" text-anchor="middle" fill="white" font-size="10" font-weight="700">JG</text>
 
-  <!-- User message -->
-  <rect x="260" y="136" width="468" height="42" rx="12" fill="#3b82f6"/>
-  <text x="276" y="160" fill="white" font-size="13">What's happening with the worker pods in demo-checkout?</text>
-  <text x="660" y="172" fill="#93c5fd" font-size="9">8:14 PM</text>
+  <!-- ===== ALERT BANNER ===== -->
+  <rect x="46" y="82" width="728" height="44" rx="8" fill="#FEF2F2" stroke="#FECACA" stroke-width="1"/>
+  <circle cx="68" cy="104" r="8" fill="#EE0000"/>
+  <text x="68" y="108" text-anchor="middle" fill="white" font-size="9" font-weight="700">!</text>
+  <text x="84" y="99" fill="#7F1D1D" font-size="12" font-weight="600">KubePodCrashLooping</text>
+  <text x="214" y="99" fill="#6A6E73" font-size="11">[critical]</text>
+  <text x="84" y="116" fill="#991B1B" font-size="11">worker-79ffc8cd99-tbhgn in demo-checkout (4 restarts, CrashLoopBackOff)</text>
 
-  <!-- Thinking panel (expanded - showing LLM reasoning, not tool names) -->
-  <rect x="56" y="192" width="560" height="140" rx="8" fill="#1a2332" stroke="#334155" stroke-width="1"/>
-  <polygon points="76,208 82,212 76,216" fill="#94a3b8"/>
-  <text x="90" y="214" fill="#94a3b8" font-size="11" font-weight="600">Investigating</text>
-  <text x="520" y="214" fill="#475569" font-size="10">12.4s</text>
-  <!-- LLM thinking steps (analysis_preview from AF events) -->
-  <circle cx="74" cy="236" r="3" fill="#3b82f6"/>
-  <text x="84" y="240" fill="#94a3b8" font-size="10" font-style="italic">Gathering information about the affected pod and deployment...</text>
-  <circle cx="74" cy="258" r="3" fill="#3b82f6"/>
-  <text x="84" y="262" fill="#94a3b8" font-size="10" font-style="italic">Root cause is clear: container command was overridden via kubectl patch.</text>
-  <circle cx="74" cy="280" r="3" fill="#3b82f6"/>
-  <text x="84" y="284" fill="#94a3b8" font-size="10" font-style="italic">Fetching pod logs and checking other pods to confirm full scope.</text>
-  <circle cx="74" cy="302" r="3" fill="#3b82f6"/>
-  <text x="84" y="306" fill="#94a3b8" font-size="10" font-style="italic">RollbackDeployment is the clear match. Discovering available workflows...</text>
-  <circle cx="74" cy="324" r="3" fill="#22c55e"/>
-  <text x="84" y="328" fill="#94a3b8" font-size="10" font-style="italic">Three workflows found. Best match: crashloop-rollback-v1 (95% confidence).</text>
+  <!-- ===== USER MESSAGE ===== -->
+  <rect x="310" y="140" width="464" height="38" rx="16" fill="#E0F2FE"/>
+  <text x="326" y="163" fill="#0C4A6E" font-size="12">What's happening with the worker pods in demo-checkout?</text>
 
-  <!-- Agent RCA response -->
-  <rect x="56" y="346" width="600" height="130" rx="12" fill="#1a2332"/>
-  <text x="72" y="370" fill="#e2e8f0" font-size="13" font-weight="600">Root Cause Analysis</text>
-  <text x="72" y="392" fill="#cbd5e1" font-size="11">The worker Deployment in demo-checkout was patched at 12:53 UTC to</text>
-  <text x="72" y="408" fill="#cbd5e1" font-size="11">override the container command with a fatal exit script. The injected</text>
-  <text x="72" y="424" fill="#cbd5e1" font-size="11">command references release 1.1.0 while the image is 1.0.0, suggesting a</text>
-  <text x="72" y="440" fill="#cbd5e1" font-size="11">botched deployment automation script.</text>
-  <line x1="72" y1="452" x2="640" y2="452" stroke="#334155" stroke-width="1"/>
-  <text x="72" y="468" fill="#64748b" font-size="10">Severity: critical | Target: Deployment/worker | Confidence: 95%</text>
+  <!-- ===== THINKING PANEL (collapsed, completed) ===== -->
+  <rect x="46" y="192" width="500" height="28" rx="6" fill="#F9FAFB" stroke="#EBEBEB" stroke-width="1"/>
+  <polygon points="60,203 66,207 60,211" fill="#A3A6A9"/>
+  <text x="74" y="210" fill="#6A6E73" font-size="11">Investigated in 4 steps</text>
+  <text x="460" y="210" fill="#A3A6A9" font-size="10">12s</text>
 
-  <!-- Workflow Cards -->
-  <text x="56" y="500" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="0.5">AVAILABLE REMEDIATION WORKFLOWS</text>
-  
-  <!-- Card 1: crashloop-rollback-v1 (Recommended, 95%) -->
-  <rect x="56" y="514" width="330" height="120" rx="10" fill="#1a2332" stroke="#3b82f6" stroke-width="2"/>
-  <rect x="66" y="524" width="90" height="20" rx="10" fill="#1e3a5f"/>
-  <text x="111" y="538" text-anchor="middle" fill="#60a5fa" font-size="9" font-weight="600">RECOMMENDED</text>
-  <text x="72" y="560" fill="#e2e8f0" font-size="12" font-weight="600">crashloop-rollback-v1</text>
-  <text x="72" y="578" fill="#94a3b8" font-size="10">Purpose-built for CrashLoopBackOff caused</text>
-  <text x="72" y="592" fill="#94a3b8" font-size="10">by pod spec changes. Reverts entire pod</text>
-  <text x="72" y="606" fill="#94a3b8" font-size="10">template to last known-good revision.</text>
-  <text x="72" y="624" fill="#475569" font-size="9">Confidence: 95% | Risk: low</text>
-  <circle cx="360" cy="568" r="14" fill="#334155"/>
-  <path d="M354,568 L366,568 M362,564 L366,568 L362,572" stroke="#60a5fa" stroke-width="2" fill="none"/>
+  <!-- ===== RCA CARD (the artifact) ===== -->
+  <rect x="46" y="232" width="620" height="158" rx="12" fill="white" stroke="#EBEBEB" stroke-width="1" filter="url(#cardShadow)"/>
+  <!-- Left accent bar -->
+  <rect x="46" y="232" width="5" height="158" rx="3" fill="#EE0000"/>
+  <!-- Content -->
+  <text x="66" y="258" fill="#151515" font-size="14" font-weight="700" font-family="Red Hat Display, sans-serif">Root Cause Analysis</text>
+  <rect x="230" y="244" width="52" height="18" rx="9" fill="#FEF2F2"/>
+  <text x="256" y="256" text-anchor="middle" fill="#EE0000" font-size="9" font-weight="600">critical</text>
+  <!-- Causal chain only (no duplicate summary) -->
+  <text x="66" y="284" fill="#292929" font-size="11">Container command was overridden via kubectl-patch at 12:53 UTC</text>
+  <text x="66" y="302" fill="#292929" font-size="11">to inject a fatal exit script referencing 'bad release 1.1.0'.</text>
+  <line x1="66" y1="316" x2="650" y2="316" stroke="#EBEBEB" stroke-width="1"/>
+  <text x="66" y="336" fill="#6A6E73" font-size="10" font-weight="500">Causal chain:</text>
+  <text x="78" y="354" fill="#6A6E73" font-size="10">1. Deployment patched with fatal command override</text>
+  <text x="78" y="370" fill="#6A6E73" font-size="10">2. New ReplicaSet pods exit immediately (code 1)</text>
+  <text x="78" y="386" fill="#6A6E73" font-size="10">3. Rolling update stuck, 2 healthy old pods remain</text>
 
-  <!-- Card 2: rollback-deployment-v1 (Alternative, 80%) -->
-  <rect x="400" y="514" width="330" height="120" rx="10" fill="#1a2332" stroke="#334155" stroke-width="1"/>
-  <text x="416" y="540" fill="#e2e8f0" font-size="12" font-weight="600">rollback-deployment-v1</text>
-  <text x="416" y="558" fill="#94a3b8" font-size="10">General-purpose rollback for stuck rollouts</text>
-  <text x="416" y="572" fill="#94a3b8" font-size="10">and bad spec changes. Valid fallback, but</text>
-  <text x="416" y="586" fill="#94a3b8" font-size="10">less specifically targeted to CrashLoopBackOff.</text>
-  <text x="416" y="624" fill="#475569" font-size="9">Confidence: 80% | Risk: low</text>
-  <circle cx="704" cy="558" r="14" fill="#334155"/>
-  <path d="M698,558 L710,558 M706,554 L710,558 L706,562" stroke="#64748b" stroke-width="2" fill="none"/>
+  <!-- ===== AGENT CTA (directly present workflows, no intermediate buttons) ===== -->
+  <rect x="46" y="402" width="620" height="32" rx="8" fill="#F0FDFA"/>
+  <text x="62" y="422" fill="#0097A7" font-size="11" font-weight="500">I recommend rolling back. Select a workflow to execute, or type to investigate further.</text>
 
-  <!-- Card 3: crashloop-rollback-risk-v1 (Alternative, 60%) -->
-  <rect x="56" y="646" width="330" height="100" rx="10" fill="#1a2332" stroke="#334155" stroke-width="1"/>
-  <text x="72" y="672" fill="#e2e8f0" font-size="12" font-weight="600">crashloop-rollback-risk-v1</text>
-  <text x="72" y="690" fill="#94a3b8" font-size="10">Same rollback scenario but gated on</text>
-  <text x="72" y="704" fill="#94a3b8" font-size="10">risk_tolerance=low. Lower confidence for</text>
-  <text x="72" y="718" fill="#94a3b8" font-size="10">this P0/medium risk incident.</text>
-  <text x="72" y="736" fill="#475569" font-size="9">Confidence: 60% | Risk: low (gated)</text>
-  <circle cx="360" cy="690" r="14" fill="#334155"/>
-  <path d="M354,690 L366,690 M362,686 L366,690 L362,694" stroke="#64748b" stroke-width="2" fill="none"/>
+  <!-- ===== WORKFLOW CARDS (human-readable titles, visual confidence) ===== -->
 
-  <!-- Execution Progress (after user selects crashloop-rollback-v1) -->
-  <rect x="56" y="766" width="600" height="148" rx="10" fill="#1a2332" stroke="#334155" stroke-width="1"/>
-  <text x="72" y="790" fill="#94a3b8" font-size="10" font-weight="600" letter-spacing="0.5">EXECUTING: crashloop-rollback-v1</text>
-  <text x="72" y="806" fill="#475569" font-size="9">TARGET: Deployment/worker in demo-checkout | ENGINE: job</text>
-  <!-- Step 1 complete -->
-  <circle cx="80" cy="830" r="7" fill="#22c55e"/>
-  <path d="M76,830 L79,833 L84,827" stroke="white" stroke-width="1.5" fill="none"/>
-  <text x="96" y="834" fill="#cbd5e1" font-size="11">Resolving previous healthy revision (worker-5ccfd4c787)</text>
-  <!-- Step 2 complete -->
-  <circle cx="80" cy="854" r="7" fill="#22c55e"/>
-  <path d="M76,854 L79,857 L84,851" stroke="white" stroke-width="1.5" fill="none"/>
-  <text x="96" y="858" fill="#cbd5e1" font-size="11">Rolling back Deployment/worker to revision 2</text>
-  <!-- Step 3 in progress -->
-  <circle cx="80" cy="878" r="7" fill="none" stroke="#3b82f6" stroke-width="2"/>
-  <circle cx="80" cy="878" r="3" fill="#3b82f6"/>
-  <text x="96" y="882" fill="#e2e8f0" font-size="11">Waiting for rollout to complete...</text>
-  <!-- Step 4 pending -->
-  <circle cx="80" cy="902" r="7" fill="none" stroke="#475569" stroke-width="1"/>
-  <text x="96" y="906" fill="#64748b" font-size="11">Verify pod health checks pass</text>
+  <!-- Card 1: Recommended -->
+  <rect x="46" y="448" width="352" height="130" rx="12" fill="white" stroke="#0097A7" stroke-width="2" filter="url(#cardShadow)"/>
+  <!-- Confidence indicator (green circle) -->
+  <circle cx="66" cy="472" r="8" fill="#16A34A"/>
+  <path d="M63,472 L65,474 L69,470" stroke="white" stroke-width="1.5" fill="none"/>
+  <text x="80" y="476" fill="#151515" font-size="13" font-weight="700" font-family="Red Hat Display, sans-serif">Roll Back Deployment</text>
+  <!-- Recommended badge -->
+  <rect x="250" y="464" width="82" height="18" rx="9" fill="#F0FDFA" stroke="#0097A7" stroke-width="0.5"/>
+  <text x="291" y="477" text-anchor="middle" fill="#0097A7" font-size="9" font-weight="600">Recommended</text>
+  <!-- Description (from spec.description.what) -->
+  <text x="66" y="498" fill="#292929" font-size="11">Reverts the entire pod template to the last</text>
+  <text x="66" y="514" fill="#292929" font-size="11">known-good revision. Purpose-built for</text>
+  <text x="66" y="530" fill="#292929" font-size="11">CrashLoopBackOff caused by spec changes.</text>
+  <!-- Rationale -->
+  <text x="66" y="552" fill="#6A6E73" font-size="9" font-style="italic">Matches: bad spec patch causing exit code 1</text>
+  <!-- Fine print -->
+  <text x="66" y="570" fill="#A3A6A9" font-size="9">crashloop-rollback-v1</text>
 
-  <!-- Input Area -->
-  <rect x="56" y="930" width="688" height="48" rx="24" fill="#0f172a" stroke="#334155" stroke-width="1"/>
-  <text x="82" y="958" fill="#64748b" font-size="13">Ask about an incident or select a workflow...</text>
-  <circle cx="716" cy="954" r="18" fill="#3b82f6"/>
-  <path d="M716,946 L716,962 M710,952 L716,946 L722,952" stroke="white" stroke-width="2" fill="none"/>
+  <!-- Card 2 -->
+  <rect x="412" y="448" width="352" height="130" rx="12" fill="white" stroke="#EBEBEB" stroke-width="1" filter="url(#cardShadow)"/>
+  <!-- Confidence indicator (yellow/amber) -->
+  <circle cx="432" cy="472" r="8" fill="#F59E0B"/>
+  <text x="432" y="476" text-anchor="middle" fill="white" font-size="8" font-weight="700">2</text>
+  <text x="446" y="476" fill="#151515" font-size="13" font-weight="700" font-family="Red Hat Display, sans-serif">General Rollback</text>
+  <!-- Description -->
+  <text x="432" y="498" fill="#292929" font-size="11">General-purpose rollback for stuck rollouts</text>
+  <text x="432" y="514" fill="#292929" font-size="11">and bad spec changes. Valid fallback,</text>
+  <text x="432" y="530" fill="#292929" font-size="11">less targeted to CrashLoopBackOff.</text>
+  <!-- Rationale -->
+  <text x="432" y="552" fill="#6A6E73" font-size="9" font-style="italic">Less specific than crashloop-rollback-v1</text>
+  <!-- Fine print -->
+  <text x="432" y="570" fill="#A3A6A9" font-size="9">rollback-deployment-v1</text>
 
-  <!-- Footer -->
-  <text x="400" y="994" text-anchor="middle" fill="#475569" font-size="10">Sign out  |  Powered by Kubernaut A2A</text>
+  <!-- ===== CONFIRMATION STEP (after user clicks recommended card) ===== -->
+  <rect x="46" y="594" width="620" height="112" rx="12" fill="white" stroke="#0097A7" stroke-width="1" filter="url(#cardShadow)"/>
+  <text x="66" y="618" fill="#151515" font-size="12" font-weight="700" font-family="Red Hat Display, sans-serif">Confirm Execution</text>
+  <text x="66" y="640" fill="#292929" font-size="11">This will roll back Deployment/worker to its previous revision.</text>
+  <!-- Parameters -->
+  <rect x="66" y="652" width="420" height="20" rx="4" fill="#F9FAFB"/>
+  <text x="78" y="666" fill="#6A6E73" font-size="9" font-family="monospace">TARGET_RESOURCE_NAME=worker  NAMESPACE=demo-checkout</text>
+  <!-- Buttons -->
+  <rect x="66" y="680" width="80" height="28" rx="6" fill="#0097A7"/>
+  <text x="106" y="698" text-anchor="middle" fill="white" font-size="11" font-weight="600">Execute</text>
+  <rect x="158" y="680" width="70" height="28" rx="6" fill="white" stroke="#EBEBEB" stroke-width="1"/>
+  <text x="193" y="698" text-anchor="middle" fill="#6A6E73" font-size="11">Cancel</text>
+
+  <!-- ===== EXECUTION PROGRESS ===== -->
+  <rect x="46" y="722" width="620" height="164" rx="12" fill="#F0FDF4" stroke="#BBF7D0" stroke-width="1"/>
+  <!-- Left accent bar -->
+  <rect x="46" y="722" width="5" height="164" rx="3" fill="#16A34A"/>
+  <text x="66" y="748" fill="#166534" font-size="12" font-weight="700" font-family="Red Hat Display, sans-serif">Executing: Roll Back Deployment</text>
+  <text x="66" y="764" fill="#6A6E73" font-size="10">Target: Deployment/worker in demo-checkout</text>
+  <!-- Steps -->
+  <circle cx="78" cy="790" r="6" fill="#16A34A"/>
+  <path d="M75,790 L77,792 L81,788" stroke="white" stroke-width="1.2" fill="none"/>
+  <text x="92" y="794" fill="#166534" font-size="11">Resolving previous healthy revision (worker-5ccfd4c787)</text>
+  <circle cx="78" cy="814" r="6" fill="#16A34A"/>
+  <path d="M75,814 L77,816 L81,812" stroke="white" stroke-width="1.2" fill="none"/>
+  <text x="92" y="818" fill="#166534" font-size="11">Rolling back Deployment/worker to revision 2</text>
+  <circle cx="78" cy="838" r="6" fill="none" stroke="#0097A7" stroke-width="2"/>
+  <circle cx="78" cy="838" r="2.5" fill="#0097A7"/>
+  <text x="92" y="842" fill="#151515" font-size="11" font-weight="500">Waiting for rollout to complete...</text>
+  <circle cx="78" cy="862" r="6" fill="none" stroke="#D1D5DB" stroke-width="1"/>
+  <text x="92" y="866" fill="#A3A6A9" font-size="11">Verify pod health checks pass</text>
+  <!-- Abort button -->
+  <rect x="560" y="860" width="90" height="24" rx="6" fill="white" stroke="#FECACA" stroke-width="1"/>
+  <text x="605" y="876" text-anchor="middle" fill="#EE0000" font-size="10">Cancel exec</text>
+
+  <!-- ===== POST-EXECUTION SUCCESS (shows what it looks like when done) ===== -->
+  <rect x="46" y="902" width="620" height="100" rx="12" fill="#F0FDF4" stroke="#16A34A" stroke-width="1"/>
+  <rect x="46" y="902" width="5" height="100" rx="3" fill="#16A34A"/>
+  <circle cx="66" cy="928" r="10" fill="#16A34A"/>
+  <path d="M62,928 L65,931 L71,925" stroke="white" stroke-width="2" fill="none"/>
+  <text x="82" y="932" fill="#166534" font-size="13" font-weight="700" font-family="Red Hat Display, sans-serif">Remediation Successful</text>
+  <text x="66" y="954" fill="#292929" font-size="11">Deployment/worker rolled back to revision 2. All 3 pods are Running and passing</text>
+  <text x="66" y="970" fill="#292929" font-size="11">health checks. CrashLoopBackOff resolved.</text>
+  <!-- Audit link -->
+  <text x="66" y="992" fill="#0066CC" font-size="10" text-decoration="underline">View RemediationRequest rr-d835a1f68ee8</text>
+
+  <!-- ===== INPUT BAR ===== -->
+  <rect x="46" y="1018" width="728" height="44" rx="22" fill="#F9FAFB" stroke="#EBEBEB" stroke-width="1"/>
+  <text x="72" y="1044" fill="#A3A6A9" font-size="12">Ask a follow-up or type a new question...</text>
+  <!-- Send button -->
+  <circle cx="748" cy="1040" r="16" fill="#0097A7"/>
+  <path d="M748,1033 L748,1047 M742,1039 L748,1033 L754,1039" stroke="white" stroke-width="2" fill="none"/>
+
+  <!-- ===== FOOTER ===== -->
+  <text x="410" y="1082" text-anchor="middle" fill="#A3A6A9" font-size="10">Sign out | Powered by Kubernaut A2A</text>
+
+  <!-- ===== ANNOTATIONS (design notes) ===== -->
+  <rect x="46" y="1100" width="728" height="80" rx="8" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1"/>
+  <text x="62" y="1120" fill="#92400E" font-size="10" font-weight="600">Design Notes</text>
+  <text x="62" y="1136" fill="#92400E" font-size="9">1. Phase indicator in header shows current state (Investigating / RCA / Decision / Executing / Complete)</text>
+  <text x="62" y="1150" fill="#92400E" font-size="9">2. No intermediate buttons - workflows presented directly after RCA with inline CTA</text>
+  <text x="62" y="1164" fill="#92400E" font-size="9">3. Confirmation step shows parameters before execution. Abort available during execution.</text>
+  <text x="62" y="1178" fill="#92400E" font-size="9">4. Human-readable titles (from spec.description.what), workflow ID as fine print for audit trail</text>
 </svg>
