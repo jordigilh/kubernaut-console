@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 960" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1020" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
   <!-- Background -->
-  <rect width="800" height="960" fill="#0f172a"/>
+  <rect width="800" height="1020" fill="#0f172a"/>
   
   <!-- Container card -->
-  <rect x="40" y="20" width="720" height="920" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <rect x="40" y="20" width="720" height="980" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1"/>
   
   <!-- Header -->
   <rect x="40" y="20" width="720" height="56" rx="12" fill="#1e293b"/>
@@ -22,89 +22,101 @@
   <circle cx="78" cy="98" r="8" fill="#dc2626"/>
   <text x="78" y="102" text-anchor="middle" fill="white" font-size="10" font-weight="bold">!</text>
   <text x="94" y="93" fill="#fecaca" font-size="12" font-weight="600">KubePodCrashLooping [critical]</text>
-  <text x="94" y="110" fill="#fca5a5" font-size="11">worker-77784c6cf7-gp6v5 in demo-crashloop (4 restarts, CrashLoopBackOff)</text>
+  <text x="94" y="110" fill="#fca5a5" font-size="11">worker-79ffc8cd99-tbhgn in demo-checkout (CrashLoopBackOff, 4 restarts)</text>
 
   <!-- User message -->
-  <rect x="280" y="136" width="448" height="42" rx="12" fill="#3b82f6"/>
-  <text x="296" y="160" fill="white" font-size="13">What's happening with the worker pods in demo-crashloop?</text>
+  <rect x="260" y="136" width="468" height="42" rx="12" fill="#3b82f6"/>
+  <text x="276" y="160" fill="white" font-size="13">What's happening with the worker pods in demo-checkout?</text>
   <text x="660" y="172" fill="#93c5fd" font-size="9">8:14 PM</text>
 
-  <!-- Thinking panel (expanded) -->
-  <rect x="56" y="192" width="520" height="108" rx="8" fill="#1a2332" stroke="#334155" stroke-width="1"/>
+  <!-- Thinking panel (expanded - showing LLM reasoning, not tool names) -->
+  <rect x="56" y="192" width="560" height="140" rx="8" fill="#1a2332" stroke="#334155" stroke-width="1"/>
   <polygon points="76,208 82,212 76,216" fill="#94a3b8"/>
-  <text x="90" y="214" fill="#94a3b8" font-size="11" font-weight="600">Investigating (11 tool calls, 15 LLM turns)</text>
-  <text x="476" y="214" fill="#475569" font-size="10">12.4s</text>
-  <!-- Tool call steps -->
-  <text x="76" y="236" fill="#64748b" font-size="10">kubectl_describe pod/worker-77784c6cf7-gp6v5</text>
-  <text x="76" y="252" fill="#64748b" font-size="10">kubectl_events -n demo-crashloop</text>
-  <text x="76" y="268" fill="#64748b" font-size="10">kubectl_previous_logs pod/worker-77784c6cf7-gp6v5</text>
-  <text x="76" y="284" fill="#64748b" font-size="10">list_workflows (actionType=RollbackDeployment, PatchConfiguration)</text>
+  <text x="90" y="214" fill="#94a3b8" font-size="11" font-weight="600">Investigating</text>
+  <text x="520" y="214" fill="#475569" font-size="10">12.4s</text>
+  <!-- LLM thinking steps (analysis_preview from AF events) -->
+  <circle cx="74" cy="236" r="3" fill="#3b82f6"/>
+  <text x="84" y="240" fill="#94a3b8" font-size="10" font-style="italic">Gathering information about the affected pod and deployment...</text>
+  <circle cx="74" cy="258" r="3" fill="#3b82f6"/>
+  <text x="84" y="262" fill="#94a3b8" font-size="10" font-style="italic">Root cause is clear: container command was overridden via kubectl patch.</text>
+  <circle cx="74" cy="280" r="3" fill="#3b82f6"/>
+  <text x="84" y="284" fill="#94a3b8" font-size="10" font-style="italic">Fetching pod logs and checking other pods to confirm full scope.</text>
+  <circle cx="74" cy="302" r="3" fill="#3b82f6"/>
+  <text x="84" y="306" fill="#94a3b8" font-size="10" font-style="italic">RollbackDeployment is the clear match. Discovering available workflows...</text>
+  <circle cx="74" cy="324" r="3" fill="#22c55e"/>
+  <text x="84" y="328" fill="#94a3b8" font-size="10" font-style="italic">Three workflows found. Best match: crashloop-rollback-v1 (95% confidence).</text>
 
   <!-- Agent RCA response -->
-  <rect x="56" y="312" width="560" height="112" rx="12" fill="#1a2332"/>
-  <text x="72" y="336" fill="#e2e8f0" font-size="13" font-weight="600">Root Cause Analysis</text>
-  <text x="72" y="358" fill="#cbd5e1" font-size="11">Pod worker-77784c6cf7-gp6v5 is crash-looping because the Deployment</text>
-  <text x="72" y="374" fill="#cbd5e1" font-size="11">was patched to mount 'worker-config-bad' instead of the valid</text>
-  <text x="72" y="390" fill="#cbd5e1" font-size="11">'worker-config' ConfigMap. The bad ConfigMap contains an invalid nginx</text>
-  <text x="72" y="406" fill="#cbd5e1" font-size="11">directive causing exit code 1 on every startup attempt.</text>
+  <rect x="56" y="346" width="600" height="130" rx="12" fill="#1a2332"/>
+  <text x="72" y="370" fill="#e2e8f0" font-size="13" font-weight="600">Root Cause Analysis</text>
+  <text x="72" y="392" fill="#cbd5e1" font-size="11">The worker Deployment in demo-checkout was patched at 12:53 UTC to</text>
+  <text x="72" y="408" fill="#cbd5e1" font-size="11">override the container command with a fatal exit script. The injected</text>
+  <text x="72" y="424" fill="#cbd5e1" font-size="11">command references release 1.1.0 while the image is 1.0.0, suggesting a</text>
+  <text x="72" y="440" fill="#cbd5e1" font-size="11">botched deployment automation script.</text>
+  <line x1="72" y1="452" x2="640" y2="452" stroke="#334155" stroke-width="1"/>
+  <text x="72" y="468" fill="#64748b" font-size="10">Severity: critical | Target: Deployment/worker | Confidence: 95%</text>
 
   <!-- Workflow Cards -->
-  <text x="56" y="444" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="0.5">AVAILABLE REMEDIATION WORKFLOWS</text>
+  <text x="56" y="500" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="0.5">AVAILABLE REMEDIATION WORKFLOWS</text>
   
-  <!-- Card 1: crashloop-rollback-v1 (Recommended) -->
-  <rect x="56" y="458" width="330" height="114" rx="10" fill="#1a2332" stroke="#3b82f6" stroke-width="2"/>
-  <rect x="66" y="468" width="90" height="20" rx="10" fill="#1e3a5f"/>
-  <text x="111" y="482" text-anchor="middle" fill="#60a5fa" font-size="9" font-weight="600">RECOMMENDED</text>
-  <text x="72" y="504" fill="#e2e8f0" font-size="12" font-weight="600">crashloop-rollback-v1</text>
-  <text x="72" y="522" fill="#94a3b8" font-size="10">Rolls back Deployment to its previous</text>
-  <text x="72" y="536" fill="#94a3b8" font-size="10">revision to recover from CrashLoopBackOff.</text>
-  <text x="72" y="556" fill="#475569" font-size="9">Confidence: 95% | Risk: low</text>
-  <circle cx="360" cy="508" r="14" fill="#334155"/>
-  <path d="M354,508 L366,508 M362,504 L366,508 L362,512" stroke="#60a5fa" stroke-width="2" fill="none"/>
+  <!-- Card 1: crashloop-rollback-v1 (Recommended, 95%) -->
+  <rect x="56" y="514" width="330" height="120" rx="10" fill="#1a2332" stroke="#3b82f6" stroke-width="2"/>
+  <rect x="66" y="524" width="90" height="20" rx="10" fill="#1e3a5f"/>
+  <text x="111" y="538" text-anchor="middle" fill="#60a5fa" font-size="9" font-weight="600">RECOMMENDED</text>
+  <text x="72" y="560" fill="#e2e8f0" font-size="12" font-weight="600">crashloop-rollback-v1</text>
+  <text x="72" y="578" fill="#94a3b8" font-size="10">Purpose-built for CrashLoopBackOff caused</text>
+  <text x="72" y="592" fill="#94a3b8" font-size="10">by pod spec changes. Reverts entire pod</text>
+  <text x="72" y="606" fill="#94a3b8" font-size="10">template to last known-good revision.</text>
+  <text x="72" y="624" fill="#475569" font-size="9">Confidence: 95% | Risk: low</text>
+  <circle cx="360" cy="568" r="14" fill="#334155"/>
+  <path d="M354,568 L366,568 M362,564 L366,568 L362,572" stroke="#60a5fa" stroke-width="2" fill="none"/>
 
-  <!-- Card 2: patch-configuration-v1 -->
-  <rect x="400" y="458" width="330" height="114" rx="10" fill="#1a2332" stroke="#334155" stroke-width="1"/>
-  <text x="416" y="484" fill="#e2e8f0" font-size="12" font-weight="600">patch-configuration-v1</text>
-  <text x="416" y="502" fill="#94a3b8" font-size="10">Patches ConfigMap to remove invalid keys</text>
-  <text x="416" y="516" fill="#94a3b8" font-size="10">or restore known-good values, then restarts</text>
-  <text x="416" y="530" fill="#94a3b8" font-size="10">the Deployment that mounts it.</text>
-  <text x="416" y="556" fill="#475569" font-size="9">Risk: medium</text>
-  <circle cx="704" cy="502" r="14" fill="#334155"/>
-  <path d="M698,502 L710,502 M706,498 L710,502 L706,506" stroke="#64748b" stroke-width="2" fill="none"/>
+  <!-- Card 2: rollback-deployment-v1 (Alternative, 80%) -->
+  <rect x="400" y="514" width="330" height="120" rx="10" fill="#1a2332" stroke="#334155" stroke-width="1"/>
+  <text x="416" y="540" fill="#e2e8f0" font-size="12" font-weight="600">rollback-deployment-v1</text>
+  <text x="416" y="558" fill="#94a3b8" font-size="10">General-purpose rollback for stuck rollouts</text>
+  <text x="416" y="572" fill="#94a3b8" font-size="10">and bad spec changes. Valid fallback, but</text>
+  <text x="416" y="586" fill="#94a3b8" font-size="10">less specifically targeted to CrashLoopBackOff.</text>
+  <text x="416" y="624" fill="#475569" font-size="9">Confidence: 80% | Risk: low</text>
+  <circle cx="704" cy="558" r="14" fill="#334155"/>
+  <path d="M698,558 L710,558 M706,554 L710,558 L706,562" stroke="#64748b" stroke-width="2" fill="none"/>
 
-  <!-- Card 3: scale-replicas-v1 -->
-  <rect x="56" y="584" width="330" height="100" rx="10" fill="#1a2332" stroke="#334155" stroke-width="1"/>
-  <text x="72" y="610" fill="#e2e8f0" font-size="12" font-weight="600">scale-replicas-v1</text>
-  <text x="72" y="628" fill="#94a3b8" font-size="10">Scales Deployment to 0 to isolate the</text>
-  <text x="72" y="642" fill="#94a3b8" font-size="10">offending workload and stop its impact on</text>
-  <text x="72" y="656" fill="#94a3b8" font-size="10">shared resources. Non-destructive.</text>
-  <text x="72" y="674" fill="#475569" font-size="9">Risk: low</text>
-  <circle cx="360" cy="626" r="14" fill="#334155"/>
-  <path d="M354,626 L366,626 M362,622 L366,626 L362,630" stroke="#64748b" stroke-width="2" fill="none"/>
+  <!-- Card 3: crashloop-rollback-risk-v1 (Alternative, 60%) -->
+  <rect x="56" y="646" width="330" height="100" rx="10" fill="#1a2332" stroke="#334155" stroke-width="1"/>
+  <text x="72" y="672" fill="#e2e8f0" font-size="12" font-weight="600">crashloop-rollback-risk-v1</text>
+  <text x="72" y="690" fill="#94a3b8" font-size="10">Same rollback scenario but gated on</text>
+  <text x="72" y="704" fill="#94a3b8" font-size="10">risk_tolerance=low. Lower confidence for</text>
+  <text x="72" y="718" fill="#94a3b8" font-size="10">this P0/medium risk incident.</text>
+  <text x="72" y="736" fill="#475569" font-size="9">Confidence: 60% | Risk: low (gated)</text>
+  <circle cx="360" cy="690" r="14" fill="#334155"/>
+  <path d="M354,690 L366,690 M362,686 L366,690 L362,694" stroke="#64748b" stroke-width="2" fill="none"/>
 
   <!-- Execution Progress (after user selects crashloop-rollback-v1) -->
-  <rect x="56" y="704" width="560" height="132" rx="10" fill="#1a2332" stroke="#334155" stroke-width="1"/>
-  <text x="72" y="728" fill="#94a3b8" font-size="10" font-weight="600" letter-spacing="0.5">EXECUTING: crashloop-rollback-v1</text>
-  <text x="72" y="744" fill="#475569" font-size="9">TARGET: Deployment/worker in demo-crashloop</text>
+  <rect x="56" y="766" width="600" height="148" rx="10" fill="#1a2332" stroke="#334155" stroke-width="1"/>
+  <text x="72" y="790" fill="#94a3b8" font-size="10" font-weight="600" letter-spacing="0.5">EXECUTING: crashloop-rollback-v1</text>
+  <text x="72" y="806" fill="#475569" font-size="9">TARGET: Deployment/worker in demo-checkout | ENGINE: job</text>
   <!-- Step 1 complete -->
-  <circle cx="80" cy="766" r="7" fill="#22c55e"/>
-  <path d="M76,766 L79,769 L84,763" stroke="white" stroke-width="1.5" fill="none"/>
-  <text x="96" y="770" fill="#cbd5e1" font-size="11">Resolving previous healthy revision</text>
+  <circle cx="80" cy="830" r="7" fill="#22c55e"/>
+  <path d="M76,830 L79,833 L84,827" stroke="white" stroke-width="1.5" fill="none"/>
+  <text x="96" y="834" fill="#cbd5e1" font-size="11">Resolving previous healthy revision (worker-5ccfd4c787)</text>
   <!-- Step 2 complete -->
-  <circle cx="80" cy="790" r="7" fill="#22c55e"/>
-  <path d="M76,790 L79,793 L84,787" stroke="white" stroke-width="1.5" fill="none"/>
-  <text x="96" y="794" fill="#cbd5e1" font-size="11">Rolling back Deployment/worker to revision 2</text>
+  <circle cx="80" cy="854" r="7" fill="#22c55e"/>
+  <path d="M76,854 L79,857 L84,851" stroke="white" stroke-width="1.5" fill="none"/>
+  <text x="96" y="858" fill="#cbd5e1" font-size="11">Rolling back Deployment/worker to revision 2</text>
   <!-- Step 3 in progress -->
-  <circle cx="80" cy="814" r="7" fill="none" stroke="#3b82f6" stroke-width="2"/>
-  <circle cx="80" cy="814" r="3" fill="#3b82f6"/>
-  <text x="96" y="818" fill="#e2e8f0" font-size="11">Waiting for rollout to complete...</text>
+  <circle cx="80" cy="878" r="7" fill="none" stroke="#3b82f6" stroke-width="2"/>
+  <circle cx="80" cy="878" r="3" fill="#3b82f6"/>
+  <text x="96" y="882" fill="#e2e8f0" font-size="11">Waiting for rollout to complete...</text>
+  <!-- Step 4 pending -->
+  <circle cx="80" cy="902" r="7" fill="none" stroke="#475569" stroke-width="1"/>
+  <text x="96" y="906" fill="#64748b" font-size="11">Verify pod health checks pass</text>
 
   <!-- Input Area -->
-  <rect x="56" y="856" width="688" height="48" rx="24" fill="#0f172a" stroke="#334155" stroke-width="1"/>
-  <text x="82" y="884" fill="#64748b" font-size="13">Ask about an incident or select a workflow...</text>
-  <circle cx="716" cy="880" r="18" fill="#3b82f6"/>
-  <path d="M716,872 L716,888 M710,878 L716,872 L722,878" stroke="white" stroke-width="2" fill="none"/>
+  <rect x="56" y="930" width="688" height="48" rx="24" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+  <text x="82" y="958" fill="#64748b" font-size="13">Ask about an incident or select a workflow...</text>
+  <circle cx="716" cy="954" r="18" fill="#3b82f6"/>
+  <path d="M716,946 L716,962 M710,952 L716,946 L722,952" stroke="white" stroke-width="2" fill="none"/>
 
   <!-- Footer -->
-  <text x="400" y="928" text-anchor="middle" fill="#475569" font-size="10">Sign out  |  Powered by Kubernaut A2A</text>
+  <text x="400" y="994" text-anchor="middle" fill="#475569" font-size="10">Sign out  |  Powered by Kubernaut A2A</text>
 </svg>
