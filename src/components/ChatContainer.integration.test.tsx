@@ -11,7 +11,7 @@ import { ChatContainer } from "./ChatContainer";
 import { streamA2A } from "../lib/a2a-client";
 
 vi.mock("../lib/a2a-client", () => ({
-  buildStreamRequest: vi.fn((_text: string, _ctx?: string) => ({
+  buildStreamRequest: vi.fn((_text: string) => ({
     task: { message: { role: "user", parts: [{ kind: "text", text: _text }] } },
   })),
   streamA2A: vi.fn(),
@@ -230,13 +230,10 @@ describe("ChatContainer Integration", () => {
    * FedRAMP Control: IR-4 (Incident Handling - remediation tracking)
    */
   it("renders execution progress when remediation is triggered", async () => {
-    let capturedOnEvent: ((event: unknown) => void) | undefined;
-
     mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
       onEvent?: (event: unknown) => void;
       onComplete?: () => void;
     }) => {
-      capturedOnEvent = opts.onEvent;
       opts.onComplete?.();
     });
 
@@ -367,15 +364,12 @@ describe("ChatContainer Integration", () => {
    * FedRAMP Control: SC-5 (DoS Protection - operator can halt runaway streams)
    */
   it("cancel stops streaming and hides stop button", async () => {
-    let resolveStream: (() => void) | undefined;
-
     mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
       onEvent?: (event: unknown) => void;
       onComplete?: () => void;
       signal?: AbortSignal;
     }) => {
       return new Promise<void>((resolve) => {
-        resolveStream = resolve;
         opts.signal?.addEventListener("abort", () => {
           opts.onComplete?.();
           resolve();
