@@ -34,6 +34,7 @@ spec:
             - --email-domain=*
             - --scope=openid email profile groups
             - --skip-jwt-bearer-tokens=true
+            - --ssl-insecure-skip-verify=true
           env:
             - name: OAUTH2_PROXY_CLIENT_ID
               valueFrom:
