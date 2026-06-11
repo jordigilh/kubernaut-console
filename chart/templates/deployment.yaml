@@ -32,7 +32,7 @@ spec:
             - --cookie-secure={{ include "kubernaut-console.cookieSecure" . }}
             - --cookie-samesite=lax
             - --email-domain=*
-            - --scope=openid email profile groups
+            - --scope=openid email profile
             - --skip-jwt-bearer-tokens=true
             - --ssl-insecure-skip-verify=true
           env:
