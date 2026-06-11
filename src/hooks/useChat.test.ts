@@ -123,5 +123,3 @@ describe("useChat", () => {
     });
   });
 });
-
-const clientSecret = "abcdefghijklmnopqrstuvwxyz1234567890"; // pre-commit:allow-sensitive (test dummy)
