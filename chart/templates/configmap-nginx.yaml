@@ -6,39 +6,31 @@ metadata:
   labels:
     {{- include "kubernaut-console.labels" . | nindent 4 }}
 data:
-  default.conf: |
-    server {
-      listen 8080;
-      root /opt/app-root/src;
-      index index.html;
+  kubernaut.conf: |
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self'; font-src 'self' https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
 
-      add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self'; font-src 'self' https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
-      add_header X-Content-Type-Options "nosniff" always;
-      add_header X-Frame-Options "DENY" always;
-      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-      add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    location /a2a/ {
+      proxy_pass {{ .Values.apiFrontend.url }};
+      proxy_http_version 1.1;
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header Authorization $http_authorization;
+      proxy_buffering off;
+      proxy_cache off;
+      proxy_read_timeout 300s;
+    }
 
-      location /a2a/ {
-        proxy_pass {{ .Values.apiFrontend.url }};
-        proxy_http_version 1.1;
-        proxy_ssl_verify off;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header Authorization $http_authorization;
-        proxy_buffering off;
-        proxy_cache off;
-        proxy_read_timeout 300s;
-      }
+    location /.well-known/ {
+      proxy_pass {{ .Values.apiFrontend.url }};
+      proxy_http_version 1.1;
+      proxy_set_header Host $host;
+    }
 
-      location /.well-known/ {
-        proxy_pass {{ .Values.apiFrontend.url }};
-        proxy_http_version 1.1;
-        proxy_ssl_verify off;
-        proxy_set_header Host $host;
-      }
-
-      location / {
-        try_files $uri $uri/ /index.html;
-      }
+    location / {
+      try_files $uri $uri/ /index.html;
     }
