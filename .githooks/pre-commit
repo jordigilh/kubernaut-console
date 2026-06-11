@@ -1,0 +1,164 @@
+#!/bin/bash
+# Pre-commit hook for sensitive data detection (JS/TS/YAML)
+#
+# Installation:
+#   ./scripts/setup-githooks.sh
+#   — or —
+#   git config core.hooksPath .githooks
+#   chmod +x .githooks/pre-commit
+
+set -e
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🛡️  PRE-COMMIT: Sensitive Data Detection"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+VIOLATIONS=0
+
+# ========================================
+# CHECK 1: Sensitive Data Leak Detection
+# ========================================
+echo ""
+echo "🔍 Checking for sensitive data in staged files..."
+
+STAGED_ALL=$(git diff --cached --name-only --diff-filter=ACM || true)
+
+if [ -n "$STAGED_ALL" ]; then
+    STAGED_DIFF=$(git diff --cached -U0 -- $STAGED_ALL | \
+        grep -v '^---' | grep -v '^+++' | \
+        grep '^+' | \
+        grep -v 'pre-commit:allow-sensitive' || true)
+
+    LEAK_MATCHES=""
+
+    # 1a: Cloud provider API endpoint URLs
+    EP_MATCHES=$(echo "$STAGED_DIFF" | \
+        grep -iE '(aiplatform|bigquery|storage|compute|run)\.googleapis\.com' || true)
+    EP_MATCHES="${EP_MATCHES}$(echo "$STAGED_DIFF" | \
+        grep -iE '(execute-api|lambda|sagemaker|bedrock)\.[a-z0-9-]+\.amazonaws\.com' || true)"
+    EP_MATCHES="${EP_MATCHES}$(echo "$STAGED_DIFF" | \
+        grep -iE '(cognitiveservices|openai)\.azure\.com' || true)"
+    if [ -n "$EP_MATCHES" ]; then
+        LEAK_MATCHES="${LEAK_MATCHES}${EP_MATCHES}\n"
+    fi
+
+    # 1b: Cloud project/account/subscription identifiers in config fields
+    ID_MATCHES=$(echo "$STAGED_DIFF" | \
+        grep -iE '(project_id|account_id|subscription_id|tenant_id)\s*[:=]\s*"[^"]+' | \
+        grep -ivE '(your-|example-|placeholder|REDACTED|<|TODO|""$)' || true)
+    if [ -n "$ID_MATCHES" ]; then
+        LEAK_MATCHES="${LEAK_MATCHES}${ID_MATCHES}\n"
+    fi
+
+    # 1c: Well-known API key formats
+    KEY_MATCHES=$(echo "$STAGED_DIFF" | \
+        grep -oE 'sk-[A-Za-z0-9_-]{20,}' || true)
+    KEY_MATCHES="${KEY_MATCHES}$(echo "$STAGED_DIFF" | \
+        grep -oE 'ghp_[A-Za-z0-9]{36,}' || true)"
+    KEY_MATCHES="${KEY_MATCHES}$(echo "$STAGED_DIFF" | \
+        grep -oE 'ghs_[A-Za-z0-9]{36,}' || true)"
+    KEY_MATCHES="${KEY_MATCHES}$(echo "$STAGED_DIFF" | \
+        grep -oE 'AKIA[A-Z0-9]{16}' || true)"
+    KEY_MATCHES="${KEY_MATCHES}$(echo "$STAGED_DIFF" | \
+        grep -oE 'xox[bpras]-[A-Za-z0-9-]{10,}' || true)"
+    if [ -n "$KEY_MATCHES" ]; then
+        LEAK_MATCHES="${LEAK_MATCHES}${KEY_MATCHES}\n"
+    fi
+
+    # 1d: Absolute paths to credential files
+    CRED_PATH_MATCHES=$(echo "$STAGED_DIFF" | \
+        grep -E '(/home/|/Users/|/root/|/etc/|/var/)[^ ]*credentials[^ ]*\.(json|yaml|yml|key|pem)' | \
+        grep -vE '(\.test\.|_test\.|mock|__mocks__)' | \
+        grep -v 'GOOGLE_APPLICATION_CREDENTIALS' || true)
+    if [ -n "$CRED_PATH_MATCHES" ]; then
+        LEAK_MATCHES="${LEAK_MATCHES}${CRED_PATH_MATCHES}\n"
+    fi
+
+    # 1e: .env files with real values (not .env.example)
+    ENV_FILES=$(echo "$STAGED_ALL" | \
+        grep -E '(^|/)\.env(\.|$)' | \
+        grep -vE '(^|/)\.env\.example$' || true)
+    if [ -n "$ENV_FILES" ]; then
+        LEAK_MATCHES="${LEAK_MATCHES}.env file staged for commit:\n${ENV_FILES}\n"
+    fi
+
+    # 1f: Base64-encoded secrets in YAML (cookie-secret, client-secret)
+    YAML_B64_MATCHES=$(echo "$STAGED_DIFF" | \
+        grep -iE '(cookie-secret|client-secret)\s*:\s*["'\'']?[A-Za-z0-9+/=]{31,}' || true)
+    if [ -n "$YAML_B64_MATCHES" ]; then
+        LEAK_MATCHES="${LEAK_MATCHES}${YAML_B64_MATCHES}\n"
+    fi
+
+    # 1g: JWT tokens
+    JWT_MATCHES=$(echo "$STAGED_DIFF" | \
+        grep -oE 'eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+' || true)
+    if [ -n "$JWT_MATCHES" ]; then
+        LEAK_MATCHES="${LEAK_MATCHES}${JWT_MATCHES}\n"
+    fi
+
+    # 1h: Private keys
+    PKEY_MATCHES=$(echo "$STAGED_DIFF" | \
+        grep -E 'BEGIN (RSA |EC )?PRIVATE KEY' || true)
+    if [ -n "$PKEY_MATCHES" ]; then
+        LEAK_MATCHES="${LEAK_MATCHES}${PKEY_MATCHES}\n"
+    fi
+
+    # 1i: High-entropy strings on secret/password/token/key variables
+    #     (exclude .example files and test mocks)
+    STAGED_SCAN_FILES=$(echo "$STAGED_ALL" | \
+        grep -vE '\.env\.example$' | \
+        grep -vE '\.example(\.|$)' | \
+        grep -vE '\.(test|spec)\.(ts|tsx|js|jsx)$' | \
+        grep -vE '(^|/)(mock|__mocks__)' | \
+        grep -vE '[-.]mock\.' || true)
+
+    if [ -n "$STAGED_SCAN_FILES" ]; then
+        FILTERED_DIFF=$(git diff --cached -U0 -- $STAGED_SCAN_FILES | \
+            grep -v '^---' | grep -v '^+++' | \
+            grep '^+' | \
+            grep -v 'pre-commit:allow-sensitive' || true)
+
+        if [ -n "$FILTERED_DIFF" ]; then
+            ENTROPY_MATCHES=$(echo "$FILTERED_DIFF" | \
+                grep -iE '([_-]?(secret|password|token|api[_-]?key)[_-]?|[_-]key)\s*[:=]\s*["'\''][^"'\'' ]{20,}["'\'']' | \
+                grep -ivE '(example|placeholder|changeme|your-|REDACTED|xxx+|test-|mock-|dummy|fake|<|TODO|localhost|undefined|null|none)' || true)
+            if [ -n "$ENTROPY_MATCHES" ]; then
+                LEAK_MATCHES="${LEAK_MATCHES}${ENTROPY_MATCHES}\n"
+            fi
+        fi
+    fi
+
+    if [ -n "$LEAK_MATCHES" ]; then
+        echo "❌ VIOLATION: Potential sensitive data detected in staged changes"
+        echo ""
+        printf '%b' "$LEAK_MATCHES" | head -20
+        echo ""
+        echo "   Sensitive data (cloud endpoints, project IDs, API keys, credential paths,"
+        echo "   .env files, JWT tokens, private keys, encoded secrets) must not be"
+        echo "   committed to the repository."
+        echo ""
+        echo "   To fix: use Kubernetes Secrets, Helm values files (.gitignored),"
+        echo "   or environment variables."
+        echo "   To override: add '# pre-commit:allow-sensitive' on the flagged line."
+        echo ""
+        VIOLATIONS=$((VIOLATIONS + 1))
+    fi
+fi
+
+# ========================================
+# RESULT
+# ========================================
+echo ""
+if [ $VIOLATIONS -gt 0 ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "❌ COMMIT BLOCKED: $VIOLATIONS sensitive data violation(s) detected"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    exit 1
+else
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "✅ PASS: No sensitive data violations detected"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    exit 0
+fi

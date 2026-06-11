@@ -1,0 +1,2 @@
+# The Console deploys into the existing kubernaut-system namespace
+# alongside Dex and API Frontend. No separate namespace needed.

@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  IMAGE: quay.io/kubernaut-ai/demo-console
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test
+
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: [test]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "tag=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to Quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.version.outputs.tag }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  helm-package:
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.17.0
+
+      - name: Update Chart appVersion
+        run: |
+          sed -i "s/appVersion:.*/appVersion: \"${GITHUB_REF_NAME#v}\"/" chart/Chart.yaml
+          sed -i "s/version:.*/version: ${GITHUB_REF_NAME#v}/" chart/Chart.yaml
+
+      - run: helm package chart/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: helm-chart
+          path: "*.tgz"
+          retention-days: 30
