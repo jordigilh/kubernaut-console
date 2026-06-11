@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, type FormEvent } from "react";
 import { useChat } from "../hooks/useChat";
 import { useAlerts } from "../hooks/useAlerts";
+import { useUser } from "../hooks/useUser";
 import { UserBubble } from "./UserBubble";
 import { AgentBubble } from "./AgentBubble";
 import { AlertBanner } from "./AlertBanner";
@@ -11,6 +12,7 @@ export function ChatContainer() {
   const { messages, isStreaming, error, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime } = useChat();
   const currentPhase = messages.findLast(m => m.role === "agent" && m.phase)?.phase;
   const alert = useAlerts();
+  const user = useUser();
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -75,10 +77,10 @@ export function ChatContainer() {
         <a
           href="/oauth2/sign_out"
           className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-white text-[11px] font-semibold hover:bg-white/30 transition-colors"
-          title="Sign out"
+          title={user.name || user.email || "Sign out"}
           aria-label="Sign out"
         >
-          JG
+          {user.initials}
         </a>
       </header>
 
