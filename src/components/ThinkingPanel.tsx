@@ -4,22 +4,29 @@ import type { ThinkingEntry } from "../hooks/useChat";
 interface Props {
   entries: ThinkingEntry[];
   isActive: boolean;
+  startTime?: number;
 }
 
-export function ThinkingPanel({ entries, isActive }: Props) {
-  const [collapsed, setCollapsed] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const prevActiveRef = useRef(isActive);
+function formatElapsed(startTime: number): string {
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const minutes = Math.floor(elapsed / 60);
+  const seconds = elapsed % 60;
+  if (minutes > 0) return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+  return `${seconds}s`;
+}
 
-  // Intentionally no deps: runs every render to detect active→inactive transition
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+export function ThinkingPanel({ entries, isActive, startTime }: Props) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [elapsed, setElapsed] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    const wasActive = prevActiveRef.current;
-    prevActiveRef.current = isActive;
-    if (wasActive && !isActive && entries.length > 0) {
-      setCollapsed(true);
-    }
-  });
+    if (!isActive || !startTime) return;
+    const update = () => setElapsed(formatElapsed(startTime));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [isActive, startTime]);
 
   useEffect(() => {
     if (!collapsed && scrollRef.current) {
@@ -30,11 +37,12 @@ export function ThinkingPanel({ entries, isActive }: Props) {
   const toggle = () => setCollapsed((c) => !c);
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in w-full">
+      {/* Header row */}
       <button
         type="button"
         onClick={toggle}
-        className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+        className="w-full flex items-center gap-1.5 px-3 py-1.5 rounded-t-md bg-white text-text-muted text-[11px] font-medium hover:text-text-secondary transition-colors"
       >
         <svg
           className={`h-3 w-3 transition-transform ${collapsed ? "" : "rotate-90"}`}
@@ -47,7 +55,7 @@ export function ThinkingPanel({ entries, isActive }: Props) {
         </svg>
         {isActive ? (
           <span className="flex items-center gap-1">
-            Thinking
+            <span>Investigating</span>
             <span className="w-1.5 h-1.5 rounded-full bg-kubernaut-teal-600 typing-dot" />
             <span className="w-1.5 h-1.5 rounded-full bg-kubernaut-teal-600 typing-dot" />
             <span className="w-1.5 h-1.5 rounded-full bg-kubernaut-teal-600 typing-dot" />
@@ -55,21 +63,32 @@ export function ThinkingPanel({ entries, isActive }: Props) {
         ) : (
           <span>Thought for {entries.length} steps</span>
         )}
+        {startTime && (
+          <span data-testid="elapsed-time" className="ml-auto text-text-dim text-[11px]">
+            {elapsed}
+          </span>
+        )}
       </button>
 
+      {/* Body */}
       {!collapsed && (
         <div
           ref={scrollRef}
-          className="mt-1 max-h-32 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50/80 px-3 py-2 text-xs leading-relaxed text-gray-500"
+          data-testid="thinking-body"
+          className="max-h-[200px] overflow-y-auto rounded-b-lg border border-border bg-surface-secondary px-4 py-2.5 text-[11px] leading-relaxed scrollbar-thin"
         >
           {entries.map((entry) => (
             <div key={entry.id} className="py-0.5 animate-fade-in">
-              {entry.type === "investigation" ? (
-                <span className="text-gray-600">&#9656; {entry.text}</span>
+              {entry.type === "preflight" ? (
+                <span className="italic text-text-muted">{entry.text}</span>
+              ) : entry.type === "tool_call" ? (
+                <span className="font-mono text-text-dim">{entry.text}</span>
               ) : entry.type === "reasoning" ? (
-                <span className="italic text-gray-400">{entry.text}</span>
+                <span className="italic text-text-muted">{entry.text}</span>
+              ) : entry.type === "investigation" ? (
+                <span className="text-text-muted">&#9656; {entry.text}</span>
               ) : (
-                <span>{entry.text}</span>
+                <span className="text-text-muted">{entry.text}</span>
               )}
             </div>
           ))}
