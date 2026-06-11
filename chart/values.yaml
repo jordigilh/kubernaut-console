@@ -7,7 +7,7 @@ image:
 
 # Agent discovery — how Console finds AF
 apiFrontend:
-  url: "https://apifrontend.kubernaut-system.svc:8443"
+  url: "http://apifrontend.kubernaut-system.svc:8082"
 
 # OIDC / OAuth2 Proxy configuration
 auth:
