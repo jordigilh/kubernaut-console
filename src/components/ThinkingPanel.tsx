@@ -19,6 +19,14 @@ export function ThinkingPanel({ entries, isActive, startTime }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [elapsed, setElapsed] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const prevActiveRef = useRef(isActive);
+
+  useEffect(() => {
+    if (prevActiveRef.current && !isActive) {
+      setCollapsed(true);
+    }
+    prevActiveRef.current = isActive;
+  }, [isActive]);
 
   useEffect(() => {
     if (!isActive || !startTime) return;
