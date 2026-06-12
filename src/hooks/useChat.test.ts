@@ -1109,6 +1109,97 @@ describe("useChat", () => {
     });
   });
 
+  // AU-2: Audit Events — RR ID extraction for audit trail correlation
+  describe("AU-2: rrId extraction from AF payloads", () => {
+    it("UT-CONSOLE-CHAT-037: extracts rrId from investigation_summary artifact (rr_id field)", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "inv-summary-1",
+            parts: [{
+              kind: "data",
+              data: {
+                session_id: "sess-001",
+                rr_id: "rr-9e1b7bf4140b-ed9f1796",
+                summary: "ConfigMap contains invalid directive",
+                rca: {
+                  severity: "critical",
+                  confidence: 0.95,
+                  target: "ConfigMap/app-config",
+                  causal_chain: ["Bad config"],
+                  tool_calls_count: 5,
+                  llm_turns: 3,
+                },
+                options: [],
+              },
+              mediaType: "application/json",
+            }],
+            metadata: { schema: "investigation_summary" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.rrId).toBe("rr-9e1b7bf4140b-ed9f1796");
+        expect(agentMsg?.rca?.rrId).toBe("rr-9e1b7bf4140b-ed9f1796");
+      });
+    });
+
+    it("UT-CONSOLE-CHAT-038: extracts rrId from execution_progress artifact (rr_name field)", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "progress-rrid",
+            parts: [{
+              kind: "data",
+              data: {
+                type: "execution_progress",
+                schema_version: "1.0",
+                rr_name: "rr-9e1b7bf4140b-ed9f1796",
+                current_phase: "Executing",
+                started_at: "2026-06-11T10:00:00Z",
+              },
+              mediaType: "application/json",
+            }],
+            metadata: { type: "execution_progress" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.rrId).toBe("rr-9e1b7bf4140b-ed9f1796");
+      });
+    });
+  });
+
   // AC-6: Least Privilege / IR-4: Incident Handling — approval gate for remediation
   describe("AC-6/IR-4: approval_request event handling", () => {
     it("UT-CONSOLE-CHAT-034: parses approval_request status-update into ChatMessage.approvalRequest", async () => {
