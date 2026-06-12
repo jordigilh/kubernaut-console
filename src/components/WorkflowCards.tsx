@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { WorkflowOption } from "../hooks/useChat";
 
 interface Props {
@@ -14,20 +14,23 @@ export function WorkflowCards({ options, onExecute, onCancel }: Props) {
   const ruledOut = options.filter((o) => !o.recommended);
 
   const [countdown, setCountdown] = useState<number | null>(null);
+  const onExecuteRef = useRef(onExecute);
+  useEffect(() => { onExecuteRef.current = onExecute; });
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
     const id = setInterval(() => {
-      setCountdown((c) => (c !== null ? c - 1 : null));
+      setCountdown((c) => {
+        if (c === null) return null;
+        if (c <= 1) {
+          if (recommended) onExecuteRef.current?.(recommended.workflowId);
+          return null;
+        }
+        return c - 1;
+      });
     }, 1000);
     return () => clearInterval(id);
-  }, [countdown]);
-
-  useEffect(() => {
-    if (countdown === 0 && recommended) {
-      onExecute?.(recommended.workflowId);
-    }
-  }, [countdown, recommended, onExecute]);
+  }, [countdown, recommended]);
 
   const handleExecute = useCallback(() => {
     setCountdown(COUNTDOWN_SECONDS);
