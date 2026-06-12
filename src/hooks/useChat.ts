@@ -320,12 +320,12 @@ export function useChat() {
         if (text.trim()) {
           const last = thinkingRef.current[thinkingRef.current.length - 1];
           if (last && last.type === metaType) {
-            last.text += " " + text.trim();
+            last.text += text;
             thinkingRef.current = [...thinkingRef.current.slice(0, -1), { ...last }];
           } else {
             thinkingRef.current = [
               ...thinkingRef.current,
-              { id: `t-${Date.now()}`, type: metaType, text: text.trim() },
+              { id: `t-${Date.now()}`, type: metaType, text: text.trimStart() },
             ];
           }
           update({ thinking: [...thinkingRef.current] });
