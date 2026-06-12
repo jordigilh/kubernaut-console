@@ -35,6 +35,7 @@ spec:
             - --scope=openid email profile
             - --skip-jwt-bearer-tokens=true
             - --ssl-insecure-skip-verify=true
+            - --cookie-refresh=25m
           env:
             - name: OAUTH2_PROXY_CLIENT_ID
               valueFrom:

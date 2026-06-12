@@ -136,26 +136,36 @@ export async function mockStreamA2A(
     });
   }
 
-  // CTA artifact
+  // Investigation summary as structured multi-part artifact (DataPart + text fallback)
   if (signal?.aborted) return;
   await delay(400);
   onEvent({
     kind: "artifact-update",
     taskId,
     contextId,
-    artifact: { artifactId: "a1", parts: [{ kind: "text", text: ctaText }] },
-    lastChunk: false,
+    artifact: {
+      artifactId: "investigation-001",
+      parts: [
+        {
+          kind: "data",
+          data: {
+            type: "investigation_summary",
+            schema_version: "1.0",
+            session_id: "sess-gitops-drift-001",
+            rr_id: "rr-gitops-001",
+            ...decisionPayload,
+          },
+          mediaType: "application/json",
+          metadata: { schema: "investigation_summary", schema_version: "1.0" },
+        },
+        {
+          kind: "text",
+          text: ctaText,
+        },
+      ],
+      metadata: { type: "investigation_summary" },
+    },
+    lastChunk: true,
     append: false,
-  });
-
-  // Decision event with extended payload
-  await delay(600);
-  onEvent({
-    kind: "status-update",
-    taskId,
-    contextId,
-    status: { state: "input-required", message: { role: "agent", parts: [{ kind: "text", text: JSON.stringify(decisionPayload) }] } },
-    metadata: { type: "decision" },
-    final: true,
   });
 }
