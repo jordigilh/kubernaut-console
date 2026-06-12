@@ -822,6 +822,7 @@ describe("useChat", () => {
                 text: "Fallback text for standard clients.",
               },
             ],
+            metadata: { schema: "investigation_summary" },
           },
           lastChunk: true,
           append: false,

@@ -19,10 +19,10 @@ export interface InvestigationSummaryOption {
 }
 
 export interface InvestigationSummary {
-  schema_version: string;
-  type: "investigation_summary";
+  schema_version?: string;
+  type?: string;
   session_id: string;
-  rr_id: string;
+  rr_id?: string;
   summary: string;
   rca: InvestigationSummaryRCA;
   options?: InvestigationSummaryOption[];
@@ -32,10 +32,7 @@ export function isInvestigationSummary(data: unknown): data is InvestigationSumm
   if (typeof data !== "object" || data === null) return false;
   const obj = data as Record<string, unknown>;
   return (
-    obj.type === "investigation_summary" &&
-    typeof obj.schema_version === "string" &&
     typeof obj.session_id === "string" &&
-    typeof obj.rr_id === "string" &&
     typeof obj.summary === "string" &&
     typeof obj.rca === "object" && obj.rca !== null
   );
