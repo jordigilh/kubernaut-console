@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { buildStreamRequest, streamA2A } from "../lib/a2a-client";
 import { mockStreamA2A } from "../lib/a2a-mock";
-import type { A2AEvent, StatusUpdateEvent } from "../lib/a2a-types";
+import type { A2AEvent, DataPart, StatusUpdateEvent } from "../lib/a2a-types";
 import type { ExecutionStep } from "../components/ExecutionProgress";
+import { isInvestigationSummary } from "../lib/schemas/investigation-summary";
 
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
@@ -149,16 +150,56 @@ export function useChat() {
       }
 
       if (event.kind === "artifact-update") {
-        const text = event.artifact.parts
-          .filter((p) => p.kind === "text")
-          .map((p) => p.text)
-          .join("");
-        if (event.append === false) {
-          artifactRef.current = text;
+        const dataPart = event.artifact.parts.find(
+          (p): p is DataPart => p.kind === "data"
+        );
+
+        if (dataPart && isInvestigationSummary(dataPart.data)) {
+          const payload = dataPart.data;
+          const textFallback = event.artifact.parts
+            .filter((p) => p.kind === "text")
+            .map((p) => (p as { text: string }).text)
+            .join("");
+
+          const updates: Partial<ChatMessage> = { phase: "decision" };
+
+          updates.rca = {
+            severity: payload.rca.severity,
+            confidence: payload.rca.confidence,
+            causalChain: payload.rca.causal_chain ?? [],
+            target: payload.rca.target,
+            toolCallsCount: payload.rca.tool_calls_count ?? 0,
+            llmTurns: payload.rca.llm_turns ?? 0,
+            summary: payload.summary || textFallback,
+          };
+
+          if (Array.isArray(payload.options)) {
+            updates.workflowOptions = payload.options.map((o) => ({
+              workflowId: o.workflow_id,
+              name: o.name,
+              description: o.description,
+              risk: o.risk,
+              recommended: o.recommended ?? false,
+              ruledOutReason: o.ruled_out_reason,
+              parameters: o.parameters,
+            }));
+          }
+
+          updates.text = payload.summary || textFallback;
+          artifactRef.current = updates.text;
+          updateAgent(updates);
         } else {
-          artifactRef.current += text;
+          const text = event.artifact.parts
+            .filter((p) => p.kind === "text")
+            .map((p) => (p as { text: string }).text)
+            .join("");
+          if (event.append === false) {
+            artifactRef.current = text;
+          } else {
+            artifactRef.current += text;
+          }
+          updateAgent({ text: artifactRef.current });
         }
-        updateAgent({ text: artifactRef.current });
       }
 
       if (event.kind === "status-update") {
