@@ -151,7 +151,6 @@ export async function mockStreamA2A(
           data: {
             type: "investigation_summary",
             schema_version: "1.0",
-            session_id: "sess-gitops-drift-001",
             rr_id: "rr-gitops-001",
             ...decisionPayload,
           },
