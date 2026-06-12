@@ -1159,6 +1159,55 @@ describe("useChat", () => {
       });
     });
 
+    it("UT-CONSOLE-CHAT-039: parses namespace from rca.target in investigation_summary artifact", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "inv-ns-parse",
+            parts: [{
+              kind: "data",
+              data: {
+                session_id: "sess-ns",
+                rr_id: "rr-abc123",
+                signal_name: "KubePodCrashLooping",
+                summary: "Pod crash",
+                rca: {
+                  severity: "critical",
+                  confidence: 0.9,
+                  target: "demo-webui/web-frontend",
+                  causal_chain: ["crash"],
+                  tool_calls_count: 4,
+                  llm_turns: 2,
+                },
+                options: [],
+              },
+              mediaType: "application/json",
+            }],
+            metadata: { schema: "investigation_summary" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.rca?.namespace).toBe("demo-webui");
+        expect(agentMsg?.rca?.signalName).toBe("KubePodCrashLooping");
+      });
+    });
+
     it("UT-CONSOLE-CHAT-038: extracts rrId from execution_progress artifact (rr_name field)", async () => {
       vi.useRealTimers();
       const { streamA2A: streamFn } = await import("../lib/a2a-client");
@@ -1447,6 +1496,57 @@ describe("useChat", () => {
 
       const merged = result.current.messages.find(m => m.role === "agent")!.thinking![0];
       expect(merged.text).toBe("Container failing due to invalid config.\n\n**Summary:** The root cause is clear.");
+    });
+
+    it("UT-CONSOLE-CHAT-040: concatenates mid-word tokens without inserting spaces", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "I'll investigate the K" }] },
+          },
+          metadata: { type: "reasoning" },
+        });
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "ubePodCrashLo" }] },
+          },
+          metadata: { type: "reasoning" },
+        });
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "oping incident." }] },
+          },
+          metadata: { type: "reasoning" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.thinking).toHaveLength(1);
+      });
+
+      const merged = result.current.messages.find(m => m.role === "agent")!.thinking![0];
+      expect(merged.text).toBe("I'll investigate the KubePodCrashLooping incident.");
     });
   });
 });

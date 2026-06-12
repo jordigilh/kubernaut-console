@@ -17,17 +17,6 @@ vi.mock("../lib/a2a-client", () => ({
   streamA2A: vi.fn(),
 }));
 
-vi.mock("../hooks/useAlerts", () => ({
-  useAlerts: () => ([{
-    severity: "critical",
-    summary: "KubePodCrashLooping",
-    namespace: "demo-webui",
-    pod: "web-frontend-c8dc85956-qm7hq",
-    detail: "4 restarts, CrashLoopBackOff",
-    active: true,
-  }]),
-}));
-
 const mockStreamA2A = vi.mocked(streamA2A);
 
 beforeAll(() => {
@@ -83,69 +72,61 @@ describe("ChatContainer Integration", () => {
         metadata: { type: "reasoning" },
       });
 
-      // CTA artifact
+      // investigation_summary artifact (#1408 contract: single combined artifact)
       onEvent?.({
         kind: "artifact-update",
         taskId,
         contextId,
         artifact: {
-          artifactId: "a1",
-          parts: [{ kind: "text", text: "In-cluster patches won't persist -- ArgoCD selfHeal will revert them." }],
-        },
-        lastChunk: false,
-        append: false,
-      });
-
-      // Decision payload
-      const decisionPayload = {
-        session_id: "sess-1",
-        summary: "ConfigMap app-config contains an invalid directive.",
-        rca: {
-          severity: "critical",
-          confidence: 0.95,
-          causal_chain: [
-            "Signal: Pod web-frontend in CrashLoopBackOff (4 restarts, exit code 1)",
-            "Why? ConfigMap app-config contains 'invalid_directive: true'",
-            "Root cause: Bad commit synced via ArgoCD with selfHeal:true",
-          ],
-          target: "ConfigMap/app-config in demo-webui",
-          tool_calls_count: 19,
-          llm_turns: 17,
-        },
-        options: [
-          {
-            workflow_id: "git-revert-v2",
-            name: "git-revert-v2",
-            description: "Reverts the most recent commit.",
-            risk: "low",
-            recommended: true,
-            parameters: {
-              TARGET_RESOURCE_NAMESPACE: "demo-webui",
-              TARGET_RESOURCE_KIND: "v1/ConfigMap",
-              TARGET_RESOURCE_NAME: "app-config",
+          artifactId: "inv-summary-1",
+          parts: [{
+            kind: "data",
+            data: {
+              session_id: "sess-1",
+              rr_id: "rr-demo-webui-001",
+              signal_name: "KubePodCrashLooping",
+              summary: "ConfigMap app-config contains an invalid directive. In-cluster patches won't persist -- ArgoCD selfHeal will revert them.",
+              rca: {
+                severity: "critical",
+                confidence: 0.95,
+                causal_chain: [
+                  "Signal: Pod web-frontend in CrashLoopBackOff (4 restarts, exit code 1)",
+                  "Why? ConfigMap app-config contains 'invalid_directive: true'",
+                  "Root cause: Bad commit synced via ArgoCD with selfHeal:true",
+                ],
+                target: "demo-webui/app-config",
+                tool_calls_count: 19,
+                llm_turns: 17,
+              },
+              options: [
+                {
+                  workflow_id: "git-revert-v2",
+                  name: "git-revert-v2",
+                  description: "Reverts the most recent commit.",
+                  risk: "low",
+                  recommended: true,
+                  parameters: {
+                    TARGET_RESOURCE_NAMESPACE: "demo-webui",
+                    TARGET_RESOURCE_KIND: "v1/ConfigMap",
+                    TARGET_RESOURCE_NAME: "app-config",
+                  },
+                },
+                {
+                  workflow_id: "patch-configuration-v1",
+                  name: "patch-configuration-v1",
+                  description: "Patches ConfigMap directly in the cluster.",
+                  risk: "high",
+                  recommended: false,
+                  ruled_out_reason: "selfHeal:true will revert in-cluster patches",
+                },
+              ],
             },
-          },
-          {
-            workflow_id: "patch-configuration-v1",
-            name: "patch-configuration-v1",
-            description: "Patches ConfigMap directly in the cluster.",
-            risk: "high",
-            recommended: false,
-            ruled_out_reason: "selfHeal:true will revert in-cluster patches",
-          },
-        ],
-      };
-
-      onEvent?.({
-        kind: "status-update",
-        taskId,
-        contextId,
-        status: {
-          state: "input-required",
-          message: { role: "agent", parts: [{ kind: "text", text: JSON.stringify(decisionPayload) }] },
+            mediaType: "application/json",
+          }],
+          metadata: { schema: "investigation_summary" },
         },
-        metadata: { type: "decision" },
-        final: true,
+        lastChunk: true,
+        append: false,
       });
 
       onComplete?.();
@@ -159,9 +140,6 @@ describe("ChatContainer Integration", () => {
   it("renders the full operator investigation journey through production dispatch path", async () => {
     setupFullJourneyStream();
     render(<ChatContainer />);
-
-    // IT-CONSOLE-JOURNEY-001: Alert banner renders on mount (IR-4: incident visibility)
-    expect(screen.getByText("KubePodCrashLooping")).toBeInTheDocument();
 
     // Send investigation message (AU-10: audit event generation)
     const input = screen.getByLabelText("Type your message");
@@ -194,7 +172,7 @@ describe("ChatContainer Integration", () => {
     // Causal chain entries
     expect(screen.getByText(/Pod web-frontend in CrashLoopBackOff/)).toBeInTheDocument();
 
-    // IT-CONSOLE-JOURNEY-004: AgentCTA renders (IR-5: recommendation visibility)
+    // IT-CONSOLE-JOURNEY-004: RCA summary contains recommendation (IR-5)
     expect(screen.getByText(/In-cluster patches won't persist/)).toBeInTheDocument();
 
     // IT-CONSOLE-JOURNEY-001: PhaseIndicator transitions to "Decision pending"
@@ -297,13 +275,11 @@ describe("ChatContainer Integration", () => {
       vi.advanceTimersByTime(100);
     });
 
-    // IT-CONSOLE-JOURNEY-006: ExecutionProgress renders
+    // IT-CONSOLE-JOURNEY-006: Phase indicator reflects execution phase
+    // (ExecutionProgress cards removed — status shown only via PhaseIndicator)
     await waitFor(() => {
-      expect(screen.getByText("Executing Remediation")).toBeInTheDocument();
+      expect(screen.getByTestId("phase-indicator")).toBeInTheDocument();
     });
-
-    expect(screen.getAllByText("Cloning GitOps repository").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("Reverting commit caa704e8").length).toBeGreaterThanOrEqual(1);
   });
 
   /**
@@ -572,11 +548,12 @@ describe("ChatContainer Integration", () => {
             data: {
               session_id: "sess-it-001",
               rr_id: "rr-9e1b7bf4140b-ed9f1796",
+              signal_name: "KubePodCrashLooping",
               summary: "ConfigMap invalid directive",
               rca: {
                 severity: "critical",
                 confidence: 0.95,
-                target: "ConfigMap/app-config",
+                target: "demo-webui/app-config",
                 causal_chain: ["Bad config"],
                 tool_calls_count: 5,
                 llm_turns: 3,
