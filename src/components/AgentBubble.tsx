@@ -38,8 +38,8 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
           </div>
         )}
 
-        {/* 2. Agent CTA (teal recommendation text -- renders once workflows are present) */}
-        {hasWorkflows && hasContent && (
+        {/* 2. Agent CTA (teal recommendation text -- renders once workflows are present, suppressed when RCA card handles display) */}
+        {hasWorkflows && !hasRCA && hasContent && (
           <AgentCTA text={message.text} />
         )}
 
