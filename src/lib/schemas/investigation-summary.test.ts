@@ -58,8 +58,8 @@ describe("isInvestigationSummary", () => {
     expect(isInvestigationSummary(undefined)).toBe(false);
   });
 
-  it("UT-SCHEMA-005: returns false when type discriminator is wrong", () => {
-    expect(isInvestigationSummary({ ...validPayload, type: "remediation_list" })).toBe(false);
+  it("UT-SCHEMA-005: returns true regardless of type field value (detection moved to artifact metadata)", () => {
+    expect(isInvestigationSummary({ ...validPayload, type: "remediation_list" })).toBe(true);
   });
 
   it("UT-SCHEMA-006: returns false when required fields are missing", () => {
