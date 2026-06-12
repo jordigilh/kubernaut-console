@@ -31,13 +31,13 @@ describe("SI-4/IR-4: Alert ingestion surfaces active incidents to operators", ()
     const { result } = renderHook(() => useAlerts());
 
     await waitFor(() => {
-      expect(result.current).not.toBeNull();
+      expect(result.current.length).toBeGreaterThan(0);
     });
 
-    expect(result.current!.severity).toBe("critical");
-    expect(result.current!.summary).toBe("Pod crash-looping");
-    expect(result.current!.namespace).toBe("payments");
-    expect(result.current!.active).toBe(true);
+    expect(result.current[0].severity).toBe("critical");
+    expect(result.current[0].summary).toBe("Pod crash-looping");
+    expect(result.current[0].namespace).toBe("payments");
+    expect(result.current[0].active).toBe(true);
   });
 
   it("UT-CONSOLE-ALERTS-002: SI-4 — no false positives when alert list is empty", async () => {
@@ -53,7 +53,7 @@ describe("SI-4/IR-4: Alert ingestion surfaces active incidents to operators", ()
       expect(global.fetch).toHaveBeenCalled();
     });
 
-    expect(result.current).toBeNull();
+    expect(result.current).toEqual([]);
   });
 
   it("UT-CONSOLE-ALERTS-003: SI-17 fail-safe — network failure does not crash operator console", async () => {
@@ -66,7 +66,7 @@ describe("SI-4/IR-4: Alert ingestion surfaces active incidents to operators", ()
       expect(global.fetch).toHaveBeenCalled();
     });
 
-    expect(result.current).toBeNull();
+    expect(result.current).toEqual([]);
   });
 
   it("UT-CONSOLE-ALERTS-004: SI-17 fail-safe — backend 5xx does not propagate to UI", async () => {
@@ -82,6 +82,30 @@ describe("SI-4/IR-4: Alert ingestion surfaces active incidents to operators", ()
       expect(global.fetch).toHaveBeenCalled();
     });
 
-    expect(result.current).toBeNull();
+    expect(result.current).toEqual([]);
+  });
+
+  it("UT-CONSOLE-ALERTS-005: SI-4 — multiple active alerts returned as array", async () => {
+    vi.useRealTimers();
+    const mockAlerts = {
+      alerts: [
+        { severity: "critical", summary: "Pod crash-looping", labels: { namespace: "payments", pod: "api-7f9b" } },
+        { severity: "warning", summary: "High memory", labels: { namespace: "monitoring" } },
+      ],
+    };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockAlerts,
+    });
+
+    const { result } = renderHook(() => useAlerts());
+
+    await waitFor(() => {
+      expect(result.current.length).toBe(2);
+    });
+
+    expect(result.current[0].summary).toBe("Pod crash-looping");
+    expect(result.current[1].summary).toBe("High memory");
+    expect(result.current[1].severity).toBe("warning");
   });
 });

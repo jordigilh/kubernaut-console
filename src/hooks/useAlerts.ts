@@ -12,17 +12,19 @@ export interface AlertInfo {
 const POLL_INTERVAL = 15000;
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
-const MOCK_ALERT: AlertInfo = {
-  severity: "critical",
-  summary: "KubePodCrashLooping",
-  namespace: "demo-webui",
-  pod: "web-frontend-c8dc85956-qm7hq",
-  detail: "4 restarts, CrashLoopBackOff",
-  active: true,
-};
+const MOCK_ALERTS: AlertInfo[] = [
+  {
+    severity: "critical",
+    summary: "KubePodCrashLooping",
+    namespace: "demo-webui",
+    pod: "web-frontend-c8dc85956-qm7hq",
+    detail: "4 restarts, CrashLoopBackOff",
+    active: true,
+  },
+];
 
 export function useAlerts(baseUrl?: string) {
-  const [alert, setAlert] = useState<AlertInfo | null>(USE_MOCK ? MOCK_ALERT : null);
+  const [alerts, setAlerts] = useState<AlertInfo[]>(USE_MOCK ? MOCK_ALERTS : []);
   const baseUrlRef = useRef(baseUrl);
 
   useEffect(() => {
@@ -42,16 +44,17 @@ export function useAlerts(baseUrl?: string) {
         const data = await resp.json();
         if (!active) return;
         if (data.alerts && data.alerts.length > 0) {
-          const top = data.alerts[0];
-          setAlert({
-            severity: top.severity || "critical",
-            summary: top.summary || top.labels?.alertname || "Unknown alert",
-            namespace: top.labels?.namespace,
-            pod: top.labels?.pod,
-            active: true,
-          });
+          setAlerts(
+            data.alerts.map((a: Record<string, unknown>) => ({
+              severity: (a.severity as string) || "critical",
+              summary: (a.summary as string) || (a.labels as Record<string, string>)?.alertname || "Unknown alert",
+              namespace: (a.labels as Record<string, string>)?.namespace,
+              pod: (a.labels as Record<string, string>)?.pod,
+              active: true,
+            }))
+          );
         } else {
-          setAlert(null);
+          setAlerts([]);
         }
       } catch {
         // Silently ignore — alert banner is non-critical
@@ -66,5 +69,5 @@ export function useAlerts(baseUrl?: string) {
     };
   }, []);
 
-  return alert;
+  return alerts;
 }
