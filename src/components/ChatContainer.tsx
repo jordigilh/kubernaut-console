@@ -60,9 +60,7 @@ export function ChatContainer() {
     <div className="flex flex-col h-full bg-white rounded-none sm:rounded-2xl overflow-hidden border border-border shadow-sm">
       {/* Header */}
       <header className="bg-kubernaut-teal-600 px-4 sm:px-6 py-3 flex items-center gap-3 rounded-t-none sm:rounded-t-2xl">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20" aria-hidden="true">
-          <span className="text-white text-xs font-bold">K</span>
-        </div>
+        <img src="/logo.svg" alt="Kubernaut" className="h-7 w-7 rounded-md" />
         <h1 className="text-white font-semibold text-sm font-display flex-1 min-w-0">
           Kubernaut Console
         </h1>
