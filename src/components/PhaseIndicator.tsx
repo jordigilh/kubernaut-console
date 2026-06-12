@@ -18,7 +18,7 @@ export function PhaseIndicator({ phase }: Props) {
   if (!config) return null;
 
   return (
-    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15">
+    <div data-testid="phase-indicator" className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15">
       <span
         data-testid="phase-dot"
         className={`w-2 h-2 rounded-full ${config.dotClass}`}

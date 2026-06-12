@@ -23,6 +23,7 @@ export interface InvestigationSummary {
   type?: string;
   session_id: string;
   rr_id?: string;
+  signal_name?: string;
   summary: string;
   rca: InvestigationSummaryRCA;
   options?: InvestigationSummaryOption[];
