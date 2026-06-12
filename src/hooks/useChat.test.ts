@@ -886,7 +886,7 @@ describe("useChat", () => {
   });
 
   describe("Thinking suppression on structured artifact", () => {
-    it("UT-CONSOLE-CHAT-027: filters out reasoning/investigation entries when artifact arrives (keeps tool_call/preflight)", async () => {
+    it("UT-CONSOLE-CHAT-027: preserves all thinking entries when artifact arrives (auto-collapse handles UX)", async () => {
       vi.useRealTimers();
       const { streamA2A: streamFn } = await import("../lib/a2a-client");
       const mockedStream = vi.mocked(streamFn);
@@ -966,8 +966,11 @@ describe("useChat", () => {
 
       const agentMsg = result.current.messages.find(m => m.role === "agent")!;
       expect(agentMsg.thinking).toBeDefined();
-      expect(agentMsg.thinking!.every(e => e.type === "preflight" || e.type === "tool_call")).toBe(true);
-      expect(agentMsg.thinking!.length).toBe(2);
+      expect(agentMsg.thinking!.length).toBe(4);
+      expect(agentMsg.thinking!.some(e => e.type === "preflight")).toBe(true);
+      expect(agentMsg.thinking!.some(e => e.type === "tool_call")).toBe(true);
+      expect(agentMsg.thinking!.some(e => e.type === "reasoning")).toBe(true);
+      expect(agentMsg.thinking!.some(e => e.type === "investigation")).toBe(true);
     });
   });
 

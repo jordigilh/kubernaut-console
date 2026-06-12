@@ -71,7 +71,7 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline }: Prop
         )}
 
         {/* Evidence */}
-        {request.evidenceCollected && request.evidenceCollected.length > 0 && (
+        {Array.isArray(request.evidenceCollected) && request.evidenceCollected.length > 0 && (
           <div className="mb-3">
             <p className="text-[11px] font-medium text-text-muted mb-1">Evidence:</p>
             <ul className="space-y-0.5">
@@ -90,13 +90,15 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline }: Prop
             <p className="text-[11px] font-medium text-text-muted mb-1">
               Policy: {request.policyEvaluation.policyName}
             </p>
-            <div className="flex flex-wrap gap-1">
-              {request.policyEvaluation.matchedRules.map((rule, idx) => (
-                <span key={idx} className="px-1.5 py-0.5 text-[10px] bg-amber-50 text-amber-700 rounded">
-                  {rule}
-                </span>
-              ))}
-            </div>
+            {request.policyEvaluation.matchedRules && request.policyEvaluation.matchedRules.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {request.policyEvaluation.matchedRules.map((rule, idx) => (
+                  <span key={idx} className="px-1.5 py-0.5 text-[10px] bg-amber-50 text-amber-700 rounded">
+                    {rule}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

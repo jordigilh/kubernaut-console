@@ -214,10 +214,6 @@ export function useChat() {
             .map((p) => (p as { text: string }).text)
             .join("");
 
-          thinkingRef.current = thinkingRef.current.filter(
-            e => e.type === "preflight" || e.type === "tool_call"
-          );
-
           const updates: Partial<ChatMessage> = { phase: "decision", thinking: [...thinkingRef.current], thinkingLabel: undefined };
 
           const targetStr = payload.rca.target || "";
@@ -331,7 +327,7 @@ export function useChat() {
 
       if (metaType === "approval_request") {
         try {
-          const msgText = event.status.message?.parts
+          const msgText = (event.status.message?.parts ?? [])
             .filter((p) => p.kind === "text")
             .map((p) => p.text)
             .join("") || "";
@@ -345,7 +341,7 @@ export function useChat() {
 
       if (metaType === "approval_request_resolved") {
         try {
-          const msgText = event.status.message?.parts
+          const msgText = (event.status.message?.parts ?? [])
             .filter((p) => p.kind === "text")
             .map((p) => p.text)
             .join("") || "";
@@ -359,7 +355,7 @@ export function useChat() {
 
       if (metaType === "decision") {
         try {
-          const msgText = event.status.message?.parts
+          const msgText = (event.status.message?.parts ?? [])
             .filter((p) => p.kind === "text")
             .map((p) => p.text)
             .join("") || "";
@@ -369,10 +365,6 @@ export function useChat() {
           }
           const parsed = JSON.parse(msgText);
           const updates: Partial<ChatMessage> = { phase: "decision", text: "", thinkingLabel: undefined };
-
-          thinkingRef.current = thinkingRef.current.filter(
-            e => e.type === "preflight" || e.type === "tool_call"
-          );
           updates.thinking = [...thinkingRef.current];
 
           if (parsed.rca) {
@@ -418,7 +410,7 @@ export function useChat() {
 
       if (metaType === "output") {
         try {
-          const msgText = event.status.message?.parts
+          const msgText = (event.status.message?.parts ?? [])
             .filter((p) => p.kind === "text")
             .map((p) => p.text)
             .join("") || "";
@@ -453,7 +445,7 @@ export function useChat() {
         metaType === "preflight" ||
         metaType === "tool_call"
       ) {
-        const text = event.status.message?.parts
+        const text = (event.status.message?.parts ?? [])
           .filter((p) => p.kind === "text")
           .map((p) => p.text)
           .join("") || "";
