@@ -7,6 +7,7 @@ import { AgentBubble } from "./AgentBubble";
 import { AlertBanner } from "./AlertBanner";
 import { WelcomeState } from "./WelcomeState";
 import { PhaseIndicator } from "./PhaseIndicator";
+import { StickyExecutionBar } from "./StickyExecutionBar";
 
 export function ChatContainer() {
   const { messages, isStreaming, error, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime } = useChat();
@@ -15,6 +16,10 @@ export function ChatContainer() {
   const user = useUser();
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const activeExecution = messages.findLast(
+    m => m.role === "agent" && m.executionSteps && m.executionSteps.length > 0 && !m.executionComplete
+  );
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -112,6 +117,14 @@ export function ChatContainer() {
           )
         )}
       </main>
+
+      {/* Sticky Execution Progress (visible during active remediation, persists on scroll) */}
+      {activeExecution?.executionSteps && (
+        <StickyExecutionBar
+          steps={activeExecution.executionSteps}
+          stabilizationWindow={activeExecution.stabilizationWindow}
+        />
+      )}
 
       {/* Error */}
       {error && (

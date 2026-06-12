@@ -297,8 +297,8 @@ describe("ChatContainer Integration", () => {
       expect(screen.getByText("Executing Remediation")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Cloning GitOps repository")).toBeInTheDocument();
-    expect(screen.getByText("Reverting commit caa704e8")).toBeInTheDocument();
+    expect(screen.getAllByText("Cloning GitOps repository").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Reverting commit caa704e8").length).toBeGreaterThanOrEqual(1);
   });
 
   /**
