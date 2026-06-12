@@ -96,8 +96,12 @@ export function WorkflowCards({ options, onExecute }: Props) {
                   <div className="flex-1 relative">
                     <button
                       type="button"
-                      className="w-full py-2 rounded-lg bg-kubernaut-teal-600 text-white text-xs font-semibold"
-                      aria-label={`Executing in ${countdown} seconds`}
+                      onClick={() => {
+                        setCountdown(null);
+                        if (recommended) onExecuteRef.current?.(recommended.workflowId);
+                      }}
+                      className="w-full py-2 rounded-lg bg-kubernaut-teal-600 text-white text-xs font-semibold hover:bg-kubernaut-teal-700 transition-colors cursor-pointer"
+                      aria-label={`Execute now (${countdown}s remaining)`}
                     >
                       Executing in {countdown}s...
                     </button>
