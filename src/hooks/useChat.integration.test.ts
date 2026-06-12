@@ -194,6 +194,6 @@ describe("IT: Structured artifact flow (SSE -> DataPart -> ChatMessage state)", 
     expect(agentMsg.text).toBe("Here is the analysis. Additional info appended.");
     expect(agentMsg.rca).toBeUndefined();
     expect(agentMsg.workflowOptions).toBeUndefined();
-    expect(agentMsg.phase).toBe("investigation");
+    expect(agentMsg.phase).toBeUndefined();
   });
 });

@@ -171,7 +171,6 @@ export function useChat() {
       timestamp: Date.now(),
       thinking: [],
       isStreaming: true,
-      phase: "investigation",
     };
     setMessages((prev) => [...prev, agentMsg]);
     setIsStreaming(true);
@@ -460,8 +459,10 @@ export function useChat() {
         }
 
         if (text.trim()) {
+          const thinkingUpdates: Partial<ChatMessage> = { thinking: undefined };
+
           if (DISCOVERY_PHASE_PATTERN.test(text)) {
-            update({ thinkingLabel: "Discovering workflows" });
+            thinkingUpdates.thinkingLabel = "Discovering workflows";
           }
 
           const last = thinkingRef.current[thinkingRef.current.length - 1];
@@ -474,7 +475,11 @@ export function useChat() {
               { id: `t-${Date.now()}`, type: metaType, text: text.trimStart() },
             ];
           }
-          update({ thinking: [...thinkingRef.current] });
+          thinkingUpdates.thinking = [...thinkingRef.current];
+          if (!thinkingUpdates.thinkingLabel) {
+            thinkingUpdates.phase = "investigation";
+          }
+          update(thinkingUpdates);
         }
         return;
       }
