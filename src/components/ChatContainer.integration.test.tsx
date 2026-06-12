@@ -210,7 +210,12 @@ describe("ChatContainer Integration", () => {
     // Ruled out card shows reason
     expect(screen.getByText(/selfHeal:true will revert in-cluster patches/)).toBeInTheDocument();
 
-    // IT-CONSOLE-JOURNEY-007: Countdown auto-execute timer is visible (SC-5)
+    // IT-CONSOLE-JOURNEY-007: Execute button is visible, click to start countdown (SC-5)
+    const executeButton = screen.getByRole("button", { name: /execute/i });
+    expect(executeButton).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(executeButton);
+    });
     expect(screen.getByText(/Executing in \d+s/)).toBeInTheDocument();
 
     // IT-CONSOLE-JOURNEY-008: Cancel stops countdown (SC-5: execution guard)

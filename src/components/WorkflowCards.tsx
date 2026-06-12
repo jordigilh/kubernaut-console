@@ -13,9 +13,7 @@ export function WorkflowCards({ options, onExecute, onCancel }: Props) {
   const recommended = options.find((o) => o.recommended);
   const ruledOut = options.filter((o) => !o.recommended);
 
-  const [countdown, setCountdown] = useState<number | null>(
-    recommended ? COUNTDOWN_SECONDS : null
-  );
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -30,6 +28,10 @@ export function WorkflowCards({ options, onExecute, onCancel }: Props) {
       onExecute?.(recommended.workflowId);
     }
   }, [countdown, recommended, onExecute]);
+
+  const handleExecute = useCallback(() => {
+    setCountdown(COUNTDOWN_SECONDS);
+  }, []);
 
   const handleCancel = useCallback(() => {
     setCountdown(null);
@@ -77,33 +79,44 @@ export function WorkflowCards({ options, onExecute, onCancel }: Props) {
               </div>
             )}
 
-            {/* Countdown buttons */}
-            {countdown !== null && (
-              <div className="flex gap-2">
-                <div className="flex-1 relative">
-                  <button
-                    type="button"
-                    className="w-full py-2 rounded-lg bg-kubernaut-teal-600 text-white text-xs font-semibold"
-                    aria-label={`Executing in ${countdown} seconds`}
-                  >
-                    Executing in {countdown}s...
-                  </button>
-                  <div className="absolute bottom-0 left-0 h-1 rounded-b-lg bg-black/10 w-full">
-                    <div
-                      className="h-full rounded-b-lg bg-white/50 countdown-bar"
-                    />
-                  </div>
-                </div>
+            {/* Action buttons */}
+            <div className="flex gap-2">
+              {countdown === null ? (
                 <button
                   type="button"
-                  onClick={handleCancel}
-                  className="flex-1 py-2 rounded-lg border border-border bg-white text-text-muted text-xs font-medium hover:bg-gray-50 transition-colors"
-                  aria-label="Cancel execution"
+                  onClick={handleExecute}
+                  className="flex-1 py-2 rounded-lg bg-kubernaut-teal-600 text-white text-xs font-semibold hover:bg-kubernaut-teal-700 transition-colors"
+                  aria-label={`Execute ${recommended.name}`}
                 >
-                  Cancel
+                  Execute
                 </button>
-              </div>
-            )}
+              ) : (
+                <>
+                  <div className="flex-1 relative">
+                    <button
+                      type="button"
+                      className="w-full py-2 rounded-lg bg-kubernaut-teal-600 text-white text-xs font-semibold"
+                      aria-label={`Executing in ${countdown} seconds`}
+                    >
+                      Executing in {countdown}s...
+                    </button>
+                    <div className="absolute bottom-0 left-0 h-1 rounded-b-lg bg-black/10 w-full">
+                      <div
+                        className="h-full rounded-b-lg bg-white/50 countdown-bar"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="flex-1 py-2 rounded-lg border border-border bg-white text-text-muted text-xs font-medium hover:bg-gray-50 transition-colors"
+                    aria-label="Cancel execution"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
