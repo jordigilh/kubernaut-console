@@ -466,7 +466,7 @@ export function useChat() {
 
           const last = thinkingRef.current[thinkingRef.current.length - 1];
           if (last && last.type === metaType) {
-            last.text += text;
+            last.text += "\n\n" + text;
             thinkingRef.current = [...thinkingRef.current.slice(0, -1), { ...last }];
           } else {
             thinkingRef.current = [
