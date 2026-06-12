@@ -63,8 +63,8 @@ describe("AgentBubble", () => {
     expect(screen.getByText("Regular response text")).toBeInTheDocument();
   });
 
-  // AU-12: Content of Audit Records — presentation ordering ensures complete context before decision
-  it("UT-CONSOLE-BUBBLE-006: renders components in correct order: thinking > RCA > CTA > workflows", () => {
+  // AU-12: Content of Audit Records — presentation ordering: CTA > thinking > RCA > workflows
+  it("UT-CONSOLE-BUBBLE-006: renders components in correct order: CTA > thinking > RCA > workflows", () => {
     const msg: ChatMessage = {
       id: "1", role: "agent", text: "Recommendation text", timestamp: Date.now(),
       phase: "decision",
@@ -78,10 +78,10 @@ describe("AgentBubble", () => {
     const { container } = render(<AgentBubble message={msg} />);
     const elements = container.querySelectorAll("[data-testid]");
     const testIds = Array.from(elements).map(el => el.getAttribute("data-testid"));
+    const ctaIdx = testIds.indexOf("agent-cta");
     const thinkingIdx = testIds.indexOf("thinking-body");
     const rcaIdx = testIds.indexOf("severity-accent");
-    const ctaIdx = testIds.indexOf("agent-cta");
+    expect(ctaIdx).toBeLessThan(thinkingIdx);
     expect(thinkingIdx).toBeLessThan(rcaIdx);
-    expect(rcaIdx).toBeLessThan(ctaIdx);
   });
 });

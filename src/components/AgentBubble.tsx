@@ -29,7 +29,20 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
   return (
     <div className="flex justify-start animate-fade-in">
       <div className="w-full space-y-2">
-        {/* 1. Thinking Panel (always first, during investigation) */}
+        {/* 1. Non-decision agent messages: render as markdown bubble */}
+        {!hasWorkflows && hasContent && (
+          <div className="bg-kubernaut-teal-50 rounded-2xl px-4 py-3 max-w-[85%]">
+            <MarkdownContent text={message.text} />
+            {message.isStreaming && <StreamingCursor />}
+          </div>
+        )}
+
+        {/* 2. Agent CTA (teal recommendation text -- renders once workflows are present) */}
+        {hasWorkflows && hasContent && (
+          <AgentCTA text={message.text} />
+        )}
+
+        {/* 3. Thinking Panel (collapsible, below reply) */}
         {hasThinking && (
           <ThinkingPanel
             entries={message.thinking!}
@@ -38,17 +51,12 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
           />
         )}
 
-        {/* 2. RCA Card (after investigation completes) */}
+        {/* 4. RCA Card (after investigation completes) */}
         {hasRCA && (
           <RCACard rca={message.rca!} />
         )}
 
-        {/* 3. Agent CTA (teal recommendation text -- renders once workflows are present) */}
-        {hasWorkflows && hasContent && (
-          <AgentCTA text={message.text} />
-        )}
-
-        {/* 4. Workflow Cards (expanded/collapsed states) */}
+        {/* 5. Workflow Cards (expanded/collapsed states) */}
         {hasWorkflows && (
           <WorkflowCards
             options={message.workflowOptions!}
@@ -57,20 +65,12 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
           />
         )}
 
-        {/* Execution progress (post-decision) */}
+        {/* 6. Execution progress (post-decision) */}
         {hasExecution && (
           <ExecutionProgress
             steps={message.executionSteps!}
             completed={message.executionComplete ?? false}
           />
-        )}
-
-        {/* Non-decision agent messages: render as markdown bubble */}
-        {!hasWorkflows && hasContent && (
-          <div className="bg-kubernaut-teal-50 rounded-2xl px-4 py-3 max-w-[85%]">
-            <MarkdownContent text={message.text} />
-            {message.isStreaming && <StreamingCursor />}
-          </div>
         )}
 
         {/* Loading indicator when streaming but no content yet */}
