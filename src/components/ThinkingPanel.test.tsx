@@ -66,4 +66,15 @@ describe("ThinkingPanel", () => {
     render(<ThinkingPanel entries={entries} isActive={false} startTime={Date.now()} />);
     expect(screen.getByText(/5 steps/)).toBeInTheDocument();
   });
+
+  it("UT-CONSOLE-THINK-010: renders custom label when provided", () => {
+    render(<ThinkingPanel entries={entries} isActive={true} startTime={Date.now()} label="Discovering workflows" />);
+    expect(screen.getByText("Discovering workflows")).toBeInTheDocument();
+    expect(screen.queryByText("Investigating")).not.toBeInTheDocument();
+  });
+
+  it("UT-CONSOLE-THINK-011: defaults to 'Investigating' when no label provided", () => {
+    render(<ThinkingPanel entries={entries} isActive={true} startTime={Date.now()} />);
+    expect(screen.getByText("Investigating")).toBeInTheDocument();
+  });
 });

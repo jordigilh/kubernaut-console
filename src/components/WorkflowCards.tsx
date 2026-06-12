@@ -4,12 +4,11 @@ import type { WorkflowOption } from "../hooks/useChat";
 interface Props {
   options: WorkflowOption[];
   onExecute?: (workflowId: string) => void;
-  onCancel?: () => void;
 }
 
 const COUNTDOWN_SECONDS = 10;
 
-export function WorkflowCards({ options, onExecute, onCancel }: Props) {
+export function WorkflowCards({ options, onExecute }: Props) {
   const recommended = options.find((o) => o.recommended);
   const ruledOut = options.filter((o) => !o.recommended);
 
@@ -38,8 +37,7 @@ export function WorkflowCards({ options, onExecute, onCancel }: Props) {
 
   const handleCancel = useCallback(() => {
     setCountdown(null);
-    onCancel?.();
-  }, [onCancel]);
+  }, []);
 
   return (
     <div className="space-y-2 w-full animate-slide-up" role="group" aria-label="Remediation options">
