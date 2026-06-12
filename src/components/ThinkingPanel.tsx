@@ -65,7 +65,7 @@ export function ThinkingPanel({ entries, isActive, startTime, label }: Props) {
         </svg>
         {isActive ? (
           <span className="flex items-center gap-1">
-            <span>{label || "Investigating"}</span>
+            <span>{label || "Thinking"}</span>
             <span className="w-1.5 h-1.5 rounded-full bg-kubernaut-teal-600 typing-dot" />
             <span className="w-1.5 h-1.5 rounded-full bg-kubernaut-teal-600 typing-dot" />
             <span className="w-1.5 h-1.5 rounded-full bg-kubernaut-teal-600 typing-dot" />

@@ -251,6 +251,7 @@ export function useChat() {
 
           updates.text = "";
           artifactRef.current = "";
+          terminalReceivedRef.current = true;
           updateAgent(updates);
         } else if (dataPart && event.artifact.metadata?.type === "execution_progress") {
           const payload = dataPart.data as {
@@ -401,6 +402,7 @@ export function useChat() {
           }
 
           artifactRef.current = "";
+          terminalReceivedRef.current = true;
           update(updates);
         } catch {
           // Not structured JSON
