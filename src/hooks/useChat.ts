@@ -3,7 +3,6 @@ import { buildStreamRequest, streamA2A } from "../lib/a2a-client";
 import { mockStreamA2A } from "../lib/a2a-mock";
 import type { A2AEvent, DataPart, StatusUpdateEvent } from "../lib/a2a-types";
 import type { ExecutionStep } from "../components/ExecutionProgress";
-import { isInvestigationSummary } from "../lib/schemas/investigation-summary";
 
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
@@ -43,6 +42,7 @@ export interface ChatMessage {
   rca?: RCAData;
   executionSteps?: ExecutionStep[];
   executionComplete?: boolean;
+  stabilizationWindow?: number;
   isStreaming?: boolean;
   phase?: "investigation" | "decision" | "remediation" | "complete";
 }
@@ -79,6 +79,17 @@ function saveContextId(id: string) {
   sessionStorage.setItem(CONTEXT_KEY, id);
 }
 
+function parseDuration(value: string | number): number {
+  if (typeof value === "number") return value;
+  const match = value.match(/^(\d+)(s|m|h)?$/);
+  if (!match) return 0;
+  const num = parseInt(match[1], 10);
+  const unit = match[2] || "s";
+  if (unit === "m") return num * 60;
+  if (unit === "h") return num * 3600;
+  return num;
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -91,6 +102,7 @@ export function useChat() {
   const artifactRef = useRef("");
   const messageIdRef = useRef(0);
   const lastSendRef = useRef(0);
+  const terminalReceivedRef = useRef(false);
   const [investigationStartTime, setInvestigationStartTime] = useState<number | undefined>(undefined);
 
   useEffect(() => {
@@ -119,6 +131,7 @@ export function useChat() {
     const agentMsgId = nextId();
     thinkingRef.current = [];
     artifactRef.current = "";
+    terminalReceivedRef.current = false;
 
     const agentMsg: ChatMessage = {
       id: agentMsgId,
@@ -154,8 +167,12 @@ export function useChat() {
           (p): p is DataPart => p.kind === "data"
         );
 
-        if (dataPart && isInvestigationSummary(dataPart.data)) {
-          const payload = dataPart.data;
+        const isDecision = event.artifact.metadata?.schema === "investigation_summary" ||
+          event.artifact.metadata?.type === "decision" ||
+          event.artifact.metadata?.type === "investigation_summary";
+
+        if (dataPart && isDecision) {
+          const payload = dataPart.data as unknown as import("../lib/schemas/investigation-summary").InvestigationSummary;
           const textFallback = event.artifact.parts
             .filter((p) => p.kind === "text")
             .map((p) => (p as { text: string }).text)
@@ -271,11 +288,17 @@ export function useChat() {
           }
           const parsed = JSON.parse(msgText);
           if (Array.isArray(parsed.steps)) {
-            update({
+            const updates: Partial<ChatMessage> = {
               executionSteps: parsed.steps,
               executionComplete: parsed.completed ?? false,
               phase: parsed.completed ? "complete" : "remediation",
-            });
+            };
+            const swRaw = event.metadata?.stabilization_window ?? parsed.stabilization_window;
+            if (swRaw) {
+              const swSeconds = parseDuration(swRaw);
+              if (swSeconds > 0) updates.stabilizationWindow = swSeconds;
+            }
+            update(updates);
           }
         } catch {
           // Not structured execution JSON
@@ -295,16 +318,23 @@ export function useChat() {
           .map((p) => p.text)
           .join("") || "";
         if (text.trim()) {
-          thinkingRef.current = [
-            ...thinkingRef.current,
-            { id: `t-${Date.now()}`, type: metaType, text: text.trim() },
-          ];
+          const last = thinkingRef.current[thinkingRef.current.length - 1];
+          if (last && last.type === metaType) {
+            last.text += " " + text.trim();
+            thinkingRef.current = [...thinkingRef.current.slice(0, -1), { ...last }];
+          } else {
+            thinkingRef.current = [
+              ...thinkingRef.current,
+              { id: `t-${Date.now()}`, type: metaType, text: text.trim() },
+            ];
+          }
           update({ thinking: [...thinkingRef.current] });
         }
         return;
       }
 
       if (event.final || event.status.state === "completed" || event.status.state === "input-required") {
+        terminalReceivedRef.current = true;
         update({ isStreaming: false });
       }
     };
@@ -333,9 +363,11 @@ export function useChat() {
         setConnectionStatus("idle");
       },
       onConnectionLost: () => {
+        if (terminalReceivedRef.current) return;
         setConnectionStatus("lost");
       },
       onReconnecting: (attempt) => {
+        if (terminalReceivedRef.current) return;
         setConnectionStatus("reconnecting");
         setError(`Connection lost, retrying (attempt ${attempt})...`);
       },
