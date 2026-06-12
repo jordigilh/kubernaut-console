@@ -13,9 +13,9 @@ const entries: ThinkingEntry[] = [
 
 describe("ThinkingPanel", () => {
   // AU-2: Audit Events / IR-4: Incident Handling — investigation visibility ensures operator awareness
-  it("UT-CONSOLE-THINK-001: renders 'Investigating' label with animated dots when active", () => {
+  it("UT-CONSOLE-THINK-001: renders 'Thinking' label with animated dots when active", () => {
     render(<ThinkingPanel entries={entries} isActive={true} startTime={Date.now() - 5000} />);
-    expect(screen.getByText("Investigating")).toBeInTheDocument();
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
   });
 
   it("UT-CONSOLE-THINK-002: shows elapsed time when startTime is provided", () => {
@@ -70,11 +70,11 @@ describe("ThinkingPanel", () => {
   it("UT-CONSOLE-THINK-010: renders custom label when provided", () => {
     render(<ThinkingPanel entries={entries} isActive={true} startTime={Date.now()} label="Discovering workflows" />);
     expect(screen.getByText("Discovering workflows")).toBeInTheDocument();
-    expect(screen.queryByText("Investigating")).not.toBeInTheDocument();
+    expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
   });
 
-  it("UT-CONSOLE-THINK-011: defaults to 'Investigating' when no label provided", () => {
+  it("UT-CONSOLE-THINK-011: defaults to 'Thinking' when no label provided", () => {
     render(<ThinkingPanel entries={entries} isActive={true} startTime={Date.now()} />);
-    expect(screen.getByText("Investigating")).toBeInTheDocument();
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
   });
 });
