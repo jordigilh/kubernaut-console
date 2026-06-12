@@ -478,7 +478,10 @@ export function useChat() {
 
           const last = thinkingRef.current[thinkingRef.current.length - 1];
           if (last && last.type === metaType) {
-            last.text += "\n\n" + text;
+            const prevEndsWithBreak = /[.!?:]\s*$/.test(last.text);
+            const newStartsSentence = /^(?:[A-Z*#\-\d])/.test(text);
+            const separator = prevEndsWithBreak && newStartsSentence ? "\n\n" : " ";
+            last.text += separator + text;
             thinkingRef.current = [...thinkingRef.current.slice(0, -1), { ...last }];
           } else {
             thinkingRef.current = [
