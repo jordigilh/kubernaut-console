@@ -32,6 +32,32 @@ export interface WorkflowOption {
   parameters?: Record<string, string>;
 }
 
+export interface ApprovalRequest {
+  name: string;
+  namespace?: string;
+  remediationRequestName?: string;
+  confidence: number;
+  confidenceLevel: string;
+  reason: string;
+  whyApprovalRequired?: string;
+  recommendedWorkflow?: { workflowId: string; version: string; rationale: string };
+  investigationSummary?: string;
+  evidenceCollected?: string[];
+  recommendedActions?: Array<{ action: string; rationale: string }>;
+  alternativesConsidered?: Array<{ approach: string; prosCons: string }>;
+  policyEvaluation?: { policyName: string; matchedRules: string[]; decision: string };
+  requiredBy: string;
+}
+
+export interface ApprovalResolution {
+  name: string;
+  decision: "Approved" | "Rejected" | "Expired";
+  decidedBy?: string;
+  decidedAt?: string;
+  decisionMessage?: string;
+  workflowOverride?: { workflowName: string; parameters?: Record<string, string>; rationale?: string };
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "agent";
@@ -46,6 +72,8 @@ export interface ChatMessage {
   isStreaming?: boolean;
   phase?: "investigation" | "decision" | "remediation" | "verifying" | "failed" | "complete";
   thinkingLabel?: string;
+  approvalRequest?: ApprovalRequest;
+  approvalResolution?: ApprovalResolution;
 }
 
 export type ConnectionStatus = "idle" | "connected" | "reconnecting" | "lost";
@@ -214,6 +242,48 @@ export function useChat() {
           updates.text = "";
           artifactRef.current = "";
           updateAgent(updates);
+        } else if (dataPart && event.artifact.metadata?.type === "execution_progress") {
+          const payload = dataPart.data as {
+            current_phase: string;
+            rr_name?: string;
+            started_at?: string;
+            completed_at?: string;
+          };
+
+          const PHASES = ["Investigating", "AwaitingApproval", "Executing", "Verifying", "Completed"];
+          const currentPhase = payload.current_phase;
+          const currentIdx = PHASES.indexOf(currentPhase);
+
+          const steps: ExecutionStep[] = PHASES.slice(0, -1).map((phase, i) => ({
+            id: phase.toLowerCase(),
+            label: phase === "AwaitingApproval" ? "Approval" : phase,
+            state: i < currentIdx ? "done" as const
+                 : i === currentIdx ? (currentPhase === "Completed" || currentPhase === "Failed" ? "done" as const : "running" as const)
+                 : "pending" as const,
+          }));
+
+          const isTerminal = currentPhase === "Completed" || currentPhase === "Failed";
+          if (isTerminal) {
+            steps.forEach(s => s.state = currentPhase === "Failed" ? "failed" : "done");
+            terminalReceivedRef.current = true;
+          }
+
+          const updates: Partial<ChatMessage> = {
+            executionSteps: steps,
+            executionComplete: isTerminal,
+            phase: currentPhase === "Failed" ? "failed"
+                 : isTerminal ? "complete"
+                 : currentPhase === "Verifying" ? "verifying"
+                 : "remediation",
+          };
+
+          const swRaw = event.artifact.metadata?.stabilization_window;
+          if (swRaw) {
+            const sw = parseDuration(swRaw as string | number);
+            if (sw > 0) updates.stabilizationWindow = sw;
+          }
+
+          updateAgent(updates);
         } else {
           const text = event.artifact.parts
             .filter((p) => p.kind === "text")
@@ -240,6 +310,34 @@ export function useChat() {
       const metaType = event.metadata?.type;
 
       if (metaType === "keepalive") return;
+
+      if (metaType === "approval_request") {
+        try {
+          const msgText = event.status.message?.parts
+            .filter((p) => p.kind === "text")
+            .map((p) => p.text)
+            .join("") || "";
+          const parsed = JSON.parse(msgText) as ApprovalRequest;
+          update({ approvalRequest: parsed });
+        } catch {
+          // Non-JSON approval_request payload
+        }
+        return;
+      }
+
+      if (metaType === "approval_request_resolved") {
+        try {
+          const msgText = event.status.message?.parts
+            .filter((p) => p.kind === "text")
+            .map((p) => p.text)
+            .join("") || "";
+          const parsed = JSON.parse(msgText) as ApprovalResolution;
+          update({ approvalResolution: parsed });
+        } catch {
+          // Non-JSON approval_request_resolved payload
+        }
+        return;
+      }
 
       if (metaType === "decision") {
         try {

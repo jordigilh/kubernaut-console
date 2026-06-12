@@ -487,4 +487,114 @@ describe("ChatContainer Integration", () => {
       expect(screen.getByText("Agent reply persisted")).toBeInTheDocument();
     });
   });
+
+  // AC-6/IR-4: Approval card wiring — user approve sends silent A2A message
+  it("IT-CONSOLE-APPROVAL-001: renders ApprovalCard from approval_request event and sends silent approve via A2A", async () => {
+    mockStreamA2A.mockImplementation(async (_req, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        status: {
+          state: "working",
+          message: {
+            role: "agent",
+            parts: [{
+              kind: "text",
+              text: JSON.stringify({
+                name: "rar-rr-drift-xyz",
+                namespace: "kubernaut-system",
+                confidence: 0.85,
+                confidenceLevel: "High",
+                reason: "Production namespace requires approval",
+                evidenceCollected: ["ArgoCD out-of-sync"],
+                requiredBy: new Date(Date.now() + 3600_000).toISOString(),
+              }),
+            }],
+          },
+        },
+        metadata: { type: "approval_request" },
+      });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate alert" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(600);
+    });
+
+    // Approval card renders
+    await waitFor(() => {
+      expect(screen.getByText("Approval Required")).toBeInTheDocument();
+      expect(screen.getByText("High")).toBeInTheDocument();
+      expect(screen.getByText("85%")).toBeInTheDocument();
+      expect(screen.getByText(/Production namespace requires approval/)).toBeInTheDocument();
+    });
+
+    // Click Approve — sends silent A2A message
+    mockStreamA2A.mockImplementation(async (_req, opts: { onComplete?: () => void }) => {
+      opts.onComplete?.();
+    });
+
+    const approveBtn = screen.getByRole("button", { name: /approve/i });
+    await act(async () => {
+      fireEvent.click(approveBtn);
+      vi.advanceTimersByTime(600);
+    });
+
+    // Verify sendMessage was called silently (no user bubble with "Approve rar-...")
+    expect(screen.queryByText("Approve rar-rr-drift-xyz")).not.toBeInTheDocument();
+    // But streamA2A was called a second time (the approve message)
+    expect(mockStreamA2A).toHaveBeenCalledTimes(2);
+  });
+
+  // IR-4: execution_progress artifact wiring — renders execution steps from structured artifact
+  it("IT-CONSOLE-EXEC-001: renders ExecutionProgress from execution_progress artifact event", async () => {
+    mockStreamA2A.mockImplementation(async (_req, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "progress-001",
+          parts: [{
+            kind: "data",
+            data: {
+              type: "execution_progress",
+              schema_version: "1.0",
+              rr_name: "rr-abc123",
+              current_phase: "Executing",
+              started_at: "2026-06-11T10:00:00Z",
+            },
+            mediaType: "application/json",
+          }],
+          metadata: { type: "execution_progress" },
+        },
+        lastChunk: true,
+        append: false,
+      });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "execute remediation" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Executing").length).toBeGreaterThan(0);
+    });
+  });
 });

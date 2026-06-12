@@ -52,6 +52,20 @@ export function ChatContainer() {
     [isStreaming, sendMessage],
   );
 
+  const handleApprove = useCallback(
+    (rarName: string) => {
+      sendMessage(`Approve ${rarName}`, { silent: true });
+    },
+    [sendMessage],
+  );
+
+  const handleDecline = useCallback(
+    (rarName: string) => {
+      sendMessage(`Decline ${rarName}`, { silent: true });
+    },
+    [sendMessage],
+  );
+
   return (
     <div className="flex flex-col h-full bg-white rounded-none sm:rounded-2xl overflow-hidden border border-border shadow-sm">
       {/* Header */}
@@ -105,6 +119,8 @@ export function ChatContainer() {
                 message={msg}
                 investigationStartTime={investigationStartTime}
                 onExecuteWorkflow={handleExecuteWorkflow}
+                onApprove={handleApprove}
+                onDecline={handleDecline}
               />
             ),
           )
