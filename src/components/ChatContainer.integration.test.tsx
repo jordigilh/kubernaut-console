@@ -554,6 +554,61 @@ describe("ChatContainer Integration", () => {
     expect(mockStreamA2A).toHaveBeenCalledTimes(2);
   });
 
+  // AU-2/SI-4: InvestigationContext banner wiring — proves RR ID flows from
+  // investigation_summary artifact through useChat to the rendered banner
+  it("IT-CONSOLE-CTX-001: AU-2 — investigation_summary artifact populates context banner with RR ID", async () => {
+    mockStreamA2A.mockImplementation(async (_req, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "inv-summary-it",
+          parts: [{
+            kind: "data",
+            data: {
+              session_id: "sess-it-001",
+              rr_id: "rr-9e1b7bf4140b-ed9f1796",
+              summary: "ConfigMap invalid directive",
+              rca: {
+                severity: "critical",
+                confidence: 0.95,
+                target: "ConfigMap/app-config",
+                causal_chain: ["Bad config"],
+                tool_calls_count: 5,
+                llm_turns: 3,
+              },
+              options: [],
+            },
+            mediaType: "application/json",
+          }],
+          metadata: { schema: "investigation_summary" },
+        },
+        lastChunk: true,
+        append: false,
+      });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      const ctxBanner = screen.getByTestId("investigation-context");
+      expect(ctxBanner).toHaveTextContent("rr-9e1b7bf4140b-ed9f1796");
+      expect(ctxBanner).toHaveTextContent("KubePodCrashLooping");
+      expect(ctxBanner).toHaveTextContent("demo-webui");
+    });
+  });
+
   // IR-4: execution_progress artifact wiring — renders execution steps from structured artifact
   it("IT-CONSOLE-EXEC-001: renders ExecutionProgress from execution_progress artifact event", async () => {
     mockStreamA2A.mockImplementation(async (_req, opts: {
