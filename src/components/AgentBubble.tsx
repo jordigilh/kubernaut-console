@@ -4,6 +4,7 @@ import { RCACard } from "./RCACard";
 import { AgentCTA } from "./AgentCTA";
 import { WorkflowCards } from "./WorkflowCards";
 import { ExecutionProgress } from "./ExecutionProgress";
+import { ApprovalCard } from "./ApprovalCard";
 import { MarkdownContent } from "./MarkdownContent";
 import { StreamingCursor } from "./StreamingCursor";
 import { TypingIndicator } from "./TypingIndicator";
@@ -12,18 +13,21 @@ interface Props {
   message: ChatMessage;
   investigationStartTime?: number;
   onExecuteWorkflow?: (workflowId: string) => void;
+  onApprove?: (rarName: string) => void;
+  onDecline?: (rarName: string) => void;
 }
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow }: Props) {
+export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow, onApprove, onDecline }: Props) {
   const hasContent = message.text.trim().length > 0;
   const hasThinking = message.thinking && message.thinking.length > 0;
   const hasRCA = !!message.rca;
   const hasWorkflows = message.workflowOptions && message.workflowOptions.length > 0;
   const hasExecution = message.executionSteps && message.executionSteps.length > 0;
+  const hasApproval = !!message.approvalRequest;
 
   return (
     <div className="flex justify-start animate-fade-in">
@@ -64,7 +68,17 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
           />
         )}
 
-        {/* 6. Execution progress (post-decision) */}
+        {/* 6. Approval Card (when remediation requires human approval) */}
+        {hasApproval && (
+          <ApprovalCard
+            request={message.approvalRequest!}
+            resolution={message.approvalResolution}
+            onApprove={() => onApprove?.(message.approvalRequest!.name)}
+            onDecline={() => onDecline?.(message.approvalRequest!.name)}
+          />
+        )}
+
+        {/* 7. Execution progress (post-decision) */}
         {hasExecution && (
           <ExecutionProgress
             steps={message.executionSteps!}

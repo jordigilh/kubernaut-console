@@ -46,7 +46,7 @@ export interface StatusUpdateEvent {
   final?: boolean;
   status: TaskStatus;
   metadata?: {
-    type?: "reasoning" | "status" | "investigation" | "keepalive" | "decision" | "output" | "preflight" | "tool_call";
+    type?: "reasoning" | "status" | "investigation" | "keepalive" | "decision" | "output" | "preflight" | "tool_call" | "approval_request" | "approval_request_resolved";
     [key: string]: unknown;
   };
 }

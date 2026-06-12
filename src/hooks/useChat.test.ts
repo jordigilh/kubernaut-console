@@ -971,6 +971,265 @@ describe("useChat", () => {
     });
   });
 
+  // IR-4: Incident Handling — structured execution progress from artifact events
+  describe("IR-4: execution_progress artifact handler", () => {
+    it("UT-CONSOLE-CHAT-031: parses execution_progress artifact into executionSteps with correct phase states", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "progress-001",
+            parts: [
+              {
+                kind: "data",
+                data: {
+                  type: "execution_progress",
+                  schema_version: "1.0",
+                  rr_name: "rr-abc123",
+                  current_phase: "Executing",
+                  started_at: "2026-06-11T10:00:00Z",
+                },
+                mediaType: "application/json",
+              },
+              { kind: "text", text: "Phase 3/5: Executing workflow" },
+            ],
+            metadata: { type: "execution_progress" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.executionSteps).toBeDefined();
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent")!;
+      expect(agentMsg.executionSteps!.length).toBeGreaterThan(0);
+      const executing = agentMsg.executionSteps!.find(s => s.label === "Executing");
+      expect(executing?.state).toBe("running");
+      expect(agentMsg.phase).toBe("remediation");
+      expect(agentMsg.executionComplete).toBe(false);
+    });
+
+    it("UT-CONSOLE-CHAT-032: extracts stabilization_window from execution_progress artifact metadata", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "progress-002",
+            parts: [{
+              kind: "data",
+              data: {
+                type: "execution_progress",
+                schema_version: "1.0",
+                rr_name: "rr-abc123",
+                current_phase: "Verifying",
+                started_at: "2026-06-11T10:00:00Z",
+              },
+              mediaType: "application/json",
+            }],
+            metadata: { type: "execution_progress", stabilization_window: "60s" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.stabilizationWindow).toBe(60);
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent")!;
+      expect(agentMsg.phase).toBe("verifying");
+    });
+
+    it("UT-CONSOLE-CHAT-033: marks terminal state and sets phase to complete on Completed", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "progress-003",
+            parts: [{
+              kind: "data",
+              data: {
+                type: "execution_progress",
+                schema_version: "1.0",
+                rr_name: "rr-abc123",
+                current_phase: "Completed",
+                started_at: "2026-06-11T10:00:00Z",
+                completed_at: "2026-06-11T10:05:00Z",
+              },
+              mediaType: "application/json",
+            }],
+            metadata: { type: "execution_progress" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.executionComplete).toBe(true);
+        expect(agentMsg?.phase).toBe("complete");
+      });
+    });
+  });
+
+  // AC-6: Least Privilege / IR-4: Incident Handling — approval gate for remediation
+  describe("AC-6/IR-4: approval_request event handling", () => {
+    it("UT-CONSOLE-CHAT-034: parses approval_request status-update into ChatMessage.approvalRequest", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: {
+              role: "agent",
+              parts: [{
+                kind: "text",
+                text: JSON.stringify({
+                  name: "rar-rr-gitops-drift-abc123",
+                  namespace: "kubernaut-system",
+                  remediationRequestName: "rr-gitops-drift-abc123",
+                  confidence: 0.72,
+                  confidenceLevel: "Medium",
+                  reason: "Production namespace requires human approval",
+                  whyApprovalRequired: "Rego policy matched",
+                  investigationSummary: "ConfigMap modified outside GitOps",
+                  evidenceCollected: ["ArgoCD out-of-sync", "ConfigMap differs from git"],
+                  requiredBy: "2026-06-11T16:00:00Z",
+                }),
+              }],
+            },
+          },
+          metadata: { type: "approval_request" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.approvalRequest).toBeDefined();
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent")!;
+      expect(agentMsg.approvalRequest!.name).toBe("rar-rr-gitops-drift-abc123");
+      expect(agentMsg.approvalRequest!.confidence).toBe(0.72);
+      expect(agentMsg.approvalRequest!.confidenceLevel).toBe("Medium");
+      expect(agentMsg.approvalRequest!.evidenceCollected).toHaveLength(2);
+      expect(agentMsg.approvalRequest!.requiredBy).toBe("2026-06-11T16:00:00Z");
+    });
+
+    it("UT-CONSOLE-CHAT-035: parses approval_request_resolved and sets approvalResolution", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: {
+              role: "agent",
+              parts: [{
+                kind: "text",
+                text: JSON.stringify({
+                  name: "rar-rr-gitops-drift-abc123",
+                  confidence: 0.72,
+                  confidenceLevel: "Medium",
+                  reason: "Test",
+                  requiredBy: "2026-06-11T16:00:00Z",
+                }),
+              }],
+            },
+          },
+          metadata: { type: "approval_request" },
+        });
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: {
+              role: "agent",
+              parts: [{
+                kind: "text",
+                text: JSON.stringify({
+                  name: "rar-rr-gitops-drift-abc123",
+                  decision: "Approved",
+                  decidedBy: "jane.doe@acme.com",
+                  decidedAt: "2026-06-11T15:50:00Z",
+                  decisionMessage: "Reviewed evidence, proceeding",
+                }),
+              }],
+            },
+          },
+          metadata: { type: "approval_request_resolved" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.approvalResolution).toBeDefined();
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent")!;
+      expect(agentMsg.approvalResolution!.decision).toBe("Approved");
+      expect(agentMsg.approvalResolution!.decidedBy).toBe("jane.doe@acme.com");
+    });
+  });
+
   describe("PhaseIndicator lifecycle phases", () => {
     it("UT-CONSOLE-CHAT-028: sets phase to 'verifying' when Verifying phase is detected", async () => {
       vi.useRealTimers();
