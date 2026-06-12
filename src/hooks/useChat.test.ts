@@ -1315,4 +1315,47 @@ describe("useChat", () => {
       });
     });
   });
+
+  describe("Thinking entry merge separators", () => {
+    it("UT-CONSOLE-CHAT-036: inserts paragraph break between consecutive same-type events", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "Container failing due to invalid config." }] },
+          },
+          metadata: { type: "reasoning" },
+        });
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "**Summary:** The root cause is clear." }] },
+          },
+          metadata: { type: "reasoning" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.thinking).toHaveLength(1);
+      });
+
+      const merged = result.current.messages.find(m => m.role === "agent")!.thinking![0];
+      expect(merged.text).toBe("Container failing due to invalid config.\n\n**Summary:** The root cause is clear.");
+    });
+  });
 });
