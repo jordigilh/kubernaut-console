@@ -3,6 +3,15 @@ export interface TextPart {
   text: string;
 }
 
+export interface DataPart {
+  kind: "data";
+  data: Record<string, unknown>;
+  mediaType?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export type Part = TextPart | DataPart;
+
 export interface A2AMessage {
   messageId?: string;
   contextId?: string;
@@ -23,7 +32,8 @@ export interface ArtifactUpdateEvent {
   contextId: string;
   artifact: {
     artifactId: string;
-    parts: TextPart[];
+    parts: Part[];
+    metadata?: Record<string, unknown>;
   };
   lastChunk: boolean;
   append?: boolean;
