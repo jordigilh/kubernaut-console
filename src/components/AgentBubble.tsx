@@ -35,7 +35,7 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
         {/* 1. Non-decision agent messages: render as markdown bubble */}
         {!hasWorkflows && hasContent && (
           <div className="bg-kubernaut-teal-50 rounded-2xl px-4 py-3 max-w-[85%]">
-            <MarkdownContent text={message.text} />
+            <MarkdownContent text={message.text.trimEnd()} />
             {message.isStreaming && <StreamingCursor />}
           </div>
         )}
