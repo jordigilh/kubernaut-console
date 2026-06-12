@@ -791,7 +791,7 @@ describe("useChat", () => {
       expect(agentMsg?.rca).toBeUndefined();
     });
 
-    it("UT-CONSOLE-CHAT-024: uses text fallback part for message.text when DataPart has no summary", async () => {
+    it("UT-CONSOLE-CHAT-024: suppresses text when structured DataPart is present (no duplication)", async () => {
       vi.useRealTimers();
       const { streamA2A: streamFn } = await import("../lib/a2a-client");
       const mockedStream = vi.mocked(streamFn);
@@ -838,7 +838,7 @@ describe("useChat", () => {
       });
 
       const agentMsg = result.current.messages.find(m => m.role === "agent");
-      expect(agentMsg?.text).toBe("Fallback text for standard clients.");
+      expect(agentMsg?.text).toBe("");
       expect(agentMsg?.rca).toBeDefined();
     });
 

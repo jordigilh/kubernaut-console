@@ -126,7 +126,7 @@ describe("IT: Structured artifact flow (SSE -> DataPart -> ChatMessage state)", 
 
     expect(agentMsg.role).toBe("agent");
     expect(agentMsg.phase).toBe("decision");
-    expect(agentMsg.text).toBe("GitOps drift detected: ConfigMap modified outside Git source.");
+    expect(agentMsg.text).toBe("");
 
     expect(agentMsg.rca).toBeDefined();
     expect(agentMsg.rca!.severity).toBe("critical");

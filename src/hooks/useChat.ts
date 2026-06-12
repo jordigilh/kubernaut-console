@@ -113,20 +113,22 @@ export function useChat() {
 
   const nextId = () => `msg-${++messageIdRef.current}`;
 
-  const sendMessage = useCallback(async (text: string) => {
+  const sendMessage = useCallback(async (text: string, options?: { silent?: boolean }) => {
     const now = Date.now();
     if (now - lastSendRef.current < 500) return;
     lastSendRef.current = now;
 
     setError(null);
 
-    const userMsg: ChatMessage = {
-      id: nextId(),
-      role: "user",
-      text,
-      timestamp: now,
-    };
-    setMessages((prev) => [...prev, userMsg]);
+    if (!options?.silent) {
+      const userMsg: ChatMessage = {
+        id: nextId(),
+        role: "user",
+        text,
+        timestamp: now,
+      };
+      setMessages((prev) => [...prev, userMsg]);
+    }
 
     const agentMsgId = nextId();
     thinkingRef.current = [];
@@ -202,8 +204,8 @@ export function useChat() {
             }));
           }
 
-          updates.text = payload.summary || textFallback;
-          artifactRef.current = updates.text;
+          updates.text = "";
+          artifactRef.current = "";
           updateAgent(updates);
         } else {
           const text = event.artifact.parts
@@ -317,6 +319,34 @@ export function useChat() {
           .filter((p) => p.kind === "text")
           .map((p) => p.text)
           .join("") || "";
+
+        const phaseMatch = text.match(/(?:Progress|Remediation phase):\s*(Analyzing|Executing|Verifying|Completed|Failed)/i);
+        if (phaseMatch) {
+          const currentPhase = phaseMatch[1].toLowerCase();
+          const phases = ["analyzing", "executing", "verifying", "completed"];
+          const currentIdx = phases.indexOf(currentPhase);
+          const steps: ExecutionStep[] = [
+            { id: "analyzing", label: "Analyzing", state: "pending" },
+            { id: "executing", label: "Executing remediation", state: "pending" },
+            { id: "verifying", label: "Verifying stability", state: "pending" },
+          ];
+          for (let i = 0; i < steps.length; i++) {
+            if (i < currentIdx) steps[i].state = "done";
+            else if (i === currentIdx) steps[i].state = currentPhase === "completed" || currentPhase === "failed" ? "done" : "running";
+          }
+          const isTerminal = currentPhase === "completed" || currentPhase === "failed";
+          if (isTerminal) {
+            steps.forEach(s => s.state = currentPhase === "failed" ? "failed" : "done");
+            terminalReceivedRef.current = true;
+          }
+          update({
+            executionSteps: steps,
+            executionComplete: isTerminal,
+            phase: isTerminal ? "complete" : "remediation",
+          });
+          return;
+        }
+
         if (text.trim()) {
           const last = thinkingRef.current[thinkingRef.current.length - 1];
           if (last && last.type === metaType) {
