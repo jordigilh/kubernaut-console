@@ -13,6 +13,7 @@ export function WorkflowCards({ options, onExecute }: Props) {
   const ruledOut = options.filter((o) => !o.recommended);
 
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [executed, setExecuted] = useState(false);
   const onExecuteRef = useRef(onExecute);
   useEffect(() => { onExecuteRef.current = onExecute; });
 
@@ -23,6 +24,7 @@ export function WorkflowCards({ options, onExecute }: Props) {
         if (c === null) return null;
         if (c <= 1) {
           if (recommended) onExecuteRef.current?.(recommended.workflowId);
+          setExecuted(true);
           return null;
         }
         return c - 1;
@@ -86,10 +88,11 @@ export function WorkflowCards({ options, onExecute }: Props) {
                 <button
                   type="button"
                   onClick={handleExecute}
-                  className="flex-1 py-2 rounded-lg bg-kubernaut-teal-600 text-white text-xs font-semibold hover:bg-kubernaut-teal-700 transition-colors"
-                  aria-label={`Execute ${recommended.name}`}
+                  disabled={executed}
+                  className="flex-1 py-2 rounded-lg bg-kubernaut-teal-600 text-white text-xs font-semibold hover:bg-kubernaut-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label={executed ? "Workflow executed" : `Execute ${recommended.name}`}
                 >
-                  Execute
+                  {executed ? "Executed" : "Execute"}
                 </button>
               ) : (
                 <>
@@ -98,6 +101,7 @@ export function WorkflowCards({ options, onExecute }: Props) {
                       type="button"
                       onClick={() => {
                         setCountdown(null);
+                        setExecuted(true);
                         if (recommended) onExecuteRef.current?.(recommended.workflowId);
                       }}
                       className="w-full py-2 rounded-lg bg-kubernaut-teal-600 text-white text-xs font-semibold hover:bg-kubernaut-teal-700 transition-colors cursor-pointer"
