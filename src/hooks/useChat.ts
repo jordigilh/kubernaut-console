@@ -21,6 +21,8 @@ export interface RCAData {
   llmTurns: number;
   summary: string;
   rrId?: string;
+  signalName?: string;
+  namespace?: string;
 }
 
 export interface WorkflowOption {
@@ -218,6 +220,10 @@ export function useChat() {
 
           const updates: Partial<ChatMessage> = { phase: "decision", thinking: [...thinkingRef.current], thinkingLabel: undefined };
 
+          const targetStr = payload.rca.target || "";
+          const slashIdx = targetStr.indexOf("/");
+          const parsedNamespace = slashIdx > 0 ? targetStr.slice(0, slashIdx) : undefined;
+
           updates.rca = {
             severity: payload.rca.severity,
             confidence: payload.rca.confidence,
@@ -227,6 +233,8 @@ export function useChat() {
             llmTurns: payload.rca.llm_turns ?? 0,
             summary: payload.summary || textFallback,
             rrId: payload.rr_id,
+            signalName: payload.signal_name,
+            namespace: parsedNamespace,
           };
 
           if (payload.rr_id) {
@@ -360,9 +368,17 @@ export function useChat() {
             return;
           }
           const parsed = JSON.parse(msgText);
-          const updates: Partial<ChatMessage> = { phase: "decision" };
+          const updates: Partial<ChatMessage> = { phase: "decision", text: "", thinkingLabel: undefined };
+
+          thinkingRef.current = thinkingRef.current.filter(
+            e => e.type === "preflight" || e.type === "tool_call"
+          );
+          updates.thinking = [...thinkingRef.current];
 
           if (parsed.rca) {
+            const targetStr = parsed.rca.target || "";
+            const slashIdx = targetStr.indexOf("/");
+            const parsedNamespace = slashIdx > 0 ? targetStr.slice(0, slashIdx) : undefined;
             updates.rca = {
               severity: parsed.rca.severity,
               confidence: parsed.rca.confidence,
@@ -371,7 +387,13 @@ export function useChat() {
               toolCallsCount: parsed.rca.tool_calls_count ?? 0,
               llmTurns: parsed.rca.llm_turns ?? 0,
               summary: parsed.summary ?? "",
+              signalName: parsed.signal_name,
+              namespace: parsedNamespace,
+              rrId: parsed.rr_id,
             };
+            if (parsed.rr_id) {
+              updates.rrId = parsed.rr_id;
+            }
           }
 
           if (Array.isArray(parsed.options)) {
@@ -386,6 +408,7 @@ export function useChat() {
             }));
           }
 
+          artifactRef.current = "";
           update(updates);
         } catch {
           // Not structured JSON
@@ -478,9 +501,16 @@ export function useChat() {
 
           const last = thinkingRef.current[thinkingRef.current.length - 1];
           if (last && last.type === metaType) {
+            const prevEndsWithSpace = /\s$/.test(last.text);
+            const newStartsWithSpace = /^\s/.test(text);
             const prevEndsWithBreak = /[.!?:]\s*$/.test(last.text);
             const newStartsSentence = /^(?:[A-Z*#\-\d])/.test(text);
-            const separator = prevEndsWithBreak && newStartsSentence ? "\n\n" : " ";
+            let separator = "";
+            if (prevEndsWithBreak && newStartsSentence) {
+              separator = "\n\n";
+            } else if (!prevEndsWithSpace && !newStartsWithSpace) {
+              separator = "";
+            }
             last.text += separator + text;
             thinkingRef.current = [...thinkingRef.current.slice(0, -1), { ...last }];
           } else {
