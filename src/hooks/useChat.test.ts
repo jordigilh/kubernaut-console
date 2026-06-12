@@ -678,4 +678,209 @@ describe("useChat", () => {
       expect(agentMsg?.executionSteps).toBeUndefined();
     });
   });
+
+  describe("SI-7: Structured artifact handling (A2A DataPart)", () => {
+    it("UT-CONSOLE-CHAT-022: parses investigation_summary DataPart into rca and workflowOptions", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "investigation-001",
+            parts: [
+              {
+                kind: "data",
+                data: {
+                  type: "investigation_summary",
+                  schema_version: "1.0",
+                  session_id: "ka-session-1",
+                  rr_id: "rr-abc123",
+                  summary: "Root cause identified: OOM kill on worker deployment.",
+                  rca: {
+                    severity: "high",
+                    confidence: 0.92,
+                    target: "deployment/worker",
+                    causal_chain: ["OOM kill", "memory limit too low"],
+                    rca_summary: "The worker is OOM-killing.",
+                    tool_calls_count: 8,
+                    llm_turns: 3,
+                  },
+                  options: [
+                    {
+                      workflow_id: "rollback-v1",
+                      name: "Rolling restart",
+                      description: "Restart pods sequentially",
+                      risk: "low",
+                      recommended: true,
+                      parameters: { TARGET_NAMESPACE: "demo-checkout" },
+                    },
+                  ],
+                },
+                mediaType: "application/json",
+                metadata: { schema: "investigation_summary", schema_version: "1.0" },
+              },
+              {
+                kind: "text",
+                text: "Investigation complete. Severity: high.",
+              },
+            ],
+            metadata: { type: "investigation_summary" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("investigate"); });
+
+      await waitFor(() => {
+        expect(result.current.isStreaming).toBe(false);
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg?.phase).toBe("decision");
+      expect(agentMsg?.rca).toBeDefined();
+      expect(agentMsg?.rca?.severity).toBe("high");
+      expect(agentMsg?.rca?.confidence).toBe(0.92);
+      expect(agentMsg?.rca?.target).toBe("deployment/worker");
+      expect(agentMsg?.rca?.causalChain).toEqual(["OOM kill", "memory limit too low"]);
+      expect(agentMsg?.rca?.toolCallsCount).toBe(8);
+      expect(agentMsg?.rca?.llmTurns).toBe(3);
+      expect(agentMsg?.rca?.summary).toBe("Root cause identified: OOM kill on worker deployment.");
+      expect(agentMsg?.workflowOptions).toHaveLength(1);
+      expect(agentMsg?.workflowOptions?.[0].workflowId).toBe("rollback-v1");
+      expect(agentMsg?.workflowOptions?.[0].recommended).toBe(true);
+    });
+
+    it("UT-CONSOLE-CHAT-023: falls back to text concatenation when no DataPart is present", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "a1",
+            parts: [{ kind: "text", text: "Plain text response" }],
+          },
+          lastChunk: true,
+          append: true,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("hello"); });
+
+      await waitFor(() => {
+        expect(result.current.isStreaming).toBe(false);
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg?.text).toBe("Plain text response");
+      expect(agentMsg?.rca).toBeUndefined();
+    });
+
+    it("UT-CONSOLE-CHAT-024: uses text fallback part for message.text when DataPart has no summary", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "investigation-001",
+            parts: [
+              {
+                kind: "data",
+                data: {
+                  type: "investigation_summary",
+                  schema_version: "1.0",
+                  session_id: "s1",
+                  rr_id: "rr-1",
+                  summary: "",
+                  rca: { severity: "low", confidence: 0.5, target: "pod/test" },
+                },
+                mediaType: "application/json",
+                metadata: { schema: "investigation_summary" },
+              },
+              {
+                kind: "text",
+                text: "Fallback text for standard clients.",
+              },
+            ],
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        expect(result.current.isStreaming).toBe(false);
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg?.text).toBe("Fallback text for standard clients.");
+      expect(agentMsg?.rca).toBeDefined();
+    });
+
+    it("UT-CONSOLE-CHAT-025: ignores DataPart with unknown schema type", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "a1",
+            parts: [
+              {
+                kind: "data",
+                data: { type: "unknown_schema", version: "1.0" },
+                mediaType: "application/json",
+              },
+              {
+                kind: "text",
+                text: "Some text fallback",
+              },
+            ],
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        expect(result.current.isStreaming).toBe(false);
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg?.text).toBe("Some text fallback");
+      expect(agentMsg?.rca).toBeUndefined();
+    });
+  });
 });
