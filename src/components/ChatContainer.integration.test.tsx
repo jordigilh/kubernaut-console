@@ -18,14 +18,14 @@ vi.mock("../lib/a2a-client", () => ({
 }));
 
 vi.mock("../hooks/useAlerts", () => ({
-  useAlerts: () => ({
+  useAlerts: () => ([{
     severity: "critical",
     summary: "KubePodCrashLooping",
     namespace: "demo-webui",
     pod: "web-frontend-c8dc85956-qm7hq",
     detail: "4 restarts, CrashLoopBackOff",
     active: true,
-  }),
+  }]),
 }));
 
 const mockStreamA2A = vi.mocked(streamA2A);

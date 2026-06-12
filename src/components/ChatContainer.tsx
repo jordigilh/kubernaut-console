@@ -14,7 +14,8 @@ export function ChatContainer() {
   const { messages, isStreaming, error, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime } = useChat();
   const currentPhase = messages.findLast(m => m.role === "agent" && m.phase)?.phase;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId;
-  const alert = useAlerts();
+  const alerts = useAlerts();
+  const [selectedAlert, setSelectedAlert] = useState<import("../hooks/useAlerts").AlertInfo | null>(null);
   const user = useUser();
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -68,6 +69,17 @@ export function ChatContainer() {
     [sendMessage],
   );
 
+  const handleAlertSelect = useCallback(
+    (alert: import("../hooks/useAlerts").AlertInfo) => {
+      setSelectedAlert(alert);
+      const target = alert.pod
+        ? `${alert.summary} on ${alert.pod} in ${alert.namespace}`
+        : `${alert.summary} in ${alert.namespace || "cluster"}`;
+      sendMessage(`Investigate ${target}`);
+    },
+    [sendMessage],
+  );
+
   return (
     <div className="flex flex-col h-full bg-white rounded-none sm:rounded-2xl overflow-hidden border border-border shadow-sm">
       {/* Header */}
@@ -99,14 +111,14 @@ export function ChatContainer() {
         </a>
       </header>
 
-      <AlertBanner alert={alert} />
+      <AlertBanner alerts={alerts} onSelect={handleAlertSelect} />
 
       {messages.length > 0 && (
         <InvestigationContext
           rrId={rrId}
-          alertName={alert?.summary}
-          namespace={alert?.namespace}
-          pod={alert?.pod}
+          alertName={selectedAlert?.summary || alerts[0]?.summary}
+          namespace={selectedAlert?.namespace || alerts[0]?.namespace}
+          pod={selectedAlert?.pod || alerts[0]?.pod}
         />
       )}
 
