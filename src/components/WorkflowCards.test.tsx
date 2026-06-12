@@ -60,18 +60,23 @@ describe("WorkflowCards", () => {
     expect(card.className).toContain("opacity-50");
   });
 
-  it("UT-CONSOLE-WF-006: shows countdown button with 'Executing in' text", () => {
+  it("UT-CONSOLE-WF-006: shows Execute button initially, countdown starts after click", () => {
     render(<WorkflowCards options={options} />);
+    expect(screen.getByRole("button", { name: /execute/i })).toBeInTheDocument();
+    expect(screen.queryByText(/Executing in/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /execute/i }));
     expect(screen.getByText(/Executing in \d+s/)).toBeInTheDocument();
   });
 
-  it("UT-CONSOLE-WF-007: shows cancel button alongside countdown", () => {
+  it("UT-CONSOLE-WF-007: shows cancel button alongside countdown after Execute click", () => {
     render(<WorkflowCards options={options} />);
+    fireEvent.click(screen.getByRole("button", { name: /execute/i }));
     expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
   });
 
   it("UT-CONSOLE-WF-008: countdown decrements over time", () => {
     render(<WorkflowCards options={options} />);
+    fireEvent.click(screen.getByRole("button", { name: /execute/i }));
     expect(screen.getByText("Executing in 10s...")).toBeInTheDocument();
     act(() => { vi.advanceTimersByTime(3000); });
     expect(screen.getByText("Executing in 7s...")).toBeInTheDocument();
@@ -81,6 +86,7 @@ describe("WorkflowCards", () => {
   it("UT-CONSOLE-WF-009: calls onExecute when countdown reaches 0", () => {
     const onExecute = vi.fn();
     render(<WorkflowCards options={options} onExecute={onExecute} />);
+    fireEvent.click(screen.getByRole("button", { name: /execute/i }));
     act(() => { vi.advanceTimersByTime(10000); });
     expect(onExecute).toHaveBeenCalledWith("git-revert-v2");
   });
@@ -89,6 +95,7 @@ describe("WorkflowCards", () => {
   it("UT-CONSOLE-WF-010: cancel button stops countdown and calls onCancel", () => {
     const onCancel = vi.fn();
     render(<WorkflowCards options={options} onCancel={onCancel} />);
+    fireEvent.click(screen.getByRole("button", { name: /execute/i }));
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
     expect(onCancel).toHaveBeenCalled();
     expect(screen.queryByText(/Executing in/)).not.toBeInTheDocument();

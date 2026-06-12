@@ -46,14 +46,14 @@ export function ChatContainer() {
   const handleExecuteWorkflow = useCallback(
     (workflowId: string) => {
       if (!isStreaming) {
-        sendMessage(`Use ${workflowId}`);
+        sendMessage(`Use ${workflowId}`, { silent: true });
       }
     },
     [isStreaming, sendMessage],
   );
 
   const handleCancelExecution = useCallback(() => {
-    sendMessage("Cancel execution");
+    sendMessage("Cancel execution", { silent: true });
   }, [sendMessage]);
 
   return (
