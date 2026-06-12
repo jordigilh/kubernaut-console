@@ -5,6 +5,7 @@ import { useUser } from "../hooks/useUser";
 import { UserBubble } from "./UserBubble";
 import { AgentBubble } from "./AgentBubble";
 import { AlertBanner } from "./AlertBanner";
+import { InvestigationContext } from "./InvestigationContext";
 import { WelcomeState } from "./WelcomeState";
 import { PhaseIndicator } from "./PhaseIndicator";
 import { StickyExecutionBar } from "./StickyExecutionBar";
@@ -12,6 +13,7 @@ import { StickyExecutionBar } from "./StickyExecutionBar";
 export function ChatContainer() {
   const { messages, isStreaming, error, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime } = useChat();
   const currentPhase = messages.findLast(m => m.role === "agent" && m.phase)?.phase;
+  const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId;
   const alert = useAlerts();
   const user = useUser();
   const [input, setInput] = useState("");
@@ -98,6 +100,15 @@ export function ChatContainer() {
       </header>
 
       <AlertBanner alert={alert} />
+
+      {messages.length > 0 && (
+        <InvestigationContext
+          rrId={rrId}
+          alertName={alert?.summary}
+          namespace={alert?.namespace}
+          pod={alert?.pod}
+        />
+      )}
 
       {/* Messages */}
       <main
