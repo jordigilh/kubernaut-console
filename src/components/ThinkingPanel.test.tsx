@@ -25,12 +25,9 @@ describe("ThinkingPanel", () => {
   });
 
   // AU-2: Audit Events / IR-4: Incident Handling — preflight steps visible to operator for audit trail
-  it("UT-CONSOLE-THINK-003: renders preflight entries with italic styling", () => {
+  it("UT-CONSOLE-THINK-003: renders preflight entries as markdown", () => {
     render(<ThinkingPanel entries={entries} isActive={false} startTime={Date.now()} />);
-    const el = screen.getByText("Analyzing...");
-    expect(el).toBeInTheDocument();
-    expect(el.tagName.toLowerCase()).toBe("span");
-    expect(el.className).toContain("italic");
+    expect(screen.getByText("Analyzing...")).toBeInTheDocument();
   });
 
   // AU-2: Audit Events / IR-4: Incident Handling — tool calls visible to operator for forensic reconstruction
@@ -41,10 +38,9 @@ describe("ThinkingPanel", () => {
     expect(el.className).toContain("font-mono");
   });
 
-  it("UT-CONSOLE-THINK-005: renders reasoning entries with italic muted styling", () => {
+  it("UT-CONSOLE-THINK-005: renders reasoning entries as markdown", () => {
     render(<ThinkingPanel entries={entries} isActive={false} startTime={Date.now()} />);
-    const el = screen.getByText("Container failing due to invalid config.");
-    expect(el.className).toContain("italic");
+    expect(screen.getByText("Container failing due to invalid config.")).toBeInTheDocument();
   });
 
   it("UT-CONSOLE-THINK-006: renders status entries with normal styling", () => {

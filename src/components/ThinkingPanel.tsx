@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import type { ThinkingEntry } from "../hooks/useChat";
+import { MarkdownContent } from "./MarkdownContent";
 
 interface Props {
   entries: ThinkingEntry[];
@@ -87,16 +88,12 @@ export function ThinkingPanel({ entries, isActive, startTime }: Props) {
         >
           {entries.map((entry) => (
             <div key={entry.id} className="py-0.5 animate-fade-in">
-              {entry.type === "preflight" ? (
-                <span className="italic text-text-muted">{entry.text}</span>
-              ) : entry.type === "tool_call" ? (
+              {entry.type === "tool_call" ? (
                 <span className="font-mono text-text-dim">{entry.text}</span>
-              ) : entry.type === "reasoning" ? (
-                <span className="italic text-text-muted">{entry.text}</span>
-              ) : entry.type === "investigation" ? (
-                <span className="text-text-muted">&#9656; {entry.text}</span>
               ) : (
-                <span className="text-text-muted">{entry.text}</span>
+                <div className="text-text-muted [&_p]:text-[11px] [&_p]:mb-1 [&_h2]:text-xs [&_h2]:font-semibold [&_h2]:mt-2 [&_h3]:text-[11px] [&_h3]:font-semibold [&_table]:text-[10px] [&_li]:text-[11px] [&_code]:text-[10px]">
+                  <MarkdownContent text={entry.text} />
+                </div>
               )}
             </div>
           ))}
