@@ -12,14 +12,13 @@ interface Props {
   message: ChatMessage;
   investigationStartTime?: number;
   onExecuteWorkflow?: (workflowId: string) => void;
-  onCancelExecution?: () => void;
 }
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow, onCancelExecution }: Props) {
+export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow }: Props) {
   const hasContent = message.text.trim().length > 0;
   const hasThinking = message.thinking && message.thinking.length > 0;
   const hasRCA = !!message.rca;
@@ -48,6 +47,7 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
             entries={message.thinking!}
             isActive={message.isStreaming ?? false}
             startTime={investigationStartTime}
+            label={message.thinkingLabel}
           />
         )}
 
@@ -61,7 +61,6 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
           <WorkflowCards
             options={message.workflowOptions!}
             onExecute={onExecuteWorkflow}
-            onCancel={onCancelExecution}
           />
         )}
 

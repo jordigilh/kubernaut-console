@@ -884,4 +884,176 @@ describe("useChat", () => {
       expect(agentMsg?.rca).toBeUndefined();
     });
   });
+
+  describe("Thinking suppression on structured artifact", () => {
+    it("UT-CONSOLE-CHAT-027: filters out reasoning/investigation entries when artifact arrives (keeps tool_call/preflight)", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "Checking for existing active remediation..." }] },
+          },
+          metadata: { type: "preflight" },
+        });
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "kubectl_get Pod/web-frontend" }] },
+          },
+          metadata: { type: "tool_call" },
+        });
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "The pod is in CrashLoopBackOff due to invalid config." }] },
+          },
+          metadata: { type: "reasoning" },
+        });
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "Investigation in progress..." }] },
+          },
+          metadata: { type: "investigation" },
+        });
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "a1",
+            parts: [{
+              kind: "data",
+              data: {
+                session_id: "s1",
+                summary: "Root cause found",
+                rca: { severity: "high", confidence: 0.9, target: "pod/test", causal_chain: ["a", "b"] },
+                options: [{ workflow_id: "wf-1", name: "Fix", description: "Fix it", recommended: true }],
+              },
+              mediaType: "application/json",
+            }],
+            metadata: { schema: "investigation_summary" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.rca).toBeDefined();
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent")!;
+      expect(agentMsg.thinking).toBeDefined();
+      expect(agentMsg.thinking!.every(e => e.type === "preflight" || e.type === "tool_call")).toBe(true);
+      expect(agentMsg.thinking!.length).toBe(2);
+    });
+  });
+
+  describe("PhaseIndicator lifecycle phases", () => {
+    it("UT-CONSOLE-CHAT-028: sets phase to 'verifying' when Verifying phase is detected", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "Remediation phase: Verifying" }] },
+          },
+          metadata: { type: "status" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.phase).toBe("verifying");
+      });
+    });
+
+    it("UT-CONSOLE-CHAT-029: sets phase to 'failed' when Failed phase is detected", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "Remediation phase: Failed" }] },
+          },
+          metadata: { type: "status" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.phase).toBe("failed");
+      });
+    });
+
+    it("UT-CONSOLE-CHAT-030: sets thinkingLabel to 'Discovering workflows' when discovery text detected", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "Discovering available workflows for this alert..." }] },
+          },
+          metadata: { type: "reasoning" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.thinkingLabel).toBe("Discovering workflows");
+      });
+    });
+  });
 });

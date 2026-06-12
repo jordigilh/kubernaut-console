@@ -44,7 +44,8 @@ export interface ChatMessage {
   executionComplete?: boolean;
   stabilizationWindow?: number;
   isStreaming?: boolean;
-  phase?: "investigation" | "decision" | "remediation" | "complete";
+  phase?: "investigation" | "decision" | "remediation" | "verifying" | "failed" | "complete";
+  thinkingLabel?: string;
 }
 
 export type ConnectionStatus = "idle" | "connected" | "reconnecting" | "lost";
@@ -158,6 +159,8 @@ export function useChat() {
       );
     };
 
+    const DISCOVERY_PHASE_PATTERN = /discover.*workflow|remediation option|available workflow|searching.*workflow/i;
+
     const handleEvent = (event: A2AEvent) => {
       if (!contextIdRef.current && event.contextId) {
         contextIdRef.current = event.contextId;
@@ -180,7 +183,11 @@ export function useChat() {
             .map((p) => (p as { text: string }).text)
             .join("");
 
-          const updates: Partial<ChatMessage> = { phase: "decision" };
+          thinkingRef.current = thinkingRef.current.filter(
+            e => e.type === "preflight" || e.type === "tool_call"
+          );
+
+          const updates: Partial<ChatMessage> = { phase: "decision", thinking: [...thinkingRef.current], thinkingLabel: undefined };
 
           updates.rca = {
             severity: payload.rca.severity,
@@ -339,15 +346,26 @@ export function useChat() {
             steps.forEach(s => s.state = currentPhase === "failed" ? "failed" : "done");
             terminalReceivedRef.current = true;
           }
+
+          let messagePhase: ChatMessage["phase"];
+          if (currentPhase === "failed") messagePhase = "failed";
+          else if (isTerminal) messagePhase = "complete";
+          else if (currentPhase === "verifying") messagePhase = "verifying";
+          else messagePhase = "remediation";
+
           update({
             executionSteps: steps,
             executionComplete: isTerminal,
-            phase: isTerminal ? "complete" : "remediation",
+            phase: messagePhase,
           });
           return;
         }
 
         if (text.trim()) {
+          if (DISCOVERY_PHASE_PATTERN.test(text)) {
+            update({ thinkingLabel: "Discovering workflows" });
+          }
+
           const last = thinkingRef.current[thinkingRef.current.length - 1];
           if (last && last.type === metaType) {
             last.text += text;

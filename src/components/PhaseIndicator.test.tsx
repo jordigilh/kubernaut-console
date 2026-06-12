@@ -28,8 +28,22 @@ describe("PhaseIndicator", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("UT-CONSOLE-PHASE-006: renders a green status dot", () => {
+  it("UT-CONSOLE-PHASE-006: renders a status dot with phase-appropriate color", () => {
     render(<PhaseIndicator phase="investigation" />);
-    expect(screen.getByTestId("phase-dot")).toBeInTheDocument();
+    const dot = screen.getByTestId("phase-dot");
+    expect(dot).toBeInTheDocument();
+    expect(dot.className).toContain("bg-green-400");
+  });
+
+  it("UT-CONSOLE-PHASE-007: renders 'Verifying' when phase is verifying", () => {
+    render(<PhaseIndicator phase="verifying" />);
+    expect(screen.getByText("Verifying")).toBeInTheDocument();
+    expect(screen.getByTestId("phase-dot").className).toContain("bg-purple-400");
+  });
+
+  it("UT-CONSOLE-PHASE-008: renders 'Failed' with red dot when phase is failed", () => {
+    render(<PhaseIndicator phase="failed" />);
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(screen.getByTestId("phase-dot").className).toContain("bg-red-400");
   });
 });

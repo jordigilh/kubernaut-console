@@ -6,6 +6,7 @@ interface Props {
   entries: ThinkingEntry[];
   isActive: boolean;
   startTime?: number;
+  label?: string;
 }
 
 function formatElapsed(startTime: number): string {
@@ -16,7 +17,7 @@ function formatElapsed(startTime: number): string {
   return `${seconds}s`;
 }
 
-export function ThinkingPanel({ entries, isActive, startTime }: Props) {
+export function ThinkingPanel({ entries, isActive, startTime, label }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [elapsed, setElapsed] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -64,7 +65,7 @@ export function ThinkingPanel({ entries, isActive, startTime }: Props) {
         </svg>
         {isActive ? (
           <span className="flex items-center gap-1">
-            <span>Investigating</span>
+            <span>{label || "Investigating"}</span>
             <span className="w-1.5 h-1.5 rounded-full bg-kubernaut-teal-600 typing-dot" />
             <span className="w-1.5 h-1.5 rounded-full bg-kubernaut-teal-600 typing-dot" />
             <span className="w-1.5 h-1.5 rounded-full bg-kubernaut-teal-600 typing-dot" />

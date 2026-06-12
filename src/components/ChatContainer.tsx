@@ -52,10 +52,6 @@ export function ChatContainer() {
     [isStreaming, sendMessage],
   );
 
-  const handleCancelExecution = useCallback(() => {
-    sendMessage("Cancel execution", { silent: true });
-  }, [sendMessage]);
-
   return (
     <div className="flex flex-col h-full bg-white rounded-none sm:rounded-2xl overflow-hidden border border-border shadow-sm">
       {/* Header */}
@@ -109,7 +105,6 @@ export function ChatContainer() {
                 message={msg}
                 investigationStartTime={investigationStartTime}
                 onExecuteWorkflow={handleExecuteWorkflow}
-                onCancelExecution={handleCancelExecution}
               />
             ),
           )

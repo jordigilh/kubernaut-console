@@ -91,14 +91,15 @@ describe("WorkflowCards", () => {
     expect(onExecute).toHaveBeenCalledWith("git-revert-v2");
   });
 
-  // SC-5: Denial of Service Protection — cancel provides execution guard against unintended remediation
-  it("UT-CONSOLE-WF-010: cancel button stops countdown and calls onCancel", () => {
-    const onCancel = vi.fn();
-    render(<WorkflowCards options={options} onCancel={onCancel} />);
+  // SC-5: Denial of Service Protection — cancel provides local execution guard (stops timer only, no AF message)
+  it("UT-CONSOLE-WF-010: cancel button stops countdown locally without sending to AF", () => {
+    const onExecute = vi.fn();
+    render(<WorkflowCards options={options} onExecute={onExecute} />);
     fireEvent.click(screen.getByRole("button", { name: /execute/i }));
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
-    expect(onCancel).toHaveBeenCalled();
     expect(screen.queryByText(/Executing in/)).not.toBeInTheDocument();
+    act(() => { vi.advanceTimersByTime(15000); });
+    expect(onExecute).not.toHaveBeenCalled();
   });
 
   it("UT-CONSOLE-WF-011: renders green checkmark on recommended card", () => {
