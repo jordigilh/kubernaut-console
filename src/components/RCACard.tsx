@@ -56,6 +56,7 @@ export function RCACard({ rca }: Props) {
 
         {/* Metadata */}
         <p className="text-[11px] text-text-muted mb-3">
+          {rca.rrId && <>RR: {rca.rrId} | </>}
           Target: {rca.target} | Confidence: {rca.confidence} | {rca.toolCallsCount} tool calls, {rca.llmTurns} LLM turns
         </p>
 

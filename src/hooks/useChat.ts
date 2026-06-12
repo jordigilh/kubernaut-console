@@ -20,6 +20,7 @@ export interface RCAData {
   toolCallsCount: number;
   llmTurns: number;
   summary: string;
+  rrId?: string;
 }
 
 export interface WorkflowOption {
@@ -74,6 +75,7 @@ export interface ChatMessage {
   thinkingLabel?: string;
   approvalRequest?: ApprovalRequest;
   approvalResolution?: ApprovalResolution;
+  rrId?: string;
 }
 
 export type ConnectionStatus = "idle" | "connected" | "reconnecting" | "lost";
@@ -224,7 +226,12 @@ export function useChat() {
             toolCallsCount: payload.rca.tool_calls_count ?? 0,
             llmTurns: payload.rca.llm_turns ?? 0,
             summary: payload.summary || textFallback,
+            rrId: payload.rr_id,
           };
+
+          if (payload.rr_id) {
+            updates.rrId = payload.rr_id;
+          }
 
           if (Array.isArray(payload.options)) {
             updates.workflowOptions = payload.options.map((o) => ({
@@ -275,6 +282,10 @@ export function useChat() {
                  : currentPhase === "Verifying" ? "verifying"
                  : "remediation",
           };
+
+          if (payload.rr_name) {
+            updates.rrId = payload.rr_name;
+          }
 
           const swRaw = event.artifact.metadata?.stabilization_window;
           if (swRaw) {

@@ -73,4 +73,16 @@ describe("RCACard", () => {
     const accent = screen.getByTestId("severity-accent");
     expect(accent.className).toContain("bg-amber-500");
   });
+
+  // AU-2: Audit Events — RR ID in RCA card enables audit correlation between
+  // console display and backend CR lifecycle events
+  it("UT-CONSOLE-RCA-010: AU-2 — renders RR ID in metadata when available for audit correlation", () => {
+    render(<RCACard rca={{ ...rca, rrId: "rr-9e1b7bf4140b-ed9f1796" }} />);
+    expect(screen.getByText(/rr-9e1b7bf4140b-ed9f1796/)).toBeInTheDocument();
+  });
+
+  it("UT-CONSOLE-RCA-011: AU-2 — omits RR ID gracefully when not provided", () => {
+    render(<RCACard rca={rca} />);
+    expect(screen.queryByText(/RR:/)).not.toBeInTheDocument();
+  });
 });
