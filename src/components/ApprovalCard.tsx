@@ -27,6 +27,7 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline }: Prop
   const [timeRemaining, setTimeRemaining] = useState<number>(() => {
     return new Date(request.requiredBy).getTime() - Date.now();
   });
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -37,6 +38,7 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline }: Prop
 
   const isExpired = timeRemaining <= 0;
   const isResolved = !!resolution;
+  const isDisabled = isResolved || isExpired || submitted;
   const confidenceClass = CONFIDENCE_COLORS[request.confidenceLevel] ?? "bg-gray-100 text-gray-600";
   const confidencePercent = `${Math.round(request.confidence * 100)}%`;
 
@@ -105,34 +107,36 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline }: Prop
         <hr className="border-border mb-3" />
 
         {/* Countdown + actions */}
-        <div className="flex items-center justify-between">
-          <span
-            data-testid="approval-countdown"
-            className={`text-[11px] font-medium ${isExpired ? "text-kubernaut-red-600" : "text-text-muted"}`}
-          >
-            {formatTimeRemaining(timeRemaining)}
-          </span>
-
-          {isResolved && (
-            <span className="text-[11px] text-text-secondary">
-              {resolution.decision} by {resolution.decidedBy}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span
+              data-testid="approval-countdown"
+              className={`text-[11px] font-medium ${isExpired ? "text-kubernaut-red-600" : "text-text-muted"}`}
+            >
+              {formatTimeRemaining(timeRemaining)}
             </span>
-          )}
+
+            {isResolved && (
+              <span className="text-[11px] text-text-secondary">
+                {resolution.decision} by {resolution.decidedBy}
+              </span>
+            )}
+          </div>
 
           <div className="flex gap-2">
             <button
-              onClick={onDecline}
-              disabled={isResolved || isExpired}
-              className="px-3 py-1.5 text-[11px] font-medium rounded-lg border border-gray-300 text-text-secondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Decline
-            </button>
-            <button
-              onClick={onApprove}
-              disabled={isResolved || isExpired}
-              className="px-3 py-1.5 text-[11px] font-medium rounded-lg bg-kubernaut-green-700 text-white hover:bg-kubernaut-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              onClick={() => { setSubmitted(true); onApprove(); }}
+              disabled={isDisabled}
+              className="flex-1 py-2 text-[11px] font-semibold rounded-lg bg-kubernaut-green-700 text-white hover:bg-kubernaut-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Approve
+            </button>
+            <button
+              onClick={() => { setSubmitted(true); onDecline(); }}
+              disabled={isDisabled}
+              className="flex-1 py-2 text-[11px] font-semibold rounded-lg border border-gray-300 text-text-secondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Decline
             </button>
           </div>
         </div>

@@ -146,7 +146,7 @@ export function ChatContainer() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isStreaming ? "Agent is responding..." : "Ask a follow-up or start a new investigation..."}
+            placeholder={isStreaming ? (currentPhase === "verifying" ? "Verification in progress..." : "Agent is responding...") : "Ask a follow-up or start a new investigation..."}
             disabled={isStreaming}
             aria-label="Type your message"
             className="flex-1 bg-transparent text-xs text-text-primary placeholder:text-text-dim focus:outline-none disabled:opacity-50"

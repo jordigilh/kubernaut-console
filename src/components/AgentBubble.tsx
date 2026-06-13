@@ -4,6 +4,7 @@ import { RCACard } from "./RCACard";
 import { AgentCTA } from "./AgentCTA";
 import { WorkflowCards } from "./WorkflowCards";
 import { ApprovalCard } from "./ApprovalCard";
+import { VerificationTimer } from "./VerificationTimer";
 import { MarkdownContent } from "./MarkdownContent";
 import { StreamingCursor } from "./StreamingCursor";
 import { TypingIndicator } from "./TypingIndicator";
@@ -78,6 +79,13 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
             resolution={message.approvalResolution}
             onApprove={() => onApprove?.(message.approvalRequest!.name)}
             onDecline={() => onDecline?.(message.approvalRequest!.name)}
+          />
+        )}
+
+        {/* 7. Verification Timer (during stabilization window) */}
+        {message.phase === "verifying" && message.stabilizationWindow && message.stabilizationWindow > 0 && (
+          <VerificationTimer
+            stabilizationWindow={message.stabilizationWindow}
           />
         )}
 
