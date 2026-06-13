@@ -32,11 +32,13 @@
   outline-offset: 2px;
 }
 
-/* Suppress inner focus ring when the parent pill handles it */
-[data-focus-delegate] *:focus-visible,
-[data-focus-delegate] *:focus {
+/* Suppress all inner focus/border styling when parent pill handles it */
+[data-focus-delegate] input,
+[data-focus-delegate] input:focus,
+[data-focus-delegate] input:focus-visible {
   outline: none !important;
   box-shadow: none !important;
+  border: 0 !important;
 }
 
 /* Reduced motion: disable animations for users who prefer it */
