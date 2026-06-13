@@ -326,6 +326,10 @@ export function useChat() {
 
       if (metaType === "keepalive") return;
 
+      if (event.metadata?.rr_id && typeof event.metadata.rr_id === "string") {
+        update({ rrId: event.metadata.rr_id });
+      }
+
       if (metaType === "approval_request") {
         try {
           const msgText = (event.status.message?.parts ?? [])

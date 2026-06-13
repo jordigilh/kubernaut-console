@@ -24,6 +24,11 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
   const hasContent = message.text.trim().length > 0;
   const hasThinking = message.thinking && message.thinking.length > 0;
   const hasRCA = !!message.rca;
+  const hasRCAData = hasRCA && (
+    (message.rca!.summary && message.rca!.summary.length > 0) ||
+    (message.rca!.causalChain && message.rca!.causalChain.length > 0) ||
+    message.rca!.toolCallsCount > 0
+  );
   const hasWorkflows = message.workflowOptions && message.workflowOptions.length > 0;
   const hasApproval = !!message.approvalRequest;
 
@@ -53,8 +58,8 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
           />
         )}
 
-        {/* 4. RCA Card (after investigation completes) */}
-        {hasRCA && (
+        {/* 4. RCA Card (only when investigation has produced meaningful results) */}
+        {hasRCA && hasRCAData && (
           <RCACard rca={message.rca!} />
         )}
 
