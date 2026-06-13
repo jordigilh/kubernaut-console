@@ -267,8 +267,10 @@ export function useChat() {
 
           if (payload.rca) {
             const targetStr = payload.rca.target || "";
-            const slashNs = targetStr.includes("/") ? targetStr.slice(0, targetStr.indexOf("/")) : undefined;
-            const parsedNamespace = payload.namespace || payload.rca.namespace || slashNs || undefined;
+            const parenMatch = targetStr.match(/\(([^)]+)\)/);
+            const parenNs = parenMatch ? parenMatch[1] : undefined;
+            const slashNs = !parenNs && targetStr.includes("/") ? targetStr.slice(0, targetStr.indexOf("/")) : undefined;
+            const parsedNamespace = payload.namespace || payload.rca.namespace || parenNs || slashNs || undefined;
 
             updates.rca = {
               severity: payload.rca.severity,
@@ -448,8 +450,10 @@ export function useChat() {
 
           if (parsed.rca) {
             const targetStr2 = parsed.rca.target || "";
-            const slashNs2 = targetStr2.includes("/") ? targetStr2.slice(0, targetStr2.indexOf("/")) : undefined;
-            const parsedNamespace = parsed.namespace || parsed.rca.namespace || slashNs2 || undefined;
+            const parenMatch2 = targetStr2.match(/\(([^)]+)\)/);
+            const parenNs2 = parenMatch2 ? parenMatch2[1] : undefined;
+            const slashNs2 = !parenNs2 && targetStr2.includes("/") ? targetStr2.slice(0, targetStr2.indexOf("/")) : undefined;
+            const parsedNamespace = parsed.namespace || parsed.rca.namespace || parenNs2 || slashNs2 || undefined;
             updates.rca = {
               severity: parsed.rca.severity,
               confidence: parsed.rca.confidence,

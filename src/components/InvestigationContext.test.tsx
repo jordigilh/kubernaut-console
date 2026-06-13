@@ -134,7 +134,7 @@ describe("AU-2/SI-4: Investigation context bar provides audit correlation and si
     expect(banner).toHaveTextContent("Alert");
     expect(banner).toHaveTextContent("Namespace");
     expect(banner).toHaveTextContent("Resource");
-    expect(banner).toHaveTextContent("Status");
+    expect(banner).toHaveTextContent("Investigating");
   });
 
   // --- Always-reserve layout (zero CLS) ---
