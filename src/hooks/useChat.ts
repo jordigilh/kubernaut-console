@@ -224,6 +224,7 @@ export function useChat() {
       timestamp: Date.now(),
       thinking: [],
       isStreaming: true,
+      phase: "investigation",
     };
     setMessages((prev) => [...prev, agentMsg]);
     setIsStreaming(true);
