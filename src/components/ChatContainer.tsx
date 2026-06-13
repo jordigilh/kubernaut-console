@@ -14,13 +14,15 @@ export function ChatContainer() {
   const currentPhase = messages.findLast(m => m.role === "agent" && m.phase)?.phase;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId;
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
+  const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName ?? lastRca?.signalName;
+  const namespace = messages.findLast(m => m.role === "agent" && m.namespace)?.namespace ?? lastRca?.namespace;
+  const resource = messages.findLast(m => m.role === "agent" && m.resource)?.resource ?? lastRca?.target;
   const recoverySignal = messages.findLast(m => m.role === "agent" && m.recoverySignal)?.recoverySignal ?? null;
   const user = useUser();
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const [escalateModalOpen, setEscalateModalOpen] = useState(false);
-  const [escalateReason, setEscalateReason] = useState("");
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   useEffect(() => {
@@ -106,40 +108,35 @@ export function ChatContainer() {
     [rrId, sendMessage, setError, user.name, user.email],
   );
 
-  const handleEscalate = useCallback(() => {
+  const handleEscalate = useCallback(async (reason: string) => {
     if (!rrId) return;
-    setEscalateReason("");
-    setEscalateModalOpen(true);
-  }, [rrId]);
-
-  const submitEscalation = useCallback(async () => {
-    if (!rrId || !escalateReason.trim()) return;
-    setEscalateModalOpen(false);
     const res = await callMcpTool("kubernaut_complete_no_action", {
       rr_id: rrId,
       reason: "Escalated by operator",
-      escalation_reason: escalateReason.trim(),
+      escalation_reason: reason,
     });
     if (res.error) {
       setError(res.error.message);
       return;
     }
     sendMessage("Investigation escalated to team for manual review.", { silent: true });
-    emitAuditEvent({ action: "escalate", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { escalation_reason: escalateReason.trim() } });
-  }, [rrId, escalateReason, sendMessage, setError, user.name, user.email]);
+    emitAuditEvent({ action: "escalate", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { escalation_reason: reason } });
+  }, [rrId, sendMessage, setError, user.name, user.email]);
 
   const handleClearHistory = useCallback(() => {
     if (messages.length === 0) {
       clearHistory();
+      setError(null);
     } else {
       setClearConfirmOpen(true);
     }
-  }, [messages.length, clearHistory]);
+  }, [messages.length, clearHistory, setError]);
 
   const confirmClear = useCallback(() => {
     setClearConfirmOpen(false);
     clearHistory();
-  }, [clearHistory]);
+    setError(null);
+  }, [clearHistory, setError]);
 
   return (
     <div className="flex flex-col h-full bg-white rounded-none sm:rounded-2xl overflow-hidden border border-border shadow-sm">
@@ -166,11 +163,14 @@ export function ChatContainer() {
         <button
           type="button"
           onClick={handleClearHistory}
-          className="text-white/70 hover:text-white text-[11px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-white/50 rounded px-1"
+          className="text-white/70 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-white/50 rounded p-1"
           aria-label="New conversation"
           title="New conversation"
         >
-          + New
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
+            <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25h5.5a.75.75 0 000-1.5h-5.5A2.75 2.75 0 002 5.75v8.5A2.75 2.75 0 004.75 17h8.5A2.75 2.75 0 0016 14.25v-5.5a.75.75 0 00-1.5 0v5.5c0 .69-.56 1.25-1.25 1.25h-8.5c-.69 0-1.25-.56-1.25-1.25v-8.5z" />
+          </svg>
         </button>
         <a
           href="/oauth2/sign_out"
@@ -182,12 +182,12 @@ export function ChatContainer() {
         </a>
       </header>
 
-      {messages.length > 0 && (
+      {(rrId || currentPhase) && (
         <InvestigationContext
           rrId={rrId}
-          alertName={lastRca?.signalName}
-          namespace={lastRca?.namespace}
-          resource={lastRca?.target}
+          alertName={alertName}
+          namespace={namespace}
+          resource={resource}
           phase={currentPhase}
         />
       )}
@@ -243,17 +243,25 @@ export function ChatContainer() {
         className="px-4 sm:px-5 py-3"
         aria-label="Message input"
       >
-        <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2">
+        <div
+          className="flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 cursor-text has-[:focus]:ring-2 has-[:focus]:ring-kubernaut-teal-600 has-[:focus]:border-kubernaut-teal-600 transition-colors"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).tagName !== "BUTTON") {
+              inputRef.current?.focus();
+            }
+          }}
+        >
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isStreaming ? (currentPhase === "verifying" ? "Verification in progress..." : "Agent is responding...") : "Ask a follow-up or start a new investigation..."}
-            disabled={isStreaming}
+            placeholder={isStreaming && currentPhase !== "verifying" ? "Agent is responding..." : "Ask a follow-up or start a new investigation..."}
+            disabled={isStreaming && currentPhase !== "verifying"}
             aria-label="Type your message"
             className="flex-1 bg-transparent text-xs text-text-primary placeholder:text-text-dim focus:outline-none disabled:opacity-50"
           />
-          {isStreaming ? (
+          {isStreaming && currentPhase !== "verifying" ? (
             <button
               type="button"
               onClick={cancelStream}
@@ -278,39 +286,6 @@ export function ChatContainer() {
           )}
         </div>
       </form>
-
-      {/* Escalation Modal */}
-      <Modal open={escalateModalOpen} onClose={() => setEscalateModalOpen(false)} title="Escalate to team">
-        <label htmlFor="escalate-reason" className="block text-xs text-text-secondary mb-1">
-          Escalation reason (required)
-        </label>
-        <input
-          id="escalate-reason"
-          type="text"
-          value={escalateReason}
-          onChange={(e) => setEscalateReason(e.target.value)}
-          className="w-full rounded-md border border-border px-3 py-2 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-kubernaut-teal-600 mb-3"
-          placeholder="e.g., DBA team needed for schema migration"
-          autoFocus
-        />
-        <div className="flex gap-2 justify-end">
-          <button
-            type="button"
-            onClick={() => setEscalateModalOpen(false)}
-            className="px-3 py-1.5 rounded-md border border-border text-xs text-text-secondary hover:bg-surface-secondary transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={submitEscalation}
-            disabled={!escalateReason.trim()}
-            className="px-3 py-1.5 rounded-md bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors"
-          >
-            Escalate
-          </button>
-        </div>
-      </Modal>
 
       {/* Clear History Confirmation Modal */}
       <Modal open={clearConfirmOpen} onClose={() => setClearConfirmOpen(false)} title="Start new conversation?">

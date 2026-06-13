@@ -83,6 +83,9 @@ export interface ChatMessage {
   approvalRequest?: ApprovalRequest;
   approvalResolution?: ApprovalResolution;
   rrId?: string;
+  alertName?: string;
+  namespace?: string;
+  resource?: string;
   recoverySignal?: "problem_resolved" | "alignment_check_failed";
 }
 
@@ -264,8 +267,8 @@ export function useChat() {
 
           if (payload.rca) {
             const targetStr = payload.rca.target || "";
-            const slashIdx = targetStr.indexOf("/");
-            const parsedNamespace = slashIdx > 0 ? targetStr.slice(0, slashIdx) : undefined;
+            const slashNs = targetStr.includes("/") ? targetStr.slice(0, targetStr.indexOf("/")) : undefined;
+            const parsedNamespace = payload.namespace || payload.rca.namespace || slashNs || undefined;
 
             updates.rca = {
               severity: payload.rca.severity,
@@ -283,6 +286,15 @@ export function useChat() {
 
           if (payload.rr_id) {
             updates.rrId = payload.rr_id;
+          }
+          if (payload.signal_name) {
+            updates.alertName = payload.signal_name;
+          }
+          if (payload.namespace || payload.rca?.namespace) {
+            updates.namespace = payload.namespace || payload.rca?.namespace;
+          }
+          if (payload.rca?.target) {
+            updates.resource = payload.rca.target;
           }
 
           if (Array.isArray(payload.options)) {
@@ -375,7 +387,11 @@ export function useChat() {
       if (metaType === "keepalive") return;
 
       if (event.metadata?.rr_id && typeof event.metadata.rr_id === "string") {
-        update({ rrId: event.metadata.rr_id });
+        const rrUpdate: Partial<ChatMessage> = { rrId: event.metadata.rr_id };
+        if (event.metadata.alert_name) rrUpdate.alertName = event.metadata.alert_name as string;
+        if (event.metadata.namespace) rrUpdate.namespace = event.metadata.namespace as string;
+        if (event.metadata.target) rrUpdate.resource = event.metadata.target as string;
+        update(rrUpdate);
       }
 
       if (metaType === "approval_request") {
@@ -431,9 +447,9 @@ export function useChat() {
           updates.thinking = [...thinkingRef.current];
 
           if (parsed.rca) {
-            const targetStr = parsed.rca.target || "";
-            const slashIdx = targetStr.indexOf("/");
-            const parsedNamespace = slashIdx > 0 ? targetStr.slice(0, slashIdx) : undefined;
+            const targetStr2 = parsed.rca.target || "";
+            const slashNs2 = targetStr2.includes("/") ? targetStr2.slice(0, targetStr2.indexOf("/")) : undefined;
+            const parsedNamespace = parsed.namespace || parsed.rca.namespace || slashNs2 || undefined;
             updates.rca = {
               severity: parsed.rca.severity,
               confidence: parsed.rca.confidence,
@@ -448,6 +464,15 @@ export function useChat() {
             };
             if (parsed.rr_id) {
               updates.rrId = parsed.rr_id;
+            }
+            if (parsed.signal_name) {
+              updates.alertName = parsed.signal_name;
+            }
+            if (parsedNamespace) {
+              updates.namespace = parsedNamespace;
+            }
+            if (parsed.rca.target) {
+              updates.resource = parsed.rca.target;
             }
           }
 

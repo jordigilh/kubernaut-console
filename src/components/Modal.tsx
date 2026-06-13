@@ -33,7 +33,7 @@ export function Modal({ open, onClose, title, children }: Props) {
   return (
     <dialog
       ref={dialogRef}
-      className="rounded-xl border border-border shadow-lg p-0 backdrop:bg-black/40 max-w-md w-full"
+      className="fixed inset-0 m-auto rounded-xl border border-border shadow-lg p-0 backdrop:bg-black/40 max-w-md w-full"
       aria-labelledby="modal-title"
     >
       <div className="p-5">
