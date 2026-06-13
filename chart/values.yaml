@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: quay.io/kubernaut-ai/demo-console
-  tag: "latest"
+  tag: "0.5.5"
   pullPolicy: IfNotPresent
 
 # Agent discovery — how Console finds AF

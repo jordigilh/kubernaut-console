@@ -4,3 +4,13 @@ dist
 .env
 .env.*
 *.log
+chart/
+docs/
+.github/
+.cursor/
+.githooks/
+deploy/kind/
+src/**/*.test.*
+src/**/*.orig
+assets/
+coverage/
