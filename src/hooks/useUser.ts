@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 
-interface UserInfo {
+export interface UserInfo {
   initials: string;
   name: string;
   email: string;
+  isLoading: boolean;
+  error: string | null;
 }
 
 function getInitials(name: string, email: string): string {
@@ -22,19 +24,22 @@ function getInitials(name: string, email: string): string {
 }
 
 export function useUser(): UserInfo {
-  const [user, setUser] = useState<UserInfo>({ initials: "??", name: "", email: "" });
+  const [user, setUser] = useState<UserInfo>({ initials: "??", name: "", email: "", isLoading: true, error: null });
 
   useEffect(() => {
     fetch("/oauth2/userinfo")
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data) {
-          const name = data.preferredUsername || data.user || data.name || "";
-          const email = data.email || "";
-          setUser({ initials: getInitials(name, email), name, email });
-        }
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
       })
-      .catch(() => {});
+      .then(data => {
+        const name = data.preferredUsername || data.user || data.name || "";
+        const email = data.email || "";
+        setUser({ initials: getInitials(name, email), name, email, isLoading: false, error: null });
+      })
+      .catch((err) => {
+        setUser(prev => ({ ...prev, isLoading: false, error: err.message }));
+      });
   }, []);
 
   return user;

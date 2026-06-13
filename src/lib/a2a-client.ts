@@ -10,6 +10,7 @@ export interface StreamOptions {
   onReconnecting?: (attempt: number) => void;
   signal?: AbortSignal;
   maxRetries?: number;
+  idleTimeoutMs?: number;
 }
 
 let requestCounter = 0;
@@ -114,10 +115,23 @@ async function attemptStream(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  const idleTimeout = options.idleTimeoutMs ?? 300_000; // 5 min default
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const readPromise = reader.read();
+      const timeoutPromise = new Promise<{ done: true; value: undefined; timedOut: true }>((resolve) =>
+        setTimeout(() => resolve({ done: true, value: undefined, timedOut: true }), idleTimeout)
+      );
+
+      const result = await Promise.race([readPromise, timeoutPromise]);
+
+      if ("timedOut" in result) {
+        reader.cancel();
+        return "retryable";
+      }
+
+      const { done, value } = result;
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
