@@ -16,6 +16,20 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
+  componentDidCatch(error: Error, info: { componentStack?: string | null }) {
+    console.error("[ErrorBoundary]", error, info.componentStack);
+    if (navigator.sendBeacon) {
+      const payload = JSON.stringify({
+        message: error.message,
+        stack: error.stack?.slice(0, 1024),
+        component: info.componentStack?.slice(0, 512),
+        url: window.location.href,
+        ts: Date.now(),
+      });
+      navigator.sendBeacon("/a2a/telemetry/error", payload);
+    }
+  }
+
   handleReset = () => {
     this.setState({ hasError: false, error: null });
   };

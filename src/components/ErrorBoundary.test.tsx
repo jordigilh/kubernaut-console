@@ -63,4 +63,21 @@ describe("SI-17: Error boundary prevents cascading UI failure", () => {
     );
     expect(screen.getByText("All good")).toBeInTheDocument();
   });
+
+  it("IT-CONSOLE-EB-004: telemetry — sends beacon with error details on crash", () => {
+    const beaconSpy = vi.fn();
+    Object.defineProperty(navigator, "sendBeacon", { value: beaconSpy, writable: true });
+
+    render(
+      <ErrorBoundary>
+        <ThrowingChild shouldThrow={true} />
+      </ErrorBoundary>,
+    );
+
+    expect(beaconSpy).toHaveBeenCalledTimes(1);
+    expect(beaconSpy).toHaveBeenCalledWith("/a2a/telemetry/error", expect.any(String));
+    const payload = JSON.parse(beaconSpy.mock.calls[0][1]);
+    expect(payload.message).toBe("Test explosion");
+    expect(payload.ts).toBeGreaterThan(0);
+  });
 });
