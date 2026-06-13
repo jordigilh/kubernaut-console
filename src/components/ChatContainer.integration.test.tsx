@@ -465,8 +465,16 @@ describe("ChatContainer Integration", () => {
   });
 
   // AC-6/IR-4: Approval card wiring — user approve sends silent A2A message
-  it("IT-CONSOLE-APPROVAL-001: renders ApprovalCard from approval_request event and sends silent approve via A2A", async () => {
-    mockStreamA2A.mockImplementation(async (_req, opts: {
+  it("IT-CONSOLE-APPROVAL-001: renders ApprovalCard from approval_request event and sends silent approve via MCP+A2A", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    fetchSpy.mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: "ok" }] } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    ));
+
+    mockStreamA2A.mockImplementationOnce(async (_req, opts: {
       onEvent?: (event: unknown) => void;
       onComplete?: () => void;
     }) => {
@@ -497,6 +505,11 @@ describe("ChatContainer Integration", () => {
       opts.onComplete?.();
     });
 
+    // Follow-up stream
+    mockStreamA2A.mockImplementation(async (_req, opts: { onComplete?: () => void }) => {
+      opts.onComplete?.();
+    });
+
     render(<ChatContainer />);
     const input = screen.getByLabelText("Type your message");
     await act(async () => {
@@ -513,21 +526,21 @@ describe("ChatContainer Integration", () => {
       expect(screen.getByText(/Production namespace requires approval/)).toBeInTheDocument();
     });
 
-    // Click Approve — sends silent A2A message
-    mockStreamA2A.mockImplementation(async (_req, opts: { onComplete?: () => void }) => {
-      opts.onComplete?.();
-    });
-
+    // Click Approve — triggers MCP call then silent A2A follow-up
     const approveBtn = screen.getByRole("button", { name: /approve/i });
     await act(async () => {
       fireEvent.click(approveBtn);
       vi.advanceTimersByTime(600);
     });
 
-    // Verify sendMessage was called silently (no user bubble with "Approve rar-...")
+    // Verify MCP was called
+    expect(fetchSpy).toHaveBeenCalledWith("/mcp", expect.objectContaining({ method: "POST" }));
+    // Verify no user bubble with "Approve rar-..." (silent)
     expect(screen.queryByText("Approve rar-rr-drift-xyz")).not.toBeInTheDocument();
-    // But streamA2A was called a second time (the approve message)
+    // streamA2A called twice (initial + follow-up)
     expect(mockStreamA2A).toHaveBeenCalledTimes(2);
+
+    fetchSpy.mockRestore();
   });
 
   // AU-2/SI-4: InvestigationContext banner wiring — proves RR ID flows from
@@ -690,5 +703,304 @@ describe("ChatContainer Integration", () => {
     const sendBtn = screen.getByLabelText("Send message");
     expect(sendBtn.className).toContain("h-10");
     expect(sendBtn.className).toContain("w-10");
+  });
+
+  // AC-6: Approve button triggers MCP call with correct payload (not A2A text message)
+  it("IT-CONSOLE-MCP-001: approve button calls POST /mcp with kubernaut_approve tool", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    // First stream call: emit approval_request
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        status: {
+          state: "working",
+          message: {
+            role: "agent",
+            parts: [{
+              kind: "text",
+              text: JSON.stringify({
+                name: "rar-rr-test-001",
+                namespace: "kubernaut-system",
+                confidence: 0.9,
+                confidenceLevel: "High",
+                reason: "Production namespace",
+                requiredBy: new Date(Date.now() + 3600_000).toISOString(),
+              }),
+            }],
+          },
+        },
+        metadata: { type: "approval_request" },
+      });
+      opts.onComplete?.();
+    });
+
+    // Mock MCP fetch response (factory to avoid body-already-read)
+    fetchSpy.mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: "Approved" }] } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    ));
+
+    // Follow-up stream: just complete
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(600);
+    });
+
+    // Approval card should render
+    await waitFor(() => {
+      expect(screen.getByText("Approval Required")).toBeInTheDocument();
+    });
+
+    // Click Approve
+    const approveBtn = screen.getByRole("button", { name: /approve/i });
+    await act(async () => {
+      fireEvent.click(approveBtn);
+      vi.advanceTimersByTime(600);
+    });
+
+    // AC-6: Verify MCP was called (not A2A text message)
+    const mcpCall = fetchSpy.mock.calls.find(c => c[0] === "/mcp");
+    expect(mcpCall).toBeDefined();
+    const body = JSON.parse((mcpCall![1] as RequestInit).body as string);
+    expect(body.method).toBe("tools/call");
+    expect(body.params.name).toBe("kubernaut_approve");
+    expect(body.params.arguments.rar_name).toBe("rar-rr-test-001");
+    expect(body.params.arguments.decision).toBe("Approved");
+    expect(body.params.arguments.reason).toContain("Approved by");
+
+    fetchSpy.mockRestore();
+  });
+
+  // AU-2: On MCP success, follow-up A2A message is sent to resume LLM monitoring
+  it("IT-CONSOLE-MCP-002: sends follow-up A2A message after successful MCP approval", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        status: {
+          state: "working",
+          message: {
+            role: "agent",
+            parts: [{
+              kind: "text",
+              text: JSON.stringify({
+                name: "rar-rr-test-002",
+                namespace: "kubernaut-system",
+                confidence: 0.8,
+                confidenceLevel: "High",
+                reason: "Policy match",
+                requiredBy: new Date(Date.now() + 3600_000).toISOString(),
+              }),
+            }],
+          },
+        },
+        metadata: { type: "approval_request" },
+      });
+      opts.onComplete?.();
+    });
+
+    fetchSpy.mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: "ok" }] } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    ));
+
+    // Follow-up stream: just complete
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(600);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Approval Required")).toBeInTheDocument();
+    });
+
+    const approveBtn = screen.getByRole("button", { name: /approve/i });
+    await act(async () => {
+      fireEvent.click(approveBtn);
+      vi.advanceTimersByTime(600);
+    });
+
+    // AU-2: Follow-up A2A message sent after approval
+    expect(mockStreamA2A).toHaveBeenCalledTimes(2);
+
+    fetchSpy.mockRestore();
+  });
+
+  // SI-10: On MCP failure, error shown and NO follow-up sent
+  it("IT-CONSOLE-MCP-003: MCP failure shows error, does NOT send follow-up A2A message", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        status: {
+          state: "working",
+          message: {
+            role: "agent",
+            parts: [{
+              kind: "text",
+              text: JSON.stringify({
+                name: "rar-rr-test-003",
+                namespace: "kubernaut-system",
+                confidence: 0.7,
+                confidenceLevel: "Medium",
+                reason: "RBAC check",
+                requiredBy: new Date(Date.now() + 3600_000).toISOString(),
+              }),
+            }],
+          },
+        },
+        metadata: { type: "approval_request" },
+      });
+      opts.onComplete?.();
+    });
+
+    // MCP returns error (SAR check failed) - factory to avoid body-already-read
+    fetchSpy.mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        error: { code: -32603, message: "SAR check failed: user lacks remediation-approver role" },
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(600);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Approval Required")).toBeInTheDocument();
+    });
+
+    const approveBtn = screen.getByRole("button", { name: /approve/i });
+    await act(async () => {
+      fireEvent.click(approveBtn);
+      await Promise.resolve();
+      await Promise.resolve();
+      vi.advanceTimersByTime(600);
+    });
+
+    // SI-10: Error is displayed (setError is called after async MCP resolution)
+    await act(async () => { vi.advanceTimersByTime(100); });
+    await waitFor(() => {
+      expect(screen.getByText(/SAR check failed/)).toBeInTheDocument();
+    });
+
+    // SI-10: NO follow-up A2A message sent (only initial stream call)
+    expect(mockStreamA2A).toHaveBeenCalledTimes(1);
+
+    fetchSpy.mockRestore();
+  });
+
+  // AC-6: Decline calls MCP with "Rejected" decision
+  it("IT-CONSOLE-MCP-004: decline button calls MCP with decision=Rejected", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        status: {
+          state: "working",
+          message: {
+            role: "agent",
+            parts: [{
+              kind: "text",
+              text: JSON.stringify({
+                name: "rar-rr-test-004",
+                namespace: "kubernaut-system",
+                confidence: 0.6,
+                confidenceLevel: "Medium",
+                reason: "Needs review",
+                requiredBy: new Date(Date.now() + 3600_000).toISOString(),
+              }),
+            }],
+          },
+        },
+        metadata: { type: "approval_request" },
+      });
+      opts.onComplete?.();
+    });
+
+    fetchSpy.mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: "Rejected" }] } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    ));
+
+    // Follow-up stream
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(600);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Approval Required")).toBeInTheDocument();
+    });
+
+    const declineBtn = screen.getByRole("button", { name: /decline/i });
+    await act(async () => {
+      fireEvent.click(declineBtn);
+      vi.advanceTimersByTime(600);
+    });
+
+    // AC-6: MCP called with Rejected decision
+    const mcpCall = fetchSpy.mock.calls.find(c => c[0] === "/mcp");
+    expect(mcpCall).toBeDefined();
+    const body = JSON.parse((mcpCall![1] as RequestInit).body as string);
+    expect(body.params.arguments.decision).toBe("Rejected");
+
+    fetchSpy.mockRestore();
   });
 });
