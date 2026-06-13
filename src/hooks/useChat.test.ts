@@ -394,7 +394,7 @@ describe("useChat", () => {
       expect(result.current.connectionStatus).toBe("idle");
     });
 
-    it("UT-CONSOLE-CHAT-013: onReconnecting sets connectionStatus and error with attempt count", async () => {
+    it("UT-CONSOLE-CHAT-013: onReconnecting sets connectionStatus without showing error banner", async () => {
       vi.useRealTimers();
       const { streamA2A: streamFn } = await import("../lib/a2a-client");
       const mockedStream = vi.mocked(streamFn);
@@ -409,7 +409,7 @@ describe("useChat", () => {
       await waitFor(() => {
         expect(result.current.connectionStatus).toBe("reconnecting");
       });
-      expect(result.current.error).toBe("Connection lost, retrying (attempt 2)...");
+      expect(result.current.error).toBeNull();
     });
 
     it("UT-CONSOLE-CHAT-014: onConnectionLost sets connectionStatus to 'lost'", async () => {

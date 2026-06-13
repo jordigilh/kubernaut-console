@@ -562,7 +562,6 @@ export function useChat() {
       onReconnecting: (attempt) => {
         if (terminalReceivedRef.current) return;
         setConnectionStatus("reconnecting");
-        setError(`Connection lost, retrying (attempt ${attempt})...`);
       },
       signal: controller.signal,
     });
