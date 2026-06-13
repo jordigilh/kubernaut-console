@@ -119,12 +119,14 @@ async function attemptStream(
 
   try {
     while (true) {
+      let timerId: ReturnType<typeof setTimeout> | undefined;
       const readPromise = reader.read();
-      const timeoutPromise = new Promise<{ done: true; value: undefined; timedOut: true }>((resolve) =>
-        setTimeout(() => resolve({ done: true, value: undefined, timedOut: true }), idleTimeout)
-      );
+      const timeoutPromise = new Promise<{ done: true; value: undefined; timedOut: true }>((resolve) => {
+        timerId = setTimeout(() => resolve({ done: true, value: undefined, timedOut: true }), idleTimeout);
+      });
 
       const result = await Promise.race([readPromise, timeoutPromise]);
+      clearTimeout(timerId);
 
       if ("timedOut" in result) {
         reader.cancel();

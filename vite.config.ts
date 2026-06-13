@@ -10,6 +10,10 @@ export default defineConfig({
         target: process.env.VITE_API_UPSTREAM ?? 'http://localhost:8443',
         changeOrigin: true,
       },
+      '/mcp': {
+        target: process.env.VITE_API_UPSTREAM ?? 'http://localhost:8443',
+        changeOrigin: true,
+      },
       '/.well-known': {
         target: process.env.VITE_API_UPSTREAM ?? 'http://localhost:8443',
         changeOrigin: true,

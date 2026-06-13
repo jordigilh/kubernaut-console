@@ -83,6 +83,7 @@ export interface ChatMessage {
   approvalRequest?: ApprovalRequest;
   approvalResolution?: ApprovalResolution;
   rrId?: string;
+  recoverySignal?: "problem_resolved" | "alignment_check_failed";
 }
 
 export type ConnectionStatus = "idle" | "connected" | "reconnecting" | "lost";
@@ -176,6 +177,12 @@ export function useChat() {
       saveMessages(messages);
     }
   }, [messages, isStreaming]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const nextId = () => `msg-${++messageIdRef.current}`;
 
@@ -399,6 +406,16 @@ export function useChat() {
         return;
       }
 
+      if (metaType === "problem_resolved") {
+        update({ recoverySignal: "problem_resolved" });
+        return;
+      }
+
+      if (metaType === "alignment_check_failed") {
+        update({ recoverySignal: "alignment_check_failed" });
+        return;
+      }
+
       if (metaType === "decision") {
         try {
           const msgText = (event.status.message?.parts ?? [])
@@ -600,7 +617,7 @@ export function useChat() {
         if (terminalReceivedRef.current) return;
         setConnectionStatus("lost");
       },
-      onReconnecting: (_attempt) => {
+      onReconnecting: () => {
         if (terminalReceivedRef.current) return;
         setConnectionStatus("reconnecting");
       },
