@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export interface UserInfo {
   initials: string;
@@ -25,21 +25,35 @@ function getInitials(name: string, email: string): string {
 
 export function useUser(): UserInfo {
   const [user, setUser] = useState<UserInfo>({ initials: "??", name: "", email: "", isLoading: true, error: null });
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    fetch("/oauth2/userinfo")
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    fetch("/oauth2/userinfo", { signal: controller.signal })
       .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            window.location.href = "/oauth2/sign_in";
+            return;
+          }
+          throw new Error(`HTTP ${res.status}`);
+        }
         return res.json();
       })
       .then(data => {
+        if (!data) return;
         const name = data.preferredUsername || data.user || data.name || "";
         const email = data.email || "";
         setUser({ initials: getInitials(name, email), name, email, isLoading: false, error: null });
       })
       .catch((err) => {
+        if (err.name === "AbortError") return;
         setUser(prev => ({ ...prev, isLoading: false, error: err.message }));
       });
+
+    return () => { controller.abort(); };
   }, []);
 
   return user;
