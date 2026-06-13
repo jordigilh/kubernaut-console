@@ -47,13 +47,13 @@ export function ThinkingPanel({ entries, isActive, startTime, label }: Props) {
   const toggle = () => setCollapsed((c) => !c);
 
   return (
-    <div className="animate-fade-in w-full">
+    <div className="animate-fade-in w-full rounded-lg border border-border overflow-hidden">
       {/* Header row */}
       <button
         type="button"
         onClick={toggle}
         aria-expanded={!collapsed}
-        className="w-full flex items-center gap-1.5 px-3 py-1.5 rounded-t-md bg-white text-text-muted text-[11px] font-medium hover:text-text-secondary transition-colors focus-visible:ring-2 focus-visible:ring-kubernaut-teal-600 focus-visible:ring-inset"
+        className="w-full flex items-center gap-1.5 px-3 py-1.5 bg-white text-text-muted text-[11px] font-medium hover:text-text-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kubernaut-teal-600 focus-visible:ring-inset"
       >
         <svg
           className={`h-3 w-3 transition-transform ${collapsed ? "" : "rotate-90"}`}
@@ -86,7 +86,7 @@ export function ThinkingPanel({ entries, isActive, startTime, label }: Props) {
         <div
           ref={scrollRef}
           data-testid="thinking-body"
-          className="max-h-[200px] overflow-y-auto rounded-b-lg border border-border bg-surface-secondary px-4 py-2.5 text-[11px] leading-relaxed scrollbar-thin"
+          className="max-h-[200px] overflow-y-auto border-t border-border bg-surface-secondary px-4 py-2.5 text-[11px] leading-relaxed scrollbar-thin"
         >
           {entries.map((entry) => (
             <div key={entry.id} className="py-0.5 animate-fade-in">
