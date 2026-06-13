@@ -242,7 +242,7 @@ export function ChatContainer() {
         aria-label="Message input"
       >
         <div
-          className="flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 cursor-text has-[:focus]:ring-2 has-[:focus]:ring-kubernaut-teal-600 has-[:focus]:border-kubernaut-teal-600 transition-colors"
+          className="flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2.5 cursor-text has-[:focus]:ring-2 has-[:focus]:ring-kubernaut-teal-600 has-[:focus]:border-kubernaut-teal-600 transition-colors"
           onClick={(e) => {
             if ((e.target as HTMLElement).tagName !== "BUTTON") {
               inputRef.current?.focus();
@@ -257,7 +257,7 @@ export function ChatContainer() {
             placeholder={isStreaming && currentPhase !== "verifying" ? "Agent is responding..." : "Ask a follow-up or start a new investigation..."}
             disabled={isStreaming && currentPhase !== "verifying"}
             aria-label="Type your message"
-            className="flex-1 bg-transparent text-xs text-text-primary placeholder:text-text-dim focus:outline-none disabled:opacity-50"
+            className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-dim outline-none border-none ring-0 focus:outline-none focus:ring-0 disabled:opacity-50"
           />
           {isStreaming && currentPhase !== "verifying" ? (
             <button

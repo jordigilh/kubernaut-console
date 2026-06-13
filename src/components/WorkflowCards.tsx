@@ -233,7 +233,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
       ))}
 
       {/* Escape hatch actions */}
-      <div className="flex gap-2 pt-2 border-t border-border mt-3">
+      <div className={`flex gap-2 ${options.length > 0 ? "pt-2 border-t border-border mt-3" : ""}`}>
         {onDismiss && (
           <button
             type="button"

@@ -35,6 +35,7 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
     message.rca!.toolCallsCount > 0
   );
   const hasWorkflows = message.workflowOptions && message.workflowOptions.length > 0;
+  const showEscapeHatches = hasRCA && !hasWorkflows && message.phase === "decision";
   const hasApproval = !!message.approvalRequest;
 
   return (
@@ -73,6 +74,16 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
           <WorkflowCards
             options={message.workflowOptions!}
             onExecute={onExecuteWorkflow}
+            onDismiss={onDismiss}
+            onEscalate={onEscalate}
+            recoverySignal={recoverySignal}
+          />
+        )}
+
+        {/* 5b. Escape hatches when no workflows discovered but decision needed */}
+        {showEscapeHatches && (
+          <WorkflowCards
+            options={[]}
             onDismiss={onDismiss}
             onEscalate={onEscalate}
             recoverySignal={recoverySignal}
