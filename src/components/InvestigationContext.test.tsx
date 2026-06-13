@@ -3,14 +3,14 @@ import { render, screen } from "@testing-library/react";
 import { InvestigationContext } from "./InvestigationContext";
 
 // AU-2 (Audit Events) + SI-4 (Information System Monitoring):
-// The investigation context banner provides real-time situational awareness
+// The investigation context bar provides real-time situational awareness
 // of the active remediation — displaying the RR ID (audit correlation),
-// alert name (signal identification), namespace/pod (resource scoping),
-// and cluster (multi-cluster disambiguation). This ensures operators
-// can correlate console activity with audit logs and identify the
+// alert name (signal identification), namespace/resource (resource scoping),
+// cluster (multi-cluster disambiguation), and phase status. This ensures
+// operators can correlate console activity with audit logs and identify the
 // exact scope of automated remediation actions.
 
-describe("AU-2/SI-4: Investigation context banner provides audit correlation and situational awareness", () => {
+describe("AU-2/SI-4: Investigation context bar provides audit correlation and situational awareness", () => {
   it("UT-CONSOLE-CTX-001: AU-2 — renders RR ID for audit trail correlation", () => {
     render(<InvestigationContext rrId="rr-9e1b7bf4140b-ed9f1796" />);
 
@@ -25,21 +25,21 @@ describe("AU-2/SI-4: Investigation context banner provides audit correlation and
     expect(banner).toHaveTextContent("KubePodCrashLooping");
   });
 
-  it("UT-CONSOLE-CTX-003: SI-4 — renders namespace and pod for resource scoping", () => {
+  it("UT-CONSOLE-CTX-003: SI-4 — renders namespace and resource for resource scoping", () => {
     render(
-      <InvestigationContext namespace="demo-crashloop" pod="worker-77784c6cf7-stxv4" />
+      <InvestigationContext namespace="demo-crashloop" resource="Pod: worker-77784c6cf7-stxv4" />
     );
 
     const banner = screen.getByTestId("investigation-context");
     expect(banner).toHaveTextContent("demo-crashloop");
-    expect(banner).toHaveTextContent("worker-77784c6cf7-stxv4");
+    expect(banner).toHaveTextContent("Pod: worker-77784c6cf7-stxv4");
   });
 
   it("UT-CONSOLE-CTX-004: SI-4 — renders cluster ID for multi-cluster disambiguation", () => {
-    render(<InvestigationContext cluster="89aa52d4-7ec9-455b-bde6-275a22d37f59" />);
+    render(<InvestigationContext cluster="prod-us-east-1" />);
 
     const banner = screen.getByTestId("investigation-context");
-    expect(banner).toHaveTextContent("89aa52d4");
+    expect(banner).toHaveTextContent("prod-us-east-1");
   });
 
   it("UT-CONSOLE-CTX-005: SI-4 — hidden when no investigation metadata available", () => {
@@ -53,8 +53,9 @@ describe("AU-2/SI-4: Investigation context banner provides audit correlation and
         rrId="rr-9e1b7bf4140b-ed9f1796"
         alertName="KubePodCrashLooping"
         namespace="demo-crashloop"
-        pod="worker-77784c6cf7-stxv4"
-        cluster="89aa52d4-7ec9-455b-bde6-275a22d37f59"
+        resource="Pod: worker-77784c6cf7-stxv4"
+        cluster="prod-us-east-1"
+        phase="investigation"
       />
     );
 
@@ -62,8 +63,9 @@ describe("AU-2/SI-4: Investigation context banner provides audit correlation and
     expect(banner).toHaveTextContent("rr-9e1b7bf4140b-ed9f1796");
     expect(banner).toHaveTextContent("KubePodCrashLooping");
     expect(banner).toHaveTextContent("demo-crashloop");
-    expect(banner).toHaveTextContent("worker-77784c6cf7-stxv4");
-    expect(banner).toHaveTextContent("89aa52d4");
+    expect(banner).toHaveTextContent("Pod: worker-77784c6cf7-stxv4");
+    expect(banner).toHaveTextContent("prod-us-east-1");
+    expect(banner).toHaveTextContent("Investigating");
   });
 
   it("UT-CONSOLE-CTX-007: SI-4 — progressively reveals fields as they become available", () => {
@@ -82,5 +84,54 @@ describe("AU-2/SI-4: Investigation context banner provides audit correlation and
 
     expect(banner).toHaveTextContent("KubePodCrashLooping");
     expect(banner).toHaveTextContent("rr-9e1b7bf4140b-ed9f1796");
+  });
+
+  it("UT-CONSOLE-CTX-008: AU-2 — displays full RR ID with tooltip (max length fits in bar)", () => {
+    render(<InvestigationContext rrId="rr-660dc089f630-5fca223e" />);
+
+    const banner = screen.getByTestId("investigation-context");
+    expect(banner).toHaveTextContent("rr-660dc089f630-5fca223e");
+    expect(banner.querySelector("[title]")?.getAttribute("title")).toBe(
+      "rr-660dc089f630-5fca223e"
+    );
+  });
+
+  it("UT-CONSOLE-CTX-009: SI-4 — displays phase status with colored indicator dot", () => {
+    render(<InvestigationContext phase="remediation" />);
+
+    const banner = screen.getByTestId("investigation-context");
+    expect(banner).toHaveTextContent("Executing");
+    const dot = screen.getByTestId("phase-dot");
+    expect(dot.className).toContain("bg-blue-400");
+  });
+
+  it("UT-CONSOLE-CTX-010: SI-4 — status field shows correct label for each phase", () => {
+    const { rerender } = render(<InvestigationContext phase="investigation" />);
+    expect(screen.getByTestId("investigation-context")).toHaveTextContent("Investigating");
+
+    rerender(<InvestigationContext phase="complete" />);
+    expect(screen.getByTestId("investigation-context")).toHaveTextContent("Complete");
+
+    rerender(<InvestigationContext phase="failed" />);
+    expect(screen.getByTestId("investigation-context")).toHaveTextContent("Failed");
+  });
+
+  it("UT-CONSOLE-CTX-011: SI-4 — shows labeled fields for first-time user clarity", () => {
+    render(
+      <InvestigationContext
+        rrId="rr-abc123"
+        alertName="KubePodCrashLooping"
+        namespace="production"
+        resource="Deployment: api"
+        phase="investigation"
+      />
+    );
+
+    const banner = screen.getByTestId("investigation-context");
+    expect(banner).toHaveTextContent("Remediation ID");
+    expect(banner).toHaveTextContent("Alert");
+    expect(banner).toHaveTextContent("Namespace");
+    expect(banner).toHaveTextContent("Resource");
+    expect(banner).toHaveTextContent("Status");
   });
 });

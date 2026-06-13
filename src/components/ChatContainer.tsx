@@ -5,7 +5,6 @@ import { UserBubble } from "./UserBubble";
 import { AgentBubble } from "./AgentBubble";
 import { InvestigationContext } from "./InvestigationContext";
 import { WelcomeState } from "./WelcomeState";
-import { PhaseIndicator } from "./PhaseIndicator";
 
 export function ChatContainer() {
   const { messages, isStreaming, error, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime } = useChat();
@@ -72,7 +71,6 @@ export function ChatContainer() {
         {connectionStatus === "reconnecting" && (
           <span className="text-xs text-yellow-200 animate-pulse" role="status">Reconnecting...</span>
         )}
-        <PhaseIndicator phase={currentPhase} />
         <button
           type="button"
           onClick={clearHistory}
@@ -97,7 +95,8 @@ export function ChatContainer() {
           rrId={rrId}
           alertName={lastRca?.signalName}
           namespace={lastRca?.namespace}
-          pod={lastRca?.target}
+          resource={lastRca?.target}
+          phase={currentPhase}
         />
       )}
 
