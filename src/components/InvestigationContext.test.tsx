@@ -42,9 +42,11 @@ describe("AU-2/SI-4: Investigation context bar provides audit correlation and si
     expect(banner).toHaveTextContent("prod-us-east-1");
   });
 
-  it("UT-CONSOLE-CTX-005: SI-4 — hidden when no investigation metadata available", () => {
-    const { container } = render(<InvestigationContext />);
-    expect(container).toBeEmptyDOMElement();
+  it("UT-CONSOLE-CTX-005: SI-4 — shows idle 'Ready' state when no investigation metadata available", () => {
+    render(<InvestigationContext />);
+    const banner = screen.getByTestId("investigation-context");
+    expect(banner).toBeInTheDocument();
+    expect(banner).toHaveTextContent("Ready");
   });
 
   it("UT-CONSOLE-CTX-006: AU-2 — renders all fields together for complete audit context", () => {
@@ -133,5 +135,34 @@ describe("AU-2/SI-4: Investigation context bar provides audit correlation and si
     expect(banner).toHaveTextContent("Namespace");
     expect(banner).toHaveTextContent("Resource");
     expect(banner).toHaveTextContent("Status");
+  });
+
+  // --- Always-reserve layout (zero CLS) ---
+
+  it("UT-CONSOLE-CTX-010: CLS prevention — renders idle 'Ready' state when no props are provided", () => {
+    render(<InvestigationContext />);
+
+    const banner = screen.getByTestId("investigation-context");
+    expect(banner).toBeInTheDocument();
+    expect(banner).toHaveTextContent("Ready");
+  });
+
+  it("UT-CONSOLE-CTX-011: CLS prevention — always renders at fixed height (h-10)", () => {
+    const { rerender } = render(<InvestigationContext />);
+    const bannerIdle = screen.getByTestId("investigation-context");
+    expect(bannerIdle.className).toContain("h-10");
+
+    rerender(<InvestigationContext rrId="rr-abc-123" phase="investigation" />);
+    const bannerActive = screen.getByTestId("investigation-context");
+    expect(bannerActive.className).toContain("h-10");
+  });
+
+  it("UT-CONSOLE-CTX-012: CLS prevention — idle state does not show field labels", () => {
+    render(<InvestigationContext />);
+
+    const banner = screen.getByTestId("investigation-context");
+    expect(banner).not.toHaveTextContent("Remediation ID");
+    expect(banner).not.toHaveTextContent("Alert");
+    expect(banner).not.toHaveTextContent("Status");
   });
 });

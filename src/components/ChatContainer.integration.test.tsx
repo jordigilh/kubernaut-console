@@ -599,6 +599,21 @@ describe("ChatContainer Integration", () => {
     });
   });
 
+  // CLS Prevention: Banner always rendered (zero layout shift)
+  it("IT-CONSOLE-BANNER-ALWAYS-001: investigation context banner is always rendered even before investigation starts", async () => {
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+
+    // Banner should be visible immediately — before any message is sent
+    const banner = screen.getByTestId("investigation-context");
+    expect(banner).toBeInTheDocument();
+    expect(banner).toHaveTextContent("Ready");
+    expect(banner.className).toContain("h-10");
+  });
+
   // IR-4: execution_progress artifact wiring — renders execution steps from structured artifact
   it("IT-CONSOLE-EXEC-001: renders ExecutionProgress from execution_progress artifact event", async () => {
     mockStreamA2A.mockImplementation(async (_req, opts: {

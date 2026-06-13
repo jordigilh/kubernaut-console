@@ -33,17 +33,18 @@ function Separator() {
 
 export function InvestigationContext({ alertName, namespace, resource, cluster, rrId, phase }: Props) {
   const hasContent = alertName || namespace || resource || cluster || rrId || phase;
-  if (!hasContent) return null;
-
   const phaseConfig = phase ? PHASE_CONFIG[phase] : null;
 
   return (
     <div
       data-testid="investigation-context"
-      className="bg-kubernaut-teal-900 px-4 sm:px-6 py-2 flex items-center gap-3 border-b border-kubernaut-teal-700 overflow-x-auto"
+      className="bg-kubernaut-teal-900 px-4 sm:px-6 py-2 h-10 flex items-center gap-3 border-b border-kubernaut-teal-700 overflow-x-auto"
       role="region"
       aria-label="Investigation context"
     >
+      {!hasContent && (
+        <span className="text-[10px] text-kubernaut-teal-400 italic">Ready</span>
+      )}
       {rrId && (
         <>
           <div className="flex flex-col gap-0.5 min-w-0 shrink-0" title={rrId}>

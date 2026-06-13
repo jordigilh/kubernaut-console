@@ -182,15 +182,13 @@ export function ChatContainer() {
         </a>
       </header>
 
-      {(rrId || currentPhase) && (
-        <InvestigationContext
-          rrId={rrId}
-          alertName={alertName}
-          namespace={namespace}
-          resource={resource}
-          phase={currentPhase}
-        />
-      )}
+      <InvestigationContext
+        rrId={rrId}
+        alertName={alertName}
+        namespace={namespace}
+        resource={resource}
+        phase={currentPhase}
+      />
 
       {/* Messages */}
       <main
