@@ -643,9 +643,7 @@ describe("ChatContainer Integration", () => {
     });
   });
 
-  it("IT-CONSOLE-UX-001: '+New' button shows confirmation before clearing history", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
-
+  it("IT-CONSOLE-UX-001: '+New' button shows confirmation modal before clearing history", async () => {
     mockStreamA2A.mockImplementation(async (_req, opts: { onComplete?: () => void }) => {
       opts.onComplete?.();
     });
@@ -658,17 +656,22 @@ describe("ChatContainer Integration", () => {
       vi.advanceTimersByTime(100);
     });
 
-    // Click +New — should trigger confirm
     const newBtn = screen.getByLabelText("New conversation");
     await act(async () => {
       fireEvent.click(newBtn);
     });
 
-    expect(confirmSpy).toHaveBeenCalledWith("Start a new conversation? Current history will be cleared.");
-    // Messages should still be present (user said "no")
-    expect(screen.getByText("Hello")).toBeInTheDocument();
+    // Modal should appear
+    expect(screen.getByText("Start new conversation?")).toBeInTheDocument();
+    expect(screen.getByText("Current history will be cleared. This cannot be undone.")).toBeInTheDocument();
 
-    confirmSpy.mockRestore();
+    // Cancel should dismiss modal
+    const cancelBtn = screen.getByRole("button", { name: /cancel/i });
+    await act(async () => {
+      fireEvent.click(cancelBtn);
+    });
+
+    expect(screen.getByText("Hello")).toBeInTheDocument();
   });
 
   it("IT-CONSOLE-UX-002: connection lost state shows retry button in header", async () => {
@@ -692,7 +695,7 @@ describe("ChatContainer Integration", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(/Connection lost/);
+      expect(screen.getByRole("status", { name: /connection lost/i })).toBeInTheDocument();
     });
   });
 
@@ -1000,6 +1003,143 @@ describe("ChatContainer Integration", () => {
     expect(mcpCall).toBeDefined();
     const body = JSON.parse((mcpCall![1] as RequestInit).body as string);
     expect(body.params.arguments.decision).toBe("Rejected");
+
+    fetchSpy.mockRestore();
+  });
+
+  // AC-6: Dismiss calls kubernaut_complete_no_action via MCP (no escalation_reason)
+  it("IT-CONSOLE-DISMISS-001: 'No action needed' calls MCP kubernaut_complete_no_action without escalation_reason", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    // Stream emits investigation_summary (to set rrId) then workflow options
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "inv-1",
+          parts: [{ kind: "data", data: { session_id: "s1", rr_id: "rr-test-dismiss-001", signal_name: "TestAlert", rca: { summary: "Test" }, options: [{ workflow_id: "wf-1", name: "Test WF", description: "desc", recommended: true }] } }],
+          metadata: { type: "investigation_summary" },
+        },
+      });
+      opts.onComplete?.();
+    });
+
+    fetchSpy.mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { status: "completed_no_action", reason: "dismissed" } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    ));
+
+    // Follow-up stream
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(600);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /no action needed/i })).toBeInTheDocument();
+    });
+
+    const dismissBtn = screen.getByRole("button", { name: /no action needed/i });
+    await act(async () => {
+      fireEvent.click(dismissBtn);
+      vi.advanceTimersByTime(600);
+    });
+
+    // AC-6: MCP called with kubernaut_complete_no_action, no escalation_reason
+    const mcpCall = fetchSpy.mock.calls.find(c => c[0] === "/mcp");
+    expect(mcpCall).toBeDefined();
+    const body = JSON.parse((mcpCall![1] as RequestInit).body as string);
+    expect(body.params.name).toBe("kubernaut_complete_no_action");
+    expect(body.params.arguments.rr_id).toBe("rr-test-dismiss-001");
+    expect(body.params.arguments.escalation_reason).toBeUndefined();
+
+    fetchSpy.mockRestore();
+  });
+
+  // AC-6 + AU-2: Escalate calls kubernaut_complete_no_action with escalation_reason
+  it("IT-CONSOLE-ESCALATE-001: 'Escalate to team' calls MCP with escalation_reason from modal input", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "inv-1",
+          parts: [{ kind: "data", data: { session_id: "s1", rr_id: "rr-test-escalate-001", signal_name: "TestAlert", rca: { summary: "Test" }, options: [{ workflow_id: "wf-1", name: "Test WF", description: "desc", recommended: true }] } }],
+          metadata: { type: "investigation_summary" },
+        },
+      });
+      opts.onComplete?.();
+    });
+
+    fetchSpy.mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { status: "escalated", reason: "Escalated", escalation_reason: "DBA team" } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    ));
+
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(600);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /escalate to team/i })).toBeInTheDocument();
+    });
+
+    const escalateBtn = screen.getByRole("button", { name: /escalate to team/i });
+    await act(async () => {
+      fireEvent.click(escalateBtn);
+    });
+
+    // AU-2: Modal opens with reason input
+    await waitFor(() => {
+      expect(screen.getByLabelText(/escalation reason/i)).toBeInTheDocument();
+    });
+    const reasonInput = screen.getByLabelText(/escalation reason/i);
+    await act(async () => {
+      fireEvent.change(reasonInput, { target: { value: "DBA team needed for schema migration" } });
+    });
+    const submitBtn = screen.getByRole("button", { name: /^escalate$/i });
+    await act(async () => {
+      fireEvent.click(submitBtn);
+      vi.advanceTimersByTime(600);
+    });
+
+    // AC-6: MCP called with escalation_reason
+    const mcpCall = fetchSpy.mock.calls.find(c => c[0] === "/mcp");
+    expect(mcpCall).toBeDefined();
+    const body = JSON.parse((mcpCall![1] as RequestInit).body as string);
+    expect(body.params.name).toBe("kubernaut_complete_no_action");
+    expect(body.params.arguments.rr_id).toBe("rr-test-escalate-001");
+    expect(body.params.arguments.escalation_reason).toBe("DBA team needed for schema migration");
 
     fetchSpy.mockRestore();
   });

@@ -1697,4 +1697,61 @@ describe("useChat", () => {
       });
     });
   });
+
+  // IR-5: Recovery signal parsing
+  describe("recovery signal (problem_resolved / alignment_check_failed)", () => {
+    it("UT-CONSOLE-SIGNAL-001: sets recoverySignal on message when problem_resolved event arrives", async () => {
+      const { streamA2A } = await import("../lib/a2a-client");
+      vi.mocked(streamA2A).mockImplementation(async (_req: unknown, opts: {
+        onEvent?: (event: unknown) => void;
+        onComplete?: () => void;
+      }) => {
+        opts.onEvent?.({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { parts: [{ kind: "text", text: "" }] },
+          },
+          metadata: { type: "problem_resolved" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { result.current.sendMessage("test"); });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg).toBeDefined();
+      expect(agentMsg!.recoverySignal).toBe("problem_resolved");
+    });
+
+    it("UT-CONSOLE-SIGNAL-002: sets recoverySignal on message when alignment_check_failed event arrives", async () => {
+      const { streamA2A } = await import("../lib/a2a-client");
+      vi.mocked(streamA2A).mockImplementation(async (_req: unknown, opts: {
+        onEvent?: (event: unknown) => void;
+        onComplete?: () => void;
+      }) => {
+        opts.onEvent?.({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { parts: [{ kind: "text", text: "" }] },
+          },
+          metadata: { type: "alignment_check_failed" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { result.current.sendMessage("test"); });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg).toBeDefined();
+      expect(agentMsg!.recoverySignal).toBe("alignment_check_failed");
+    });
+  });
 });

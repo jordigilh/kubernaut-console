@@ -54,10 +54,11 @@ describe("WorkflowCards", () => {
     expect(screen.getByText(/selfHeal:true will revert/)).toBeInTheDocument();
   });
 
-  it("UT-CONSOLE-WF-005: ruled-out card has reduced opacity", () => {
-    render(<WorkflowCards options={options} />);
+  it("UT-CONSOLE-WF-005: ruled-out card is clickable (not disabled)", () => {
+    render(<WorkflowCards options={options} onExecute={vi.fn()} />);
     const card = screen.getByTestId("workflow-card-patch-configuration-v1");
-    expect(card.className).toContain("opacity-50");
+    expect(card.className).not.toContain("opacity-50");
+    expect(card).not.toHaveAttribute("aria-disabled");
   });
 
   it("UT-CONSOLE-WF-006: shows Execute button initially, countdown starts after click", () => {
@@ -110,5 +111,83 @@ describe("WorkflowCards", () => {
   it("UT-CONSOLE-WF-012: renders red minus icon on ruled-out card", () => {
     render(<WorkflowCards options={options} />);
     expect(screen.getByTestId("ruled-out-icon")).toBeInTheDocument();
+  });
+
+  // --- Ruled-out selectable with confirmation (SI-10: prevents accidental execution) ---
+
+  it("UT-CONSOLE-WF-013: SI-10 — clicking ruled-out card shows confirmation with ruledOutReason", () => {
+    render(<WorkflowCards options={options} onExecute={vi.fn()} />);
+    const card = screen.getByTestId("workflow-card-patch-configuration-v1");
+    fireEvent.click(card);
+    expect(screen.getByText(/This workflow was ruled out/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /proceed anyway/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /go back/i })).toBeInTheDocument();
+  });
+
+  it("UT-CONSOLE-WF-014: SI-10 — confirming ruled-out calls onExecute with its workflowId", () => {
+    const onExecute = vi.fn();
+    render(<WorkflowCards options={options} onExecute={onExecute} />);
+    const card = screen.getByTestId("workflow-card-patch-configuration-v1");
+    fireEvent.click(card);
+    fireEvent.click(screen.getByRole("button", { name: /proceed anyway/i }));
+    expect(onExecute).toHaveBeenCalledWith("patch-configuration-v1");
+  });
+
+  it("UT-CONSOLE-WF-015: SI-10 — cancelling ruled-out confirmation returns to normal state", () => {
+    render(<WorkflowCards options={options} onExecute={vi.fn()} />);
+    const card = screen.getByTestId("workflow-card-patch-configuration-v1");
+    fireEvent.click(card);
+    fireEvent.click(screen.getByRole("button", { name: /go back/i }));
+    expect(screen.queryByRole("button", { name: /proceed anyway/i })).not.toBeInTheDocument();
+  });
+
+  it("UT-CONSOLE-WF-016: ruled-out cards show cursor pointer for clickability", () => {
+    render(<WorkflowCards options={options} onExecute={vi.fn()} />);
+    const card = screen.getByTestId("workflow-card-patch-configuration-v1");
+    expect(card.className).toContain("cursor-pointer");
+  });
+
+  // --- Escape hatches (AC-6: structural LLM bypass for operator decisions) ---
+
+  it("UT-CONSOLE-WF-017: AC-6 — renders 'No action needed' escape hatch button", () => {
+    render(<WorkflowCards options={options} onDismiss={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /no action needed/i })).toBeInTheDocument();
+  });
+
+  it("UT-CONSOLE-WF-018: AC-6 — renders 'Escalate to team' escape hatch button", () => {
+    render(<WorkflowCards options={options} onEscalate={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /escalate to team/i })).toBeInTheDocument();
+  });
+
+  it("UT-CONSOLE-WF-019: AC-6 — clicking 'No action needed' calls onDismiss", () => {
+    const onDismiss = vi.fn();
+    render(<WorkflowCards options={options} onDismiss={onDismiss} />);
+    fireEvent.click(screen.getByRole("button", { name: /no action needed/i }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("UT-CONSOLE-WF-020: AC-6 — clicking 'Escalate to team' calls onEscalate", () => {
+    const onEscalate = vi.fn();
+    render(<WorkflowCards options={options} onEscalate={onEscalate} />);
+    fireEvent.click(screen.getByRole("button", { name: /escalate to team/i }));
+    expect(onEscalate).toHaveBeenCalledTimes(1);
+  });
+
+  // --- Reactive banner (IR-5: recovery/alignment signals surface to operator) ---
+
+  it("UT-CONSOLE-WF-021: IR-5 — shows recovery banner when recoverySignal='problem_resolved'", () => {
+    render(<WorkflowCards options={options} recoverySignal="problem_resolved" onDismiss={vi.fn()} />);
+    expect(screen.getByText(/appears to have self-resolved/i)).toBeInTheDocument();
+  });
+
+  it("UT-CONSOLE-WF-022: IR-5 — shows security banner when recoverySignal='alignment_check_failed'", () => {
+    render(<WorkflowCards options={options} recoverySignal="alignment_check_failed" onEscalate={vi.fn()} />);
+    expect(screen.getByText(/security concern/i)).toBeInTheDocument();
+  });
+
+  it("UT-CONSOLE-WF-023: IR-5 — Dismiss button is visually emphasized when recoverySignal='problem_resolved'", () => {
+    render(<WorkflowCards options={options} recoverySignal="problem_resolved" onDismiss={vi.fn()} />);
+    const dismissBtn = screen.getByRole("button", { name: /no action needed/i });
+    expect(dismissBtn.className).toContain("ring-2");
   });
 });

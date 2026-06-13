@@ -102,7 +102,7 @@ describe("AU-2/SI-4: Investigation context bar provides audit correlation and si
     const banner = screen.getByTestId("investigation-context");
     expect(banner).toHaveTextContent("Executing");
     const dot = screen.getByTestId("phase-dot");
-    expect(dot.className).toContain("bg-blue-400");
+    expect(dot.className).toContain("bg-kubernaut-teal-400");
   });
 
   it("UT-CONSOLE-CTX-010: SI-4 — status field shows correct label for each phase", () => {
