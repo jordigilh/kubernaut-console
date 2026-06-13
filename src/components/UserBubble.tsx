@@ -14,7 +14,7 @@ export function UserBubble({ text, timestamp }: Props) {
         <div className="bg-user-bubble rounded-2xl px-4 py-2.5">
           <p className="text-sm text-user-text">{text}</p>
         </div>
-        <p className="text-[10px] text-gray-400 text-right mt-0.5 mr-2">
+        <p className="text-[11px] text-gray-400 text-right mt-0.5 mr-2">
           {formatTime(timestamp)}
         </p>
       </div>

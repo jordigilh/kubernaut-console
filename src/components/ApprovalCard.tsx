@@ -52,10 +52,10 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline }: Prop
           <h3 className="text-sm font-bold text-text-primary font-display">
             Approval Required
           </h3>
-          <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold ${confidenceClass}`}>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${confidenceClass}`}>
             {request.confidenceLevel}
           </span>
-          <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-gray-100 text-gray-600">
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">
             {confidencePercent}
           </span>
         </div>
@@ -78,7 +78,7 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline }: Prop
             <p className="text-[11px] font-medium text-text-muted mb-1">Evidence:</p>
             <ul className="space-y-0.5">
               {request.evidenceCollected.map((item, idx) => (
-                <li key={idx} className="text-[11px] text-text-secondary pl-2 border-l-2 border-gray-200">
+                <li key={idx} className="text-xs text-text-secondary pl-2 border-l-2 border-gray-200">
                   {item}
                 </li>
               ))}
@@ -95,7 +95,7 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline }: Prop
             {request.policyEvaluation.matchedRules && request.policyEvaluation.matchedRules.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {request.policyEvaluation.matchedRules.map((rule, idx) => (
-                  <span key={idx} className="px-1.5 py-0.5 text-[10px] bg-amber-50 text-amber-700 rounded">
+                  <span key={idx} className="px-1.5 py-0.5 text-[11px] bg-amber-50 text-amber-700 rounded">
                     {rule}
                   </span>
                 ))}

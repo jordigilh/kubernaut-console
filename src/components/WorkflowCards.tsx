@@ -61,14 +61,14 @@ export function WorkflowCards({ options, onExecute }: Props) {
                 </svg>
               </span>
               <span className="text-xs font-bold text-text-primary">{recommended.name}</span>
-              <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-kubernaut-teal-50 text-kubernaut-teal-600 border border-kubernaut-teal-600/30">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-kubernaut-teal-50 text-kubernaut-teal-600 border border-kubernaut-teal-600/30">
                 Recommended
               </span>
             </div>
 
             {/* Description */}
             {recommended.description && (
-              <p className="text-[11px] text-text-secondary leading-relaxed mb-3">
+              <p className="text-xs text-text-secondary leading-relaxed mb-3">
                 {recommended.description}
               </p>
             )}
@@ -146,7 +146,7 @@ export function WorkflowCards({ options, onExecute }: Props) {
             </svg>
           </span>
           <span className="text-xs font-bold text-text-muted">{opt.name}</span>
-          <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-kubernaut-red-50 text-kubernaut-red-600">
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-kubernaut-red-50 text-kubernaut-red-600">
             Ruled out
           </span>
           {opt.ruledOutReason && (

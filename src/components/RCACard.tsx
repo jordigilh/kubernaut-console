@@ -44,7 +44,7 @@ export function RCACard({ rca }: Props) {
           <h3 className="text-sm font-bold text-text-primary font-display">
             Root Cause Analysis
           </h3>
-          <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold ${badgeClass}`}>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${badgeClass}`}>
             {rca.severity}
           </span>
         </div>
@@ -72,7 +72,7 @@ export function RCACard({ rca }: Props) {
           {rca.causalChain.map((entry, idx) => {
             const { label, text } = parseCausalEntry(entry);
             return (
-              <div key={idx} className="text-[11px] leading-relaxed">
+              <div key={idx} className="text-xs leading-relaxed">
                 {label && <span className="text-text-muted">{label} </span>}
                 <span className="text-text-secondary">{text}</span>
               </div>

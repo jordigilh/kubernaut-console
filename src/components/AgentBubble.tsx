@@ -96,7 +96,7 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
 
         {/* Timestamp */}
         {!message.isStreaming && message.timestamp && (
-          <p className="text-[10px] text-text-dim ml-2 mt-0.5">
+          <p className="text-[11px] text-text-dim ml-2 mt-0.5">
             {formatTime(message.timestamp)}
           </p>
         )}

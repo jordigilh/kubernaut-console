@@ -26,7 +26,7 @@ function Field({ label, value }: { label: string; value: string }) {
       <span className="text-[9px] font-medium tracking-wide text-teal-300 uppercase">
         {label}
       </span>
-      <span className="text-[11px] text-white truncate">{value}</span>
+      <span className="text-xs text-white truncate">{value}</span>
     </div>
   );
 }
@@ -52,7 +52,7 @@ export function InvestigationContext({ alertName, namespace, resource, cluster, 
             <span className="text-[9px] font-medium tracking-wide text-teal-300 uppercase">
               Remediation ID
             </span>
-            <span className="text-[11px] font-semibold text-white truncate">
+            <span className="text-xs font-semibold text-white truncate">
               {truncateRrId(rrId)}
             </span>
           </div>
@@ -98,7 +98,7 @@ export function InvestigationContext({ alertName, namespace, resource, cluster, 
               data-testid="phase-dot"
               className={`w-2 h-2 rounded-full ${phaseConfig.dotClass}`}
             />
-            <span className="text-[11px] font-medium text-white">
+            <span className="text-xs font-medium text-white">
               {phaseConfig.label}
             </span>
           </div>
