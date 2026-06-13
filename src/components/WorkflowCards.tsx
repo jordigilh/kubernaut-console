@@ -5,7 +5,7 @@ interface Props {
   options: WorkflowOption[];
   onExecute?: (workflowId: string) => void;
   onDismiss?: () => void;
-  onEscalate?: () => void;
+  onEscalate?: (reason: string) => void;
   recoverySignal?: "problem_resolved" | "alignment_check_failed" | null;
 }
 
@@ -64,6 +64,14 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
   const highlightDismiss = recoverySignal === "problem_resolved";
   const highlightEscalate = recoverySignal === "alignment_check_failed";
 
+  const [escalating, setEscalating] = useState(false);
+  const [escalateReason, setEscalateReason] = useState("");
+  const escalateInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (escalating) escalateInputRef.current?.focus();
+  }, [escalating]);
+
   return (
     <div className="space-y-2 w-full animate-slide-up" role="group" aria-label="Remediation options">
       {/* Reactive signal banner */}
@@ -100,6 +108,9 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
                 Recommended
               </span>
             </div>
+            <p className="text-[10px] font-mono text-text-dim mb-1 truncate" title={recommended.workflowId}>
+              {recommended.workflowId}
+            </p>
 
             {recommended.description && (
               <p className="text-xs text-text-secondary leading-relaxed mb-3">
@@ -227,24 +238,30 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
           <button
             type="button"
             onClick={onDismiss}
+            disabled={executed}
             className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
-              highlightDismiss
-                ? "bg-kubernaut-green-600 text-white ring-2 ring-kubernaut-green-400 ring-offset-1 hover:bg-kubernaut-green-700"
-                : "border border-gray-300 text-text-secondary hover:bg-gray-50"
+              executed
+                ? "border border-gray-200 text-text-dim opacity-50 cursor-not-allowed"
+                : highlightDismiss
+                  ? "bg-kubernaut-green-600 text-white ring-2 ring-kubernaut-green-400 ring-offset-1 hover:bg-kubernaut-green-700"
+                  : "border border-gray-300 text-text-secondary hover:bg-gray-50"
             }`}
             aria-label="No action needed"
           >
             No action needed
           </button>
         )}
-        {onEscalate && (
+        {onEscalate && !escalating && (
           <button
             type="button"
-            onClick={onEscalate}
+            onClick={() => setEscalating(true)}
+            disabled={executed}
             className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
-              highlightEscalate
-                ? "bg-amber-600 text-white ring-2 ring-amber-400 ring-offset-1 hover:bg-amber-700"
-                : "border border-gray-300 text-text-secondary hover:bg-gray-50"
+              executed
+                ? "border border-gray-200 text-text-dim opacity-50 cursor-not-allowed"
+                : highlightEscalate
+                  ? "bg-amber-600 text-white ring-2 ring-amber-400 ring-offset-1 hover:bg-amber-700"
+                  : "border border-gray-300 text-text-secondary hover:bg-gray-50"
             }`}
             aria-label="Escalate to team"
           >
@@ -252,6 +269,55 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
           </button>
         )}
       </div>
+
+      {/* Inline escalation input */}
+      {escalating && (
+        <div className="flex items-center gap-2 mt-2 animate-fade-in">
+          <input
+            ref={escalateInputRef}
+            type="text"
+            value={escalateReason}
+            onChange={(e) => setEscalateReason(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && escalateReason.trim()) {
+                onEscalate?.(escalateReason.trim());
+                setEscalating(false);
+                setEscalateReason("");
+              }
+              if (e.key === "Escape") {
+                setEscalating(false);
+                setEscalateReason("");
+              }
+            }}
+            placeholder="Escalation reason..."
+            className="flex-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-text-primary placeholder:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            aria-label="Escalation reason"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (escalateReason.trim()) {
+                onEscalate?.(escalateReason.trim());
+                setEscalating(false);
+                setEscalateReason("");
+              }
+            }}
+            disabled={!escalateReason.trim()}
+            className="px-3 py-2 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors shrink-0"
+            aria-label="Submit escalation"
+          >
+            Send
+          </button>
+          <button
+            type="button"
+            onClick={() => { setEscalating(false); setEscalateReason(""); }}
+            className="px-3 py-2 rounded-lg border border-border text-xs text-text-secondary hover:bg-surface-secondary transition-colors shrink-0"
+            aria-label="Cancel escalation"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }

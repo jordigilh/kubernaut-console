@@ -16,7 +16,7 @@ interface Props {
   onApprove?: (rarName: string, reason: string) => void;
   onDecline?: (rarName: string, reason: string) => void;
   onDismiss?: () => void;
-  onEscalate?: () => void;
+  onEscalate?: (reason: string) => void;
   userName?: string;
   recoverySignal?: "problem_resolved" | "alignment_check_failed" | null;
 }

@@ -5,7 +5,7 @@ import type { WorkflowOption } from "../hooks/useChat";
 
 const options: WorkflowOption[] = [
   {
-    workflowId: "git-revert-v2",
+    workflowId: "wf-7af4825d-11be",
     name: "git-revert-v2",
     description: "Reverts the most recent commit in a GitOps-managed repository.",
     risk: "low",
@@ -89,7 +89,7 @@ describe("WorkflowCards", () => {
     render(<WorkflowCards options={options} onExecute={onExecute} />);
     fireEvent.click(screen.getByRole("button", { name: /execute/i }));
     act(() => { vi.advanceTimersByTime(10000); });
-    expect(onExecute).toHaveBeenCalledWith("git-revert-v2");
+    expect(onExecute).toHaveBeenCalledWith("wf-7af4825d-11be");
   });
 
   // SC-5: Denial of Service Protection — cancel provides local execution guard (stops timer only, no AF message)
