@@ -2,6 +2,7 @@ export interface InvestigationSummaryRCA {
   severity: "critical" | "high" | "medium" | "low" | "info";
   confidence: number;
   target: string;
+  namespace?: string;
   causal_chain?: string[];
   rca_summary?: string;
   tool_calls_count?: number;
@@ -24,6 +25,7 @@ export interface InvestigationSummary {
   session_id: string;
   rr_id?: string;
   signal_name?: string;
+  namespace?: string;
   summary: string;
   rca: InvestigationSummaryRCA;
   options?: InvestigationSummaryOption[];

@@ -166,11 +166,15 @@ describe("WorkflowCards", () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
-  it("UT-CONSOLE-WF-020: AC-6 — clicking 'Escalate to team' calls onEscalate", () => {
+  it("UT-CONSOLE-WF-020: AC-6 — inline escalation submits reason via onEscalate", () => {
     const onEscalate = vi.fn();
     render(<WorkflowCards options={options} onEscalate={onEscalate} />);
     fireEvent.click(screen.getByRole("button", { name: /escalate to team/i }));
-    expect(onEscalate).toHaveBeenCalledTimes(1);
+    expect(onEscalate).not.toHaveBeenCalled();
+    const input = screen.getByRole("textbox", { name: /escalation reason/i });
+    fireEvent.change(input, { target: { value: "DBA team needed" } });
+    fireEvent.click(screen.getByRole("button", { name: /submit escalation/i }));
+    expect(onEscalate).toHaveBeenCalledWith("DBA team needed");
   });
 
   // --- Reactive banner (IR-5: recovery/alignment signals surface to operator) ---

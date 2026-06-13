@@ -1071,7 +1071,7 @@ describe("ChatContainer Integration", () => {
   });
 
   // AC-6 + AU-2: Escalate calls kubernaut_complete_no_action with escalation_reason
-  it("IT-CONSOLE-ESCALATE-001: 'Escalate to team' calls MCP with escalation_reason from modal input", async () => {
+  it("IT-CONSOLE-ESCALATE-001: 'Escalate to team' calls MCP with escalation_reason via inline input", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
@@ -1119,7 +1119,7 @@ describe("ChatContainer Integration", () => {
       fireEvent.click(escalateBtn);
     });
 
-    // AU-2: Modal opens with reason input
+    // AU-2: Inline input appears for reason
     await waitFor(() => {
       expect(screen.getByLabelText(/escalation reason/i)).toBeInTheDocument();
     });
@@ -1127,7 +1127,7 @@ describe("ChatContainer Integration", () => {
     await act(async () => {
       fireEvent.change(reasonInput, { target: { value: "DBA team needed for schema migration" } });
     });
-    const submitBtn = screen.getByRole("button", { name: /^escalate$/i });
+    const submitBtn = screen.getByRole("button", { name: /submit escalation/i });
     await act(async () => {
       fireEvent.click(submitBtn);
       vi.advanceTimersByTime(600);
