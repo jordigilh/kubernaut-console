@@ -13,15 +13,16 @@ interface Props {
   message: ChatMessage;
   investigationStartTime?: number;
   onExecuteWorkflow?: (workflowId: string) => void;
-  onApprove?: (rarName: string) => void;
-  onDecline?: (rarName: string) => void;
+  onApprove?: (rarName: string, reason: string) => void;
+  onDecline?: (rarName: string, reason: string) => void;
+  userName?: string;
 }
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow, onApprove, onDecline }: Props) {
+export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow, onApprove, onDecline, userName }: Props) {
   const hasContent = message.text.trim().length > 0;
   const hasThinking = message.thinking && message.thinking.length > 0;
   const hasRCA = !!message.rca;
@@ -77,8 +78,9 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
           <ApprovalCard
             request={message.approvalRequest!}
             resolution={message.approvalResolution}
-            onApprove={() => onApprove?.(message.approvalRequest!.name)}
-            onDecline={() => onDecline?.(message.approvalRequest!.name)}
+            onApprove={(reason) => onApprove?.(message.approvalRequest!.name, reason)}
+            onDecline={(reason) => onDecline?.(message.approvalRequest!.name, reason)}
+            userName={userName}
           />
         )}
 

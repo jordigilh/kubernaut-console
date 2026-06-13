@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, useCallback, type FormEvent } from "react";
 import { useChat } from "../hooks/useChat";
 import { useUser } from "../hooks/useUser";
+import { callMcpTool } from "../lib/mcp-client";
 import { UserBubble } from "./UserBubble";
 import { AgentBubble } from "./AgentBubble";
 import { InvestigationContext } from "./InvestigationContext";
 import { WelcomeState } from "./WelcomeState";
 
 export function ChatContainer() {
-  const { messages, isStreaming, error, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime } = useChat();
+  const { messages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime } = useChat();
   const currentPhase = messages.findLast(m => m.role === "agent" && m.phase)?.phase;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId;
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
@@ -47,17 +48,35 @@ export function ChatContainer() {
   );
 
   const handleApprove = useCallback(
-    (rarName: string) => {
-      sendMessage(`Approve ${rarName}`, { silent: true });
+    async (rarName: string, reason: string) => {
+      const res = await callMcpTool("kubernaut_approve", {
+        rar_name: rarName,
+        decision: "Approved",
+        reason,
+      });
+      if (res.error) {
+        setError(res.error.message);
+        return;
+      }
+      sendMessage("The remediation has been approved. Continue monitoring.", { silent: true });
     },
-    [sendMessage],
+    [sendMessage, setError],
   );
 
   const handleDecline = useCallback(
-    (rarName: string) => {
-      sendMessage(`Decline ${rarName}`, { silent: true });
+    async (rarName: string, reason: string) => {
+      const res = await callMcpTool("kubernaut_approve", {
+        rar_name: rarName,
+        decision: "Rejected",
+        reason,
+      });
+      if (res.error) {
+        setError(res.error.message);
+        return;
+      }
+      sendMessage("The remediation has been rejected.", { silent: true });
     },
-    [sendMessage],
+    [sendMessage, setError],
   );
 
   const handleClearHistory = useCallback(() => {
@@ -137,6 +156,7 @@ export function ChatContainer() {
                 onExecuteWorkflow={handleExecuteWorkflow}
                 onApprove={handleApprove}
                 onDecline={handleDecline}
+                userName={user.name || user.email}
               />
             ),
           )

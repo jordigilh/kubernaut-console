@@ -4,8 +4,9 @@ import type { ApprovalRequest, ApprovalResolution } from "../hooks/useChat";
 interface Props {
   request: ApprovalRequest;
   resolution?: ApprovalResolution;
-  onApprove: () => void;
-  onDecline: () => void;
+  onApprove: (reason: string) => void;
+  onDecline: (reason: string) => void;
+  userName?: string;
 }
 
 const CONFIDENCE_COLORS: Record<string, string> = {
@@ -23,11 +24,12 @@ function formatTimeRemaining(ms: number): string {
   return `${Math.ceil(ms / 1000)}s remaining`;
 }
 
-export function ApprovalCard({ request, resolution, onApprove, onDecline }: Props) {
+export function ApprovalCard({ request, resolution, onApprove, onDecline, userName }: Props) {
   const [timeRemaining, setTimeRemaining] = useState<number>(() => {
     return new Date(request.requiredBy).getTime() - Date.now();
   });
   const [submitted, setSubmitted] = useState(false);
+  const [reason, setReason] = useState(() => `Approved by ${userName || "operator"}`);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -43,7 +45,7 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline }: Prop
   const confidencePercent = `${Math.round(request.confidence * 100)}%`;
 
   return (
-    <div className="relative rounded-xl border border-border bg-white shadow-sm overflow-hidden animate-fade-in">
+    <div className="relative rounded-xl border border-border bg-white shadow-sm overflow-hidden motion-safe:animate-fade-in">
       <div className="absolute left-0 top-2 bottom-2 w-1 rounded-r bg-amber-500" />
 
       <div className="pl-5 pr-4 py-4">
@@ -106,7 +108,7 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline }: Prop
 
         <hr className="border-border mb-3" />
 
-        {/* Countdown + actions */}
+        {/* Countdown + reason + actions */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span
@@ -123,18 +125,38 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline }: Prop
             )}
           </div>
 
+          {/* Reason field */}
+          {!isResolved && (
+            <div>
+              <label htmlFor="approval-reason" className="text-[11px] font-medium text-text-muted">
+                Reason
+              </label>
+              <input
+                id="approval-reason"
+                type="text"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                disabled={isDisabled}
+                className="mt-0.5 w-full px-2 py-1.5 text-xs border border-border rounded-md bg-white text-text-primary placeholder:text-text-dim focus:outline-none focus-visible:ring-2 focus-visible:ring-kubernaut-teal-600 disabled:opacity-50"
+                aria-label="Reason"
+              />
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button
-              onClick={() => { setSubmitted(true); onApprove(); }}
+              type="button"
+              onClick={() => { setSubmitted(true); onApprove(reason); }}
               disabled={isDisabled}
-              className="flex-1 py-2 text-[11px] font-semibold rounded-lg bg-kubernaut-green-700 text-white hover:bg-kubernaut-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 py-2 text-[11px] font-semibold rounded-lg bg-kubernaut-green-700 text-white hover:bg-kubernaut-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:ring-2 focus-visible:ring-kubernaut-green-700 focus-visible:ring-offset-2"
             >
               Approve
             </button>
             <button
-              onClick={() => { setSubmitted(true); onDecline(); }}
+              type="button"
+              onClick={() => { setSubmitted(true); onDecline(reason); }}
               disabled={isDisabled}
-              className="flex-1 py-2 text-[11px] font-semibold rounded-lg border border-gray-300 text-text-secondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 py-2 text-[11px] font-semibold rounded-lg border border-gray-300 text-text-secondary hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2"
             >
               Decline
             </button>
