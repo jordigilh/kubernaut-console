@@ -32,7 +32,6 @@ function Separator() {
 }
 
 export function InvestigationContext({ alertName, namespace, resource, cluster, rrId, phase }: Props) {
-  const hasContent = alertName || namespace || resource || cluster || rrId;
   const phaseConfig = phase ? PHASE_CONFIG[phase] : { label: "Ready", dotClass: "bg-kubernaut-green-400" };
 
   return (
