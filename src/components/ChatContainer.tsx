@@ -60,6 +60,12 @@ export function ChatContainer() {
     [sendMessage],
   );
 
+  const handleClearHistory = useCallback(() => {
+    if (messages.length === 0 || window.confirm("Start a new conversation? Current history will be cleared.")) {
+      clearHistory();
+    }
+  }, [messages.length, clearHistory]);
+
   return (
     <div className="flex flex-col h-full bg-white rounded-none sm:rounded-2xl overflow-hidden border border-border shadow-sm">
       {/* Header */}
@@ -71,10 +77,20 @@ export function ChatContainer() {
         {connectionStatus === "reconnecting" && (
           <span className="text-xs text-yellow-200 animate-pulse" role="status">Reconnecting...</span>
         )}
+        {connectionStatus === "lost" && (
+          <button
+            type="button"
+            onClick={() => sendMessage("", { silent: true })}
+            className="text-xs text-red-200 hover:text-white font-medium transition-colors"
+            role="alert"
+          >
+            Connection lost — tap to retry
+          </button>
+        )}
         <button
           type="button"
-          onClick={clearHistory}
-          className="text-white/70 hover:text-white text-[11px] font-medium transition-colors"
+          onClick={handleClearHistory}
+          className="text-white/70 hover:text-white text-[11px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-white/50 rounded px-1"
           aria-label="New conversation"
           title="New conversation"
         >
@@ -82,7 +98,7 @@ export function ChatContainer() {
         </button>
         <a
           href="/oauth2/sign_out"
-          className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-white text-[11px] font-semibold hover:bg-white/30 transition-colors"
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-white text-[11px] font-semibold hover:bg-white/30 transition-colors focus-visible:ring-2 focus-visible:ring-white/50"
           title={user.name || user.email || "Sign out"}
           aria-label="Sign out"
         >
@@ -106,7 +122,6 @@ export function ChatContainer() {
         className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-3"
         role="log"
         aria-label="Conversation"
-        aria-live="polite"
       >
         {messages.length === 0 ? (
           <WelcomeState onSuggest={handleSuggest} />
@@ -127,6 +142,13 @@ export function ChatContainer() {
           )
         )}
       </main>
+
+      {/* Live status announcements (screen reader only) */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {isStreaming && "Agent is responding"}
+        {connectionStatus === "reconnecting" && "Reconnecting to server"}
+        {connectionStatus === "lost" && "Connection lost"}
+      </div>
 
       {/* Error */}
       {error && (
@@ -149,16 +171,16 @@ export function ChatContainer() {
             placeholder={isStreaming ? (currentPhase === "verifying" ? "Verification in progress..." : "Agent is responding...") : "Ask a follow-up or start a new investigation..."}
             disabled={isStreaming}
             aria-label="Type your message"
-            className="flex-1 bg-transparent text-xs text-text-primary placeholder:text-text-dim focus:outline-none disabled:opacity-50"
+            className="flex-1 bg-transparent text-xs text-text-primary placeholder:text-text-dim focus:outline-none focus-visible:outline-none disabled:opacity-50"
           />
           {isStreaming ? (
             <button
               type="button"
               onClick={cancelStream}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-kubernaut-red-600 text-white shrink-0 hover:bg-red-700 transition-colors"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-kubernaut-red-600 text-white shrink-0 hover:bg-red-700 transition-colors focus-visible:ring-2 focus-visible:ring-kubernaut-red-600 focus-visible:ring-offset-2"
               aria-label="Stop agent response"
             >
-              <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="currentColor">
                 <rect x="2" y="2" width="8" height="8" rx="1" />
               </svg>
             </button>
@@ -166,10 +188,10 @@ export function ChatContainer() {
             <button
               type="submit"
               disabled={!input.trim()}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-kubernaut-teal-600 text-white shrink-0 disabled:opacity-40 hover:bg-kubernaut-teal-700 transition-colors"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-kubernaut-teal-600 text-white shrink-0 disabled:opacity-40 hover:bg-kubernaut-teal-700 transition-colors focus-visible:ring-2 focus-visible:ring-kubernaut-teal-600 focus-visible:ring-offset-2"
               aria-label="Send message"
             >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg className="w-4 h-4" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M7 12V2M3 6l4-4 4 4" />
               </svg>
             </button>

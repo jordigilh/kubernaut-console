@@ -52,7 +52,8 @@ export function ThinkingPanel({ entries, isActive, startTime, label }: Props) {
       <button
         type="button"
         onClick={toggle}
-        className="w-full flex items-center gap-1.5 px-3 py-1.5 rounded-t-md bg-white text-text-muted text-[11px] font-medium hover:text-text-secondary transition-colors"
+        aria-expanded={!collapsed}
+        className="w-full flex items-center gap-1.5 px-3 py-1.5 rounded-t-md bg-white text-text-muted text-[11px] font-medium hover:text-text-secondary transition-colors focus-visible:ring-2 focus-visible:ring-kubernaut-teal-600 focus-visible:ring-inset"
       >
         <svg
           className={`h-3 w-3 transition-transform ${collapsed ? "" : "rotate-90"}`}

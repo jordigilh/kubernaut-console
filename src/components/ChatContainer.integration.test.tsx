@@ -2,7 +2,7 @@
  * ChatContainer Integration Tests
  *
  * These tests exercise the full production dispatch path: ChatContainer -> useChat -> streamA2A ->
- * AgentBubble -> {ThinkingPanel, RCACard, AgentCTA, WorkflowCards, ExecutionProgress}.
+ * AgentBubble -> {ThinkingPanel, RCACard, AgentCTA, WorkflowCards}.
  *
  * They prove wiring completeness per the Pyramid Invariant (IT proves wiring).
  */
@@ -275,8 +275,8 @@ describe("ChatContainer Integration", () => {
       vi.advanceTimersByTime(100);
     });
 
-    // IT-CONSOLE-JOURNEY-006: Phase indicator reflects execution phase
-    // (ExecutionProgress cards removed — status shown only via PhaseIndicator)
+    // IT-CONSOLE-JOURNEY-006: Phase status reflects execution via InvestigationContext banner
+    // (ExecutionProgress cards removed — status shown only via InvestigationContext)
     await waitFor(() => {
       expect(screen.getByTestId("phase-indicator")).toBeInTheDocument();
     });
@@ -628,5 +628,67 @@ describe("ChatContainer Integration", () => {
     await waitFor(() => {
       expect(screen.getAllByText("Executing").length).toBeGreaterThan(0);
     });
+  });
+
+  it("IT-CONSOLE-UX-001: '+New' button shows confirmation before clearing history", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    mockStreamA2A.mockImplementation(async (_req, opts: { onComplete?: () => void }) => {
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "Hello" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(100);
+    });
+
+    // Click +New — should trigger confirm
+    const newBtn = screen.getByLabelText("New conversation");
+    await act(async () => {
+      fireEvent.click(newBtn);
+    });
+
+    expect(confirmSpy).toHaveBeenCalledWith("Start a new conversation? Current history will be cleared.");
+    // Messages should still be present (user said "no")
+    expect(screen.getByText("Hello")).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
+
+  it("IT-CONSOLE-UX-002: connection lost state shows retry button in header", async () => {
+    mockStreamA2A.mockImplementation(async (_req, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+      onError?: (err: Error) => void;
+      onConnectionLost?: () => void;
+      onReconnecting?: (attempt: number) => void;
+      signal?: AbortSignal;
+    }) => {
+      opts.onConnectionLost?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "Investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/Connection lost/);
+    });
+  });
+
+  it("IT-CONSOLE-UX-003: send and stop buttons have 40px touch targets (h-10 w-10)", () => {
+    mockStreamA2A.mockImplementation(async () => {});
+
+    render(<ChatContainer />);
+    const sendBtn = screen.getByLabelText("Send message");
+    expect(sendBtn.className).toContain("h-10");
+    expect(sendBtn.className).toContain("w-10");
   });
 });

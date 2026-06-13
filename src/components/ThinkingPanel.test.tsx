@@ -77,4 +77,17 @@ describe("ThinkingPanel", () => {
     render(<ThinkingPanel entries={entries} isActive={true} startTime={Date.now()} />);
     expect(screen.getByText("Thinking")).toBeInTheDocument();
   });
+
+  it("UT-CONSOLE-THINK-012: toggle button has aria-expanded reflecting open state by default", () => {
+    render(<ThinkingPanel entries={entries} isActive={false} startTime={Date.now()} />);
+    const toggle = screen.getByRole("button");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("UT-CONSOLE-THINK-013: aria-expanded toggles to false when panel is collapsed", async () => {
+    render(<ThinkingPanel entries={entries} isActive={false} startTime={Date.now()} />);
+    const toggle = screen.getByRole("button");
+    await fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
 });
