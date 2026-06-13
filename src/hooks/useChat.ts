@@ -2,7 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { buildStreamRequest, streamA2A } from "../lib/a2a-client";
 import { mockStreamA2A } from "../lib/a2a-mock";
 import type { A2AEvent, DataPart, StatusUpdateEvent } from "../lib/a2a-types";
-import type { ExecutionStep } from "../components/ExecutionProgress";
+
+export interface ExecutionStep {
+  id: string;
+  label: string;
+  state: "pending" | "running" | "done" | "failed";
+}
 
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
@@ -97,10 +102,23 @@ function loadMessages(): ChatMessage[] {
 
 function saveMessages(messages: ChatMessage[]) {
   try {
-    const toSave = messages.map((m) => ({ ...m, isStreaming: false }));
+    const toSave = messages.map((m) => ({
+      ...m,
+      isStreaming: false,
+      thinking: m.thinking?.slice(-20),
+    }));
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   } catch {
-    // Storage full or unavailable
+    try {
+      const trimmed = messages.slice(-10).map((m) => ({
+        ...m,
+        isStreaming: false,
+        thinking: undefined,
+      }));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+    } catch {
+      // Storage completely unavailable
+    }
   }
 }
 
@@ -109,7 +127,21 @@ function loadContextId(): string | undefined {
 }
 
 function saveContextId(id: string) {
-  sessionStorage.setItem(CONTEXT_KEY, id);
+  try {
+    sessionStorage.setItem(CONTEXT_KEY, id);
+  } catch {
+    // Storage unavailable
+  }
+}
+
+function friendlyError(raw: string): string {
+  if (/fetch|network|ERR_CONNECTION/i.test(raw)) return "Unable to reach the server. Check your connection and try again.";
+  if (/HTTP 5\d\d/i.test(raw)) return "The server encountered an error. Please try again in a moment.";
+  if (/HTTP 401|HTTP 403|unauthorized/i.test(raw)) return "Your session has expired. Please sign in again.";
+  if (/HTTP 429/i.test(raw)) return "Too many requests. Please wait a moment before trying again.";
+  if (/timeout|aborted/i.test(raw)) return "The request timed out. Please try again.";
+  if (/maximum retries/i.test(raw)) return "Connection lost after multiple retries. Please check your network.";
+  return raw;
 }
 
 function parseDuration(value: string | number): number {
@@ -131,6 +163,7 @@ export function useChat() {
 
   const contextIdRef = useRef<string | undefined>(loadContextId());
   const abortRef = useRef<AbortController | null>(null);
+  const activeAgentMsgIdRef = useRef<string | null>(null);
   const thinkingRef = useRef<ThinkingEntry[]>([]);
   const artifactRef = useRef("");
   const messageIdRef = useRef(0);
@@ -151,6 +184,11 @@ export function useChat() {
     if (now - lastSendRef.current < 500) return;
     lastSendRef.current = now;
 
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+
     setError(null);
 
     if (!options?.silent) {
@@ -164,6 +202,7 @@ export function useChat() {
     }
 
     const agentMsgId = nextId();
+    activeAgentMsgIdRef.current = agentMsgId;
     thinkingRef.current = [];
     artifactRef.current = "";
     terminalReceivedRef.current = false;
@@ -216,22 +255,24 @@ export function useChat() {
 
           const updates: Partial<ChatMessage> = { phase: "decision", thinking: [...thinkingRef.current], thinkingLabel: undefined };
 
-          const targetStr = payload.rca.target || "";
-          const slashIdx = targetStr.indexOf("/");
-          const parsedNamespace = slashIdx > 0 ? targetStr.slice(0, slashIdx) : undefined;
+          if (payload.rca) {
+            const targetStr = payload.rca.target || "";
+            const slashIdx = targetStr.indexOf("/");
+            const parsedNamespace = slashIdx > 0 ? targetStr.slice(0, slashIdx) : undefined;
 
-          updates.rca = {
-            severity: payload.rca.severity,
-            confidence: payload.rca.confidence,
-            causalChain: payload.rca.causal_chain ?? [],
-            target: payload.rca.target,
-            toolCallsCount: payload.rca.tool_calls_count ?? 0,
-            llmTurns: payload.rca.llm_turns ?? 0,
-            summary: payload.summary || textFallback,
-            rrId: payload.rr_id,
-            signalName: payload.signal_name,
-            namespace: parsedNamespace,
-          };
+            updates.rca = {
+              severity: payload.rca.severity,
+              confidence: payload.rca.confidence,
+              causalChain: payload.rca.causal_chain ?? [],
+              target: payload.rca.target,
+              toolCallsCount: payload.rca.tool_calls_count ?? 0,
+              llmTurns: payload.rca.llm_turns ?? 0,
+              summary: payload.summary || textFallback,
+              rrId: payload.rr_id,
+              signalName: payload.signal_name,
+              namespace: parsedNamespace,
+            };
+          }
 
           if (payload.rr_id) {
             updates.rrId = payload.rr_id;
@@ -545,7 +586,7 @@ export function useChat() {
     await streamA2A(request, {
       onEvent: handleEvent,
       onError: (err) => {
-        setError(err.message);
+        setError(friendlyError(err.message));
         updateAgent({ isStreaming: false });
         setIsStreaming(false);
         setConnectionStatus("idle");
@@ -559,7 +600,7 @@ export function useChat() {
         if (terminalReceivedRef.current) return;
         setConnectionStatus("lost");
       },
-      onReconnecting: (attempt) => {
+      onReconnecting: (_attempt) => {
         if (terminalReceivedRef.current) return;
         setConnectionStatus("reconnecting");
       },
@@ -569,6 +610,13 @@ export function useChat() {
 
   const cancelStream = useCallback(() => {
     abortRef.current?.abort();
+    if (activeAgentMsgIdRef.current) {
+      const id = activeAgentMsgIdRef.current;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, isStreaming: false } : m))
+      );
+      activeAgentMsgIdRef.current = null;
+    }
     setIsStreaming(false);
     setConnectionStatus("idle");
   }, []);

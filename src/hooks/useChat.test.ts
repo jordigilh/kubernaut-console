@@ -1552,4 +1552,149 @@ describe("useChat", () => {
       expect(merged.text).toBe("I'll investigate the KubePodCrashLooping incident.");
     });
   });
+
+  describe("P0: Null guard for payload.rca in investigation_summary", () => {
+    it("UT-CONSOLE-CHAT-041: gracefully handles investigation_summary without rca field", async () => {
+      vi.useRealTimers();
+      const { streamA2A } = await import("../lib/a2a-client");
+      vi.mocked(streamA2A).mockImplementation(async (_req: unknown, opts: {
+        onEvent?: (evt: unknown) => void;
+        onComplete?: () => void;
+      }) => {
+        opts.onEvent?.({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "inv-summary-no-rca",
+            parts: [{
+              kind: "data",
+              data: {
+                session_id: "sess-1",
+                rr_id: "rr-test-001",
+                signal_name: "TestAlert",
+                summary: "No RCA available yet",
+              },
+              mediaType: "application/json",
+            }],
+            metadata: { schema: "investigation_summary" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("investigate"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.rca).toBeUndefined();
+        expect(agentMsg?.rrId).toBe("rr-test-001");
+      });
+    });
+  });
+
+  describe("P0: cancelStream clears active agent bubble isStreaming", () => {
+    it("UT-CONSOLE-CHAT-042: cancelStream sets isStreaming=false on the active agent message", async () => {
+      vi.useRealTimers();
+      const { streamA2A } = await import("../lib/a2a-client");
+      vi.mocked(streamA2A).mockImplementation(async (_req: unknown, opts: {
+        onEvent?: (evt: unknown) => void;
+        signal?: AbortSignal;
+      }) => {
+        opts.onEvent?.({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Working..." }] } },
+          metadata: { type: "reasoning" },
+        });
+        await new Promise<void>((resolve) => {
+          opts.signal?.addEventListener("abort", () => resolve());
+        });
+      });
+
+      const { result } = renderHook(() => useChat());
+      act(() => { result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        expect(result.current.messages.find(m => m.role === "agent")).toBeDefined();
+      });
+
+      act(() => { result.current.cancelStream(); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.isStreaming).toBe(false);
+      });
+    });
+  });
+
+  describe("P0: Concurrent stream guard", () => {
+    it("UT-CONSOLE-CHAT-043: second sendMessage aborts prior stream controller", async () => {
+      vi.useRealTimers();
+      const { streamA2A } = await import("../lib/a2a-client");
+      const abortSignals: AbortSignal[] = [];
+
+      vi.mocked(streamA2A).mockImplementation(async (_req: unknown, opts: {
+        onComplete?: () => void;
+        signal?: AbortSignal;
+      }) => {
+        if (opts.signal) abortSignals.push(opts.signal);
+        await new Promise<void>((resolve) => {
+          opts.signal?.addEventListener("abort", () => resolve());
+          setTimeout(() => { opts.onComplete?.(); resolve(); }, 5000);
+        });
+      });
+
+      const { result } = renderHook(() => useChat());
+      act(() => { result.current.sendMessage("first"); });
+
+      await new Promise(r => setTimeout(r, 600));
+
+      act(() => { result.current.sendMessage("second"); });
+
+      await waitFor(() => {
+        expect(abortSignals[0]?.aborted).toBe(true);
+      });
+    });
+  });
+
+  describe("P2: Friendly error messages", () => {
+    it("UT-CONSOLE-CHAT-044: maps network error to user-friendly message", async () => {
+      vi.useRealTimers();
+      const { streamA2A } = await import("../lib/a2a-client");
+      vi.mocked(streamA2A).mockImplementation(async (_req: unknown, opts: {
+        onError?: (err: Error) => void;
+      }) => {
+        opts.onError?.(new Error("Failed to fetch"));
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        expect(result.current.error).toBe("Unable to reach the server. Check your connection and try again.");
+      });
+    });
+
+    it("UT-CONSOLE-CHAT-045: maps HTTP 500 to user-friendly message", async () => {
+      vi.useRealTimers();
+      const { streamA2A } = await import("../lib/a2a-client");
+      vi.mocked(streamA2A).mockImplementation(async (_req: unknown, opts: {
+        onError?: (err: Error) => void;
+      }) => {
+        opts.onError?.(new Error("HTTP 502: Bad Gateway"));
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        expect(result.current.error).toBe("The server encountered an error. Please try again in a moment.");
+      });
+    });
+  });
 });
