@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="500" font-family="Inter, -apple-system, sans-serif">
+
+  <text x="20" y="28" font-size="14" font-weight="bold" fill="#333333">Investigation bar with labeled fields</text>
+  <text x="20" y="46" font-size="11" fill="#6b7280">Each field has a dim label so first-time users understand the context immediately.</text>
+
+  <!-- App header -->
+  <rect x="20" y="65" width="860" height="44" rx="12" fill="#0d9488"/>
+  <rect x="20" y="95" width="860" height="14" fill="#0d9488"/>
+  <circle cx="48" cy="87" r="12" fill="#1a9e92"/>
+  <text x="68" y="92" font-size="13" font-weight="600" fill="#ffffff">Kubernaut Console</text>
+  <text x="755" y="92" font-size="11" fill="#a7f3d0">+ New</text>
+  <circle cx="840" cy="87" r="12" fill="#1a9e92"/>
+  <text x="835" y="91" font-size="10" font-weight="600" fill="#ffffff">AD</text>
+
+  <!-- Investigation bar (labeled fields) -->
+  <rect x="20" y="109" width="860" height="42" fill="#134e4a"/>
+  <rect x="20" y="150" width="860" height="1" fill="#0f766e"/>
+  
+  <!-- Field: Remediation Request (truncated, full on hover) -->
+  <text x="36" y="127" font-size="9" font-weight="500" fill="#5eead4">REMEDIATION ID</text>
+  <text x="36" y="143" font-size="11" font-weight="600" fill="#ffffff">rr-660dc0...bb7a</text>
+  
+  <!-- Separator -->
+  <rect x="200" y="118" width="1" height="26" fill="#2dd4bf" opacity="0.3"/>
+  
+  <!-- Field: Alert -->
+  <text x="214" y="127" font-size="9" font-weight="500" fill="#5eead4">ALERT</text>
+  <text x="214" y="143" font-size="11" fill="#ffffff">KubePodCrashLooping</text>
+  
+  <!-- Separator -->
+  <rect x="360" y="118" width="1" height="26" fill="#2dd4bf" opacity="0.3"/>
+  
+  <!-- Field: Namespace -->
+  <text x="374" y="127" font-size="9" font-weight="500" fill="#5eead4">NAMESPACE</text>
+  <text x="374" y="143" font-size="11" fill="#ffffff">demo-storefront</text>
+  
+  <!-- Separator -->
+  <rect x="500" y="118" width="1" height="26" fill="#2dd4bf" opacity="0.3"/>
+  
+  <!-- Field: Resource -->
+  <text x="514" y="127" font-size="9" font-weight="500" fill="#5eead4">RESOURCE</text>
+  <text x="514" y="143" font-size="11" fill="#ffffff">Pod: worker</text>
+  
+  <!-- Separator -->
+  <rect x="610" y="118" width="1" height="26" fill="#2dd4bf" opacity="0.3"/>
+  
+  <!-- Field: Cluster -->
+  <text x="624" y="127" font-size="9" font-weight="500" fill="#5eead4">CLUSTER</text>
+  <text x="624" y="143" font-size="11" fill="#ffffff">prod-us-east-1</text>
+  
+  <!-- Separator -->
+  <rect x="740" y="118" width="1" height="26" fill="#2dd4bf" opacity="0.3"/>
+  
+  <!-- Phase (right) -->
+  <text x="754" y="127" font-size="9" font-weight="500" fill="#5eead4">STATUS</text>
+  <circle cx="754" cy="141" r="4" fill="#4ade80"/>
+  <text x="764" y="144" font-size="11" font-weight="500" fill="#ffffff">Investigating</text>
+
+
+  <!-- Full layout with chat -->
+  <text x="20" y="200" font-size="14" font-weight="bold" fill="#333333">Full layout:</text>
+
+  <rect x="20" y="215" width="860" height="270" rx="12" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1"/>
+  
+  <!-- Header -->
+  <rect x="20" y="215" width="860" height="44" rx="12" fill="#0d9488"/>
+  <rect x="20" y="245" width="860" height="14" fill="#0d9488"/>
+  <circle cx="48" cy="237" r="12" fill="#1a9e92"/>
+  <text x="68" y="242" font-size="13" font-weight="600" fill="#ffffff">Kubernaut Console</text>
+  <text x="755" y="242" font-size="11" fill="#a7f3d0">+ New</text>
+  <circle cx="840" cy="237" r="12" fill="#1a9e92"/>
+  <text x="835" y="241" font-size="10" font-weight="600" fill="#ffffff">AD</text>
+  
+  <!-- Investigation bar -->
+  <rect x="20" y="259" width="860" height="42" fill="#134e4a"/>
+  <rect x="20" y="300" width="860" height="1" fill="#0f766e"/>
+  
+  <text x="36" y="277" font-size="9" font-weight="500" fill="#5eead4">REMEDIATION ID</text>
+  <text x="36" y="293" font-size="11" font-weight="600" fill="#ffffff">rr-660dc0...bb7a</text>
+  <rect x="200" y="268" width="1" height="26" fill="#2dd4bf" opacity="0.3"/>
+  <text x="214" y="277" font-size="9" font-weight="500" fill="#5eead4">ALERT</text>
+  <text x="214" y="293" font-size="11" fill="#ffffff">KubePodCrashLooping</text>
+  <rect x="360" y="268" width="1" height="26" fill="#2dd4bf" opacity="0.3"/>
+  <text x="374" y="277" font-size="9" font-weight="500" fill="#5eead4">NAMESPACE</text>
+  <text x="374" y="293" font-size="11" fill="#ffffff">demo-storefront</text>
+  <rect x="500" y="268" width="1" height="26" fill="#2dd4bf" opacity="0.3"/>
+  <text x="514" y="277" font-size="9" font-weight="500" fill="#5eead4">RESOURCE</text>
+  <text x="514" y="293" font-size="11" fill="#ffffff">Pod: worker</text>
+  <rect x="610" y="268" width="1" height="26" fill="#2dd4bf" opacity="0.3"/>
+  <text x="624" y="277" font-size="9" font-weight="500" fill="#5eead4">CLUSTER</text>
+  <text x="624" y="293" font-size="11" fill="#ffffff">prod-us-east-1</text>
+  <rect x="740" y="268" width="1" height="26" fill="#2dd4bf" opacity="0.3"/>
+  <text x="754" y="277" font-size="9" font-weight="500" fill="#5eead4">STATUS</text>
+  <circle cx="754" cy="291" r="4" fill="#4ade80"/>
+  <text x="764" y="294" font-size="11" font-weight="500" fill="#ffffff">Investigating</text>
+  
+  <!-- Chat area -->
+  <rect x="40" y="315" width="450" height="44" rx="12" fill="#f0fdfa"/>
+  <text x="56" y="335" font-size="11" fill="#334155">I'll investigate the KubePodCrashLooping alert</text>
+  <text x="56" y="351" font-size="11" fill="#334155">for demo-storefront/worker...</text>
+  
+  <!-- ThinkingPanel -->
+  <rect x="40" y="369" width="500" height="36" rx="8" fill="#f3f4f6"/>
+  <text x="56" y="391" font-size="11" fill="#6b7280">Thinking · Analyzing pod logs and recent deployments...</text>
+  
+  <!-- RCA card -->
+  <rect x="40" y="415" width="520" height="56" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+  <rect x="40" y="415" width="3" height="56" rx="1" fill="#ef4444"/>
+  <text x="56" y="435" font-size="12" font-weight="700" fill="#111827">Root Cause Analysis</text>
+  <rect x="200" y="425" width="50" height="16" rx="8" fill="#fef2f2"/>
+  <text x="210" y="437" font-size="9" font-weight="600" fill="#dc2626">critical</text>
+  <text x="56" y="457" font-size="10" fill="#6b7280">Target: demo-storefront/worker | Confidence: 0.95 | 19 tool calls</text>
+
+</svg>
