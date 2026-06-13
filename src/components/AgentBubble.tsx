@@ -15,14 +15,17 @@ interface Props {
   onExecuteWorkflow?: (workflowId: string) => void;
   onApprove?: (rarName: string, reason: string) => void;
   onDecline?: (rarName: string, reason: string) => void;
+  onDismiss?: () => void;
+  onEscalate?: () => void;
   userName?: string;
+  recoverySignal?: "problem_resolved" | "alignment_check_failed" | null;
 }
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow, onApprove, onDecline, userName }: Props) {
+export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow, onApprove, onDecline, onDismiss, onEscalate, userName, recoverySignal }: Props) {
   const hasContent = message.text.trim().length > 0;
   const hasThinking = message.thinking && message.thinking.length > 0;
   const hasRCA = !!message.rca;
@@ -70,6 +73,9 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
           <WorkflowCards
             options={message.workflowOptions!}
             onExecute={onExecuteWorkflow}
+            onDismiss={onDismiss}
+            onEscalate={onEscalate}
+            recoverySignal={recoverySignal}
           />
         )}
 

@@ -5,8 +5,12 @@ interface Props {
 }
 
 export function VerificationTimer({ stabilizationWindow }: Props) {
-  const startRef = useRef(Date.now());
+  const startRef = useRef<number>(0);
   const [remaining, setRemaining] = useState(stabilizationWindow);
+
+  useEffect(() => {
+    startRef.current = Date.now();
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -31,19 +35,21 @@ export function VerificationTimer({ stabilizationWindow }: Props) {
   return (
     <div
       data-testid="verification-timer"
-      className="rounded-xl border border-purple-200 bg-purple-50 p-3 motion-safe:animate-fade-in"
+      className="rounded-xl border border-kubernaut-teal-200 bg-kubernaut-teal-50 p-3 motion-safe:animate-fade-in"
+      role="status"
+      aria-live="polite"
     >
       <div className="flex items-center gap-2 mb-2">
-        <span className="w-2 h-2 rounded-full bg-purple-400 motion-safe:animate-pulse" />
-        <span className="text-xs font-semibold text-purple-900">
+        <span className="w-2 h-2 rounded-full bg-kubernaut-teal-400 motion-safe:animate-pulse" aria-hidden="true" />
+        <span className="text-xs font-semibold text-kubernaut-teal-900">
           Verifying stability
         </span>
-        <span className="ml-auto text-[11px] text-purple-600 font-medium">
+        <span className="ml-auto text-[11px] text-kubernaut-teal-600 font-medium" aria-live="polite">
           {formatTime(remaining)}
         </span>
       </div>
       <div
-        className="w-full h-1.5 rounded-full bg-purple-200 overflow-hidden"
+        className="w-full h-1.5 rounded-full bg-kubernaut-teal-200 overflow-hidden"
         role="progressbar"
         aria-valuenow={Math.round(progress)}
         aria-valuemin={0}
@@ -51,7 +57,7 @@ export function VerificationTimer({ stabilizationWindow }: Props) {
         aria-label={`Verification progress: ${formatTime(remaining)}`}
       >
         <div
-          className="h-full rounded-full bg-purple-500 transition-all duration-1000 ease-linear motion-reduce:transition-none"
+          className="h-full rounded-full bg-kubernaut-teal-500 transition-all duration-1000 ease-linear motion-reduce:transition-none"
           style={{ width: `${progress}%` }}
         />
       </div>

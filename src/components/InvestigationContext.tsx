@@ -8,31 +8,27 @@ interface Props {
 }
 
 const PHASE_CONFIG: Record<string, { label: string; dotClass: string }> = {
-  investigation: { label: "Investigating", dotClass: "bg-green-400 animate-pulse" },
-  decision: { label: "Decision pending", dotClass: "bg-yellow-400" },
-  remediation: { label: "Executing", dotClass: "bg-blue-400 animate-pulse" },
-  verifying: { label: "Verifying", dotClass: "bg-purple-400 animate-pulse" },
-  failed: { label: "Failed", dotClass: "bg-red-400" },
-  complete: { label: "Complete", dotClass: "bg-green-400" },
+  investigation: { label: "Investigating", dotClass: "bg-kubernaut-green-400 animate-pulse" },
+  decision: { label: "Decision pending", dotClass: "bg-amber-400" },
+  remediation: { label: "Executing", dotClass: "bg-kubernaut-teal-400 animate-pulse" },
+  verifying: { label: "Verifying", dotClass: "bg-kubernaut-teal-300 animate-pulse" },
+  failed: { label: "Failed", dotClass: "bg-kubernaut-red-400" },
+  complete: { label: "Complete", dotClass: "bg-kubernaut-green-400" },
 };
-
-function truncateRrId(id: string): string {
-  return id;
-}
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-0.5 min-w-0">
-      <span className="text-[9px] font-medium tracking-wide text-teal-300 uppercase">
+    <div className="flex flex-col gap-0.5 min-w-0 shrink">
+      <span className="text-[9px] font-medium tracking-wide text-kubernaut-teal-200 uppercase whitespace-nowrap">
         {label}
       </span>
-      <span className="text-xs text-white truncate">{value}</span>
+      <span className="text-xs text-white truncate break-words">{value}</span>
     </div>
   );
 }
 
 function Separator() {
-  return <div className="w-px h-6 bg-teal-400/20 self-center" />;
+  return <div className="w-px h-6 bg-kubernaut-teal-600/30 self-center shrink-0" aria-hidden="true" />;
 }
 
 export function InvestigationContext({ alertName, namespace, resource, cluster, rrId, phase }: Props) {
@@ -44,16 +40,18 @@ export function InvestigationContext({ alertName, namespace, resource, cluster, 
   return (
     <div
       data-testid="investigation-context"
-      className="bg-teal-950 px-4 sm:px-6 py-2 flex items-center gap-4 border-b border-teal-800"
+      className="bg-kubernaut-teal-900 px-4 sm:px-6 py-2 flex items-center gap-3 border-b border-kubernaut-teal-700 overflow-x-auto"
+      role="region"
+      aria-label="Investigation context"
     >
       {rrId && (
         <>
-          <div className="flex flex-col gap-0.5 min-w-0" title={rrId}>
-            <span className="text-[9px] font-medium tracking-wide text-teal-300 uppercase">
+          <div className="flex flex-col gap-0.5 min-w-0 shrink-0" title={rrId}>
+            <span className="text-[9px] font-medium tracking-wide text-kubernaut-teal-200 uppercase">
               Remediation ID
             </span>
-            <span className="text-xs font-semibold text-white truncate">
-              {truncateRrId(rrId)}
+            <span className="text-xs font-semibold text-white truncate max-w-[180px]">
+              {rrId}
             </span>
           </div>
           <Separator />
@@ -89,14 +87,15 @@ export function InvestigationContext({ alertName, namespace, resource, cluster, 
       )}
 
       {phaseConfig && (
-        <div className="flex flex-col gap-0.5 ml-auto">
-          <span className="text-[9px] font-medium tracking-wide text-teal-300 uppercase">
+        <div className="flex flex-col gap-0.5 ml-auto shrink-0" role="status" aria-live="polite">
+          <span className="text-[9px] font-medium tracking-wide text-kubernaut-teal-200 uppercase">
             Status
           </span>
           <div className="flex items-center gap-1.5" data-testid="phase-indicator">
             <span
               data-testid="phase-dot"
               className={`w-2 h-2 rounded-full ${phaseConfig.dotClass}`}
+              aria-hidden="true"
             />
             <span className="text-xs font-medium text-white">
               {phaseConfig.label}

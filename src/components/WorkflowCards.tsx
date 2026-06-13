@@ -4,16 +4,20 @@ import type { WorkflowOption } from "../hooks/useChat";
 interface Props {
   options: WorkflowOption[];
   onExecute?: (workflowId: string) => void;
+  onDismiss?: () => void;
+  onEscalate?: () => void;
+  recoverySignal?: "problem_resolved" | "alignment_check_failed" | null;
 }
 
 const COUNTDOWN_SECONDS = 10;
 
-export function WorkflowCards({ options, onExecute }: Props) {
+export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recoverySignal }: Props) {
   const recommended = options.find((o) => o.recommended);
   const ruledOut = options.filter((o) => !o.recommended);
 
   const [countdown, setCountdown] = useState<number | null>(null);
   const [executed, setExecuted] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const onExecuteRef = useRef(onExecute);
   useEffect(() => { onExecuteRef.current = onExecute; });
 
@@ -41,8 +45,39 @@ export function WorkflowCards({ options, onExecute }: Props) {
     setCountdown(null);
   }, []);
 
+  const handleRuledOutClick = useCallback((workflowId: string) => {
+    setConfirmingId(workflowId);
+  }, []);
+
+  const handleConfirmRuledOut = useCallback(() => {
+    if (confirmingId) {
+      onExecuteRef.current?.(confirmingId);
+      setConfirmingId(null);
+      setExecuted(true);
+    }
+  }, [confirmingId]);
+
+  const handleCancelRuledOut = useCallback(() => {
+    setConfirmingId(null);
+  }, []);
+
+  const highlightDismiss = recoverySignal === "problem_resolved";
+  const highlightEscalate = recoverySignal === "alignment_check_failed";
+
   return (
     <div className="space-y-2 w-full animate-slide-up" role="group" aria-label="Remediation options">
+      {/* Reactive signal banner */}
+      {recoverySignal === "problem_resolved" && (
+        <div className="rounded-lg bg-kubernaut-green-50 border border-kubernaut-green-200 px-3 py-2 text-xs text-kubernaut-green-700" role="status">
+          Alert appears to have self-resolved. No remediation may be needed.
+        </div>
+      )}
+      {recoverySignal === "alignment_check_failed" && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700" role="status">
+          Security concern detected during investigation. Manual review recommended.
+        </div>
+      )}
+
       {/* Recommended card (expanded) */}
       {recommended && (
         <div
@@ -50,13 +85,13 @@ export function WorkflowCards({ options, onExecute }: Props) {
           className="rounded-xl border-2 border-kubernaut-teal-600 bg-white shadow-sm overflow-hidden"
         >
           <div className="p-4">
-            {/* Header */}
             <div className="flex items-center gap-2 mb-2">
               <span
                 data-testid="checkmark-icon"
                 className="flex h-4 w-4 items-center justify-center rounded-full bg-kubernaut-green-600"
+                aria-hidden="true"
               >
-                <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none">
+                <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                   <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </span>
@@ -66,14 +101,12 @@ export function WorkflowCards({ options, onExecute }: Props) {
               </span>
             </div>
 
-            {/* Description */}
             {recommended.description && (
               <p className="text-xs text-text-secondary leading-relaxed mb-3">
                 {recommended.description}
               </p>
             )}
 
-            {/* Parameters */}
             {recommended.parameters && (
               <div className="rounded bg-surface-secondary px-3 py-2 mb-3">
                 <p className="text-[11px] font-mono text-text-muted leading-relaxed">
@@ -82,7 +115,6 @@ export function WorkflowCards({ options, onExecute }: Props) {
               </div>
             )}
 
-            {/* Action buttons */}
             <div className="flex gap-2">
               {countdown === null ? (
                 <button
@@ -110,9 +142,7 @@ export function WorkflowCards({ options, onExecute }: Props) {
                       Executing in {countdown}s...
                     </button>
                     <div className="absolute bottom-0 left-0 h-1 rounded-b-lg bg-black/10 w-full">
-                      <div
-                        className="h-full rounded-b-lg bg-white/50 countdown-bar"
-                      />
+                      <div className="h-full rounded-b-lg bg-white/50 countdown-bar" />
                     </div>
                   </div>
                   <button
@@ -130,30 +160,98 @@ export function WorkflowCards({ options, onExecute }: Props) {
         </div>
       )}
 
-      {/* Ruled-out cards (collapsed) */}
+      {/* Ruled-out cards (clickable with confirmation) */}
       {ruledOut.map((opt) => (
-        <div
-          key={opt.workflowId}
-          data-testid={`workflow-card-${opt.workflowId}`}
-          className="rounded-xl border border-border bg-white px-4 py-2.5 flex items-center gap-2 opacity-50"
-        >
-          <span
-            data-testid="ruled-out-icon"
-            className="flex h-4 w-4 items-center justify-center rounded-full bg-kubernaut-red-600"
+        <div key={opt.workflowId}>
+          <button
+            type="button"
+            data-testid={`workflow-card-${opt.workflowId}`}
+            className={`rounded-xl border bg-white px-4 py-2.5 flex items-center gap-2 w-full text-left cursor-pointer transition-colors ${
+              confirmingId === opt.workflowId ? "border-amber-400 bg-amber-50" : "border-border hover:border-gray-300 hover:bg-gray-50"
+            }`}
+            onClick={() => handleRuledOutClick(opt.workflowId)}
+            aria-expanded={confirmingId === opt.workflowId}
+            aria-label={`${opt.name} — ruled out${opt.ruledOutReason ? `: ${opt.ruledOutReason}` : ""}`}
           >
-            <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none">
-              <path d="M3 6h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </span>
-          <span className="text-xs font-bold text-text-muted">{opt.name}</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-kubernaut-red-50 text-kubernaut-red-600">
-            Ruled out
-          </span>
-          {opt.ruledOutReason && (
-            <span className="text-[11px] text-text-dim">{opt.ruledOutReason}</span>
+            <span
+              data-testid="ruled-out-icon"
+              className="flex h-4 w-4 items-center justify-center rounded-full bg-kubernaut-red-600"
+              aria-hidden="true"
+            >
+              <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M3 6h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </span>
+            <span className="text-xs font-bold text-text-primary">{opt.name}</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-kubernaut-red-50 text-kubernaut-red-600">
+              Ruled out
+            </span>
+            {opt.ruledOutReason && (
+              <span className="text-[11px] text-text-dim">{opt.ruledOutReason}</span>
+            )}
+          </button>
+
+          {/* Confirmation dialog */}
+          {confirmingId === opt.workflowId && (
+            <div className="mt-1 ml-6 p-3 rounded-lg border border-amber-300 bg-amber-50 text-xs">
+              <p className="text-amber-800 font-medium mb-2">
+                This workflow was ruled out: {opt.ruledOutReason || "No reason provided"}
+              </p>
+              <p className="text-amber-700 mb-3">Are you sure you want to proceed?</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleConfirmRuledOut}
+                  className="px-3 py-1.5 rounded-md bg-amber-600 text-white text-[11px] font-semibold hover:bg-amber-700 transition-colors"
+                  aria-label="Proceed anyway"
+                >
+                  Proceed anyway
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelRuledOut}
+                  className="px-3 py-1.5 rounded-md border border-gray-300 text-text-secondary text-[11px] font-medium hover:bg-gray-50 transition-colors"
+                  aria-label="Go back"
+                >
+                  Go back
+                </button>
+              </div>
+            </div>
           )}
         </div>
       ))}
+
+      {/* Escape hatch actions */}
+      <div className="flex gap-2 pt-2 border-t border-border mt-3">
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
+              highlightDismiss
+                ? "bg-kubernaut-green-600 text-white ring-2 ring-kubernaut-green-400 ring-offset-1 hover:bg-kubernaut-green-700"
+                : "border border-gray-300 text-text-secondary hover:bg-gray-50"
+            }`}
+            aria-label="No action needed"
+          >
+            No action needed
+          </button>
+        )}
+        {onEscalate && (
+          <button
+            type="button"
+            onClick={onEscalate}
+            className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
+              highlightEscalate
+                ? "bg-amber-600 text-white ring-2 ring-amber-400 ring-offset-1 hover:bg-amber-700"
+                : "border border-gray-300 text-text-secondary hover:bg-gray-50"
+            }`}
+            aria-label="Escalate to team"
+          >
+            Escalate to team
+          </button>
+        )}
+      </div>
     </div>
   );
 }
