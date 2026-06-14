@@ -3,12 +3,6 @@ import { buildStreamRequest, streamA2A } from "../lib/a2a-client";
 import { mockStreamA2A } from "../lib/a2a-mock";
 import type { A2AEvent, DataPart, StatusUpdateEvent } from "../lib/a2a-types";
 
-export interface ExecutionStep {
-  id: string;
-  label: string;
-  state: "pending" | "running" | "done" | "failed";
-}
-
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
 export interface ThinkingEntry {
@@ -94,9 +88,8 @@ export interface ChatMessage {
   thinking?: ThinkingEntry[];
   workflowOptions?: WorkflowOption[];
   rca?: RCAData;
-  executionSteps?: ExecutionStep[];
-  executionComplete?: boolean;
   stabilizationWindow?: number;
+  verifyingStartedAt?: number;
   isStreaming?: boolean;
   phase?: "investigation" | "decision" | "remediation" | "verifying" | "failed" | "complete";
   thinkingLabel?: string;
@@ -350,27 +343,13 @@ export function useChat() {
             completed_at?: string;
           };
 
-          const PHASES = ["Investigating", "AwaitingApproval", "Executing", "Verifying", "Completed"];
           const currentPhase = payload.current_phase;
-          const currentIdx = PHASES.indexOf(currentPhase);
-
-          const steps: ExecutionStep[] = PHASES.slice(0, -1).map((phase, i) => ({
-            id: phase.toLowerCase(),
-            label: phase === "AwaitingApproval" ? "Approval" : phase,
-            state: i < currentIdx ? "done" as const
-                 : i === currentIdx ? (currentPhase === "Completed" || currentPhase === "Failed" ? "done" as const : "running" as const)
-                 : "pending" as const,
-          }));
-
           const isTerminal = currentPhase === "Completed" || currentPhase === "Failed";
           if (isTerminal) {
-            steps.forEach(s => s.state = currentPhase === "Failed" ? "failed" : "done");
             terminalReceivedRef.current = true;
           }
 
           const updates: Partial<ChatMessage> = {
-            executionSteps: steps,
-            executionComplete: isTerminal,
             phase: currentPhase === "Failed" ? "failed"
                  : isTerminal ? "complete"
                  : currentPhase === "Verifying" ? "verifying"
@@ -385,6 +364,11 @@ export function useChat() {
           if (swRaw) {
             const sw = parseDuration(swRaw as string | number);
             if (sw > 0) updates.stabilizationWindow = sw;
+          }
+
+          if (payload.started_at && currentPhase === "Verifying") {
+            const ts = new Date(payload.started_at).getTime();
+            if (!Number.isNaN(ts)) updates.verifyingStartedAt = ts;
           }
 
           updateAgent(updates);
@@ -572,8 +556,6 @@ export function useChat() {
           const parsed = JSON.parse(msgText);
           if (Array.isArray(parsed.steps)) {
             const updates: Partial<ChatMessage> = {
-              executionSteps: parsed.steps,
-              executionComplete: parsed.completed ?? false,
               phase: parsed.completed ? "complete" : "remediation",
             };
             const swRaw = event.metadata?.stabilization_window ?? parsed.stabilization_window;
@@ -604,20 +586,8 @@ export function useChat() {
         const phaseMatch = text.match(/(?:Progress|Remediation phase):\s*(Analyzing|Executing|Verifying|Completed|Failed)/i);
         if (phaseMatch) {
           const currentPhase = phaseMatch[1].toLowerCase();
-          const phases = ["analyzing", "executing", "verifying", "completed"];
-          const currentIdx = phases.indexOf(currentPhase);
-          const steps: ExecutionStep[] = [
-            { id: "analyzing", label: "Analyzing", state: "pending" },
-            { id: "executing", label: "Executing remediation", state: "pending" },
-            { id: "verifying", label: "Verifying stability", state: "pending" },
-          ];
-          for (let i = 0; i < steps.length; i++) {
-            if (i < currentIdx) steps[i].state = "done";
-            else if (i === currentIdx) steps[i].state = currentPhase === "completed" || currentPhase === "failed" ? "done" : "running";
-          }
           const isTerminal = currentPhase === "completed" || currentPhase === "failed";
           if (isTerminal) {
-            steps.forEach(s => s.state = currentPhase === "failed" ? "failed" : "done");
             terminalReceivedRef.current = true;
           }
 
@@ -627,11 +597,7 @@ export function useChat() {
           else if (currentPhase === "verifying") messagePhase = "verifying";
           else messagePhase = "remediation";
 
-          update({
-            executionSteps: steps,
-            executionComplete: isTerminal,
-            phase: messagePhase,
-          });
+          update({ phase: messagePhase });
           return;
         }
 

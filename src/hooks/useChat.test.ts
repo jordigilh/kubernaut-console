@@ -462,7 +462,7 @@ describe("useChat", () => {
 
   // IR-4: Output event parsing (execution steps)
   describe("IR-4: Execution step output parsing", () => {
-    it("UT-CONSOLE-CHAT-016: parses output event into executionSteps", async () => {
+    it("UT-CONSOLE-CHAT-016: parses output event into phase 'remediation'", async () => {
       vi.useRealTimers();
       const { streamA2A: streamFn } = await import("../lib/a2a-client");
       const mockedStream = vi.mocked(streamFn);
@@ -498,17 +498,11 @@ describe("useChat", () => {
 
       await waitFor(() => {
         const agentMsg = result.current.messages.find(m => m.role === "agent");
-        expect(agentMsg?.executionSteps).toHaveLength(2);
+        expect(agentMsg?.phase).toBe("remediation");
       });
-
-      const agentMsg = result.current.messages.find(m => m.role === "agent")!;
-      expect(agentMsg.executionSteps![0].label).toBe("Cloning GitOps repository");
-      expect(agentMsg.executionSteps![1].state).toBe("running");
-      expect(agentMsg.phase).toBe("remediation");
-      expect(agentMsg.executionComplete).toBe(false);
     });
 
-    it("UT-CONSOLE-CHAT-017: sets phase to 'complete' and executionComplete when steps are done", async () => {
+    it("UT-CONSOLE-CHAT-017: sets phase to 'complete' when output steps are done", async () => {
       vi.useRealTimers();
       const { streamA2A: streamFn } = await import("../lib/a2a-client");
       const mockedStream = vi.mocked(streamFn);
@@ -541,7 +535,6 @@ describe("useChat", () => {
 
       await waitFor(() => {
         const agentMsg = result.current.messages.find(m => m.role === "agent");
-        expect(agentMsg?.executionComplete).toBe(true);
         expect(agentMsg?.phase).toBe("complete");
       });
     });
@@ -613,7 +606,7 @@ describe("useChat", () => {
       });
 
       const agentMsg = result.current.messages.find(m => m.role === "agent");
-      expect(agentMsg?.executionSteps).toBeUndefined();
+      expect(agentMsg?.phase).toBe("investigation");
     });
 
     it("UT-CONSOLE-CHAT-020: gracefully handles malformed JSON in decision payload", async () => {
@@ -675,7 +668,7 @@ describe("useChat", () => {
       });
 
       const agentMsg = result.current.messages.find(m => m.role === "agent");
-      expect(agentMsg?.executionSteps).toBeUndefined();
+      expect(agentMsg?.phase).toBe("investigation");
     });
   });
 
@@ -976,7 +969,7 @@ describe("useChat", () => {
 
   // IR-4: Incident Handling — structured execution progress from artifact events
   describe("IR-4: execution_progress artifact handler", () => {
-    it("UT-CONSOLE-CHAT-031: parses execution_progress artifact into executionSteps with correct phase states", async () => {
+    it("UT-CONSOLE-CHAT-031: parses execution_progress artifact into phase and rrId", async () => {
       vi.useRealTimers();
       const { streamA2A: streamFn } = await import("../lib/a2a-client");
       const mockedStream = vi.mocked(streamFn);
@@ -1015,15 +1008,12 @@ describe("useChat", () => {
 
       await waitFor(() => {
         const agentMsg = result.current.messages.find(m => m.role === "agent");
-        expect(agentMsg?.executionSteps).toBeDefined();
+        expect(agentMsg?.phase).toBe("remediation");
       });
 
       const agentMsg = result.current.messages.find(m => m.role === "agent")!;
-      expect(agentMsg.executionSteps!.length).toBeGreaterThan(0);
-      const executing = agentMsg.executionSteps!.find(s => s.label === "Executing");
-      expect(executing?.state).toBe("running");
       expect(agentMsg.phase).toBe("remediation");
-      expect(agentMsg.executionComplete).toBe(false);
+      expect(agentMsg.rrId).toBe("rr-abc123");
     });
 
     it("UT-CONSOLE-CHAT-032: extracts stabilization_window from execution_progress artifact metadata", async () => {
@@ -1106,7 +1096,6 @@ describe("useChat", () => {
 
       await waitFor(() => {
         const agentMsg = result.current.messages.find(m => m.role === "agent");
-        expect(agentMsg?.executionComplete).toBe(true);
         expect(agentMsg?.phase).toBe("complete");
       });
     });

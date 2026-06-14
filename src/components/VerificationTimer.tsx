@@ -2,15 +2,19 @@ import { useState, useEffect, useRef } from "react";
 
 interface Props {
   stabilizationWindow: number;
+  startedAt?: number;
 }
 
-export function VerificationTimer({ stabilizationWindow }: Props) {
-  const startRef = useRef<number>(0);
-  const [remaining, setRemaining] = useState(stabilizationWindow);
+export function VerificationTimer({ stabilizationWindow, startedAt }: Props) {
+  const startRef = useRef<number>(startedAt ?? Date.now());
+  const [remaining, setRemaining] = useState(() => {
+    const elapsed = Math.floor((Date.now() - startRef.current) / 1000);
+    return Math.max(0, stabilizationWindow - elapsed);
+  });
 
   useEffect(() => {
-    startRef.current = Date.now();
-  }, []);
+    if (startedAt) startRef.current = startedAt;
+  }, [startedAt]);
 
   useEffect(() => {
     const interval = setInterval(() => {

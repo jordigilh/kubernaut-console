@@ -142,10 +142,14 @@ export function ChatContainer() {
     setClearConfirmOpen(false);
     clearHistory();
     setError(null);
-  }, [clearHistory, setError]);
+    emitAuditEvent({ action: "clear_history", timestamp: new Date().toISOString(), user: user.name || user.email, rrId });
+  }, [clearHistory, setError, user.name, user.email, rrId]);
 
   return (
     <div className="flex flex-col h-full bg-white rounded-none sm:rounded-2xl overflow-hidden border border-border shadow-sm">
+      <a href="#chat-input" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-1 focus:bg-kubernaut-teal-600 focus:text-white focus:rounded-md focus:text-xs">
+        Skip to chat input
+      </a>
       {/* Header */}
       <header className="bg-kubernaut-teal-600 px-4 sm:px-6 py-3 flex items-center gap-3 rounded-t-none sm:rounded-t-2xl">
         <img src="/logo.svg" alt="Kubernaut" className="h-7 w-7 rounded-md" />
@@ -243,6 +247,7 @@ export function ChatContainer() {
 
       {/* Input Bar */}
       <form
+        id="chat-input"
         onSubmit={handleSubmit}
         className="px-4 sm:px-5 py-3"
         aria-label="Message input"
