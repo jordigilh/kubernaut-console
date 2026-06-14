@@ -1,0 +1,19 @@
+# Kubernaut Console — Code Owners
+# These users/teams are automatically requested for PR review.
+
+# Default owners for everything
+* @jordigilh
+
+# Frontend components and hooks
+src/components/ @jordigilh
+src/hooks/ @jordigilh
+
+# Deployment and infrastructure
+deploy/ @jordigilh
+chart/ @jordigilh
+Dockerfile @jordigilh
+.github/workflows/ @jordigilh
+
+# Documentation
+docs/ @jordigilh
+*.md @jordigilh
