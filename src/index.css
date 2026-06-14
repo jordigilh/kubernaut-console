@@ -3,6 +3,10 @@
 @theme {
   --color-kubernaut-teal-50: #F0FDFA;
   --color-kubernaut-teal-100: #CCFBF1;
+  --color-kubernaut-teal-200: #99F6E4;
+  --color-kubernaut-teal-300: #5EEAD4;
+  --color-kubernaut-teal-400: #2DD4BF;
+  --color-kubernaut-teal-500: #14B8A6;
   --color-kubernaut-teal-600: #0097A7;
   --color-kubernaut-teal-700: #00838F;
   --color-kubernaut-teal-800: #006064;
@@ -32,7 +36,8 @@
   outline-offset: 2px;
 }
 
-/* Suppress all inner focus/border styling when parent pill handles it */
+/* Suppress focus ring for inline inputs that handle their own focus styling */
+input.focus-self-managed:focus-visible,
 [data-focus-delegate] input,
 [data-focus-delegate] input:focus,
 [data-focus-delegate] input:focus-visible {

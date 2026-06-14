@@ -350,7 +350,8 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
               }
             }}
             placeholder="Escalation reason..."
-            className="flex-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-text-primary placeholder:text-amber-400 focus:outline-none focus:ring-0 focus:border-amber-400"
+            className="focus-self-managed flex-1 rounded-lg border border-kubernaut-teal-300 bg-kubernaut-teal-50 px-3 py-2 text-xs text-text-primary placeholder:text-kubernaut-teal-400 focus:outline-none focus:ring-0 focus:border-kubernaut-teal-500 shadow-none"
+            style={{ outline: "none", boxShadow: "none" }}
             aria-label="Escalation reason"
           />
           <button
@@ -363,7 +364,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
               }
             }}
             disabled={!escalateReason.trim()}
-            className="px-3 py-2 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors shrink-0"
+            className="px-3 py-2 rounded-lg bg-kubernaut-teal-600 text-white text-xs font-semibold hover:bg-kubernaut-teal-700 disabled:opacity-50 transition-colors shrink-0"
             aria-label="Submit escalation"
           >
             Send
