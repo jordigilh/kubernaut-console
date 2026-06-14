@@ -35,6 +35,9 @@ spec:
             - --scope=openid email profile
             - --skip-jwt-bearer-tokens=true
             - --cookie-refresh=25m
+            {{- if .Values.auth.skipTlsVerify }}
+            - --ssl-insecure-skip-verify=true
+            {{- end }}
           env:
             - name: OAUTH2_PROXY_CLIENT_ID
               valueFrom:
@@ -87,7 +90,6 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-            readOnlyRootFilesystem: true
             runAsUser: 1001
           readinessProbe:
             httpGet:
@@ -104,22 +106,8 @@ spec:
           resources:
             {{- toYaml .Values.resources.nginx | nindent 12 }}
           volumeMounts:
-            - name: nginx-config
-              mountPath: /opt/app-root/etc/nginx.default.d
-              readOnly: true
             - name: nginx-tmp
               mountPath: /tmp
-            - name: nginx-cache
-              mountPath: /var/cache/nginx
-            - name: nginx-run
-              mountPath: /var/run
       volumes:
-        - name: nginx-config
-          configMap:
-            name: {{ include "kubernaut-console.fullname" . }}-nginx
         - name: nginx-tmp
-          emptyDir: {}
-        - name: nginx-cache
-          emptyDir: {}
-        - name: nginx-run
           emptyDir: {}
