@@ -413,15 +413,37 @@ export function useChat() {
     ) => {
       const metaType = event.metadata?.type;
 
-      if (metaType === "keepalive") return;
-
       if (event.metadata?.rr_id && typeof event.metadata.rr_id === "string") {
         const rrUpdate: Partial<ChatMessage> = { rrId: event.metadata.rr_id };
         if (event.metadata.alert_name) rrUpdate.alertName = event.metadata.alert_name as string;
         if (event.metadata.namespace) rrUpdate.namespace = event.metadata.namespace as string;
-        if (event.metadata.target) rrUpdate.resource = event.metadata.target as string;
+        if (event.metadata.kind && event.metadata.target) {
+          rrUpdate.resource = `${event.metadata.kind}/${event.metadata.target}`;
+        } else if (event.metadata.target) {
+          rrUpdate.resource = event.metadata.target as string;
+        }
+        if (event.metadata.phase) {
+          const phaseMap: Record<string, ChatMessage["phase"]> = {
+            Pending: "investigation",
+            Processing: "investigation",
+            Analyzing: "investigation",
+            Investigating: "investigation",
+            AwaitingApproval: "decision",
+            Executing: "remediation",
+            Verifying: "verifying",
+            Blocked: "failed",
+            Completed: "complete",
+            Failed: "failed",
+            TimedOut: "failed",
+            Skipped: "complete",
+            Cancelled: "complete",
+          };
+          rrUpdate.phase = phaseMap[event.metadata.phase as string] ?? "investigation";
+        }
         update(rrUpdate);
       }
+
+      if (metaType === "keepalive") return;
 
       if (metaType === "approval_request") {
         try {
