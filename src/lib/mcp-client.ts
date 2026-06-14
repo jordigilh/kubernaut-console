@@ -34,11 +34,12 @@ export async function callMcpTool(
     return { error: { code: response.status, message: `HTTP ${response.status}: ${response.statusText}` } };
   }
 
+  const text = await response.text();
   let body: { error?: { code: number; message: string }; result?: unknown };
   try {
-    body = await response.json();
+    body = JSON.parse(text);
   } catch {
-    return { error: { code: -1, message: "Invalid JSON response from MCP endpoint" } };
+    return { error: { code: -1, message: text ? `MCP response: ${text.slice(0, 200)}` : "Invalid JSON response from MCP endpoint" } };
   }
 
   if (body.error) {

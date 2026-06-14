@@ -10,10 +10,17 @@
   --color-kubernaut-teal-600: #0097A7;
   --color-kubernaut-teal-700: #00838F;
   --color-kubernaut-teal-800: #006064;
+  --color-kubernaut-teal-900: #003D42;
   --color-kubernaut-red-50: #FEF2F2;
+  --color-kubernaut-red-400: #F87171;
   --color-kubernaut-red-600: #DC2626;
   --color-kubernaut-red-900: #7F1D1D;
   --color-kubernaut-green-50: #F0FDF4;
+  --color-kubernaut-green-100: #DCFCE7;
+  --color-kubernaut-green-200: #BBF7D0;
+  --color-kubernaut-green-300: #86EFAC;
+  --color-kubernaut-green-400: #4ADE80;
+  --color-kubernaut-green-500: #22C55E;
   --color-kubernaut-green-600: #16A34A;
   --color-kubernaut-green-700: #15803D;
   --color-kubernaut-green-800: #166534;

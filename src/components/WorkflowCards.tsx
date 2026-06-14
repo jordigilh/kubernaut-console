@@ -350,7 +350,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
               }
             }}
             placeholder="Escalation reason..."
-            className="focus-self-managed flex-1 rounded-lg border border-kubernaut-teal-300 bg-kubernaut-teal-50 px-3 py-2 text-xs text-text-primary placeholder:text-kubernaut-teal-400 focus:outline-none focus:ring-0 focus:border-kubernaut-teal-500 shadow-none"
+            className="focus-self-managed flex-1 rounded-lg border-2 border-kubernaut-teal-600 bg-kubernaut-teal-50 px-3 py-2 text-xs text-text-primary placeholder:text-kubernaut-teal-600 focus:outline-none focus:ring-0 focus:border-kubernaut-teal-700 shadow-none"
             style={{ outline: "none", boxShadow: "none" }}
             aria-label="Escalation reason"
           />
