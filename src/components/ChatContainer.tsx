@@ -259,6 +259,7 @@ export function ChatContainer() {
             disabled={isStreaming && currentPhase !== "verifying"}
             aria-label="Type your message"
             className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-dim appearance-none disabled:opacity-50"
+            style={{ border: "none", outline: "none", boxShadow: "none" }}
           />
           {isStreaming && currentPhase !== "verifying" ? (
             <button
