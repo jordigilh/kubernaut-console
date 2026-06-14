@@ -287,6 +287,11 @@ export function useChat() {
 
           const updates: Partial<ChatMessage> = { phase: "decision", thinking: [...thinkingRef.current], thinkingLabel: undefined };
 
+          const metaRrId = event.artifact.metadata?.rr_id as string | undefined;
+          if (metaRrId) {
+            updates.rrId = metaRrId;
+          }
+
           if (payload.rca) {
             const targetStr = payload.rca.target || "";
             const parenMatch = targetStr.match(/\(([^)]+)\)/);

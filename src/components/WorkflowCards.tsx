@@ -350,7 +350,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
               }
             }}
             placeholder="Escalation reason..."
-            className="flex-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-text-primary placeholder:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            className="flex-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-text-primary placeholder:text-amber-400 focus:outline-none focus:ring-0 focus:border-amber-400"
             aria-label="Escalation reason"
           />
           <button

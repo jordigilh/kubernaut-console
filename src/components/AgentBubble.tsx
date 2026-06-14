@@ -30,7 +30,6 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
   const hasThinking = message.thinking && message.thinking.length > 0;
   const hasRCA = !!message.rca;
   const hasRCAData = hasRCA && (
-    (message.rca!.summary && message.rca!.summary.length > 0) ||
     (message.rca!.causalChain && message.rca!.causalChain.length > 0) ||
     message.rca!.toolCallsCount > 0
   );
