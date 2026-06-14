@@ -37,6 +37,7 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
   const hasWorkflows = message.workflowOptions && message.workflowOptions.length > 0;
   const showEscapeHatches = hasRCA && !hasWorkflows && message.phase === "decision";
   const hasApproval = !!message.approvalRequest;
+  const hasAlignmentVerdict = !!message.alignmentVerdict;
 
   return (
     <div className="flex justify-start animate-fade-in">
@@ -87,6 +88,15 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
             onDismiss={onDismiss}
             onEscalate={onEscalate}
             recoverySignal={recoverySignal}
+          />
+        )}
+
+        {/* 5c. Security alert when shadow agent alignment verdict present */}
+        {hasAlignmentVerdict && (
+          <WorkflowCards
+            options={[]}
+            recoverySignal={recoverySignal}
+            alignmentVerdict={message.alignmentVerdict}
           />
         )}
 

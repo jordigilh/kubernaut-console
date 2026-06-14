@@ -12,8 +12,8 @@ import { Modal } from "./Modal";
 export function ChatContainer() {
   const { messages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime } = useChat();
   const currentPhase = messages.findLast(m => m.role === "agent" && m.phase)?.phase;
-  const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId;
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
+  const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
   const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName ?? lastRca?.signalName;
   const namespace = messages.findLast(m => m.role === "agent" && m.namespace)?.namespace ?? lastRca?.namespace;
   const resource = messages.findLast(m => m.role === "agent" && m.resource)?.resource ?? lastRca?.target;
@@ -93,7 +93,10 @@ export function ChatContainer() {
 
   const handleDismiss = useCallback(
     async () => {
-      if (!rrId) return;
+      if (!rrId) {
+        setError("Cannot dismiss: no active remediation request found.");
+        return;
+      }
       const res = await callMcpTool("kubernaut_complete_no_action", {
         rr_id: rrId,
         reason: "Dismissed by operator: no action needed",
@@ -109,7 +112,10 @@ export function ChatContainer() {
   );
 
   const handleEscalate = useCallback(async (reason: string) => {
-    if (!rrId) return;
+    if (!rrId) {
+      setError("Cannot escalate: no active remediation request found.");
+      return;
+    }
     const res = await callMcpTool("kubernaut_complete_no_action", {
       rr_id: rrId,
       reason: "Escalated by operator",

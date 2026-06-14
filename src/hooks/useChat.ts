@@ -66,6 +66,26 @@ export interface ApprovalResolution {
   workflowOverride?: { workflowName: string; parameters?: Record<string, string>; rationale?: string };
 }
 
+export interface AlignmentFinding {
+  step_index: number;
+  step_kind: string;
+  tool: string;
+  explanation: string;
+}
+
+export interface AlignmentVerdict {
+  result: string;
+  circuit_breaker_activated: boolean;
+  summary: string;
+  flagged: number;
+  total: number;
+  findings: AlignmentFinding[];
+  grounding_review?: {
+    grounded: boolean;
+    explanation: string;
+  } | null;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "agent";
@@ -87,6 +107,7 @@ export interface ChatMessage {
   namespace?: string;
   resource?: string;
   recoverySignal?: "problem_resolved" | "alignment_check_failed";
+  alignmentVerdict?: AlignmentVerdict;
 }
 
 export type ConnectionStatus = "idle" | "connected" | "reconnecting" | "lost";
@@ -431,7 +452,16 @@ export function useChat() {
       }
 
       if (metaType === "alignment_check_failed") {
-        update({ recoverySignal: "alignment_check_failed" });
+        try {
+          const msgText = (event.status.message?.parts ?? [])
+            .filter((p) => p.kind === "text")
+            .map((p) => p.text)
+            .join("") || "";
+          const verdict = JSON.parse(msgText) as AlignmentVerdict;
+          update({ recoverySignal: "alignment_check_failed", alignmentVerdict: verdict });
+        } catch {
+          update({ recoverySignal: "alignment_check_failed" });
+        }
         return;
       }
 
