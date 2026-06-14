@@ -9,82 +9,93 @@ Kubernaut Console is a React Single Page Application (SPA) that communicates wit
 1. **A2A (Agent-to-Agent)** — JSON-RPC over Server-Sent Events for real-time agent communication
 2. **MCP (Model Context Protocol)** — JSON-RPC over HTTP POST for discrete tool invocations
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        Browser                               │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │              Kubernaut Console SPA                    │    │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │    │
-│  │  │ useChat  │  │ useUser  │  │  mcp-client      │  │    │
-│  │  │ (A2A SSE)│  │ (headers)│  │  (JSON-RPC POST) │  │    │
-│  │  └────┬─────┘  └──────────┘  └────────┬─────────┘  │    │
-│  └───────┼────────────────────────────────┼────────────┘    │
-└──────────┼────────────────────────────────┼─────────────────┘
-           │ SSE stream                     │ POST /mcp
-           ▼                                ▼
-┌──────────────────────────────────────────────────────────────┐
-│                    OAuth2 Proxy (port 4180)                    │
-│  - OIDC authentication (Dex / Keycloak)                       │
-│  - Injects Authorization: Bearer <access_token>               │
-│  - Session cookie management (httpOnly, Secure)               │
-└──────────────────────┬───────────────────────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────────────────────┐
-│                    Nginx (port 8080)                           │
-│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────┐ │
-│  │ /a2a/*     │ │ /mcp       │ │ /.well-    │ │ /        │ │
-│  │ → AF:8443  │ │ → AF:8443  │ │  known/*   │ │ static   │ │
-│  │ (SSE proxy)│ │ (POST only)│ │ → AF:8443  │ │ files    │ │
-│  └────────────┘ └────────────┘ └────────────┘ └──────────┘ │
-└──────────────────────┬───────────────────────────────────────┘
-                       │
-                       ▼
-┌──────────────────────────────────────────────────────────────┐
-│              API Frontend (AF) — port 8443                     │
-│  - A2A protocol server (JSON-RPC streaming)                   │
-│  - MCP tool endpoint                                          │
-│  - Manages Kubernaut Agent (KA) sessions                      │
-│  - Emits status events with RR context metadata               │
-└──────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Browser
+        SPA["Kubernaut Console SPA"]
+        useChat["useChat<br/>(A2A SSE)"]
+        useUser["useUser<br/>(headers)"]
+        mcpClient["mcp-client<br/>(JSON-RPC POST)"]
+        SPA --> useChat
+        SPA --> useUser
+        SPA --> mcpClient
+    end
+
+    useChat -->|"SSE stream"| OAuthProxy
+    mcpClient -->|"POST /mcp"| OAuthProxy
+
+    subgraph Pod["Kubernetes Pod"]
+        OAuthProxy["OAuth2 Proxy<br/>(port 4180)"]
+        Nginx["Nginx<br/>(port 8080)"]
+        OAuthProxy -->|"Inject Bearer token"| Nginx
+    end
+
+    Nginx -->|"/a2a/* (SSE)"| AF["API Frontend<br/>(port 8443)"]
+    Nginx -->|"/mcp (POST)"| AF
+    Nginx -->|"/.well-known/*"| AF
+    Nginx -->|"/ (static)"| Static["SPA Static Files"]
+
+    OAuthProxy -->|"OIDC flow"| OIDC["Dex / Keycloak"]
 ```
 
 ## Data Flow
 
 ### 1. Investigation Flow (A2A)
 
-```
-User types message
-  → useChat.sendMessage()
-  → buildStreamRequest() (JSON-RPC 2.0)
-  → POST /a2a/ with streaming response
-  ← SSE events arrive:
-     ├── status-update (type: "reasoning")     → ThinkingPanel
-     ├── status-update (type: "tool_call")     → ThinkingPanel
-     ├── status-update (type: "keepalive")     → InvestigationContext (metadata)
-     ├── status-update (type: "approval_request") → ApprovalCard
-     ├── artifact-update (investigation_summary)  → RCACard + WorkflowCards
-     ├── artifact-update (execution_progress)     → InvestigationContext (phase)
-     └── artifact-update (text)                   → AgentBubble (markdown)
+```mermaid
+sequenceDiagram
+    participant User
+    participant useChat
+    participant AF as API Frontend
+    participant UI as UI Components
+
+    User->>useChat: sendMessage()
+    useChat->>AF: POST /a2a/ (JSON-RPC message/stream)
+    
+    loop SSE Event Stream
+        AF-->>useChat: status-update (reasoning)
+        useChat-->>UI: ThinkingPanel
+        AF-->>useChat: status-update (tool_call)
+        useChat-->>UI: ThinkingPanel
+        AF-->>useChat: status-update (keepalive + metadata)
+        useChat-->>UI: InvestigationContext banner
+        AF-->>useChat: artifact-update (investigation_summary)
+        useChat-->>UI: RCACard + WorkflowCards
+        AF-->>useChat: artifact-update (execution_progress)
+        useChat-->>UI: InvestigationContext (phase)
+    end
 ```
 
 ### 2. Approval Flow (MCP)
 
-```
-User clicks "Approve" on ApprovalCard
-  → callMcpTool("kubernaut_approve", { rr_id, decision: "approved" })
-  → POST /mcp (JSON-RPC 2.0: tools/call)
-  ← { result: { status: "accepted" } }
-  → A2A stream continues with execution_progress events
+```mermaid
+sequenceDiagram
+    participant User
+    participant ApprovalCard
+    participant mcpClient as mcp-client
+    participant AF as API Frontend
+
+    User->>ApprovalCard: Click "Approve"
+    ApprovalCard->>mcpClient: callMcpTool("kubernaut_approve", {rr_id, decision})
+    mcpClient->>AF: POST /mcp (JSON-RPC tools/call)
+    AF-->>mcpClient: {result: {status: "accepted"}}
+    mcpClient-->>ApprovalCard: Success
+    Note over AF: A2A stream continues with execution_progress events
 ```
 
 ### 3. Escalation/Dismiss Flow (MCP)
 
-```
-User clicks "Escalate" or "No action needed"
-  → callMcpTool("kubernaut_complete_no_action", { rr_id, reason, escalation_reason? })
-  → POST /mcp
-  ← { result: { status: "completed" } }
+```mermaid
+sequenceDiagram
+    participant User
+    participant WorkflowCards
+    participant mcpClient as mcp-client
+    participant AF as API Frontend
+
+    User->>WorkflowCards: Click "Escalate" / "No action needed"
+    WorkflowCards->>mcpClient: callMcpTool("kubernaut_complete_no_action", {rr_id, reason})
+    mcpClient->>AF: POST /mcp (JSON-RPC tools/call)
+    AF-->>mcpClient: {result: {status: "completed"}}
 ```
 
 ## Component Architecture
@@ -93,42 +104,50 @@ User clicks "Escalate" or "No action needed"
 
 The application uses React hooks for state management — no external state library.
 
-```
-ChatContainer (orchestrator)
-  ├── useChat()     → messages[], sendMessage(), isStreaming, connectionStatus
-  ├── useUser()     → user identity from X-Auth-Request-* headers
-  └── local state   → clearConfirmOpen, error
+```mermaid
+graph TD
+    CC["ChatContainer (orchestrator)"]
+    CC --> UC["useChat() → messages[], sendMessage(), isStreaming"]
+    CC --> UU["useUser() → user identity from headers"]
+    CC --> LS["local state → clearConfirmOpen, error"]
 ```
 
 ### Component Hierarchy
 
-```
-App
-└── ErrorBoundary
-    └── ChatContainer
-        ├── InvestigationContext (banner: RR ID, alert, namespace, resource, phase)
-        ├── WelcomeState (empty state with suggestion chips)
-        ├── MessageList
-        │   ├── UserBubble (user messages)
-        │   └── AgentBubble (agent messages)
-        │       ├── ThinkingPanel (reasoning/tool calls)
-        │       ├── RCACard (root cause analysis)
-        │       ├── WorkflowCards (decision cards + escape hatches)
-        │       ├── ApprovalCard (approve/decline)
-        │       ├── VerificationTimer (stabilization countdown)
-        │       ├── MarkdownContent (sanitized markdown)
-        │       └── StreamingCursor (typing indicator)
-        ├── Modal (confirmation dialogs)
-        └── InputForm (message input with send button)
+```mermaid
+graph TD
+    App --> EB["ErrorBoundary"]
+    EB --> CC["ChatContainer"]
+    CC --> IC["InvestigationContext<br/>(banner: RR ID, alert, phase)"]
+    CC --> WS["WelcomeState<br/>(suggestion chips)"]
+    CC --> ML["MessageList"]
+    ML --> UB["UserBubble"]
+    ML --> AB["AgentBubble"]
+    AB --> TP["ThinkingPanel"]
+    AB --> RCA["RCACard"]
+    AB --> WC["WorkflowCards<br/>(+ escape hatches)"]
+    AB --> AC["ApprovalCard"]
+    AB --> VT["VerificationTimer"]
+    AB --> MC["MarkdownContent"]
+    AB --> SC["StreamingCursor"]
+    CC --> Modal
+    CC --> InputForm
 ```
 
 ### Message Lifecycle
 
 Each `ChatMessage` progresses through phases:
 
-```
-investigation → decision → remediation → verifying → complete
-                                                   → failed
+```mermaid
+stateDiagram-v2
+    [*] --> investigation
+    investigation --> decision
+    decision --> remediation
+    remediation --> verifying
+    verifying --> complete
+    remediation --> failed
+    verifying --> failed
+    investigation --> failed
 ```
 
 Phase transitions are driven by:
@@ -176,10 +195,22 @@ Every status event after RR creation carries:
 
 ### Authentication
 
-```
-Browser → OAuth2 Proxy → OIDC Provider (Dex/Keycloak)
-                       ← ID Token + Access Token
-                       → Sets session cookie
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant OAuthProxy as OAuth2 Proxy
+    participant OIDC as OIDC Provider
+
+    Browser->>OAuthProxy: Request /
+    OAuthProxy-->>Browser: 302 Redirect to OIDC
+    Browser->>OIDC: Authorization request
+    OIDC-->>Browser: ID Token + Access Token
+    Browser->>OAuthProxy: Callback with code
+    OAuthProxy-->>Browser: Set session cookie (httpOnly, Secure)
+    Note over OAuthProxy: Subsequent requests carry session cookie
+    Browser->>OAuthProxy: Request /a2a/...
+    OAuthProxy->>OAuthProxy: Inject Authorization: Bearer
+    OAuthProxy-->>Browser: Proxied response
 ```
 
 - No client-side token handling
@@ -204,34 +235,39 @@ See [Deployment Guide](deployment.md) for configuration details.
 
 ### Production (Helm)
 
-```
-┌─ Pod: kubernaut-console ──────────────────┐
-│  Container: oauth2-proxy (port 4180)       │
-│  Container: console-nginx (port 8080)      │
-└────────────────────────────────────────────┘
-         │
-         ▼
-┌─ Service: kubernaut-console (ClusterIP) ───┐
-│  Port 4180 → oauth2-proxy                  │
-└────────────────────────────────────────────┘
-         │
-         ▼
-┌─ Route/Ingress ───────────────────────────┐
-│  TLS termination (edge)                    │
-│  Host: console.apps.cluster.example.com    │
-└────────────────────────────────────────────┘
+```mermaid
+graph LR
+    subgraph Route/Ingress
+        TLS["TLS termination (edge)<br/>console.apps.cluster.example.com"]
+    end
+
+    subgraph Service["Service: kubernaut-console (ClusterIP)"]
+        Port["Port 4180"]
+    end
+
+    subgraph Pod["Pod: kubernaut-console"]
+        OAuthProxy["oauth2-proxy<br/>(port 4180)"]
+        ConsoleNginx["console-nginx<br/>(port 8080)"]
+    end
+
+    TLS --> Port
+    Port --> OAuthProxy
+    OAuthProxy --> ConsoleNginx
 ```
 
 ### Kind (Demo)
 
-```
-┌─ Pod: kubernaut-console ──────────────────┐
-│  Container: oauth2-proxy (port 4180)       │
-│  Container: console-nginx (port 8080)      │
-└────────────────────────────────────────────┘
-         │
-         ▼
-┌─ Service: kubernaut-console (NodePort) ───┐
-│  NodePort 30418 → oauth2-proxy:4180        │
-└────────────────────────────────────────────┘
+```mermaid
+graph LR
+    subgraph Service["Service: kubernaut-console (NodePort)"]
+        NP["NodePort 30418"]
+    end
+
+    subgraph Pod["Pod: kubernaut-console"]
+        OAuthProxy["oauth2-proxy<br/>(port 4180)"]
+        ConsoleNginx["console-nginx<br/>(port 8080)"]
+    end
+
+    NP --> OAuthProxy
+    OAuthProxy --> ConsoleNginx
 ```

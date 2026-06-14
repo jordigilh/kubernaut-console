@@ -17,13 +17,14 @@ A production-ready web console for [Kubernaut](https://github.com/jordigilh/kube
 
 ## Architecture
 
-```
-Browser → OAuth2 Proxy (port 4180)
-           ├── Static files     → Nginx (Console SPA, port 8080)
-           ├── /a2a/*           → API Frontend (SSE streaming, Bearer token injected)
-           ├── /mcp             → API Frontend (MCP tool calls)
-           ├── /.well-known/*   → API Frontend (agent card discovery)
-           └── /oauth2/*        → OIDC flow (Dex / Keycloak)
+```mermaid
+graph LR
+    Browser --> OAuthProxy["OAuth2 Proxy<br/>(port 4180)"]
+    OAuthProxy -->|Static files| Nginx["Nginx<br/>(Console SPA)"]
+    OAuthProxy -->|/a2a/*| AF["API Frontend<br/>(SSE streaming)"]
+    OAuthProxy -->|/mcp| AF
+    OAuthProxy -->|/.well-known/*| AF
+    OAuthProxy -->|/oauth2/*| OIDC["OIDC Provider<br/>(Dex / Keycloak)"]
 ```
 
 See [docs/architecture.md](docs/architecture.md) for detailed data flow and component interactions.
