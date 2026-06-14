@@ -1022,6 +1022,96 @@ describe("ChatContainer Integration", () => {
     fetchSpy.mockRestore();
   });
 
+  /**
+   * IT-CONSOLE-VERDICT-001: alignment_check_failed with verdict payload renders security findings
+   * FedRAMP Controls: SI-4 (Information System Monitoring), IR-4 (Incident Handling)
+   */
+  it("IT-CONSOLE-VERDICT-001: alignment_check_failed event with verdict payload renders security findings inline", async () => {
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      const taskId = "mock-task-verdict";
+      const contextId = "mock-ctx-verdict";
+
+      // Investigation thinking entries
+      opts.onEvent?.({
+        kind: "status-update",
+        taskId,
+        contextId,
+        status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Checking for existing active remediation..." }] } },
+        metadata: { type: "preflight" },
+      });
+      opts.onEvent?.({
+        kind: "status-update",
+        taskId,
+        contextId,
+        status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "kubectl_get ConfigMap/app-config" }] } },
+        metadata: { type: "tool_call" },
+      });
+
+      // alignment_check_failed with full verdict payload
+      opts.onEvent?.({
+        kind: "status-update",
+        taskId,
+        contextId,
+        status: {
+          state: "working",
+          message: {
+            parts: [{
+              kind: "text",
+              text: JSON.stringify({
+                result: "suspicious",
+                circuit_breaker_activated: true,
+                summary: "Prompt injection detected in tool output from kubectl_get ConfigMap/app-config",
+                flagged: 1,
+                total: 12,
+                findings: [{
+                  step_index: 7,
+                  step_kind: "tool_result",
+                  tool: "kubectl_get",
+                  explanation: "ConfigMap contains encoded shell commands disguised as configuration values",
+                }],
+              }),
+            }],
+          },
+        },
+        metadata: { type: "alignment_check_failed" },
+      });
+
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "Investigate this alert" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(100);
+    });
+
+    // Thinking panel renders investigation steps
+    await waitFor(() => {
+      expect(screen.getAllByText(/kubectl_get ConfigMap/).length).toBeGreaterThanOrEqual(1);
+    });
+
+    // Security findings render inline
+    await waitFor(() => {
+      expect(screen.getByRole("group", { name: /security findings/i })).toBeInTheDocument();
+    });
+
+    // Verdict summary displayed
+    expect(screen.getByText(/Prompt injection detected/)).toBeInTheDocument();
+
+    // Finding details displayed
+    expect(screen.getByText(/encoded shell commands/)).toBeInTheDocument();
+
+    // Workflow cards and escape hatches NOT rendered
+    expect(screen.queryByRole("button", { name: /execute/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /no action needed/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /escalate to team/i })).not.toBeInTheDocument();
+  });
+
   // AC-6: Dismiss calls kubernaut_complete_no_action via MCP (no escalation_reason)
   it("IT-CONSOLE-DISMISS-001: 'No action needed' calls MCP kubernaut_complete_no_action without escalation_reason", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");

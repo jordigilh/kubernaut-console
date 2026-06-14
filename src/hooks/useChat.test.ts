@@ -1753,5 +1753,161 @@ describe("useChat", () => {
       expect(agentMsg).toBeDefined();
       expect(agentMsg!.recoverySignal).toBe("alignment_check_failed");
     });
+
+    it("UT-CONSOLE-SIGNAL-003: parses alignmentVerdict from alignment_check_failed JSON payload", async () => {
+      const { streamA2A } = await import("../lib/a2a-client");
+      vi.mocked(streamA2A).mockImplementation(async (_req: unknown, opts: {
+        onEvent?: (event: unknown) => void;
+        onComplete?: () => void;
+      }) => {
+        opts.onEvent?.({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: {
+              parts: [{
+                kind: "text",
+                text: JSON.stringify({
+                  result: "suspicious",
+                  circuit_breaker_activated: true,
+                  summary: "Prompt injection detected in tool output",
+                  flagged: 1,
+                  total: 12,
+                  findings: [{
+                    step_index: 7,
+                    step_kind: "tool_result",
+                    tool: "kubectl_get",
+                    explanation: "ConfigMap contains encoded shell commands disguised as configuration values",
+                  }],
+                }),
+              }],
+            },
+          },
+          metadata: { type: "alignment_check_failed" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { result.current.sendMessage("test"); });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg).toBeDefined();
+      expect(agentMsg!.recoverySignal).toBe("alignment_check_failed");
+      expect(agentMsg!.alignmentVerdict).toBeDefined();
+      expect(agentMsg!.alignmentVerdict!.result).toBe("suspicious");
+      expect(agentMsg!.alignmentVerdict!.circuit_breaker_activated).toBe(true);
+      expect(agentMsg!.alignmentVerdict!.summary).toBe("Prompt injection detected in tool output");
+      expect(agentMsg!.alignmentVerdict!.flagged).toBe(1);
+      expect(agentMsg!.alignmentVerdict!.total).toBe(12);
+      expect(agentMsg!.alignmentVerdict!.findings).toHaveLength(1);
+      expect(agentMsg!.alignmentVerdict!.findings[0].tool).toBe("kubectl_get");
+    });
+
+    it("UT-CONSOLE-SIGNAL-004: falls back to bare recoverySignal when alignment_check_failed has invalid JSON", async () => {
+      const { streamA2A } = await import("../lib/a2a-client");
+      vi.mocked(streamA2A).mockImplementation(async (_req: unknown, opts: {
+        onEvent?: (event: unknown) => void;
+        onComplete?: () => void;
+      }) => {
+        opts.onEvent?.({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { parts: [{ kind: "text", text: "not valid json {{{" }] },
+          },
+          metadata: { type: "alignment_check_failed" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { result.current.sendMessage("test"); });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg).toBeDefined();
+      expect(agentMsg!.recoverySignal).toBe("alignment_check_failed");
+      expect(agentMsg!.alignmentVerdict).toBeUndefined();
+    });
+
+    it("UT-CONSOLE-SIGNAL-005: falls back to bare recoverySignal when alignment_check_failed has empty message", async () => {
+      const { streamA2A } = await import("../lib/a2a-client");
+      vi.mocked(streamA2A).mockImplementation(async (_req: unknown, opts: {
+        onEvent?: (event: unknown) => void;
+        onComplete?: () => void;
+      }) => {
+        opts.onEvent?.({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { parts: [{ kind: "text", text: "" }] },
+          },
+          metadata: { type: "alignment_check_failed" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { result.current.sendMessage("test"); });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg).toBeDefined();
+      expect(agentMsg!.recoverySignal).toBe("alignment_check_failed");
+      expect(agentMsg!.alignmentVerdict).toBeUndefined();
+    });
+
+    it("UT-CONSOLE-SIGNAL-006: alignmentVerdict survives sessionStorage round-trip", async () => {
+      vi.useRealTimers();
+      const { streamA2A } = await import("../lib/a2a-client");
+      vi.mocked(streamA2A).mockImplementation(async (_req: unknown, opts: {
+        onEvent?: (event: unknown) => void;
+        onComplete?: () => void;
+      }) => {
+        opts.onEvent?.({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: {
+              parts: [{
+                kind: "text",
+                text: JSON.stringify({
+                  result: "suspicious",
+                  circuit_breaker_activated: true,
+                  summary: "Injection detected",
+                  flagged: 1,
+                  total: 5,
+                  findings: [{ step_index: 3, step_kind: "tool_result", tool: "kubectl_get", explanation: "suspicious" }],
+                }),
+              }],
+            },
+          },
+          metadata: { type: "alignment_check_failed" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        expect(result.current.isStreaming).toBe(false);
+      });
+
+      const stored = sessionStorage.getItem("kubernaut-console-messages");
+      expect(stored).not.toBeNull();
+      const parsed = JSON.parse(stored!);
+      const agentMsg = parsed.find((m: { role: string }) => m.role === "agent");
+      expect(agentMsg.alignmentVerdict).toBeDefined();
+      expect(agentMsg.alignmentVerdict.result).toBe("suspicious");
+      expect(agentMsg.alignmentVerdict.findings).toHaveLength(1);
+    });
   });
 });

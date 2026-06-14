@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { WorkflowCards } from "./WorkflowCards";
-import type { WorkflowOption } from "../hooks/useChat";
+import type { WorkflowOption, AlignmentVerdict } from "../hooks/useChat";
 
 const options: WorkflowOption[] = [
   {
@@ -193,5 +193,76 @@ describe("WorkflowCards", () => {
     render(<WorkflowCards options={options} recoverySignal="problem_resolved" onDismiss={vi.fn()} />);
     const dismissBtn = screen.getByRole("button", { name: /no action needed/i });
     expect(dismissBtn.className).toContain("ring-2");
+  });
+
+  // --- Alignment verdict inline findings (SI-4: security findings display) ---
+
+  describe("SI-4: Alignment verdict inline findings", () => {
+    const verdict: AlignmentVerdict = {
+      result: "suspicious",
+      circuit_breaker_activated: true,
+      summary: "Prompt injection detected in tool output from kubectl_get ConfigMap/app-config",
+      flagged: 1,
+      total: 12,
+      findings: [{
+        step_index: 7,
+        step_kind: "tool_result",
+        tool: "kubectl_get",
+        explanation: "ConfigMap contains encoded shell commands disguised as configuration values",
+      }],
+    };
+
+    it("UT-CONSOLE-WF-024: SI-4 — renders security findings when alignmentVerdict present", () => {
+      render(<WorkflowCards options={[]} alignmentVerdict={verdict} />);
+      expect(screen.getByRole("group", { name: /security findings/i })).toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-WF-025: SI-4 — displays verdict summary text", () => {
+      render(<WorkflowCards options={[]} alignmentVerdict={verdict} />);
+      expect(screen.getByText(/Prompt injection detected/)).toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-WF-026: SI-4 — displays flagged step count", () => {
+      render(<WorkflowCards options={[]} alignmentVerdict={verdict} />);
+      expect(screen.getByText(/1 of 12/)).toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-WF-027: SI-4 — displays finding tool name and explanation", () => {
+      render(<WorkflowCards options={[]} alignmentVerdict={verdict} />);
+      expect(screen.getAllByText(/kubectl_get/).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText(/encoded shell commands/)).toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-WF-028: SI-4 — suppresses workflow cards when alignmentVerdict present", () => {
+      render(<WorkflowCards options={options} alignmentVerdict={verdict} />);
+      expect(screen.queryByText("git-revert-v2")).not.toBeInTheDocument();
+      expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /execute/i })).not.toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-WF-029: SI-4 — suppresses escape hatch buttons when alignmentVerdict present", () => {
+      render(<WorkflowCards options={[]} alignmentVerdict={verdict} onDismiss={vi.fn()} onEscalate={vi.fn()} />);
+      expect(screen.queryByRole("button", { name: /no action needed/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /escalate to team/i })).not.toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-WF-030: SI-4 — shows remediation blocked indicator", () => {
+      render(<WorkflowCards options={[]} alignmentVerdict={verdict} />);
+      expect(screen.getByText(/remediation blocked/i)).toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-WF-031: SI-4 — renders multiple findings when present", () => {
+      const multiVerdict: AlignmentVerdict = {
+        ...verdict,
+        flagged: 2,
+        findings: [
+          { step_index: 3, step_kind: "tool_result", tool: "kubectl_get", explanation: "First suspicious step" },
+          { step_index: 7, step_kind: "llm_reasoning", tool: "", explanation: "Second suspicious step" },
+        ],
+      };
+      render(<WorkflowCards options={[]} alignmentVerdict={multiVerdict} />);
+      expect(screen.getByText(/First suspicious step/)).toBeInTheDocument();
+      expect(screen.getByText(/Second suspicious step/)).toBeInTheDocument();
+    });
   });
 });
