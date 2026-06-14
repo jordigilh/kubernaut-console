@@ -17,6 +17,7 @@ export function ChatContainer() {
   const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName ?? lastRca?.signalName;
   const namespace = messages.findLast(m => m.role === "agent" && m.namespace)?.namespace ?? lastRca?.namespace;
   const resource = messages.findLast(m => m.role === "agent" && m.resource)?.resource ?? lastRca?.target;
+  console.debug("[ChatContainer] banner values:", { rrId, alertName, namespace, resource, currentPhase });
   const recoverySignal = messages.findLast(m => m.role === "agent" && m.recoverySignal)?.recoverySignal ?? null;
   const user = useUser();
   const [input, setInput] = useState("");

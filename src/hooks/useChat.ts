@@ -387,6 +387,7 @@ export function useChat() {
       }
 
       if (event.kind === "status-update") {
+        if (event.metadata) console.debug("[useChat] status-update metadata:", JSON.stringify(event.metadata));
         handleStatusEvent(event, updateAgent);
       }
     };
