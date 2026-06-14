@@ -6,15 +6,14 @@ interface Props {
 }
 
 export function VerificationTimer({ stabilizationWindow, startedAt }: Props) {
-  const startRef = useRef<number>(startedAt ?? Date.now());
-  const [remaining, setRemaining] = useState(() => {
-    const elapsed = Math.floor((Date.now() - startRef.current) / 1000);
-    return Math.max(0, stabilizationWindow - elapsed);
-  });
+  const startRef = useRef<number>(0);
+  const [remaining, setRemaining] = useState(stabilizationWindow);
 
   useEffect(() => {
-    if (startedAt) startRef.current = startedAt;
-  }, [startedAt]);
+    startRef.current = startedAt ?? Date.now();
+    const elapsed = Math.floor((Date.now() - startRef.current) / 1000);
+    setRemaining(Math.max(0, stabilizationWindow - elapsed));
+  }, [startedAt, stabilizationWindow]);
 
   useEffect(() => {
     const interval = setInterval(() => {
