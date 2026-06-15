@@ -105,7 +105,11 @@ async function ensureInitialized(): Promise<McpResult | null> {
       return initResult;
     }
 
-    await sendMcpNotification("notifications/initialized");
+    // Send notifications/initialized and await the HTTP response to ensure
+    // the server has transitioned out of initialization state before we
+    // send tools/call. Using sendMcpRequest (with id) because this server
+    // implementation requires it to complete the handshake.
+    await sendMcpRequest("notifications/initialized");
     sessionInitialized = true;
     initializingPromise = null;
     return null;

@@ -121,7 +121,6 @@ describe("WorkflowCards", () => {
     fireEvent.click(card);
     expect(screen.getByText(/This workflow was ruled out/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /proceed anyway/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /go back/i })).toBeInTheDocument();
   });
 
   it("UT-CONSOLE-WF-014: SI-10 — confirming ruled-out calls onExecute with its workflowId", () => {
@@ -133,11 +132,11 @@ describe("WorkflowCards", () => {
     expect(onExecute).toHaveBeenCalledWith("patch-configuration-v1");
   });
 
-  it("UT-CONSOLE-WF-015: SI-10 — cancelling ruled-out confirmation returns to normal state", () => {
+  it("UT-CONSOLE-WF-015: SI-10 — clicking ruled-out card again dismisses confirmation", () => {
     render(<WorkflowCards options={options} onExecute={vi.fn()} />);
     const card = screen.getByTestId("workflow-card-patch-configuration-v1");
     fireEvent.click(card);
-    fireEvent.click(screen.getByRole("button", { name: /go back/i }));
+    fireEvent.click(card);
     expect(screen.queryByRole("button", { name: /proceed anyway/i })).not.toBeInTheDocument();
   });
 

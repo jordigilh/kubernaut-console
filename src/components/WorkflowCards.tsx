@@ -47,7 +47,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
   }, []);
 
   const handleRuledOutClick = useCallback((workflowId: string) => {
-    setConfirmingId(workflowId);
+    setConfirmingId((prev) => prev === workflowId ? null : workflowId);
   }, []);
 
   const handleConfirmRuledOut = useCallback(() => {
@@ -225,17 +225,20 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
 
       {/* Ruled-out cards (clickable with confirmation) */}
       {ruledOut.map((opt) => (
-        <div key={opt.workflowId}>
-          <button
-            type="button"
-            data-testid={`workflow-card-${opt.workflowId}`}
-            className={`rounded-xl border bg-white px-4 py-2.5 flex items-center gap-2 w-full text-left cursor-pointer transition-colors ${
-              confirmingId === opt.workflowId ? "border-amber-400 bg-amber-50" : "border-border hover:border-gray-300 hover:bg-gray-50"
-            }`}
-            onClick={() => handleRuledOutClick(opt.workflowId)}
-            aria-expanded={confirmingId === opt.workflowId}
-            aria-label={`${opt.name} — ruled out${opt.ruledOutReason ? `: ${opt.ruledOutReason}` : ""}`}
-          >
+        <div
+          key={opt.workflowId}
+          data-testid={`workflow-card-${opt.workflowId}`}
+          role="button"
+          tabIndex={0}
+          className={`rounded-xl border px-4 py-2.5 w-full cursor-pointer transition-colors ${
+            confirmingId === opt.workflowId ? "border-amber-400 bg-amber-50" : "border-border bg-white hover:border-gray-300 hover:bg-gray-50"
+          }`}
+          onClick={() => handleRuledOutClick(opt.workflowId)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleRuledOutClick(opt.workflowId); }}
+          aria-expanded={confirmingId === opt.workflowId}
+          aria-label={`${opt.name} — ruled out${opt.ruledOutReason ? `: ${opt.ruledOutReason}` : ""}`}
+        >
+          <div className="flex items-center gap-2">
             <span
               data-testid="ruled-out-icon"
               className="flex h-4 w-4 items-center justify-center rounded-full bg-kubernaut-red-600"
@@ -258,33 +261,23 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
             >
               ID: {opt.workflowId.slice(0, 8)}
             </span>
-          </button>
+          </div>
 
-          {/* Confirmation dialog */}
+          {/* Confirmation inline (inside the card) */}
           {confirmingId === opt.workflowId && (
-            <div className="mt-1 ml-6 p-3 rounded-lg border border-amber-300 bg-amber-50 text-xs">
-              <p className="text-amber-800 font-medium mb-2">
+            <div className="mt-2 pt-2 border-t border-amber-300 text-xs" onClick={(e) => e.stopPropagation()}>
+              <p className="text-amber-800 font-medium mb-1">
                 This workflow was ruled out: {opt.ruledOutReason || "No reason provided"}
               </p>
               <p className="text-amber-700 mb-3">Are you sure you want to proceed?</p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleConfirmRuledOut}
-                  className="px-3 py-1.5 rounded-md bg-amber-600 text-white text-[11px] font-semibold hover:bg-amber-700 transition-colors"
-                  aria-label="Proceed anyway"
-                >
-                  Proceed anyway
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancelRuledOut}
-                  className="px-3 py-1.5 rounded-md border border-gray-300 text-text-secondary text-[11px] font-medium hover:bg-gray-50 transition-colors"
-                  aria-label="Go back"
-                >
-                  Go back
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleConfirmRuledOut}
+                className="w-full py-2 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors"
+                aria-label="Proceed anyway"
+              >
+                Proceed anyway
+              </button>
             </div>
           )}
         </div>
