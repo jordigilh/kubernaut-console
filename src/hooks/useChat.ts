@@ -80,6 +80,18 @@ export interface AlignmentVerdict {
   } | null;
 }
 
+export type VerificationStepName = "stabilization_elapsed" | "spec_hash_computed" | "alert_check" | "health_check";
+export type VerificationStepStatus = "in_progress" | "completed" | "failed";
+
+export interface VerificationStep {
+  step: VerificationStepName;
+  status: VerificationStepStatus;
+  detail?: string;
+  elapsedSeconds?: number;
+  retryCount?: number;
+  updatedAt: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "agent";
@@ -90,6 +102,7 @@ export interface ChatMessage {
   rca?: RCAData;
   stabilizationWindow?: number;
   verifyingStartedAt?: number;
+  verificationSteps?: VerificationStep[];
   isStreaming?: boolean;
   phase?: "investigation" | "decision" | "remediation" | "verifying" | "failed" | "complete";
   thinkingLabel?: string;
@@ -472,6 +485,39 @@ export function useChat() {
 
       if (metaType === "problem_resolved") {
         update({ recoverySignal: "problem_resolved" });
+        return;
+      }
+
+      if (metaType === "verification_step") {
+        const step = event.metadata?.step as VerificationStepName | undefined;
+        const stepStatus = event.metadata?.step_status as VerificationStepStatus | undefined;
+        if (!step || !stepStatus) return;
+
+        const newStep: VerificationStep = {
+          step,
+          status: stepStatus,
+          detail: event.metadata?.detail as string | undefined,
+          elapsedSeconds: typeof event.metadata?.elapsed_s === "number" ? event.metadata.elapsed_s : undefined,
+          retryCount: typeof event.metadata?.retry_count === "number" ? event.metadata.retry_count : undefined,
+          updatedAt: Date.now(),
+        };
+
+        setMessages((prev) => {
+          const lastAgentIdx = prev.findLastIndex((m) => m.role === "agent");
+          if (lastAgentIdx === -1) return prev;
+          const msg = prev[lastAgentIdx];
+          const existing = msg.verificationSteps ?? [];
+          const stepIdx = existing.findIndex((s) => s.step === step);
+          const updated = [...existing];
+          if (stepIdx >= 0) {
+            updated[stepIdx] = newStep;
+          } else {
+            updated.push(newStep);
+          }
+          const copy = [...prev];
+          copy[lastAgentIdx] = { ...msg, verificationSteps: updated };
+          return copy;
+        });
         return;
       }
 

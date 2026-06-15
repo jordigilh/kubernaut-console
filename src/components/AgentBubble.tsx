@@ -115,6 +115,7 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
           <VerificationTimer
             stabilizationWindow={message.stabilizationWindow}
             startedAt={message.verifyingStartedAt}
+            steps={message.verificationSteps}
           />
         )}
 
