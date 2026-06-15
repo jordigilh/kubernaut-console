@@ -5,7 +5,7 @@ export interface McpResult {
 
 let requestId = 0;
 let sessionInitialized = false;
-let initializingPromise: Promise<McpResult> | null = null;
+let initializingPromise: Promise<McpResult | null> | null = null;
 
 export function _resetSession() {
   sessionInitialized = false;
