@@ -49,13 +49,23 @@ export function ChatContainer() {
   );
 
   const handleExecuteWorkflow = useCallback(
-    (workflowId: string) => {
-      if (!isStreaming) {
-        sendMessage(`Use ${workflowId}`, { silent: true });
-        emitAuditEvent({ action: "execute_workflow", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { workflowId } });
+    async (workflowId: string) => {
+      if (!rrId) {
+        setError("Cannot select workflow: no active remediation request found.");
+        return;
       }
+      const res = await callMcpTool("kubernaut_select_workflow", {
+        rr_id: rrId,
+        workflow_id: workflowId,
+      });
+      if (res.error) {
+        setError(res.error.message);
+        return;
+      }
+      sendMessage(`Workflow ${workflowId} selected for execution.`, { silent: true });
+      emitAuditEvent({ action: "execute_workflow", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { workflowId } });
     },
-    [isStreaming, sendMessage, user.name, user.email, rrId],
+    [rrId, sendMessage, setError, user.name, user.email],
   );
 
   const handleApprove = useCallback(
