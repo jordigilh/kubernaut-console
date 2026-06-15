@@ -34,7 +34,7 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
     message.rca!.toolCallsCount > 0
   );
   const hasWorkflows = message.workflowOptions && message.workflowOptions.length > 0;
-  const showEscapeHatches = hasRCA && !hasWorkflows && message.phase === "decision";
+  const showEscapeHatches = hasRCAData && !hasWorkflows;
   const hasApproval = !!message.approvalRequest;
   const hasAlignmentVerdict = !!message.alignmentVerdict;
 

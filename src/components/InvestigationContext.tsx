@@ -55,7 +55,7 @@ export function InvestigationContext({ alertName, namespace, resource, cluster, 
         </>
       )}
 
-      {alertName && (
+      {alertName && alertName !== "unknown" && (
         <>
           <Field label="Alert" value={alertName} />
           <Separator />
