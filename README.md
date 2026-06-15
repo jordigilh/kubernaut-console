@@ -1,81 +1,165 @@
 # Kubernaut Demo Console
 
-A standalone web console for demonstrating [Kubernaut](https://github.com/jordigilh/kubernaut)'s A2A (Agent-to-Agent) capabilities. This application connects to Kubernaut's API Frontend over the A2A protocol and provides a chat-based interface for interactive incident remediation.
+[![CI](https://github.com/jordigilh/kubernaut-demo-console/actions/workflows/ci.yaml/badge.svg)](https://github.com/jordigilh/kubernaut-demo-console/actions/workflows/ci.yaml)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-![Kubernaut Console UI](docs/ui-mockup.png)
+Real-time operator console for the [Kubernaut](https://github.com/jordigilh/kubernaut) autonomous remediation platform. Provides a chat-based interface for observing, approving, and guiding automated incident response in Kubernetes clusters.
 
 ## Features
 
-- **A2A SSE streaming** — Real-time streaming via `fetch()` + `ReadableStream` (JSON-RPC `message/stream`)
-- **Cursor-style thinking panel** — Collapsible mini-frame showing reasoning, status, and investigation events
-- **Workflow cards** — Structured decision rendering with RECOMMENDED badge from `present_decision` tool
-- **Execution progress** — Green-tinted block with step indicators during remediation
-- **Markdown rendering** — Full GFM support for agent responses
-- **OAuth2 Proxy auth** — OIDC authentication via Dex, no client-side auth code needed
+- **A2A Streaming** — Real-time Server-Sent Events from the Kubernaut Agent
+- **Thinking Panel** — Live agent reasoning visualization with collapsible sections
+- **RCA Cards** — Structured root cause analysis with causal chain display
+- **Workflow Selection** — Recommended remediation workflows with countdown confirmation
+- **Approval Gate** — Approve/decline remediation requests before execution
+- **Verification Timer** — Live activity log during stabilization window
+- **Escalation** — Inline escalation input with reason capture
+- **OAuth2 Authentication** — OIDC via OAuth2 Proxy sidecar (Keycloak)
+- **Accessibility** — ARIA attributes, focus management, reduced-motion support
 
 ## Architecture
 
-```
-Browser → OAuth2 Proxy (Kind pod, port 4180)
-           ├── Static files → Nginx sidecar (Console SPA)
-           ├── /a2a/*       → API Frontend (Bearer token injected)
-           └── /oauth2/*    → OIDC flow with Dex
-```
-
-## Quick Start (Local Development)
-
-```bash
-npm install
-npm run dev
+```mermaid
+graph LR
+    Browser --> OAuth["OAuth2 Proxy :4180"]
+    OAuth --> Nginx[":8080"]
+    Nginx -->|"static"| SPA["React SPA"]
+    Nginx -->|"/a2a, /mcp"| AF["API Frontend :8443"]
+    AF --> KA["Kubernaut Agent"]
 ```
 
-The Vite dev server proxies `/a2a/*` and `/.well-known/*` to `localhost:8443` (API Frontend). Use `kubectl port-forward` to expose AF locally.
+See [docs/architecture.md](docs/architecture.md) for detailed component and data flow diagrams.
 
-## Kind Demo Deployment
+## Quick Start
 
 ### Prerequisites
 
-1. A running Kind cluster with Kubernaut deployed (use [kubernaut-demo-scenarios](https://github.com/jordigilh/kubernaut-demo-scenarios))
-2. Dex and API Frontend running in the cluster
+- Node.js 22+
+- npm
 
-### Steps
+### Local Development
 
 ```bash
-# 1. Build the Console SPA
-npm run build
+# Install dependencies
+npm ci
 
-# 2. Deploy Console + OAuth2 Proxy into Kind
-./deploy/deploy-console.sh
+# Set up git hooks (secret scanning)
+./scripts/setup-githooks.sh
 
-# 3. Open the Console
-open http://localhost:4180
-# Login: e2e-user@kubernaut.ai
+# Run with mock backend (no external dependencies)
+VITE_MOCK_A2A=true npm run dev
+
+# Run with real backend
+cp .env.example .env    # Configure VITE_API_BASE_URL
+npm run dev             # Starts at http://localhost:5173
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_API_BASE_URL` | `http://localhost:8443` | Backend API Frontend URL |
+| `VITE_MOCK_A2A` | `false` | Enable mock mode (no backend) |
+
+## Testing
+
+```bash
+npm test              # Run all tests (single run)
+npm run test:watch    # Watch mode
+npx vitest run --coverage  # With coverage report
+```
+
+228 tests across 20 test files (Vitest + Testing Library).
+
+## Deployment
+
+### Helm (Recommended)
+
+```bash
+# Create OIDC secret
+kubectl create secret generic kubernaut-console-oidc \
+  --from-literal=client-id=kubernaut-console \
+  --from-literal=client-secret=<secret> \
+  --from-literal=cookie-secret=$(openssl rand -base64 32) \
+  -n kubernaut-system
+
+# Install
+helm install kubernaut-console ./chart \
+  --namespace kubernaut-system \
+  --set auth.issuerUrl=https://keycloak.example.com/realms/your-realm
+
+# Upgrade
+helm upgrade kubernaut-console ./chart \
+  --set image.tag=<commit-sha> --set image.digest="" \
+  --reuse-values --wait
+```
+
+See [docs/deployment.md](docs/deployment.md) for full deployment guide and [chart/README.md](chart/README.md) for Helm values reference.
+
+### Kind (Local Demo)
+
+```bash
+make docker-build
+make kind-load
+make deploy
+# Access at http://localhost:4180
 ```
 
 ## Project Structure
 
 ```
 src/
-  lib/           A2A types and SSE client
-  hooks/         React hooks (useChat)
-  components/    UI components
-    ChatContainer.tsx     Main chat frame
-    ThinkingPanel.tsx     Cursor-style collapsible thinking
-    WorkflowCards.tsx     Decision card grid
-    ExecutionProgress.tsx Remediation progress block
-    AgentBubble.tsx       Agent message bubble
-    UserBubble.tsx        User message bubble
-    MarkdownContent.tsx   Markdown renderer
-deploy/
-  oauth2-proxy.yaml       Deployment + Service + ConfigMap
-  dex-redirect-patch.yaml Dex callback URI patch
-  kind-config.yaml        Kind cluster port mappings
-  deploy-console.sh       One-command deployment script
+├── components/          # React UI components
+│   ├── AgentBubble.tsx
+│   ├── ApprovalCard.tsx
+│   ├── ChatContainer.tsx
+│   ├── InvestigationContext.tsx
+│   ├── RCACard.tsx
+│   ├── VerificationTimer.tsx
+│   └── WorkflowCards.tsx
+├── hooks/
+│   ├── useChat.ts       # Chat state + SSE event processing
+│   └── useUser.ts       # OIDC user identity
+├── lib/
+│   ├── a2a-client.ts    # A2A SSE streaming client
+│   ├── a2a-types.ts     # Protocol type definitions
+│   ├── mcp-client.ts    # MCP JSON-RPC client
+│   └── audit.ts         # Session audit events
+├── index.css            # Tailwind + custom theme
+└── main.tsx             # Entry point
+chart/                   # Helm chart
+deploy/                  # Raw K8s manifests (Kind)
+docs/                    # Documentation
+scripts/                 # Setup and demo scripts
 ```
 
 ## Tech Stack
 
-- [Vite](https://vite.dev) + [React](https://react.dev) + TypeScript
-- [Tailwind CSS](https://tailwindcss.com) v4
-- [react-markdown](https://github.com/remarkjs/react-markdown) + remark-gfm
-- [OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/) for authentication
+- **React 19** + TypeScript
+- **Vite** — Build tooling and dev server
+- **Tailwind CSS** — Utility-first styling
+- **Vitest** + Testing Library — Unit and integration tests
+- **OAuth2 Proxy** — OIDC authentication sidecar
+- **Nginx (UBI9)** — Static serving and reverse proxy
+- **Helm 3** — Kubernetes deployment
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/architecture.md) | System design, data flows, component diagrams |
+| [Deployment](docs/deployment.md) | Helm install, configuration, troubleshooting |
+| [Development](docs/development.md) | Local setup, testing, CI/CD |
+| [API Reference](docs/api.md) | A2A events, MCP tools, proxy routes |
+| [ADRs](docs/adr/) | Architecture Decision Records |
+| [Contributing](CONTRIBUTING.md) | How to contribute |
+| [Security](SECURITY.md) | Vulnerability reporting |
+| [Changelog](CHANGELOG.md) | Release history |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding standards, and PR process.
+
+## License
+
+[Apache License 2.0](LICENSE)
