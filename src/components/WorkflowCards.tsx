@@ -349,8 +349,8 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
                 setEscalateReason("");
               }
             }}
-            placeholder="Escalation reason..."
-            className="focus-self-managed flex-1 rounded-lg border-2 border-kubernaut-teal-600 bg-kubernaut-teal-50 px-3 py-2 text-xs text-text-primary placeholder:text-kubernaut-teal-600 focus:outline-none focus:ring-0 focus:border-kubernaut-teal-700 shadow-none"
+            placeholder="Why is this being escalated?"
+            className="focus-self-managed flex-1 rounded-lg border-2 border-rose-500 bg-rose-50 px-3 py-2 text-xs text-text-primary placeholder:text-rose-400 focus:outline-none focus:ring-0 focus:border-rose-600 shadow-none"
             style={{ outline: "none", boxShadow: "none" }}
             aria-label="Escalation reason"
           />
@@ -364,7 +364,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
               }
             }}
             disabled={!escalateReason.trim()}
-            className="px-3 py-2 rounded-lg bg-kubernaut-teal-600 text-white text-xs font-semibold hover:bg-kubernaut-teal-700 disabled:opacity-50 transition-colors shrink-0"
+            className="px-3 py-2 rounded-lg bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-40 transition-colors shrink-0"
             aria-label="Submit escalation"
           >
             Send

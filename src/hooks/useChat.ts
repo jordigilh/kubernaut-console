@@ -424,6 +424,18 @@ export function useChat() {
             Cancelled: "complete",
           };
           rrUpdate.phase = phaseMap[event.metadata.phase as string] ?? "investigation";
+
+          if (event.metadata.phase === "Verifying" || event.metadata.phase === "Executing") {
+            const swRaw = event.metadata.stabilization_window;
+            if (swRaw) {
+              const sw = parseDuration(swRaw as string | number);
+              if (sw > 0) rrUpdate.stabilizationWindow = sw;
+            }
+            if (event.metadata.started_at) {
+              const ts = new Date(event.metadata.started_at as string).getTime();
+              if (!Number.isNaN(ts)) rrUpdate.verifyingStartedAt = ts;
+            }
+          }
         }
         update(rrUpdate);
       }
