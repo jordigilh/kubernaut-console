@@ -37,6 +37,7 @@ describe("callMcpTool", () => {
 
     const notifyBody = JSON.parse(calls[1][1]?.body as string);
     expect(notifyBody.method).toBe("notifications/initialized");
+    expect(notifyBody.id).toBeUndefined();
 
     const toolBody = JSON.parse(calls[2][1]?.body as string);
     expect(toolBody.method).toBe("tools/call");
