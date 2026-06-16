@@ -94,6 +94,10 @@ async function sendMcpNotification(method: string): Promise<McpResult> {
   return { result: null };
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function ensureInitialized(): Promise<McpResult | null> {
   if (sessionInitialized) return null;
 
@@ -112,13 +116,17 @@ async function ensureInitialized(): Promise<McpResult | null> {
     }
 
     // Per MCP spec, notifications/initialized is a JSON-RPC notification
-    // (no id field). We await the HTTP response to ensure the server has
-    // received and processed it before sending tools/call.
+    // (no id field). Backend returns 202 Accepted (async processing), so
+    // we must wait briefly for the server to transition out of init state.
     const notifyResult = await sendMcpNotification("notifications/initialized");
     if (notifyResult.error) {
       initializingPromise = null;
       return notifyResult;
     }
+
+    // Backend processes the notification asynchronously (202). Wait for
+    // the state transition to complete before sending tools/call.
+    await delay(300);
 
     sessionInitialized = true;
     initializingPromise = null;
@@ -135,8 +143,20 @@ export async function callMcpTool(
   const initError = await ensureInitialized();
   if (initError) return initError;
 
-  return sendMcpRequest("tools/call", {
+  const result = await sendMcpRequest("tools/call", {
     name: toolName,
     arguments: args,
   });
+
+  // Retry once if the server is still transitioning from init state
+  // (202 async processing may take longer than our initial delay)
+  if (result.error?.message?.includes("invalid during session initialization")) {
+    await delay(500);
+    return sendMcpRequest("tools/call", {
+      name: toolName,
+      arguments: args,
+    });
+  }
+
+  return result;
 }

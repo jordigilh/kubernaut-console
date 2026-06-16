@@ -9,6 +9,7 @@
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { ChatContainer } from "./ChatContainer";
 import { streamA2A } from "../lib/a2a-client";
+import { _resetSession } from "../lib/mcp-client";
 
 vi.mock("../lib/a2a-client", () => ({
   buildStreamRequest: vi.fn((_text: string) => ({
@@ -26,6 +27,7 @@ beforeAll(() => {
 describe("ChatContainer Integration", () => {
   beforeEach(() => {
     sessionStorage.clear();
+    _resetSession();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mockStreamA2A.mockReset();
   });
@@ -530,15 +532,18 @@ describe("ChatContainer Integration", () => {
     const approveBtn = screen.getByRole("button", { name: /approve/i });
     await act(async () => {
       fireEvent.click(approveBtn);
-      vi.advanceTimersByTime(600);
     });
 
-    // Verify MCP was called
-    expect(fetchSpy).toHaveBeenCalledWith("/mcp", expect.objectContaining({ method: "POST" }));
+    // Wait for async MCP init (delay after 202 notification) to complete
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/mcp", expect.objectContaining({ method: "POST" }));
+    });
     // Verify no user bubble with "Approve rar-..." (silent)
     expect(screen.queryByText("Approve rar-rr-drift-xyz")).not.toBeInTheDocument();
     // streamA2A called twice (initial + follow-up)
-    expect(mockStreamA2A).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      expect(mockStreamA2A).toHaveBeenCalledTimes(2);
+    });
 
     fetchSpy.mockRestore();
   });
@@ -788,14 +793,20 @@ describe("ChatContainer Integration", () => {
     const approveBtn = screen.getByRole("button", { name: /approve/i });
     await act(async () => {
       fireEvent.click(approveBtn);
-      vi.advanceTimersByTime(600);
     });
 
     // AC-6: Verify MCP was called (not A2A text message)
-    const mcpCall = fetchSpy.mock.calls.find(c => c[0] === "/mcp");
-    expect(mcpCall).toBeDefined();
+    // Wait for async MCP init (delay after 202 notification) to complete
+    let mcpCall: unknown[] | undefined;
+    await waitFor(() => {
+      mcpCall = fetchSpy.mock.calls.find(c => {
+        if (c[0] !== "/mcp") return false;
+        const b = JSON.parse((c[1] as RequestInit).body as string);
+        return b.method === "tools/call";
+      });
+      expect(mcpCall).toBeDefined();
+    });
     const body = JSON.parse((mcpCall![1] as RequestInit).body as string);
-    expect(body.method).toBe("tools/call");
     expect(body.params.name).toBe("kubernaut_approve");
     expect(body.params.arguments.rar_name).toBe("rar-rr-test-001");
     expect(body.params.arguments.decision).toBe("Approved");
@@ -865,11 +876,13 @@ describe("ChatContainer Integration", () => {
     const approveBtn = screen.getByRole("button", { name: /approve/i });
     await act(async () => {
       fireEvent.click(approveBtn);
-      vi.advanceTimersByTime(600);
     });
 
     // AU-2: Follow-up A2A message sent after approval
-    expect(mockStreamA2A).toHaveBeenCalledTimes(2);
+    // Wait for async MCP init (delay after 202 notification) + follow-up sendMessage
+    await waitFor(() => {
+      expect(mockStreamA2A).toHaveBeenCalledTimes(2);
+    });
 
     fetchSpy.mockRestore();
   });
@@ -932,13 +945,9 @@ describe("ChatContainer Integration", () => {
     const approveBtn = screen.getByRole("button", { name: /approve/i });
     await act(async () => {
       fireEvent.click(approveBtn);
-      await Promise.resolve();
-      await Promise.resolve();
-      vi.advanceTimersByTime(600);
     });
 
     // SI-10: Error is displayed (setError is called after async MCP resolution)
-    await act(async () => { vi.advanceTimersByTime(100); });
     await waitFor(() => {
       expect(screen.getByText(/SAR check failed/)).toBeInTheDocument();
     });
@@ -1010,12 +1019,18 @@ describe("ChatContainer Integration", () => {
     const declineBtn = screen.getByRole("button", { name: /decline/i });
     await act(async () => {
       fireEvent.click(declineBtn);
-      vi.advanceTimersByTime(600);
     });
 
     // AC-6: MCP called with Rejected decision
-    const mcpCall = fetchSpy.mock.calls.find(c => c[0] === "/mcp");
-    expect(mcpCall).toBeDefined();
+    let mcpCall: unknown[] | undefined;
+    await waitFor(() => {
+      mcpCall = fetchSpy.mock.calls.find(c => {
+        if (c[0] !== "/mcp") return false;
+        const b = JSON.parse((c[1] as RequestInit).body as string);
+        return b.method === "tools/call";
+      });
+      expect(mcpCall).toBeDefined();
+    });
     const body = JSON.parse((mcpCall![1] as RequestInit).body as string);
     expect(body.params.arguments.decision).toBe("Rejected");
 
@@ -1161,12 +1176,18 @@ describe("ChatContainer Integration", () => {
     const dismissBtn = screen.getByRole("button", { name: /no action needed/i });
     await act(async () => {
       fireEvent.click(dismissBtn);
-      vi.advanceTimersByTime(600);
     });
 
     // AC-6: MCP called with kubernaut_complete_no_action, no escalation_reason
-    const mcpCall = fetchSpy.mock.calls.find(c => c[0] === "/mcp");
-    expect(mcpCall).toBeDefined();
+    let mcpCall: unknown[] | undefined;
+    await waitFor(() => {
+      mcpCall = fetchSpy.mock.calls.find(c => {
+        if (c[0] !== "/mcp") return false;
+        const b = JSON.parse((c[1] as RequestInit).body as string);
+        return b.method === "tools/call";
+      });
+      expect(mcpCall).toBeDefined();
+    });
     const body = JSON.parse((mcpCall![1] as RequestInit).body as string);
     expect(body.params.name).toBe("kubernaut_complete_no_action");
     expect(body.params.arguments.rr_id).toBe("rr-test-dismiss-001");
@@ -1235,12 +1256,18 @@ describe("ChatContainer Integration", () => {
     const submitBtn = screen.getByRole("button", { name: /submit escalation/i });
     await act(async () => {
       fireEvent.click(submitBtn);
-      vi.advanceTimersByTime(600);
     });
 
     // AC-6: MCP called with escalation_reason
-    const mcpCall = fetchSpy.mock.calls.find(c => c[0] === "/mcp");
-    expect(mcpCall).toBeDefined();
+    let mcpCall: unknown[] | undefined;
+    await waitFor(() => {
+      mcpCall = fetchSpy.mock.calls.find(c => {
+        if (c[0] !== "/mcp") return false;
+        const b = JSON.parse((c[1] as RequestInit).body as string);
+        return b.method === "tools/call";
+      });
+      expect(mcpCall).toBeDefined();
+    });
     const body = JSON.parse((mcpCall![1] as RequestInit).body as string);
     expect(body.params.name).toBe("kubernaut_complete_no_action");
     expect(body.params.arguments.rr_id).toBe("rr-test-escalate-001");
