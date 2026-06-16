@@ -30,12 +30,11 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
   const hasThinking = message.thinking && message.thinking.length > 0;
   const hasRCA = !!message.rca;
   const hasRCAData = hasRCA && (
-    (message.rca!.summary && message.rca!.summary.length > 0) ||
     (message.rca!.causalChain && message.rca!.causalChain.length > 0) ||
     message.rca!.toolCallsCount > 0
   );
   const hasWorkflows = message.workflowOptions && message.workflowOptions.length > 0;
-  const showEscapeHatches = hasRCA && !hasWorkflows && message.phase === "decision";
+  const showEscapeHatches = hasRCAData && !hasWorkflows;
   const hasApproval = !!message.approvalRequest;
   const hasAlignmentVerdict = !!message.alignmentVerdict;
 
@@ -78,6 +77,7 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
             onDismiss={onDismiss}
             onEscalate={onEscalate}
             recoverySignal={recoverySignal}
+            targetDivergence={message.targetDivergence}
           />
         )}
 
@@ -88,6 +88,7 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
             onDismiss={onDismiss}
             onEscalate={onEscalate}
             recoverySignal={recoverySignal}
+            targetDivergence={message.targetDivergence}
           />
         )}
 
@@ -115,6 +116,8 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
         {message.phase === "verifying" && message.stabilizationWindow && message.stabilizationWindow > 0 && (
           <VerificationTimer
             stabilizationWindow={message.stabilizationWindow}
+            startedAt={message.verifyingStartedAt}
+            steps={message.verificationSteps}
           />
         )}
 

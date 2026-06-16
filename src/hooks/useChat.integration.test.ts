@@ -197,3 +197,158 @@ describe("IT: Structured artifact flow (SSE -> DataPart -> ChatMessage state)", 
     expect(agentMsg.phase).toBe("investigation");
   });
 });
+
+describe("IT: Status event metadata extracts RR context for early banner population", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    sessionStorage.clear();
+    vi.useFakeTimers();
+  });
+
+  it("IT-CONSOLE-STATUS-META-001: extracts rr_id, alertName, namespace, resource, and phase from status event metadata", async () => {
+    vi.useRealTimers();
+    const { streamA2A: streamFn } = await import("../lib/a2a-client");
+    const mockedStream = vi.mocked(streamFn);
+
+    mockedStream.mockImplementation(async (_req, opts) => {
+      opts.onEvent({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-meta-1",
+        status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Starting..." }] } },
+        metadata: {
+          type: "keepalive",
+          rr_id: "rr-meta-001",
+          alert_name: "HighLatency",
+          namespace: "production",
+          kind: "Deployment",
+          target: "api-frontend",
+          phase: "Investigating",
+        },
+      });
+      opts.onComplete?.();
+    });
+
+    const { result } = renderHook(() => useChat());
+    await act(async () => { await result.current.sendMessage("check alerts"); });
+
+    await waitFor(() => {
+      expect(result.current.isStreaming).toBe(false);
+    });
+
+    const agentMsg = result.current.messages.find(m => m.role === "agent")!;
+    expect(agentMsg.rrId).toBe("rr-meta-001");
+    expect(agentMsg.alertName).toBe("HighLatency");
+    expect(agentMsg.namespace).toBe("production");
+    expect(agentMsg.resource).toBe("Deployment/api-frontend");
+    expect(agentMsg.phase).toBe("investigation");
+  });
+
+  it("IT-CONSOLE-STATUS-META-002: keepalive with metadata populates banner without adding text content", async () => {
+    vi.useRealTimers();
+    const { streamA2A: streamFn } = await import("../lib/a2a-client");
+    const mockedStream = vi.mocked(streamFn);
+
+    mockedStream.mockImplementation(async (_req, opts) => {
+      opts.onEvent({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-meta-2",
+        status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "" }] } },
+        metadata: {
+          type: "keepalive",
+          rr_id: "rr-meta-002",
+          phase: "Processing",
+        },
+      });
+      opts.onComplete?.();
+    });
+
+    const { result } = renderHook(() => useChat());
+    await act(async () => { await result.current.sendMessage("ping"); });
+
+    await waitFor(() => {
+      expect(result.current.isStreaming).toBe(false);
+    });
+
+    const agentMsg = result.current.messages.find(m => m.role === "agent")!;
+    expect(agentMsg.rrId).toBe("rr-meta-002");
+    expect(agentMsg.phase).toBe("investigation");
+    expect(agentMsg.text).toBe("");
+  });
+
+  it("IT-CONSOLE-STATUS-META-003: phase mapping covers all CRD phases", async () => {
+    vi.useRealTimers();
+    const { streamA2A: streamFn } = await import("../lib/a2a-client");
+    const mockedStream = vi.mocked(streamFn);
+
+    const phaseExpectations: [string, string][] = [
+      ["Pending", "investigation"],
+      ["Processing", "investigation"],
+      ["Analyzing", "investigation"],
+      ["Investigating", "investigation"],
+      ["AwaitingApproval", "decision"],
+      ["Executing", "remediation"],
+      ["Verifying", "verifying"],
+      ["Blocked", "failed"],
+      ["Completed", "complete"],
+      ["Failed", "failed"],
+      ["TimedOut", "timed_out"],
+      ["Skipped", "complete"],
+      ["Cancelled", "complete"],
+    ];
+
+    for (const [crdPhase, expectedPhase] of phaseExpectations) {
+      vi.resetAllMocks();
+      sessionStorage.clear();
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: `ctx-phase-${crdPhase}`,
+          status: { state: "working", message: { role: "agent", parts: [] } },
+          metadata: { type: "keepalive", rr_id: `rr-${crdPhase}`, phase: crdPhase },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        expect(result.current.isStreaming).toBe(false);
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg?.phase).toBe(expectedPhase);
+    }
+  });
+
+  it("IT-CONSOLE-STATUS-META-004: resource displays target-only when kind is absent", async () => {
+    vi.useRealTimers();
+    const { streamA2A: streamFn } = await import("../lib/a2a-client");
+    const mockedStream = vi.mocked(streamFn);
+
+    mockedStream.mockImplementation(async (_req, opts) => {
+      opts.onEvent({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-meta-4",
+        status: { state: "working", message: { role: "agent", parts: [] } },
+        metadata: { type: "keepalive", rr_id: "rr-meta-004", target: "my-pod-xyz" },
+      });
+      opts.onComplete?.();
+    });
+
+    const { result } = renderHook(() => useChat());
+    await act(async () => { await result.current.sendMessage("test"); });
+
+    await waitFor(() => {
+      expect(result.current.isStreaming).toBe(false);
+    });
+
+    const agentMsg = result.current.messages.find(m => m.role === "agent")!;
+    expect(agentMsg.resource).toBe("my-pod-xyz");
+  });
+});

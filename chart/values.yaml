@@ -1,8 +1,10 @@
 replicaCount: 1
 
 image:
-  repository: quay.io/kubernaut-ai/demo-console
-  tag: "0.5.5"
+  repository: ghcr.io/jordigilh/kubernaut-demo-console
+  tag: "6db04cb"
+  # digest overrides tag when set (use for immutable pinning)
+  digest: "sha256:5878a9c1c794cabf74f63d5e900e8ebec1e836c5263506da802d0c3b3449a014"
   pullPolicy: IfNotPresent
 
 # Agent discovery — how Console finds AF
@@ -14,10 +16,12 @@ auth:
   provider: oidc
   issuerUrl: "https://keycloak-keycloak.apps.dev.redhat-internal.com/realms/kagenti"
   clientId: "kubernaut-console"
+  # Skip TLS verification for dev environments with self-signed certs
+  skipTlsVerify: true
   # Reference to a pre-existing Secret containing OIDC credentials
   # The Secret must have keys: client-id, client-secret, cookie-secret
   existingSecret: "kubernaut-console-oidc" # pre-commit:allow-sensitive (Secret name, not a value)
-  redirectUrl: ""  # Auto-derived from service if empty
+  redirectUrl: "https://kubernaut-console-kubernaut-system.apps.dev.redhat-internal.com/oauth2/callback"
 
 # Ingress / exposure
 service:

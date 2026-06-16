@@ -3,12 +3,6 @@ import { buildStreamRequest, streamA2A } from "../lib/a2a-client";
 import { mockStreamA2A } from "../lib/a2a-mock";
 import type { A2AEvent, DataPart, StatusUpdateEvent } from "../lib/a2a-types";
 
-export interface ExecutionStep {
-  id: string;
-  label: string;
-  state: "pending" | "running" | "done" | "failed";
-}
-
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
 export interface ThinkingEntry {
@@ -86,6 +80,23 @@ export interface AlignmentVerdict {
   } | null;
 }
 
+export type VerificationStepName = "stabilization_elapsed" | "spec_hash_computed" | "alert_check" | "health_check";
+export type VerificationStepStatus = "in_progress" | "completed" | "failed";
+
+export interface VerificationStep {
+  step: VerificationStepName;
+  status: VerificationStepStatus;
+  detail?: string;
+  elapsedSeconds?: number;
+  retryCount?: number;
+  updatedAt: number;
+}
+
+export interface TargetDivergence {
+  discoveryTarget: { apiVersion: string; kind: string; name: string; namespace?: string };
+  signalTarget: { apiVersion: string; kind: string; name: string; namespace?: string };
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "agent";
@@ -94,11 +105,11 @@ export interface ChatMessage {
   thinking?: ThinkingEntry[];
   workflowOptions?: WorkflowOption[];
   rca?: RCAData;
-  executionSteps?: ExecutionStep[];
-  executionComplete?: boolean;
   stabilizationWindow?: number;
+  verifyingStartedAt?: number;
+  verificationSteps?: VerificationStep[];
   isStreaming?: boolean;
-  phase?: "investigation" | "decision" | "remediation" | "verifying" | "failed" | "complete";
+  phase?: "investigation" | "decision" | "remediation" | "verifying" | "failed" | "timed_out" | "complete";
   thinkingLabel?: string;
   approvalRequest?: ApprovalRequest;
   approvalResolution?: ApprovalResolution;
@@ -108,6 +119,7 @@ export interface ChatMessage {
   resource?: string;
   recoverySignal?: "problem_resolved" | "alignment_check_failed";
   alignmentVerdict?: AlignmentVerdict;
+  targetDivergence?: TargetDivergence;
 }
 
 export type ConnectionStatus = "idle" | "connected" | "reconnecting" | "lost";
@@ -195,6 +207,7 @@ export function useChat() {
   const lastSendRef = useRef(0);
   const terminalReceivedRef = useRef(false);
   const [investigationStartTime, setInvestigationStartTime] = useState<number | undefined>(undefined);
+  const [currentPhase, setCurrentPhase] = useState<ChatMessage["phase"]>(undefined);
 
   useEffect(() => {
     if (!isStreaming) {
@@ -286,6 +299,12 @@ export function useChat() {
             .join("");
 
           const updates: Partial<ChatMessage> = { phase: "decision", thinking: [...thinkingRef.current], thinkingLabel: undefined };
+          setCurrentPhase("decision");
+
+          const metaRrId = event.artifact.metadata?.rr_id as string | undefined;
+          if (metaRrId) {
+            updates.rrId = metaRrId;
+          }
 
           if (payload.rca) {
             const targetStr = payload.rca.target || "";
@@ -333,6 +352,18 @@ export function useChat() {
             }));
           }
 
+          if (payload.searched_target && payload.signal_target) {
+            const dt = payload.searched_target;
+            const st = payload.signal_target;
+            const targetsMatch = dt.kind === st.kind && dt.name === st.name && dt.api_version === st.api_version;
+            if (!targetsMatch) {
+              updates.targetDivergence = {
+                discoveryTarget: { apiVersion: dt.api_version, kind: dt.kind, name: dt.name, namespace: dt.namespace },
+                signalTarget: { apiVersion: st.api_version, kind: st.kind, name: st.name, namespace: st.namespace },
+              };
+            }
+          }
+
           updates.text = "";
           artifactRef.current = "";
           terminalReceivedRef.current = true;
@@ -345,32 +376,19 @@ export function useChat() {
             completed_at?: string;
           };
 
-          const PHASES = ["Investigating", "AwaitingApproval", "Executing", "Verifying", "Completed"];
-          const currentPhase = payload.current_phase;
-          const currentIdx = PHASES.indexOf(currentPhase);
-
-          const steps: ExecutionStep[] = PHASES.slice(0, -1).map((phase, i) => ({
-            id: phase.toLowerCase(),
-            label: phase === "AwaitingApproval" ? "Approval" : phase,
-            state: i < currentIdx ? "done" as const
-                 : i === currentIdx ? (currentPhase === "Completed" || currentPhase === "Failed" ? "done" as const : "running" as const)
-                 : "pending" as const,
-          }));
-
-          const isTerminal = currentPhase === "Completed" || currentPhase === "Failed";
+          const artifactPhase = payload.current_phase;
+          const isTerminal = artifactPhase === "Completed" || artifactPhase === "Failed";
           if (isTerminal) {
-            steps.forEach(s => s.state = currentPhase === "Failed" ? "failed" : "done");
             terminalReceivedRef.current = true;
           }
 
-          const updates: Partial<ChatMessage> = {
-            executionSteps: steps,
-            executionComplete: isTerminal,
-            phase: currentPhase === "Failed" ? "failed"
-                 : isTerminal ? "complete"
-                 : currentPhase === "Verifying" ? "verifying"
-                 : "remediation",
-          };
+          const mappedPhase: ChatMessage["phase"] = artifactPhase === "Failed" ? "failed"
+               : isTerminal ? "complete"
+               : artifactPhase === "Verifying" ? "verifying"
+               : "remediation";
+
+          const updates: Partial<ChatMessage> = { phase: mappedPhase };
+          setCurrentPhase(mappedPhase);
 
           if (payload.rr_name) {
             updates.rrId = payload.rr_name;
@@ -380,6 +398,11 @@ export function useChat() {
           if (swRaw) {
             const sw = parseDuration(swRaw as string | number);
             if (sw > 0) updates.stabilizationWindow = sw;
+          }
+
+          if (payload.started_at && artifactPhase === "Verifying") {
+            const ts = new Date(payload.started_at).getTime();
+            if (!Number.isNaN(ts)) updates.verifyingStartedAt = ts;
           }
 
           updateAgent(updates);
@@ -398,6 +421,7 @@ export function useChat() {
       }
 
       if (event.kind === "status-update") {
+        if (event.metadata) console.debug("[useChat] status-update metadata:", JSON.stringify(event.metadata));
         handleStatusEvent(event, updateAgent);
       }
     };
@@ -408,15 +432,50 @@ export function useChat() {
     ) => {
       const metaType = event.metadata?.type;
 
-      if (metaType === "keepalive") return;
-
       if (event.metadata?.rr_id && typeof event.metadata.rr_id === "string") {
         const rrUpdate: Partial<ChatMessage> = { rrId: event.metadata.rr_id };
         if (event.metadata.alert_name) rrUpdate.alertName = event.metadata.alert_name as string;
         if (event.metadata.namespace) rrUpdate.namespace = event.metadata.namespace as string;
-        if (event.metadata.target) rrUpdate.resource = event.metadata.target as string;
+        if (event.metadata.kind && event.metadata.target) {
+          rrUpdate.resource = `${event.metadata.kind}/${event.metadata.target}`;
+        } else if (event.metadata.target) {
+          rrUpdate.resource = event.metadata.target as string;
+        }
+        if (event.metadata.phase) {
+          const phaseMap: Record<string, ChatMessage["phase"]> = {
+            Pending: "investigation",
+            Processing: "investigation",
+            Analyzing: "investigation",
+            Investigating: "investigation",
+            AwaitingApproval: "decision",
+            Executing: "remediation",
+            Verifying: "verifying",
+            Blocked: "failed",
+            Completed: "complete",
+            Failed: "failed",
+            TimedOut: "timed_out",
+            Skipped: "complete",
+            Cancelled: "complete",
+          };
+          rrUpdate.phase = phaseMap[event.metadata.phase as string] ?? "investigation";
+          setCurrentPhase(rrUpdate.phase);
+
+          if (event.metadata.phase === "Verifying" || event.metadata.phase === "Executing") {
+            const swRaw = event.metadata.stabilization_window;
+            if (swRaw) {
+              const sw = parseDuration(swRaw as string | number);
+              if (sw > 0) rrUpdate.stabilizationWindow = sw;
+            }
+            if (event.metadata.started_at) {
+              const ts = new Date(event.metadata.started_at as string).getTime();
+              if (!Number.isNaN(ts)) rrUpdate.verifyingStartedAt = ts;
+            }
+          }
+        }
         update(rrUpdate);
       }
+
+      if (metaType === "keepalive") return;
 
       if (metaType === "approval_request") {
         try {
@@ -451,6 +510,39 @@ export function useChat() {
         return;
       }
 
+      if (metaType === "verification_step") {
+        const step = event.metadata?.step as VerificationStepName | undefined;
+        const stepStatus = event.metadata?.step_status as VerificationStepStatus | undefined;
+        if (!step || !stepStatus) return;
+
+        const newStep: VerificationStep = {
+          step,
+          status: stepStatus,
+          detail: event.metadata?.detail as string | undefined,
+          elapsedSeconds: typeof event.metadata?.elapsed_s === "number" ? event.metadata.elapsed_s : undefined,
+          retryCount: typeof event.metadata?.retry_count === "number" ? event.metadata.retry_count : undefined,
+          updatedAt: Date.now(),
+        };
+
+        setMessages((prev) => {
+          const lastAgentIdx = prev.findLastIndex((m) => m.role === "agent");
+          if (lastAgentIdx === -1) return prev;
+          const msg = prev[lastAgentIdx];
+          const existing = msg.verificationSteps ?? [];
+          const stepIdx = existing.findIndex((s) => s.step === step);
+          const updated = [...existing];
+          if (stepIdx >= 0) {
+            updated[stepIdx] = newStep;
+          } else {
+            updated.push(newStep);
+          }
+          const copy = [...prev];
+          copy[lastAgentIdx] = { ...msg, verificationSteps: updated };
+          return copy;
+        });
+        return;
+      }
+
       if (metaType === "alignment_check_failed") {
         try {
           const msgText = (event.status.message?.parts ?? [])
@@ -477,6 +569,7 @@ export function useChat() {
           }
           const parsed = JSON.parse(msgText);
           const updates: Partial<ChatMessage> = { phase: "decision", text: "", thinkingLabel: undefined };
+          setCurrentPhase("decision");
           updates.thinking = [...thinkingRef.current];
 
           if (parsed.rca) {
@@ -545,8 +638,6 @@ export function useChat() {
           const parsed = JSON.parse(msgText);
           if (Array.isArray(parsed.steps)) {
             const updates: Partial<ChatMessage> = {
-              executionSteps: parsed.steps,
-              executionComplete: parsed.completed ?? false,
               phase: parsed.completed ? "complete" : "remediation",
             };
             const swRaw = event.metadata?.stabilization_window ?? parsed.stabilization_window;
@@ -577,20 +668,8 @@ export function useChat() {
         const phaseMatch = text.match(/(?:Progress|Remediation phase):\s*(Analyzing|Executing|Verifying|Completed|Failed)/i);
         if (phaseMatch) {
           const currentPhase = phaseMatch[1].toLowerCase();
-          const phases = ["analyzing", "executing", "verifying", "completed"];
-          const currentIdx = phases.indexOf(currentPhase);
-          const steps: ExecutionStep[] = [
-            { id: "analyzing", label: "Analyzing", state: "pending" },
-            { id: "executing", label: "Executing remediation", state: "pending" },
-            { id: "verifying", label: "Verifying stability", state: "pending" },
-          ];
-          for (let i = 0; i < steps.length; i++) {
-            if (i < currentIdx) steps[i].state = "done";
-            else if (i === currentIdx) steps[i].state = currentPhase === "completed" || currentPhase === "failed" ? "done" : "running";
-          }
           const isTerminal = currentPhase === "completed" || currentPhase === "failed";
           if (isTerminal) {
-            steps.forEach(s => s.state = currentPhase === "failed" ? "failed" : "done");
             terminalReceivedRef.current = true;
           }
 
@@ -600,11 +679,7 @@ export function useChat() {
           else if (currentPhase === "verifying") messagePhase = "verifying";
           else messagePhase = "remediation";
 
-          update({
-            executionSteps: steps,
-            executionComplete: isTerminal,
-            phase: messagePhase,
-          });
+          update({ phase: messagePhase });
           return;
         }
 
@@ -700,10 +775,11 @@ export function useChat() {
 
   const clearHistory = useCallback(() => {
     setMessages([]);
+    setCurrentPhase(undefined);
     contextIdRef.current = undefined;
     sessionStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(CONTEXT_KEY);
   }, []);
 
-  return { messages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime };
+  return { messages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase };
 }

@@ -9,6 +9,7 @@
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { ChatContainer } from "./ChatContainer";
 import { streamA2A } from "../lib/a2a-client";
+import { _resetSession } from "../lib/mcp-client";
 
 vi.mock("../lib/a2a-client", () => ({
   buildStreamRequest: vi.fn((_text: string) => ({
@@ -26,6 +27,7 @@ beforeAll(() => {
 describe("ChatContainer Integration", () => {
   beforeEach(() => {
     sessionStorage.clear();
+    _resetSession();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mockStreamA2A.mockReset();
   });
@@ -185,8 +187,8 @@ describe("ChatContainer Integration", () => {
     // Recommended card has parameters
     expect(screen.getByText(/TARGET_RESOURCE_NAMESPACE=demo-webui/)).toBeInTheDocument();
 
-    // Ruled out card shows reason
-    expect(screen.getByText(/selfHeal:true will revert in-cluster patches/)).toBeInTheDocument();
+    // Ruled out card shows description
+    expect(screen.getByText(/Patches ConfigMap directly in the cluster/)).toBeInTheDocument();
 
     // IT-CONSOLE-JOURNEY-007: Execute button is visible, click to start countdown (SC-5)
     const executeButton = screen.getByRole("button", { name: /execute/i });
@@ -530,15 +532,18 @@ describe("ChatContainer Integration", () => {
     const approveBtn = screen.getByRole("button", { name: /approve/i });
     await act(async () => {
       fireEvent.click(approveBtn);
-      vi.advanceTimersByTime(600);
     });
 
-    // Verify MCP was called
-    expect(fetchSpy).toHaveBeenCalledWith("/mcp", expect.objectContaining({ method: "POST" }));
+    // Wait for async MCP init (delay after 202 notification) to complete
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/mcp", expect.objectContaining({ method: "POST" }));
+    });
     // Verify no user bubble with "Approve rar-..." (silent)
     expect(screen.queryByText("Approve rar-rr-drift-xyz")).not.toBeInTheDocument();
     // streamA2A called twice (initial + follow-up)
-    expect(mockStreamA2A).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      expect(mockStreamA2A).toHaveBeenCalledTimes(2);
+    });
 
     fetchSpy.mockRestore();
   });
@@ -788,14 +793,20 @@ describe("ChatContainer Integration", () => {
     const approveBtn = screen.getByRole("button", { name: /approve/i });
     await act(async () => {
       fireEvent.click(approveBtn);
-      vi.advanceTimersByTime(600);
     });
 
     // AC-6: Verify MCP was called (not A2A text message)
-    const mcpCall = fetchSpy.mock.calls.find(c => c[0] === "/mcp");
-    expect(mcpCall).toBeDefined();
+    // Wait for async MCP init (delay after 202 notification) to complete
+    let mcpCall: unknown[] | undefined;
+    await waitFor(() => {
+      mcpCall = fetchSpy.mock.calls.find(c => {
+        if (c[0] !== "/mcp") return false;
+        const b = JSON.parse((c[1] as RequestInit).body as string);
+        return b.method === "tools/call";
+      });
+      expect(mcpCall).toBeDefined();
+    });
     const body = JSON.parse((mcpCall![1] as RequestInit).body as string);
-    expect(body.method).toBe("tools/call");
     expect(body.params.name).toBe("kubernaut_approve");
     expect(body.params.arguments.rar_name).toBe("rar-rr-test-001");
     expect(body.params.arguments.decision).toBe("Approved");
@@ -865,11 +876,13 @@ describe("ChatContainer Integration", () => {
     const approveBtn = screen.getByRole("button", { name: /approve/i });
     await act(async () => {
       fireEvent.click(approveBtn);
-      vi.advanceTimersByTime(600);
     });
 
     // AU-2: Follow-up A2A message sent after approval
-    expect(mockStreamA2A).toHaveBeenCalledTimes(2);
+    // Wait for async MCP init (delay after 202 notification) + follow-up sendMessage
+    await waitFor(() => {
+      expect(mockStreamA2A).toHaveBeenCalledTimes(2);
+    });
 
     fetchSpy.mockRestore();
   });
@@ -932,13 +945,9 @@ describe("ChatContainer Integration", () => {
     const approveBtn = screen.getByRole("button", { name: /approve/i });
     await act(async () => {
       fireEvent.click(approveBtn);
-      await Promise.resolve();
-      await Promise.resolve();
-      vi.advanceTimersByTime(600);
     });
 
     // SI-10: Error is displayed (setError is called after async MCP resolution)
-    await act(async () => { vi.advanceTimersByTime(100); });
     await waitFor(() => {
       expect(screen.getByText(/SAR check failed/)).toBeInTheDocument();
     });
@@ -1010,12 +1019,18 @@ describe("ChatContainer Integration", () => {
     const declineBtn = screen.getByRole("button", { name: /decline/i });
     await act(async () => {
       fireEvent.click(declineBtn);
-      vi.advanceTimersByTime(600);
     });
 
     // AC-6: MCP called with Rejected decision
-    const mcpCall = fetchSpy.mock.calls.find(c => c[0] === "/mcp");
-    expect(mcpCall).toBeDefined();
+    let mcpCall: unknown[] | undefined;
+    await waitFor(() => {
+      mcpCall = fetchSpy.mock.calls.find(c => {
+        if (c[0] !== "/mcp") return false;
+        const b = JSON.parse((c[1] as RequestInit).body as string);
+        return b.method === "tools/call";
+      });
+      expect(mcpCall).toBeDefined();
+    });
     const body = JSON.parse((mcpCall![1] as RequestInit).body as string);
     expect(body.params.arguments.decision).toBe("Rejected");
 
@@ -1112,6 +1127,105 @@ describe("ChatContainer Integration", () => {
     expect(screen.queryByRole("button", { name: /escalate to team/i })).not.toBeInTheDocument();
   });
 
+  // #1437: Target divergence rendered when searched_target differs from signal_target
+  it("IT-CONSOLE-TARGET-001: renders target divergence explanation when searched_target differs from signal_target", async () => {
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "inv-1",
+          parts: [{
+            kind: "data",
+            data: {
+              session_id: "s1",
+              rr_id: "rr-target-divergence",
+              signal_name: "KubePodCrashLooping",
+              summary: "ConfigMap misconfiguration causing crash loop",
+              rca: { severity: "critical", confidence: 0.88, target: "Deployment/worker (demo-storefront)", causal_chain: ["Bad nginx config"], tool_calls_count: 5, llm_turns: 3 },
+              options: [],
+              searched_target: { api_version: "v1", kind: "ConfigMap", name: "worker-config", namespace: "demo-storefront" },
+              signal_target: { api_version: "apps/v1", kind: "Deployment", name: "worker", namespace: "demo-storefront" },
+            },
+          }],
+          metadata: { type: "investigation_summary" },
+        },
+      });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(600);
+    });
+
+    // Divergence callout renders with both targets
+    await waitFor(() => {
+      expect(screen.getByText("No remediation workflows found")).toBeInTheDocument();
+    });
+    const divergencePanel = screen.getByRole("status", { name: /target divergence/i });
+    expect(divergencePanel).toBeInTheDocument();
+    expect(screen.getByText(/ConfigMap\/worker-config/)).toBeInTheDocument();
+    expect(screen.getByText(/root cause to a different resource/)).toBeInTheDocument();
+
+    // Escape hatches remain available
+    expect(screen.getByRole("button", { name: /no action needed/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /escalate to team/i })).toBeInTheDocument();
+  });
+
+  // #1437: No divergence callout when targets match
+  it("IT-CONSOLE-TARGET-002: does NOT render divergence when searched_target equals signal_target", async () => {
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "inv-1",
+          parts: [{
+            kind: "data",
+            data: {
+              session_id: "s1",
+              rr_id: "rr-same-target",
+              signal_name: "KubePodCrashLooping",
+              summary: "Deployment OOM",
+              rca: { severity: "high", confidence: 0.9, target: "Deployment/worker", causal_chain: ["OOM"], tool_calls_count: 3, llm_turns: 2 },
+              options: [{ workflow_id: "wf-rollback", name: "Rollback", description: "Roll back deployment", recommended: true }],
+              searched_target: { api_version: "apps/v1", kind: "Deployment", name: "worker", namespace: "demo-storefront" },
+              signal_target: { api_version: "apps/v1", kind: "Deployment", name: "worker", namespace: "demo-storefront" },
+            },
+          }],
+          metadata: { type: "investigation_summary" },
+        },
+      });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(600);
+    });
+
+    // Workflow card renders (targets match — no divergence)
+    await waitFor(() => {
+      expect(screen.getByText("Rollback")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("No remediation workflows found")).not.toBeInTheDocument();
+  });
+
   // AC-6: Dismiss calls kubernaut_complete_no_action via MCP (no escalation_reason)
   it("IT-CONSOLE-DISMISS-001: 'No action needed' calls MCP kubernaut_complete_no_action without escalation_reason", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
@@ -1161,12 +1275,18 @@ describe("ChatContainer Integration", () => {
     const dismissBtn = screen.getByRole("button", { name: /no action needed/i });
     await act(async () => {
       fireEvent.click(dismissBtn);
-      vi.advanceTimersByTime(600);
     });
 
     // AC-6: MCP called with kubernaut_complete_no_action, no escalation_reason
-    const mcpCall = fetchSpy.mock.calls.find(c => c[0] === "/mcp");
-    expect(mcpCall).toBeDefined();
+    let mcpCall: unknown[] | undefined;
+    await waitFor(() => {
+      mcpCall = fetchSpy.mock.calls.find(c => {
+        if (c[0] !== "/mcp") return false;
+        const b = JSON.parse((c[1] as RequestInit).body as string);
+        return b.method === "tools/call";
+      });
+      expect(mcpCall).toBeDefined();
+    });
     const body = JSON.parse((mcpCall![1] as RequestInit).body as string);
     expect(body.params.name).toBe("kubernaut_complete_no_action");
     expect(body.params.arguments.rr_id).toBe("rr-test-dismiss-001");
@@ -1235,12 +1355,18 @@ describe("ChatContainer Integration", () => {
     const submitBtn = screen.getByRole("button", { name: /submit escalation/i });
     await act(async () => {
       fireEvent.click(submitBtn);
-      vi.advanceTimersByTime(600);
     });
 
     // AC-6: MCP called with escalation_reason
-    const mcpCall = fetchSpy.mock.calls.find(c => c[0] === "/mcp");
-    expect(mcpCall).toBeDefined();
+    let mcpCall: unknown[] | undefined;
+    await waitFor(() => {
+      mcpCall = fetchSpy.mock.calls.find(c => {
+        if (c[0] !== "/mcp") return false;
+        const b = JSON.parse((c[1] as RequestInit).body as string);
+        return b.method === "tools/call";
+      });
+      expect(mcpCall).toBeDefined();
+    });
     const body = JSON.parse((mcpCall![1] as RequestInit).body as string);
     expect(body.params.name).toBe("kubernaut_complete_no_action");
     expect(body.params.arguments.rr_id).toBe("rr-test-escalate-001");

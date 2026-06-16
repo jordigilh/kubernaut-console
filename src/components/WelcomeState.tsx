@@ -28,13 +28,14 @@ export function WelcomeState({ onSuggest }: Props) {
       <p className="text-sm text-gray-500 mb-6 max-w-sm">
         I can investigate Kubernetes incidents, diagnose root causes, and execute remediation workflows.
       </p>
-      <div className="space-y-2 w-full max-w-sm">
+      <div className="space-y-2 w-full max-w-sm" role="group" aria-label="Suggested prompts">
         {suggestions.map((text) => (
           <button
             key={text}
             type="button"
             onClick={() => onSuggest(text)}
             className="w-full px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 text-left hover:border-kubernaut-teal-600 hover:bg-kubernaut-teal-50 transition-colors"
+            aria-label={`Suggest: ${text}`}
           >
             {text}
           </button>

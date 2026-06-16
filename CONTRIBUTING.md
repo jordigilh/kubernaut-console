@@ -1,101 +1,146 @@
-# Contributing to Kubernaut Console
+# Contributing to Kubernaut Demo Console
 
-Thank you for your interest in contributing to Kubernaut Console.
+Thank you for your interest in contributing! This document provides guidelines for contributing to the Kubernaut Demo Console.
+
+## Prerequisites
+
+- **Node.js 22+** (use `.nvmrc` or check CI for exact version)
+- **npm** (comes with Node.js)
+- **Git**
+- For deployment testing: **kubectl**, **kind**, **Helm 3**
 
 ## Getting Started
 
-1. Fork the repository
-2. Clone your fork and set up the development environment (see [Development Guide](docs/development.md))
-3. Create a feature branch from `main`
-4. Make your changes following the guidelines below
-5. Submit a pull request
+### 1. Clone and Install
+
+```bash
+git clone https://github.com/jordigilh/kubernaut-demo-console.git
+cd kubernaut-demo-console
+npm ci
+```
+
+### 2. Set Up Git Hooks
+
+```bash
+./scripts/setup-githooks.sh
+```
+
+This installs a pre-commit hook that scans for accidentally committed secrets.
+
+### 3. Run Locally
+
+```bash
+# With mock backend (no external dependencies)
+VITE_MOCK_A2A=true npm run dev
+
+# With real backend (requires port-forward to apifrontend)
+cp .env.example .env
+npm run dev
+```
+
+### 4. Run Tests
+
+```bash
+npm test          # Single run
+npm run test:watch  # Watch mode
+```
 
 ## Development Workflow
 
 ### Branch Naming
 
-```
-feat/<short-description>     # New features
-fix/<short-description>      # Bug fixes
-docs/<short-description>     # Documentation
-refactor/<short-description> # Code improvements
-test/<short-description>     # Test additions
-```
+- `feat/<description>` — New features
+- `fix/<description>` — Bug fixes
+- `chore/<description>` — Maintenance, refactoring, docs
+- `docs/<description>` — Documentation only
 
 ### Commit Messages
 
 Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
-feat(component): add workflow parameter editing
-fix(useChat): handle missing metadata gracefully
-test: add status metadata integration tests
-docs: update deployment guide for Helm 3.14
+<type>(<scope>): <description>
+
+[optional body]
 ```
+
+Types: `feat`, `fix`, `refactor`, `test`, `docs`, `ci`, `chore`
+
+Scopes: `ux`, `auth`, `mcp`, `a2a`, `infra`, `types`, `test`
 
 ### Pull Request Process
 
-1. Ensure all CI checks pass (lint, test, security, build, helm-lint)
-2. Update documentation if behavior changes
-3. Add tests for new functionality
-4. Keep PRs focused — one logical change per PR
-5. Reference related issues in the PR description
+1. Create a feature branch from `main`
+2. Make your changes with tests
+3. Ensure all CI checks pass:
+   - `npm run lint` — ESLint
+   - `npm test` — Vitest (unit + integration)
+   - `npm run build` — TypeScript compilation + Vite build
+4. Push and open a PR
+5. Request review from a CODEOWNER
 
-## Code Standards
+### CI Requirements
+
+All PRs must pass:
+
+| Job | Command | What it checks |
+|-----|---------|----------------|
+| lint | `eslint .` | Code style and errors |
+| test | `vitest run` | Unit and integration tests |
+| build | `tsc -b && vite build` | Type safety and bundling |
+| security | `npm audit`, Trivy | Dependency and container vulnerabilities |
+| helm-lint | `helm lint ./chart` | Helm chart validity |
+
+## Coding Standards
 
 ### TypeScript
 
-- Strict mode (`strict: true` in tsconfig)
-- No `any` types unless unavoidable (document why in a comment)
-- Use interfaces for object shapes, types for unions/intersections
-- Explicit return types on exported functions
+- Strict mode enabled (`tsconfig.json`)
+- No `any` — use proper types or `unknown`
+- Interfaces over type aliases for object shapes
+- Export types alongside their implementations
 
 ### React
 
 - Functional components only
-- Use hooks for state and side effects
-- Wrap event handlers in `useCallback` when passed as props
-- Avoid inline object/array literals in JSX props (causes unnecessary re-renders)
+- Custom hooks for shared logic (`src/hooks/`)
+- CSS via Tailwind utility classes (no CSS modules)
+- Accessibility: semantic HTML, ARIA attributes, keyboard navigation
 
 ### Testing
 
-- Write tests for all new functionality
-- Use test scenario IDs: `UT-CONSOLE-<AREA>-<NUMBER>` for unit tests, `IT-CONSOLE-<AREA>-<NUMBER>` for integration
-- Mock only external dependencies (fetch, sendBeacon)
-- Use real React components and hooks in tests
+- Framework: **Vitest** + **Testing Library**
+- Test files co-located with source: `Component.test.tsx`
+- Test IDs: `UT-CONSOLE-<AREA>-<NUMBER>` (e.g., `UT-CONSOLE-MCP-001`)
+- Mock only external boundaries (fetch, timers)
+- Use `screen.getByTestId` / `screen.getByRole` for queries
 
-### CSS / Tailwind
+### File Organization
 
-- Use Tailwind utility classes
-- Design tokens defined in `src/index.css`
-- No inline styles unless overriding browser defaults
-- Ensure dark/light mode compatibility (when implemented)
+```
+src/
+├── components/    # React components (one per file)
+├── hooks/         # Custom React hooks
+├── lib/           # Non-React utilities (clients, schemas)
+├── index.css      # Global styles and Tailwind config
+└── main.tsx       # Entry point
+```
 
-### Accessibility
+## Helm Chart Changes
 
-- All interactive elements must be keyboard-accessible
-- Use semantic HTML (`<button>`, `<form>`, `<nav>`, `<main>`)
-- Provide `aria-label` for icon-only buttons
-- Include `role` and `aria-live` for dynamic content regions
+When modifying `chart/`:
 
-## Security
+- Update `chart/values.yaml` with sensible defaults
+- Add comments explaining non-obvious values
+- Run `helm lint ./chart` before committing
+- Test with `helm template kubernaut-console ./chart | kubectl apply --dry-run=client -f -`
 
-- Never commit secrets, tokens, or credentials
-- The pre-commit hook will block sensitive data — run `./scripts/setup-githooks.sh`
-- Report vulnerabilities per [SECURITY.md](SECURITY.md)
-- Follow FedRAMP control guidelines for new features touching auth or audit
+## Getting Help
 
-## Review Criteria
+- Open a [GitHub Discussion](https://github.com/jordigilh/kubernaut-demo-console/discussions) for questions
+- File an [Issue](https://github.com/jordigilh/kubernaut-demo-console/issues) for bugs or feature requests
+- Check existing issues before creating new ones
 
-Reviewers will assess:
+## License
 
-- [ ] Tests pass and cover new behavior
-- [ ] No new lint warnings or TypeScript errors
-- [ ] Accessibility requirements met
-- [ ] Security implications considered
-- [ ] Documentation updated if user-facing behavior changes
-- [ ] No unnecessary dependencies added
-
-## Questions?
-
-Open a GitHub Discussion or reach out to the maintainers listed in CODEOWNERS.
+By contributing, you agree that your contributions will be licensed under the [Apache License 2.0](LICENSE).

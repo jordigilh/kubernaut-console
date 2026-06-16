@@ -47,11 +47,11 @@ describe("WorkflowCards", () => {
     expect(screen.getByText(/TARGET_RESOURCE_NAME=app-config/)).toBeInTheDocument();
   });
 
-  it("UT-CONSOLE-WF-004: renders ruled-out card in collapsed state with reason", () => {
+  it("UT-CONSOLE-WF-004: renders ruled-out card in collapsed state with description", () => {
     render(<WorkflowCards options={options} />);
     expect(screen.getByText("patch-configuration-v1")).toBeInTheDocument();
     expect(screen.getByText("Ruled out")).toBeInTheDocument();
-    expect(screen.getByText(/selfHeal:true will revert/)).toBeInTheDocument();
+    expect(screen.getByText("Patches ConfigMap directly in the cluster.")).toBeInTheDocument();
   });
 
   it("UT-CONSOLE-WF-005: ruled-out card is clickable (not disabled)", () => {
@@ -115,29 +115,36 @@ describe("WorkflowCards", () => {
 
   // --- Ruled-out selectable with confirmation (SI-10: prevents accidental execution) ---
 
-  it("UT-CONSOLE-WF-013: SI-10 — clicking ruled-out card shows confirmation with ruledOutReason", () => {
+  it("UT-CONSOLE-WF-013: SI-10 — clicking ruled-out card shows confirmation with reason", () => {
     render(<WorkflowCards options={options} onExecute={vi.fn()} />);
     const card = screen.getByTestId("workflow-card-patch-configuration-v1");
     fireEvent.click(card);
-    expect(screen.getByText(/This workflow was ruled out/)).toBeInTheDocument();
+    expect(screen.getByText(/selfHeal:true will revert/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /proceed anyway/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /go back/i })).toBeInTheDocument();
   });
 
-  it("UT-CONSOLE-WF-014: SI-10 — confirming ruled-out calls onExecute with its workflowId", () => {
+  it("UT-CONSOLE-WF-014: SI-10 — confirming ruled-out starts countdown then executes", () => {
+    vi.useFakeTimers();
     const onExecute = vi.fn();
     render(<WorkflowCards options={options} onExecute={onExecute} />);
     const card = screen.getByTestId("workflow-card-patch-configuration-v1");
     fireEvent.click(card);
     fireEvent.click(screen.getByRole("button", { name: /proceed anyway/i }));
+    expect(screen.getByText(/Proceeding in 10s/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
+    expect(onExecute).not.toHaveBeenCalled();
+
+    // Click to execute immediately
+    fireEvent.click(screen.getByRole("button", { name: /proceed now/i }));
     expect(onExecute).toHaveBeenCalledWith("patch-configuration-v1");
+    vi.useRealTimers();
   });
 
-  it("UT-CONSOLE-WF-015: SI-10 — cancelling ruled-out confirmation returns to normal state", () => {
+  it("UT-CONSOLE-WF-015: SI-10 — clicking ruled-out card again dismisses confirmation", () => {
     render(<WorkflowCards options={options} onExecute={vi.fn()} />);
     const card = screen.getByTestId("workflow-card-patch-configuration-v1");
     fireEvent.click(card);
-    fireEvent.click(screen.getByRole("button", { name: /go back/i }));
+    fireEvent.click(card);
     expect(screen.queryByRole("button", { name: /proceed anyway/i })).not.toBeInTheDocument();
   });
 
@@ -263,6 +270,41 @@ describe("WorkflowCards", () => {
       render(<WorkflowCards options={[]} alignmentVerdict={multiVerdict} />);
       expect(screen.getByText(/First suspicious step/)).toBeInTheDocument();
       expect(screen.getByText(/Second suspicious step/)).toBeInTheDocument();
+    });
+  });
+
+  describe("Target Divergence (#1437)", () => {
+    const divergence = {
+      discoveryTarget: { apiVersion: "v1", kind: "ConfigMap", name: "worker-config", namespace: "demo-storefront" },
+      signalTarget: { apiVersion: "apps/v1", kind: "Deployment", name: "worker", namespace: "demo-storefront" },
+    };
+
+    it("UT-CONSOLE-WF-032: renders target divergence explanation when no workflows and targets differ", () => {
+      render(<WorkflowCards options={[]} targetDivergence={divergence} onDismiss={vi.fn()} onEscalate={vi.fn()} />);
+      expect(screen.getByText("No remediation workflows found")).toBeInTheDocument();
+      expect(screen.getByText(/ConfigMap\/worker-config/)).toBeInTheDocument();
+      expect(screen.getByText(/Deployment\/worker/)).toBeInTheDocument();
+      expect(screen.getByText(/root cause to a different resource/)).toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-WF-033: renders informative note (not warning) when workflows exist with divergence", () => {
+      const opts = [{ workflowId: "wf-1", name: "Rollback", description: "desc", recommended: true }];
+      render(<WorkflowCards options={opts} targetDivergence={divergence} onExecute={vi.fn()} />);
+      expect(screen.queryByText("No remediation workflows found")).not.toBeInTheDocument();
+      expect(screen.getByText(/Targeting root cause:/)).toBeInTheDocument();
+      expect(screen.getByText(/ConfigMap\/worker-config/)).toBeInTheDocument();
+      expect(screen.getByText(/differs from alert target/)).toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-WF-034: does NOT render divergence when targetDivergence is undefined", () => {
+      render(<WorkflowCards options={[]} onDismiss={vi.fn()} onEscalate={vi.fn()} />);
+      expect(screen.queryByText("No remediation workflows found")).not.toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-WF-035: escape hatch buttons remain visible alongside divergence", () => {
+      render(<WorkflowCards options={[]} targetDivergence={divergence} onDismiss={vi.fn()} onEscalate={vi.fn()} />);
+      expect(screen.getByRole("button", { name: /no action needed/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /escalate to team/i })).toBeInTheDocument();
     });
   });
 });

@@ -19,6 +19,13 @@ export interface InvestigationSummaryOption {
   ruled_out_reason?: string;
 }
 
+export interface ResourceTarget {
+  api_version: string;
+  kind: string;
+  name: string;
+  namespace?: string;
+}
+
 export interface InvestigationSummary {
   schema_version?: string;
   type?: string;
@@ -29,6 +36,8 @@ export interface InvestigationSummary {
   summary: string;
   rca: InvestigationSummaryRCA;
   options?: InvestigationSummaryOption[];
+  searched_target?: ResourceTarget;
+  signal_target?: ResourceTarget;
 }
 
 export function isInvestigationSummary(data: unknown): data is InvestigationSummary {

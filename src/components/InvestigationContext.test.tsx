@@ -88,14 +88,13 @@ describe("AU-2/SI-4: Investigation context bar provides audit correlation and si
     expect(banner).toHaveTextContent("rr-9e1b7bf4140b-ed9f1796");
   });
 
-  it("UT-CONSOLE-CTX-008: AU-2 — displays full RR ID with tooltip (max length fits in bar)", () => {
+  it("UT-CONSOLE-CTX-008: AU-2 — displays full RR ID with click-to-copy", () => {
     render(<InvestigationContext rrId="rr-660dc089f630-5fca223e" />);
 
     const banner = screen.getByTestId("investigation-context");
     expect(banner).toHaveTextContent("rr-660dc089f630-5fca223e");
-    expect(banner.querySelector("[title]")?.getAttribute("title")).toBe(
-      "rr-660dc089f630-5fca223e"
-    );
+    const copyButton = screen.getByRole("button", { name: /Remediation ID.*click to copy/i });
+    expect(copyButton).toBeInTheDocument();
   });
 
   it("UT-CONSOLE-CTX-009: SI-4 — displays phase status with colored indicator dot", () => {

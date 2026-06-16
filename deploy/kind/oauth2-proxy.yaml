@@ -28,9 +28,24 @@ data:
       root /usr/share/nginx/html;
       index index.html;
 
-      # Reverse proxy A2A API requests to the API Frontend service.
-      # The OAuth2 Proxy has already injected the Authorization header.
+      add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self'; font-src 'self' https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-Frame-Options "DENY" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+      add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+      limit_req_zone $binary_remote_addr zone=api:10m rate=30r/s;
+      limit_req_zone $binary_remote_addr zone=mcp:10m rate=10r/s;
+
+      location = /healthz {
+        access_log off;
+        return 200 "ok";
+        add_header Content-Type text/plain;
+      }
+
       location /a2a/ {
+        limit_req zone=api burst=50 nodelay;
         proxy_pass http://apifrontend-service.kubernaut-system.svc:8443;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -38,15 +53,20 @@ data:
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_buffering off;
         proxy_cache off;
-        proxy_read_timeout 300s;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        send_timeout 3600s;
+        keepalive_timeout 3600s;
       }
 
       location = /mcp {
+        limit_req zone=mcp burst=20 nodelay;
         proxy_pass http://apifrontend-service.kubernaut-system.svc:8443;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Authorization "Bearer $http_x_forwarded_access_token";
         proxy_read_timeout 30s;
       }
 
@@ -55,8 +75,8 @@ data:
         proxy_http_version 1.1;
       }
 
-      # Serve Console SPA static files; fallback to index.html for client-side routing
       location / {
+        add_header Cache-Control "no-cache, must-revalidate";
         try_files $uri $uri/ /index.html;
       }
     }

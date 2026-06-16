@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { WorkflowOption, AlignmentVerdict } from "../hooks/useChat";
+import type { WorkflowOption, AlignmentVerdict, TargetDivergence } from "../hooks/useChat";
 
 interface Props {
   options: WorkflowOption[];
@@ -8,17 +8,19 @@ interface Props {
   onEscalate?: (reason: string) => void;
   recoverySignal?: "problem_resolved" | "alignment_check_failed" | null;
   alignmentVerdict?: AlignmentVerdict;
+  targetDivergence?: TargetDivergence;
 }
 
 const COUNTDOWN_SECONDS = 10;
 
-export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recoverySignal, alignmentVerdict }: Props) {
+export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recoverySignal, alignmentVerdict, targetDivergence }: Props) {
   const recommended = options.find((o) => o.recommended);
   const ruledOut = options.filter((o) => !o.recommended);
 
   const [countdown, setCountdown] = useState<number | null>(null);
   const [executed, setExecuted] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [ruledOutCountdown, setRuledOutCountdown] = useState<number | null>(null);
   const onExecuteRef = useRef(onExecute);
   useEffect(() => { onExecuteRef.current = onExecute; });
 
@@ -38,6 +40,23 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
     return () => clearInterval(id);
   }, [countdown, recommended]);
 
+  useEffect(() => {
+    if (ruledOutCountdown === null || ruledOutCountdown <= 0) return;
+    const id = setInterval(() => {
+      setRuledOutCountdown((c) => {
+        if (c === null) return null;
+        if (c <= 1) {
+          if (confirmingId) onExecuteRef.current?.(confirmingId);
+          setConfirmingId(null);
+          setExecuted(true);
+          return null;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [ruledOutCountdown, confirmingId]);
+
   const handleExecute = useCallback(() => {
     setCountdown(COUNTDOWN_SECONDS);
   }, []);
@@ -47,18 +66,15 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
   }, []);
 
   const handleRuledOutClick = useCallback((workflowId: string) => {
-    setConfirmingId(workflowId);
+    setConfirmingId((prev) => prev === workflowId ? null : workflowId);
   }, []);
 
   const handleConfirmRuledOut = useCallback(() => {
-    if (confirmingId) {
-      onExecuteRef.current?.(confirmingId);
-      setConfirmingId(null);
-      setExecuted(true);
-    }
-  }, [confirmingId]);
+    setRuledOutCountdown(COUNTDOWN_SECONDS);
+  }, []);
 
   const handleCancelRuledOut = useCallback(() => {
+    setRuledOutCountdown(null);
     setConfirmingId(null);
   }, []);
 
@@ -129,6 +145,36 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
       {recoverySignal === "alignment_check_failed" && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700" role="status">
           Security concern detected during investigation. Manual review recommended.
+        </div>
+      )}
+
+      {/* Target divergence: informative note when workflows exist */}
+      {targetDivergence && options.length > 0 && (
+        <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-700" role="status" aria-label="Target divergence note">
+          <span className="font-medium">Targeting root cause:</span>{" "}
+          {targetDivergence.discoveryTarget.kind}/{targetDivergence.discoveryTarget.name}
+          <span className="text-blue-500 ml-1">(differs from alert target: {targetDivergence.signalTarget.kind}/{targetDivergence.signalTarget.name})</span>
+        </div>
+      )}
+
+      {/* Target divergence: amber warning when no workflows found */}
+      {targetDivergence && options.length === 0 && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-3 text-xs space-y-1.5" role="status" aria-label="Target divergence explanation">
+          <p className="font-semibold text-amber-800">No remediation workflows found</p>
+          <div className="text-amber-700 space-y-0.5">
+            <p>
+              <span className="font-medium">Root cause target:</span>{" "}
+              {targetDivergence.discoveryTarget.kind}/{targetDivergence.discoveryTarget.name}
+            </p>
+            <p>
+              <span className="font-medium">Original alert target:</span>{" "}
+              {targetDivergence.signalTarget.kind}/{targetDivergence.signalTarget.name}
+            </p>
+          </div>
+          <p className="text-amber-600 leading-relaxed">
+            The agent traced the root cause to a different resource than the alerting target.
+            No workflows in the catalog match the root cause resource type.
+          </p>
         </div>
       )}
 
@@ -225,65 +271,94 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
 
       {/* Ruled-out cards (clickable with confirmation) */}
       {ruledOut.map((opt) => (
-        <div key={opt.workflowId}>
-          <button
-            type="button"
-            data-testid={`workflow-card-${opt.workflowId}`}
-            className={`rounded-xl border bg-white px-4 py-2.5 flex items-center gap-2 w-full text-left cursor-pointer transition-colors ${
-              confirmingId === opt.workflowId ? "border-amber-400 bg-amber-50" : "border-border hover:border-gray-300 hover:bg-gray-50"
-            }`}
-            onClick={() => handleRuledOutClick(opt.workflowId)}
-            aria-expanded={confirmingId === opt.workflowId}
-            aria-label={`${opt.name} — ruled out${opt.ruledOutReason ? `: ${opt.ruledOutReason}` : ""}`}
-          >
+        <div
+          key={opt.workflowId}
+          data-testid={`workflow-card-${opt.workflowId}`}
+          role="button"
+          tabIndex={0}
+          className={`rounded-xl border px-4 py-2.5 w-full cursor-pointer transition-colors ${
+            confirmingId === opt.workflowId ? "border-amber-400 bg-amber-50" : "border-border bg-white hover:border-gray-300 hover:bg-gray-50"
+          }`}
+          onClick={() => handleRuledOutClick(opt.workflowId)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleRuledOutClick(opt.workflowId); }}
+          aria-expanded={confirmingId === opt.workflowId}
+          aria-label={`${opt.name} — ruled out${opt.ruledOutReason ? `: ${opt.ruledOutReason}` : ""}`}
+        >
+          <div className="flex items-center gap-2">
             <span
               data-testid="ruled-out-icon"
-              className="flex h-4 w-4 items-center justify-center rounded-full bg-kubernaut-red-600"
+              className="flex h-4 w-4 items-center justify-center rounded-full bg-kubernaut-red-600 shrink-0"
               aria-hidden="true"
             >
               <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path d="M3 6h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
             </span>
-            <span className="text-xs font-bold text-text-primary">{opt.name}</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-kubernaut-red-50 text-kubernaut-red-600">
+            <span className="text-xs font-bold text-text-primary truncate">{opt.name}</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-kubernaut-red-50 text-kubernaut-red-600 whitespace-nowrap shrink-0">
               Ruled out
             </span>
-            {opt.ruledOutReason && (
-              <span className="text-[11px] text-text-dim">{opt.ruledOutReason}</span>
-            )}
             <span
-              className="ml-auto text-[10px] font-mono text-text-dim shrink-0"
-              title={opt.workflowId}
+              className="ml-auto text-[10px] font-mono text-text-dim shrink-0 cursor-pointer hover:text-text-secondary"
+              title={`Click to copy: ${opt.workflowId}`}
+              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(opt.workflowId); }}
+              role="button"
+              aria-label={`Copy workflow ID ${opt.workflowId}`}
             >
               ID: {opt.workflowId.slice(0, 8)}
             </span>
-          </button>
+          </div>
+          {opt.description && (
+            <p className="text-xs text-text-secondary mt-1 ml-6 leading-relaxed">{opt.description}</p>
+          )}
 
-          {/* Confirmation dialog */}
+          {/* Confirmation inline (inside the card) */}
           {confirmingId === opt.workflowId && (
-            <div className="mt-1 ml-6 p-3 rounded-lg border border-amber-300 bg-amber-50 text-xs">
-              <p className="text-amber-800 font-medium mb-2">
-                This workflow was ruled out: {opt.ruledOutReason || "No reason provided"}
+            <div className="mt-2 pt-2 border-t border-amber-300 text-xs" onClick={(e) => e.stopPropagation()}>
+              <p className="text-amber-800 font-medium mb-1">
+                {opt.ruledOutReason || "Not recommended by the Agent for this scenario"}
               </p>
               <p className="text-amber-700 mb-3">Are you sure you want to proceed?</p>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleConfirmRuledOut}
-                  className="px-3 py-1.5 rounded-md bg-amber-600 text-white text-[11px] font-semibold hover:bg-amber-700 transition-colors"
-                  aria-label="Proceed anyway"
-                >
-                  Proceed anyway
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancelRuledOut}
-                  className="px-3 py-1.5 rounded-md border border-gray-300 text-text-secondary text-[11px] font-medium hover:bg-gray-50 transition-colors"
-                  aria-label="Go back"
-                >
-                  Go back
-                </button>
+                {ruledOutCountdown === null ? (
+                  <button
+                    type="button"
+                    onClick={handleConfirmRuledOut}
+                    className="flex-1 py-2 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors"
+                    aria-label="Proceed anyway"
+                  >
+                    Proceed anyway
+                  </button>
+                ) : (
+                  <>
+                    <div className="flex-1 relative">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRuledOutCountdown(null);
+                          setExecuted(true);
+                          if (confirmingId) onExecuteRef.current?.(confirmingId);
+                          setConfirmingId(null);
+                        }}
+                        className="w-full py-2 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors cursor-pointer"
+                        aria-label={`Proceed now (${ruledOutCountdown}s remaining)`}
+                      >
+                        Proceeding in {ruledOutCountdown}s...
+                      </button>
+                      <div className="absolute bottom-0 left-0 h-1 rounded-b-lg bg-black/10 w-full">
+                        <div className="h-full rounded-b-lg bg-white/50 countdown-bar" />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCancelRuledOut}
+                      className="flex-1 py-2 rounded-lg border border-border bg-white text-text-muted text-xs font-medium hover:bg-gray-50 transition-colors"
+                      aria-label="Cancel"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -349,8 +424,9 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
                 setEscalateReason("");
               }
             }}
-            placeholder="Escalation reason..."
-            className="flex-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-text-primary placeholder:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            placeholder="Why is this being escalated?"
+            className="focus-self-managed flex-1 rounded-lg border-2 border-rose-500 bg-rose-50 px-3 py-2 text-xs text-text-primary placeholder:text-rose-400 focus:outline-none focus:ring-0 focus:border-rose-600 shadow-none"
+            style={{ outline: "none", boxShadow: "none" }}
             aria-label="Escalation reason"
           />
           <button
@@ -363,7 +439,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
               }
             }}
             disabled={!escalateReason.trim()}
-            className="px-3 py-2 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors shrink-0"
+            className="px-3 py-2 rounded-lg bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-40 transition-colors shrink-0"
             aria-label="Submit escalation"
           >
             Send

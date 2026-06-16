@@ -10,13 +10,13 @@ import { WelcomeState } from "./WelcomeState";
 import { Modal } from "./Modal";
 
 export function ChatContainer() {
-  const { messages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime } = useChat();
-  const currentPhase = messages.findLast(m => m.role === "agent" && m.phase)?.phase;
+  const { messages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase } = useChat();
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
   const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName ?? lastRca?.signalName;
   const namespace = messages.findLast(m => m.role === "agent" && m.namespace)?.namespace ?? lastRca?.namespace;
   const resource = messages.findLast(m => m.role === "agent" && m.resource)?.resource ?? lastRca?.target;
+  console.debug("[ChatContainer] banner values:", { rrId, alertName, namespace, resource, currentPhase });
   const recoverySignal = messages.findLast(m => m.role === "agent" && m.recoverySignal)?.recoverySignal ?? null;
   const user = useUser();
   const [input, setInput] = useState("");
@@ -48,13 +48,23 @@ export function ChatContainer() {
   );
 
   const handleExecuteWorkflow = useCallback(
-    (workflowId: string) => {
-      if (!isStreaming) {
-        sendMessage(`Use ${workflowId}`, { silent: true });
-        emitAuditEvent({ action: "execute_workflow", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { workflowId } });
+    async (workflowId: string) => {
+      if (!rrId) {
+        setError("Cannot select workflow: no active remediation request found.");
+        return;
       }
+      const res = await callMcpTool("kubernaut_select_workflow", {
+        rr_id: rrId,
+        workflow_id: workflowId,
+      });
+      if (res.error) {
+        setError(res.error.message);
+        return;
+      }
+      sendMessage(`Workflow ${workflowId} selected for execution.`, { silent: true });
+      emitAuditEvent({ action: "execute_workflow", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { workflowId } });
     },
-    [isStreaming, sendMessage, user.name, user.email, rrId],
+    [rrId, sendMessage, setError, user.name, user.email],
   );
 
   const handleApprove = useCallback(
@@ -142,10 +152,14 @@ export function ChatContainer() {
     setClearConfirmOpen(false);
     clearHistory();
     setError(null);
-  }, [clearHistory, setError]);
+    emitAuditEvent({ action: "clear_history", timestamp: new Date().toISOString(), user: user.name || user.email, rrId });
+  }, [clearHistory, setError, user.name, user.email, rrId]);
 
   return (
     <div className="flex flex-col h-full bg-white rounded-none sm:rounded-2xl overflow-hidden border border-border shadow-sm">
+      <a href="#chat-input" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-1 focus:bg-kubernaut-teal-600 focus:text-white focus:rounded-md focus:text-xs">
+        Skip to chat input
+      </a>
       {/* Header */}
       <header className="bg-kubernaut-teal-600 px-4 sm:px-6 py-3 flex items-center gap-3 rounded-t-none sm:rounded-t-2xl">
         <img src="/logo.svg" alt="Kubernaut" className="h-7 w-7 rounded-md" />
@@ -243,6 +257,7 @@ export function ChatContainer() {
 
       {/* Input Bar */}
       <form
+        id="chat-input"
         onSubmit={handleSubmit}
         className="px-4 sm:px-5 py-3"
         aria-label="Message input"
