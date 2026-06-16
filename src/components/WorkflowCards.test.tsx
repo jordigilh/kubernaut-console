@@ -272,4 +272,36 @@ describe("WorkflowCards", () => {
       expect(screen.getByText(/Second suspicious step/)).toBeInTheDocument();
     });
   });
+
+  describe("Target Divergence (#1437)", () => {
+    const divergence = {
+      discoveryTarget: { apiVersion: "v1", kind: "ConfigMap", name: "worker-config", namespace: "demo-storefront" },
+      signalTarget: { apiVersion: "apps/v1", kind: "Deployment", name: "worker", namespace: "demo-storefront" },
+    };
+
+    it("UT-CONSOLE-WF-032: renders target divergence explanation when no workflows and targets differ", () => {
+      render(<WorkflowCards options={[]} targetDivergence={divergence} onDismiss={vi.fn()} onEscalate={vi.fn()} />);
+      expect(screen.getByText("No remediation workflows found")).toBeInTheDocument();
+      expect(screen.getByText(/ConfigMap\/worker-config/)).toBeInTheDocument();
+      expect(screen.getByText(/Deployment\/worker/)).toBeInTheDocument();
+      expect(screen.getByText(/root cause to a different resource/)).toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-WF-033: does NOT render divergence when workflows exist", () => {
+      const opts = [{ workflowId: "wf-1", name: "Rollback", description: "desc", recommended: true }];
+      render(<WorkflowCards options={opts} targetDivergence={divergence} onExecute={vi.fn()} />);
+      expect(screen.queryByText("No remediation workflows found")).not.toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-WF-034: does NOT render divergence when targetDivergence is undefined", () => {
+      render(<WorkflowCards options={[]} onDismiss={vi.fn()} onEscalate={vi.fn()} />);
+      expect(screen.queryByText("No remediation workflows found")).not.toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-WF-035: escape hatch buttons remain visible alongside divergence", () => {
+      render(<WorkflowCards options={[]} targetDivergence={divergence} onDismiss={vi.fn()} onEscalate={vi.fn()} />);
+      expect(screen.getByRole("button", { name: /no action needed/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /escalate to team/i })).toBeInTheDocument();
+    });
+  });
 });

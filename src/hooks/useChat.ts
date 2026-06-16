@@ -92,6 +92,11 @@ export interface VerificationStep {
   updatedAt: number;
 }
 
+export interface TargetDivergence {
+  discoveryTarget: { apiVersion: string; kind: string; name: string; namespace?: string };
+  signalTarget: { apiVersion: string; kind: string; name: string; namespace?: string };
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "agent";
@@ -114,6 +119,7 @@ export interface ChatMessage {
   resource?: string;
   recoverySignal?: "problem_resolved" | "alignment_check_failed";
   alignmentVerdict?: AlignmentVerdict;
+  targetDivergence?: TargetDivergence;
 }
 
 export type ConnectionStatus = "idle" | "connected" | "reconnecting" | "lost";
@@ -344,6 +350,18 @@ export function useChat() {
               ruledOutReason: o.ruled_out_reason,
               parameters: o.parameters,
             }));
+          }
+
+          if (payload.discovery_target && payload.signal_target) {
+            const dt = payload.discovery_target;
+            const st = payload.signal_target;
+            const targetsMatch = dt.kind === st.kind && dt.name === st.name && dt.api_version === st.api_version;
+            if (!targetsMatch) {
+              updates.targetDivergence = {
+                discoveryTarget: { apiVersion: dt.api_version, kind: dt.kind, name: dt.name, namespace: dt.namespace },
+                signalTarget: { apiVersion: st.api_version, kind: st.kind, name: st.name, namespace: st.namespace },
+              };
+            }
           }
 
           updates.text = "";

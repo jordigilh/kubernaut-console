@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { WorkflowOption, AlignmentVerdict } from "../hooks/useChat";
+import type { WorkflowOption, AlignmentVerdict, TargetDivergence } from "../hooks/useChat";
 
 interface Props {
   options: WorkflowOption[];
@@ -8,11 +8,12 @@ interface Props {
   onEscalate?: (reason: string) => void;
   recoverySignal?: "problem_resolved" | "alignment_check_failed" | null;
   alignmentVerdict?: AlignmentVerdict;
+  targetDivergence?: TargetDivergence;
 }
 
 const COUNTDOWN_SECONDS = 10;
 
-export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recoverySignal, alignmentVerdict }: Props) {
+export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recoverySignal, alignmentVerdict, targetDivergence }: Props) {
   const recommended = options.find((o) => o.recommended);
   const ruledOut = options.filter((o) => !o.recommended);
 
@@ -144,6 +145,27 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
       {recoverySignal === "alignment_check_failed" && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700" role="status">
           Security concern detected during investigation. Manual review recommended.
+        </div>
+      )}
+
+      {/* Target divergence explanation when no workflows and targets differ */}
+      {targetDivergence && options.length === 0 && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-3 text-xs space-y-1.5" role="status" aria-label="Target divergence explanation">
+          <p className="font-semibold text-amber-800">No remediation workflows found</p>
+          <div className="text-amber-700 space-y-0.5">
+            <p>
+              <span className="font-medium">Root cause target:</span>{" "}
+              {targetDivergence.discoveryTarget.kind}/{targetDivergence.discoveryTarget.name}
+            </p>
+            <p>
+              <span className="font-medium">Original alert target:</span>{" "}
+              {targetDivergence.signalTarget.kind}/{targetDivergence.signalTarget.name}
+            </p>
+          </div>
+          <p className="text-amber-600 leading-relaxed">
+            The agent traced the root cause to a different resource than the alerting target.
+            No workflows in the catalog match the root cause resource type.
+          </p>
         </div>
       )}
 
