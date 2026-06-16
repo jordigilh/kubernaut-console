@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Verification activity log with live step events (#1427)
 - MCP-direct workflow selection (bypasses A2A for deterministic actions)
 - Verification step types and event handling in useChat
+- Integration tests for RR context extraction (IT-CONSOLE-STATUS-META-001–004)
+- Skip-nav link for keyboard accessibility
+- ARIA labels on WelcomeState suggestion chips
+- VerificationTimer accepts server-provided `startedAt` timestamp
+- Comprehensive documentation: architecture, deployment, integration guide, development guide
+
+### Changed
+- VerificationTimer uses server timestamps instead of component mount time
+
+### Removed
+- `ExecutionStep` interface and `executionSteps`/`executionComplete` fields (replaced by phase-based banner)
 
 ### Fixed
 - MCP session initialization: send notifications/initialized without JSON-RPC id field

@@ -1,203 +1,249 @@
 # Development Guide
 
-## Quick Start
+This document covers local development setup, mock mode, testing strategy, and contribution workflow.
+
+## Prerequisites
+
+- Node.js 22+ (LTS)
+- npm 10+
+- Git
+- (Optional) kubectl + Kind cluster for integration testing
+
+## Local Setup
 
 ```bash
+# Clone the repository
 git clone https://github.com/jordigilh/kubernaut-demo-console.git
 cd kubernaut-demo-console
-npm ci
+
+# Install dependencies
+npm install
+
+# Install pre-commit hooks (sensitive data detection)
 ./scripts/setup-githooks.sh
+
+# Start development server
 npm run dev
 ```
 
-The dev server starts at `http://localhost:5173` with hot reload.
+The dev server starts at `http://localhost:5173` with hot module replacement.
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and adjust:
+Copy `.env.example` to `.env` and configure:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VITE_API_BASE_URL` | `http://localhost:8443` | Backend API Frontend URL (used by Vite proxy) |
-| `VITE_MOCK_A2A` | `false` | Enable mock mode (no backend needed) |
+| `VITE_API_UPSTREAM` | `http://localhost:8443` | API Frontend URL for dev proxy |
+| `VITE_MOCK_A2A` | `false` | Enable mock A2A mode |
 
 ## Development Modes
 
-### Mock Mode (Frontend Only)
+### Connected Mode (default)
+
+Requires a running API Frontend. Port-forward from a Kind cluster:
+
+```bash
+kubectl port-forward -n kubernaut-system svc/apifrontend-service 8443:8443
+```
+
+Then `npm run dev` — the Vite proxy routes `/a2a/`, `/mcp`, and `/.well-known/` to `localhost:8443`.
+
+### Mock Mode
+
+For frontend-only development without a backend:
 
 ```bash
 VITE_MOCK_A2A=true npm run dev
 ```
 
-Uses canned responses for A2A streaming. Useful for UI development without a running backend.
+This uses `src/lib/a2a-mock.ts` which simulates:
+- SSE streaming with realistic delays
+- Investigation summary artifacts
+- Execution progress steps
+- Phase transitions
 
-### Full Stack (With Backend)
+Mock mode is useful for UI development, styling, and component testing.
 
-```bash
-# Terminal 1: port-forward to apifrontend
-kubectl port-forward -n kubernaut-system svc/apifrontend 8443:8443
+## Available Scripts
 
-# Terminal 2: run dev server
-npm run dev
-```
-
-The Vite dev proxy forwards `/a2a`, `/mcp`, and `/.well-known` to the backend.
-
-## Available Commands
-
-### npm Scripts
-
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start Vite dev server with HMR |
-| `npm run build` | TypeScript check + production build |
-| `npm run lint` | Run ESLint |
-| `npm test` | Run Vitest (single run) |
-| `npm run test:watch` | Run Vitest in watch mode |
-| `npm run preview` | Serve production build locally |
-
-### Makefile Targets
-
-| Target | Description |
-|--------|-------------|
-| `make dev` | Alias for `npm run dev` |
-| `make build` | Alias for `npm run build` |
-| `make docker-build` | Build Docker image locally |
-| `make kind-load` | Build + load image into Kind cluster |
-| `make deploy` | Apply Kind manifests and wait for rollout |
-| `make copy-dist` | Hot-copy built assets to running pod |
-| `make clean` | Remove dist/ and node_modules/ |
-
-## Project Structure
-
-```
-├── src/
-│   ├── components/       # React components
-│   │   ├── AgentBubble.tsx
-│   │   ├── ApprovalCard.tsx
-│   │   ├── ChatContainer.tsx
-│   │   ├── InvestigationContext.tsx
-│   │   ├── RCACard.tsx
-│   │   ├── VerificationTimer.tsx
-│   │   ├── WorkflowCards.tsx
-│   │   └── *.test.tsx    # Co-located tests
-│   ├── hooks/
-│   │   ├── useChat.ts    # Chat state, SSE processing, message management
-│   │   └── useUser.ts    # User identity from OIDC headers
-│   ├── lib/
-│   │   ├── a2a-client.ts # SSE streaming client for A2A protocol
-│   │   ├── a2a-types.ts  # TypeScript types for A2A events
-│   │   ├── mcp-client.ts # MCP JSON-RPC client (session management)
-│   │   ├── audit.ts      # Session audit event emitter
-│   │   └── schemas/      # Data validation schemas
-│   ├── index.css         # Tailwind + custom theme
-│   └── main.tsx          # App entry point
-├── chart/                # Helm chart
-├── deploy/               # Raw Kubernetes manifests (Kind)
-├── scripts/              # Setup and demo scripts
-├── docs/                 # Documentation
-└── .github/workflows/    # CI/CD pipelines
-```
+| Script | Command | Description |
+|--------|---------|-------------|
+| `dev` | `npm run dev` | Start Vite dev server with HMR |
+| `build` | `npm run build` | TypeScript check + production build |
+| `preview` | `npm run preview` | Preview production build locally |
+| `test` | `npm test` | Run all tests (Vitest) |
+| `test:watch` | `npm run test:watch` | Run tests in watch mode |
+| `lint` | `npm run lint` | ESLint check |
 
 ## Testing
 
 ### Framework
 
-- **Vitest** — Test runner (fast, Vite-native)
-- **Testing Library** — React component testing
-- **jsdom** — Browser environment simulation
+- **Vitest** — Test runner (Jest-compatible API)
+- **Testing Library** — Component rendering and user interaction
+- **jsdom** — DOM environment for unit tests
 
-### Writing Tests
-
-Tests are co-located with source files:
+### Test Structure
 
 ```
-src/components/RCACard.tsx
-src/components/RCACard.test.tsx
+src/
+  components/
+    ChatContainer.integration.test.tsx  (IT tests)
+    WorkflowCards.test.tsx              (UT tests)
+    ApprovalCard.test.tsx               (UT tests)
+    ...
+  hooks/
+    useChat.test.ts                     (UT tests)
+    useChat.integration.test.ts         (IT tests)
+  lib/
+    a2a-client.test.ts                  (UT tests)
+    mcp-client.test.ts                  (UT tests)
+    audit.test.ts                       (UT tests)
 ```
 
-Test ID convention: `UT-CONSOLE-<AREA>-<NUMBER>`
+### Test ID Convention
 
-```typescript
-it("UT-CONSOLE-MCP-001: sends initialize then tools/call on first invocation", async () => {
-  // ...
-});
-```
+Tests are identified by scenario IDs:
 
-### Running Specific Tests
+| Pattern | Meaning |
+|---------|---------|
+| `UT-CONSOLE-*` | Unit test — tests isolated logic |
+| `IT-CONSOLE-*` | Integration test — tests component wiring and data flow |
+
+Examples:
+- `UT-CONSOLE-CHAT-016` — Unit test for phase parsing in useChat
+- `IT-CONSOLE-STATUS-META-001` — Integration test for metadata extraction
+- `IT-CONSOLE-JOURNEY-001` — End-to-end journey test
+
+### Running Tests
 
 ```bash
-# Single file
-npx vitest run src/components/VerificationTimer.test.tsx
+# Run all tests
+npm test
 
-# Pattern match
-npx vitest run --reporter=verbose mcp
-```
+# Run specific test file
+npx vitest run src/hooks/useChat.test.ts
 
-### Coverage
+# Run tests matching a pattern
+npx vitest run --reporter=verbose -t "UT-CONSOLE-CHAT"
 
-```bash
+# Watch mode (re-runs on file changes)
+npm run test:watch
+
+# Run with coverage (not configured in CI yet)
 npx vitest run --coverage
 ```
 
-## CI/CD Pipeline
+### Test Coverage Areas
 
-### PR Checks (`.github/workflows/ci.yaml`)
+| Area | Coverage | Tests |
+|------|----------|-------|
+| A2A streaming client | Retry, abort, SSE parsing | `a2a-client.test.ts` |
+| Chat state machine | Phase transitions, metadata, artifacts | `useChat.test.ts` |
+| Status metadata extraction | RR context, phase mapping | `useChat.integration.test.ts` |
+| Approval flow | MCP calls, card state | `ApprovalCard.test.tsx` |
+| Workflow cards | Escalation, dismiss, display | `WorkflowCards.test.tsx` |
+| Markdown rendering | XSS prevention, GFM | `MarkdownContent.test.tsx` |
+| Audit events | Payload shape, delivery | `audit.test.ts` |
+| MCP client | JSON-RPC, error handling | `mcp-client.test.ts` |
 
-```mermaid
-graph LR
-    PR[Pull Request] --> Lint
-    PR --> Test
-    PR --> Build
-    PR --> Security["Security Scan"]
-    PR --> HelmLint["Helm Lint"]
+### Mock Strategy
+
+- **Mock**: External APIs (A2A streaming, MCP endpoint, `fetch`, `sendBeacon`)
+- **Real**: All React components, hooks, state management, DOM interactions
+- **Polyfill**: `HTMLDialogElement.showModal()` (not available in jsdom)
+
+## Code Style
+
+### TypeScript
+
+- Strict mode enabled
+- No `any` unless absolutely necessary
+- Explicit return types on exported functions
+- Interfaces over type aliases for object shapes
+
+### React
+
+- Functional components only
+- Hooks for all state and side effects
+- `useCallback` for event handlers passed as props
+- `useRef` for mutable values that don't trigger re-renders
+
+### CSS / Tailwind
+
+- Tailwind CSS v4 (no `tailwind.config.js` — uses CSS-native config)
+- Design tokens defined in `src/index.css`
+- No inline styles unless overriding browser defaults
+- Component-scoped styling via className props
+
+### ESLint
+
+ESLint with:
+- `eslint-plugin-react-hooks` (Rules of Hooks, purity checks)
+- `eslint-plugin-react-refresh` (HMR compatibility)
+- `typescript-eslint` (type-aware linting)
+
+The React compiler lint rules enforce:
+- No impure function calls during render (`Date.now()`, `Math.random()`)
+- No ref access during render (only in effects/handlers)
+- Stable hook dependencies
+
+## Build and Deployment
+
+### Local Build
+
+```bash
+npm run build
 ```
 
-All jobs must pass before merge.
+Outputs to `dist/` — a static SPA ready to serve via any HTTP server.
 
-### Push to Branch (Image Build)
+### Container Build
 
-On push to `main`, `feat/**`, `fix/**`, `chore/**`:
-- Builds Docker image (linux/amd64)
-- Pushes to `ghcr.io/jordigilh/kubernaut-demo-console:<sha>`
-- Tags with branch name
-
-### Release (Tag Push)
-
-On tag `v*`:
-- Runs full test suite
-- Builds and pushes to container registry
-- Packages Helm chart
-
-## Git Hooks
-
-The pre-commit hook (`scripts/setup-githooks.sh`) scans staged files for:
-- AWS keys, private keys, tokens
-- `.env` files with real values
-- Hardcoded passwords or secrets
-
-Files can be exempted with `# pre-commit:allow-sensitive` comments for legitimate uses (e.g., storage key names).
-
-## Debugging Tips
-
-### SSE Event Inspection
-
-The console logs status-update metadata to browser DevTools:
-```
-[useChat] status-update metadata: {"type":"verification_step","step":"alert_check",...}
+```bash
+docker build -t kubernaut-console:dev .
 ```
 
-### MCP Call Debugging
+Multi-stage build:
+1. `ubi9/nodejs-22` — `npm ci && npm run build`
+2. `ubi9/nginx-126` — serves `dist/` with `deploy/nginx.conf`
 
-Network tab → filter by `/mcp` to see the JSON-RPC request/response cycle:
-1. `initialize` (with id)
-2. `notifications/initialized` (no id — notification)
-3. `tools/call` (the actual tool invocation)
+### CI Pipeline
 
-### Mock Mode Limitations
+The CI workflow (`.github/workflows/ci.yaml`) runs on every PR:
 
-Mock mode does not simulate:
-- OAuth2 authentication
-- Real SSE streaming delays
-- MCP tool responses
-- Phase transitions from backend state
+| Job | Steps |
+|-----|-------|
+| `lint` | ESLint |
+| `test` | Vitest (all 221 tests) |
+| `security` | npm audit + Trivy scan |
+| `build` | TypeScript + Vite build |
+| `helm-lint` | Helm lint on chart/ |
+
+### Release Pipeline
+
+Tags matching `v*` trigger `.github/workflows/release.yaml`:
+1. Run tests
+2. Build multi-arch container image
+3. Push to `quay.io/kubernaut-ai/demo-console:<version>`
+4. Package Helm chart
+
+## Pre-commit Hooks
+
+The repository includes a pre-commit hook that detects sensitive data:
+
+```bash
+# Install hooks
+./scripts/setup-githooks.sh
+```
+
+Detects: API keys, tokens, passwords, private keys, and other secrets in staged files.
+
+## Architecture Decisions
+
+See [docs/adr/](adr/) for documented architecture decisions including:
+- ADR-001: OAuth2 Proxy sidecar pattern
+- ADR-002: A2A over SSE (vs WebSocket)
+- ADR-003: Phase-based status banner (vs step indicators)
+- ADR-004: Static SPA with reverse proxy (vs server-rendered)

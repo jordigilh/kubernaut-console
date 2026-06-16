@@ -1,4 +1,4 @@
-# ADR-001: OAuth2 Proxy Sidecar for Authentication
+# ADR-001: OAuth2 Proxy Sidecar Pattern
 
 ## Status
 
@@ -6,20 +6,36 @@ Accepted
 
 ## Context
 
-The console needs OIDC authentication. Options considered:
+Kubernaut Console requires OIDC authentication to protect access to incident remediation capabilities. We need to decide where authentication logic lives.
 
-1. **Client-side OIDC** (PKCE flow in React) — simpler deployment but exposes tokens in browser, requires managing refresh logic in JS
-2. **OAuth2 Proxy as reverse proxy** — handles all auth server-side, browser only sees a session cookie
-3. **Envoy with ext_authz** — powerful but complex configuration
+### Options Considered
+
+1. **Client-side OIDC** — SPA handles token exchange, refresh, and storage
+2. **Backend-for-Frontend (BFF)** — Dedicated server handles auth and proxies requests
+3. **OAuth2 Proxy sidecar** — Dedicated container handles OIDC, injects tokens into proxied requests
 
 ## Decision
 
-Use **OAuth2 Proxy** as a sidecar container in the same pod. It runs on port 4180 (service-facing) and forwards authenticated requests to the Nginx container on port 8080 with the `X-Forwarded-Access-Token` header.
+Use **OAuth2 Proxy as a sidecar container** in the same pod as the nginx SPA server.
+
+## Rationale
+
+- **No client-side credentials**: Tokens are never exposed to JavaScript, eliminating XSS-based token theft
+- **Session cookies**: OAuth2 Proxy manages httpOnly/Secure cookies — the SPA is stateless
+- **Zero auth code in SPA**: No OIDC library, no token refresh logic, no redirect handling in React
+- **Provider-agnostic**: Works with Dex, Keycloak, Azure AD, Okta — any OIDC provider
+- **FedRAMP AC-2/AC-6 aligned**: Principle of least privilege — SPA has no direct access to tokens
+- **Kubernetes-native**: Sidecar pattern is well-understood in K8s deployments
+
+### Trade-offs
+
+- **Extra container**: Adds ~32Mi memory per pod
+- **Coupling**: Authentication is tied to deployment topology (can't run SPA standalone with auth)
+- **Session affinity**: Multi-replica deployments need shared session store or sticky sessions
 
 ## Consequences
 
-- **Positive**: No OIDC secrets in the browser; session cookie is httpOnly/secure; works with any OIDC provider; well-maintained OSS project
-- **Positive**: Token refresh handled transparently by oauth2-proxy
-- **Negative**: Extra container per pod (minimal resource cost: 25m CPU, 32Mi memory)
-- **Negative**: Nginx must explicitly forward `X-Forwarded-Access-Token` as `Authorization` header to backend
-- **Lesson learned**: When oauth2-proxy runs in reverse proxy mode (`--upstream`), it sets `X-Forwarded-Access-Token` (not `X-Auth-Request-Access-Token`). Nginx config must match.
+- User identity is extracted from `X-Auth-Request-*` headers (set by OAuth2 Proxy)
+- The `useUser` hook reads identity from these headers via a lightweight fetch
+- All API requests (`/a2a/`, `/mcp`) are authenticated by the proxy before reaching nginx
+- Local development uses Vite's built-in proxy (no auth) — mock mode doesn't need OAuth2 Proxy

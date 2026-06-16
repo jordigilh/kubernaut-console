@@ -1,156 +1,261 @@
 # Deployment Guide
 
-This guide covers deploying the Kubernaut Demo Console to Kubernetes environments.
+This document covers all deployment options for Kubernaut Console.
 
-## Prerequisites
+## Deployment Options
 
-- Kubernetes cluster (Kind for local, OpenShift for production)
-- Helm 3.x
-- kubectl configured for your cluster
-- OIDC provider (Keycloak) with a client configured for the console
-- Kubernaut API Frontend (apifrontend) deployed in the same cluster
+| Method | Use Case | Prerequisites |
+|--------|----------|---------------|
+| **Helm chart** | Production / OpenShift | Kubernetes cluster, OIDC provider |
+| **Kind manifests** | Local development / demos | Kind cluster, Kubernaut deployed |
+| **Vite dev server** | Frontend development | Node.js 22+, AF port-forwarded |
 
-## Architecture Overview
+---
 
-```mermaid
-graph LR
-    Browser --> OAuthProxy["OAuth2 Proxy :4180"]
-    OAuthProxy --> Nginx[":8080 static + proxy"]
-    Nginx -->|"/a2a/*"| AF["API Frontend :8443"]
-    Nginx -->|"/mcp"| AF
-    Nginx -->|"/*"| Static["React SPA"]
-```
+## Helm Chart (Production)
 
-The console pod contains two containers:
-1. **oauth2-proxy** — Handles OIDC authentication, sets `X-Forwarded-Access-Token`
-2. **console (nginx)** — Serves static React app and proxies API calls to apifrontend
+The Helm chart deploys a pod with two containers:
+1. **OAuth2 Proxy** — handles OIDC authentication (port 4180)
+2. **Nginx** — serves the SPA and proxies API requests (port 8080)
 
-## Helm Installation
+### Prerequisites
 
-### 1. Create OIDC Secret
+- Kubernetes 1.28+ or OpenShift 4.14+
+- Kubernaut API Frontend deployed in the cluster
+- OIDC provider (Keycloak, Dex, or compatible)
+- A Kubernetes Secret with OIDC credentials
+
+### Install
 
 ```bash
+# Create the OIDC secret
 kubectl create secret generic kubernaut-console-oidc \
+  --namespace kubernaut-system \
   --from-literal=client-id=kubernaut-console \
-  --from-literal=client-secret=<your-client-secret> \
-  --from-literal=cookie-secret=$(openssl rand -base64 32) \
-  -n kubernaut-system
-```
+  --from-literal=client-secret=<YOUR_CLIENT_SECRET> \
+  --from-literal=cookie-secret=$(openssl rand -base64 32)
 
-### 2. Install the Chart
-
-```bash
+# Install the chart
 helm install kubernaut-console ./chart \
   --namespace kubernaut-system \
-  --set auth.issuerUrl=https://keycloak.example.com/realms/your-realm \
-  --set apiFrontend.url=http://apifrontend.kubernaut-system.svc:8443
+  --set auth.issuerUrl=https://your-keycloak/realms/kubernaut \
+  --set auth.clientId=kubernaut-console \
+  --set apiFrontend.url=http://apifrontend-service.kubernaut-system.svc:8443
 ```
 
-### 3. Upgrade
+### Configuration
+
+Key values in `chart/values.yaml`:
+
+| Value | Default | Description |
+|-------|---------|-------------|
+| `image.repository` | `quay.io/kubernaut-ai/demo-console` | Container image |
+| `image.tag` | `0.5.5` | Image version |
+| `apiFrontend.url` | `http://apifrontend.kubernaut-system.svc:8443` | API Frontend service URL |
+| `auth.issuerUrl` | — | OIDC issuer URL |
+| `auth.clientId` | `kubernaut-console` | OIDC client ID |
+| `auth.existingSecret` | `kubernaut-console-oidc` | Secret name with OIDC creds |
+| `service.type` | `ClusterIP` | Service type |
+| `service.port` | `4180` | Service port |
+| `route.enabled` | `true` | Create OpenShift Route |
+| `route.host` | — | Route hostname (auto-derived if empty) |
+
+### Upgrade
 
 ```bash
 helm upgrade kubernaut-console ./chart \
   --namespace kubernaut-system \
-  --set image.tag=<commit-sha> \
-  --set image.digest="" \
-  --reuse-values \
-  --wait
+  --set image.tag=0.5.12
 ```
 
-## Configuration Reference
+### OpenShift Route
 
-### Helm Values
-
-| Key | Default | Description |
-|-----|---------|-------------|
-| `image.repository` | `ghcr.io/jordigilh/kubernaut-demo-console` | Container image registry |
-| `image.tag` | (chart default) | Image tag (short commit SHA) |
-| `image.digest` | (none) | SHA256 digest — overrides tag when set |
-| `image.pullPolicy` | `IfNotPresent` | Image pull policy |
-| `apiFrontend.url` | `http://apifrontend.kubernaut-system.svc:8443` | Backend API Frontend URL |
-| `auth.provider` | `oidc` | OAuth2 provider type |
-| `auth.issuerUrl` | (required) | OIDC issuer URL |
-| `auth.clientId` | `kubernaut-console` | OIDC client ID |
-| `auth.skipTlsVerify` | `false` | Skip TLS verification (dev only) |
-| `auth.existingSecret` | `kubernaut-console-oidc` | Secret containing OIDC credentials |
-| `service.type` | `ClusterIP` | Kubernetes Service type |
-| `service.port` | `4180` | Service port |
-| `route.enabled` | `true` | Create OpenShift Route |
-| `route.tls.termination` | `edge` | TLS termination mode |
-| `resources.oauth2Proxy` | 25m/32Mi req, 100m/128Mi lim | OAuth2 Proxy resources |
-| `resources.nginx` | 10m/16Mi req, 50m/64Mi lim | Nginx resources |
-
-### Environment-Specific Overrides
-
-**Development:**
-```yaml
-auth:
-  skipTlsVerify: true
-image:
-  tag: "latest"
-  pullPolicy: Always
-```
-
-**Production:**
-```yaml
-auth:
-  skipTlsVerify: false
-image:
-  digest: "sha256:..."
-  pullPolicy: IfNotPresent
-route:
-  host: console.kubernaut.example.com
-```
-
-## Local Development with Kind
+On OpenShift, the chart auto-detects the `route.openshift.io/v1` API and creates a TLS-terminated Route. Configure the hostname:
 
 ```bash
-# One-time setup
-make docker-build
-make kind-load
-
-# Deploy
-make deploy
-
-# Access
-kubectl port-forward -n kubernaut-system svc/kubernaut-console 4180:4180
-open http://localhost:4180
+helm install kubernaut-console ./chart \
+  --set route.host=console.apps.my-cluster.example.com
 ```
 
-Or use the demo setup script:
+---
+
+## Kind Demo Deployment
+
+For local demos using Kind (Kubernetes in Docker).
+
+### Prerequisites
+
+1. A running Kind cluster with Kubernaut deployed via [kubernaut-demo-scenarios](https://github.com/jordigilh/kubernaut-demo-scenarios)
+2. Dex and API Frontend running in the cluster
+3. Node.js 22+ for building the SPA
+
+### Deploy
+
 ```bash
-./scripts/demo-setup.sh
+# 1. Build the Console SPA
+npm ci && npm run build
+
+# 2. Apply Kind manifests
+kubectl apply -f deploy/kind/oauth2-proxy.yaml
+
+# 3. Copy static files into the running nginx container
+CONSOLE_POD=$(kubectl get pod -n kubernaut-system -l app.kubernetes.io/name=kubernaut-console -o jsonpath='{.items[0].metadata.name}')
+kubectl cp dist/. kubernaut-system/$CONSOLE_POD:/opt/app-root/src/ -c console-nginx
+
+# 4. Access the console
+open http://localhost:30418
+# Login: e2e-user@kubernaut.ai / password
 ```
+
+### Kind Manifest Structure
+
+| File | Purpose |
+|------|---------|
+| `deploy/kind/oauth2-proxy.yaml` | Full deployment: Secret, ConfigMap (nginx), Deployment, NodePort Service |
+| `deploy/kind/console-deployment.yaml` | Comments for `kubectl cp` workflow |
+| `deploy/kind/dex-client.yaml` | Dex redirect URI configuration |
+
+### Dex Configuration
+
+Ensure Dex has the console's redirect URI registered:
+
+```yaml
+staticClients:
+  - id: kubernaut-console
+    name: Kubernaut Console
+    secret: <client-secret>
+    redirectURIs:
+      - http://localhost:30418/oauth2/callback
+```
+
+---
 
 ## Nginx Configuration
 
-The console uses a split Nginx config baked into the container image:
+### Security Headers
 
-- `deploy/nginx-http.conf` — HTTP-level directives (rate limiting, gzip)
-- `deploy/nginx-server.conf` — Server-level directives (locations, proxy, headers)
+The production nginx config (`deploy/nginx.conf`) includes:
 
-Key proxy routes:
-- `/a2a/*` → `apiFrontend.url` (SSE streaming, 5min timeouts)
-- `/mcp` → `apiFrontend.url` (JSON-RPC, 30s timeout)
-- `/.well-known/*` → `apiFrontend.url` (agent card discovery)
-- `/*` → static files (React SPA with fallback to index.html)
+```nginx
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; ..." always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-Frame-Options "DENY" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+```
+
+### Rate Limiting
+
+| Zone | Rate | Burst | Endpoint |
+|------|------|-------|----------|
+| `api` | 30 req/s | 50 | `/a2a/` (SSE streaming) |
+| `mcp` | 10 req/s | 20 | `/mcp` (tool calls) |
+
+### Proxy Routes
+
+| Location | Target | Timeout | Notes |
+|----------|--------|---------|-------|
+| `/a2a/` | API Frontend | 3600s | SSE streaming, buffering disabled |
+| `/mcp` | API Frontend | 30s | JSON-RPC tool calls |
+| `/.well-known/` | API Frontend | default | Agent card discovery |
+| `/healthz` | local 200 | — | Liveness/readiness probe |
+| `/` | static files | — | SPA fallback to index.html |
+
+### SSE Streaming Configuration
+
+For long-lived SSE connections, the following timeouts are critical:
+
+```nginx
+proxy_buffering off;
+proxy_cache off;
+proxy_read_timeout 3600s;
+proxy_send_timeout 3600s;
+send_timeout 3600s;
+keepalive_timeout 3600s;
+```
+
+---
+
+## Container Image
+
+### Build
+
+```bash
+docker build -t kubernaut-console:latest .
+```
+
+The multi-stage Dockerfile uses:
+- **Build stage**: `registry.access.redhat.com/ubi9/nodejs-22` (npm ci + vite build)
+- **Runtime stage**: `registry.access.redhat.com/ubi9/nginx-126` (serves static files)
+
+### Registry
+
+Production images are published to:
+```
+quay.io/kubernaut-ai/demo-console:<tag>
+```
+
+Tags follow semver: `v0.5.12` → image tag `0.5.12`.
+
+### Security
+
+- Runs as non-root user (UBI9 default)
+- No shell or package manager in runtime image
+- `seccompProfile: RuntimeDefault` in pod security context
+
+---
+
+## Environment Variables
+
+### Build-time (Vite)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_API_UPSTREAM` | `http://localhost:8443` | Dev proxy target for AF |
+| `VITE_MOCK_A2A` | `false` | Enable mock A2A responses |
+
+### Runtime
+
+No runtime environment variables are needed — all routing is handled by the nginx configuration baked into the container image. The OAuth2 Proxy is configured via its command-line flags in the Helm chart / Kind manifest.
+
+---
+
+## Health Checks
+
+| Probe | Endpoint | Expected |
+|-------|----------|----------|
+| Liveness | `GET /healthz` | 200 "ok" |
+| Readiness | `GET /healthz` | 200 "ok" |
+
+Configure in your deployment:
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 3
+  periodSeconds: 5
+```
+
+---
 
 ## Troubleshooting
 
-### "Your session has expired"
-The OAuth2 Proxy passes the token via `X-Forwarded-Access-Token`. Ensure Nginx reads it:
-```nginx
-proxy_set_header Authorization "Bearer $http_x_forwarded_access_token";
-```
+### Common Issues
 
-### Pod stuck in CrashLoopBackOff
-Check the nginx container logs — common causes:
-- Missing `/tmp` writable directory
-- Port conflict (oauth2-proxy and nginx must use different ports)
-
-### Helm upgrade conflict
-If server-side apply conflicts occur:
-```bash
-helm upgrade kubernaut-console ./chart --reuse-values --wait
-```
-Avoid `--force` as it conflicts with server-side apply.
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| 502 on `/a2a/` | AF not reachable | Check AF service DNS and port |
+| 405 on `/mcp` | Missing nginx location | Ensure `/mcp` proxy block exists |
+| OIDC redirect loop | Incorrect redirect URI | Verify Dex/Keycloak client config |
+| Stale UI after deploy | Image pull policy `IfNotPresent` | Use `Always` or pin by digest |
+| SSE disconnects | Proxy timeout too low | Ensure 3600s timeouts on SSE route |
+| Rate limited (503) | Burst exceeded | Increase `burst` in nginx config |
