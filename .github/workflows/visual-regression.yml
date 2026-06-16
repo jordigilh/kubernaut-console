@@ -1,0 +1,37 @@
+name: Visual Regression
+on: [pull_request]
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.52.0-noble
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build Storybook
+        run: npx storybook build -o storybook-static
+
+      - name: Start Storybook server
+        run: npx http-server storybook-static -p 6006 -s &
+
+      - name: Wait for server
+        run: npx wait-on http://localhost:6006/iframe.html --timeout 30000
+
+      - name: Run visual regression tests
+        run: npx playwright test e2e/visual.spec.ts
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: visual-diffs
+          path: |
+            e2e/visual.spec.ts-snapshots/**/*-diff.png
+            e2e/visual.spec.ts-snapshots/**/*-actual.png
+          retention-days: 7
