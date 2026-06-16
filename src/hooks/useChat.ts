@@ -352,8 +352,8 @@ export function useChat() {
             }));
           }
 
-          if (payload.discovery_target && payload.signal_target) {
-            const dt = payload.discovery_target;
+          if (payload.searched_target && payload.signal_target) {
+            const dt = payload.searched_target;
             const st = payload.signal_target;
             const targetsMatch = dt.kind === st.kind && dt.name === st.name && dt.api_version === st.api_version;
             if (!targetsMatch) {

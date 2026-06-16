@@ -36,7 +36,7 @@ export interface InvestigationSummary {
   summary: string;
   rca: InvestigationSummaryRCA;
   options?: InvestigationSummaryOption[];
-  discovery_target?: ResourceTarget;
+  searched_target?: ResourceTarget;
   signal_target?: ResourceTarget;
 }
 
