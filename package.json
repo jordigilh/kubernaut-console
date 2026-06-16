@@ -12,6 +12,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@patternfly/chatbot": "^6.6.0",
+    "@patternfly/react-core": "^6.5.1",
+    "@patternfly/react-icons": "^6.5.1",
+    "@patternfly/react-styles": "^6.5.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",
