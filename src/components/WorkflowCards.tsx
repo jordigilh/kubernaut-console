@@ -280,15 +280,12 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
           {opt.description && (
             <p className="text-xs text-text-secondary mt-1 ml-6 leading-relaxed">{opt.description}</p>
           )}
-          {opt.ruledOutReason && (
-            <p className="text-[11px] text-text-dim mt-1 ml-6 leading-relaxed italic">{opt.ruledOutReason}</p>
-          )}
 
           {/* Confirmation inline (inside the card) */}
           {confirmingId === opt.workflowId && (
             <div className="mt-2 pt-2 border-t border-amber-300 text-xs" onClick={(e) => e.stopPropagation()}>
               <p className="text-amber-800 font-medium mb-1">
-                This workflow was ruled out: {opt.ruledOutReason || "No reason provided"}
+                {opt.ruledOutReason || "Not recommended by the Agent for this scenario"}
               </p>
               <p className="text-amber-700 mb-3">Are you sure you want to proceed?</p>
               <div className="flex gap-2">

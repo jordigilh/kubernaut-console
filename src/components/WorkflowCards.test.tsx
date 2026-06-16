@@ -47,11 +47,11 @@ describe("WorkflowCards", () => {
     expect(screen.getByText(/TARGET_RESOURCE_NAME=app-config/)).toBeInTheDocument();
   });
 
-  it("UT-CONSOLE-WF-004: renders ruled-out card in collapsed state with reason", () => {
+  it("UT-CONSOLE-WF-004: renders ruled-out card in collapsed state with description", () => {
     render(<WorkflowCards options={options} />);
     expect(screen.getByText("patch-configuration-v1")).toBeInTheDocument();
     expect(screen.getByText("Ruled out")).toBeInTheDocument();
-    expect(screen.getByText(/selfHeal:true will revert/)).toBeInTheDocument();
+    expect(screen.getByText("Patches ConfigMap directly in the cluster.")).toBeInTheDocument();
   });
 
   it("UT-CONSOLE-WF-005: ruled-out card is clickable (not disabled)", () => {
@@ -115,11 +115,11 @@ describe("WorkflowCards", () => {
 
   // --- Ruled-out selectable with confirmation (SI-10: prevents accidental execution) ---
 
-  it("UT-CONSOLE-WF-013: SI-10 — clicking ruled-out card shows confirmation with ruledOutReason", () => {
+  it("UT-CONSOLE-WF-013: SI-10 — clicking ruled-out card shows confirmation with reason", () => {
     render(<WorkflowCards options={options} onExecute={vi.fn()} />);
     const card = screen.getByTestId("workflow-card-patch-configuration-v1");
     fireEvent.click(card);
-    expect(screen.getByText(/This workflow was ruled out/)).toBeInTheDocument();
+    expect(screen.getByText(/selfHeal:true will revert/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /proceed anyway/i })).toBeInTheDocument();
   });
 
