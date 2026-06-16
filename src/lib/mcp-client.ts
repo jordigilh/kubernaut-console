@@ -72,6 +72,28 @@ async function sendMcpRequest(
   return { result: body.result };
 }
 
+async function sendMcpNotification(method: string): Promise<McpResult> {
+  let response: Response;
+  try {
+    response = await fetch("/mcp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method,
+      }),
+    });
+  } catch (err) {
+    return { error: { code: -1, message: (err as Error).message } };
+  }
+
+  if (!response.ok) {
+    return { error: { code: response.status, message: `HTTP ${response.status}: ${response.statusText}` } };
+  }
+
+  return { result: null };
+}
+
 async function ensureInitialized(): Promise<McpResult | null> {
   if (sessionInitialized) return null;
 
@@ -89,11 +111,15 @@ async function ensureInitialized(): Promise<McpResult | null> {
       return initResult;
     }
 
-    // Send notifications/initialized and await the HTTP response to ensure
-    // the server has transitioned out of initialization state before we
-    // send tools/call. Using sendMcpRequest (with id) because this server
-    // implementation requires it to complete the handshake.
-    await sendMcpRequest("notifications/initialized");
+    // Per MCP spec, notifications/initialized is a JSON-RPC notification
+    // (no id field). We await the HTTP response to ensure the server has
+    // received and processed it before sending tools/call.
+    const notifyResult = await sendMcpNotification("notifications/initialized");
+    if (notifyResult.error) {
+      initializingPromise = null;
+      return notifyResult;
+    }
+
     sessionInitialized = true;
     initializingPromise = null;
     return null;

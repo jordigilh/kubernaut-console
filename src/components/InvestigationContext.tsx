@@ -76,6 +76,13 @@ function Separator() {
 export function InvestigationContext({ alertName, namespace, resource, cluster, rrId, phase }: Props) {
   const phaseConfig = phase ? PHASE_CONFIG[phase] : { label: "Ready", dotClass: "bg-kubernaut-green-400" };
 
+  // Strip redundant namespace from resource if already shown in the namespace field
+  // e.g. "Deployment/worker (demo-storefront)" → "Deployment/worker" when namespace is "demo-storefront"
+  let displayResource = resource;
+  if (resource && namespace) {
+    displayResource = resource.replace(` (${namespace})`, "").replace(`(${namespace})`, "");
+  }
+
   return (
     <div
       data-testid="investigation-context"
@@ -104,9 +111,9 @@ export function InvestigationContext({ alertName, namespace, resource, cluster, 
         </>
       )}
 
-      {resource && (
+      {displayResource && (
         <>
-          <Field label="Resource" value={resource} />
+          <Field label="Resource" value={displayResource} />
           <Separator />
         </>
       )}
