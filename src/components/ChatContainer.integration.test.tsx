@@ -1127,6 +1127,105 @@ describe("ChatContainer Integration", () => {
     expect(screen.queryByRole("button", { name: /escalate to team/i })).not.toBeInTheDocument();
   });
 
+  // #1437: Target divergence rendered when searched_target differs from signal_target
+  it("IT-CONSOLE-TARGET-001: renders target divergence explanation when searched_target differs from signal_target", async () => {
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "inv-1",
+          parts: [{
+            kind: "data",
+            data: {
+              session_id: "s1",
+              rr_id: "rr-target-divergence",
+              signal_name: "KubePodCrashLooping",
+              summary: "ConfigMap misconfiguration causing crash loop",
+              rca: { severity: "critical", confidence: 0.88, target: "Deployment/worker (demo-storefront)", causal_chain: ["Bad nginx config"], tool_calls_count: 5, llm_turns: 3 },
+              options: [],
+              searched_target: { api_version: "v1", kind: "ConfigMap", name: "worker-config", namespace: "demo-storefront" },
+              signal_target: { api_version: "apps/v1", kind: "Deployment", name: "worker", namespace: "demo-storefront" },
+            },
+          }],
+          metadata: { type: "investigation_summary" },
+        },
+      });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(600);
+    });
+
+    // Divergence callout renders with both targets
+    await waitFor(() => {
+      expect(screen.getByText("No remediation workflows found")).toBeInTheDocument();
+    });
+    const divergencePanel = screen.getByRole("status", { name: /target divergence/i });
+    expect(divergencePanel).toBeInTheDocument();
+    expect(screen.getByText(/ConfigMap\/worker-config/)).toBeInTheDocument();
+    expect(screen.getByText(/root cause to a different resource/)).toBeInTheDocument();
+
+    // Escape hatches remain available
+    expect(screen.getByRole("button", { name: /no action needed/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /escalate to team/i })).toBeInTheDocument();
+  });
+
+  // #1437: No divergence callout when targets match
+  it("IT-CONSOLE-TARGET-002: does NOT render divergence when searched_target equals signal_target", async () => {
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "inv-1",
+          parts: [{
+            kind: "data",
+            data: {
+              session_id: "s1",
+              rr_id: "rr-same-target",
+              signal_name: "KubePodCrashLooping",
+              summary: "Deployment OOM",
+              rca: { severity: "high", confidence: 0.9, target: "Deployment/worker", causal_chain: ["OOM"], tool_calls_count: 3, llm_turns: 2 },
+              options: [{ workflow_id: "wf-rollback", name: "Rollback", description: "Roll back deployment", recommended: true }],
+              searched_target: { api_version: "apps/v1", kind: "Deployment", name: "worker", namespace: "demo-storefront" },
+              signal_target: { api_version: "apps/v1", kind: "Deployment", name: "worker", namespace: "demo-storefront" },
+            },
+          }],
+          metadata: { type: "investigation_summary" },
+        },
+      });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(600);
+    });
+
+    // Workflow card renders (targets match — no divergence)
+    await waitFor(() => {
+      expect(screen.getByText("Rollback")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("No remediation workflows found")).not.toBeInTheDocument();
+  });
+
   // AC-6: Dismiss calls kubernaut_complete_no_action via MCP (no escalation_reason)
   it("IT-CONSOLE-DISMISS-001: 'No action needed' calls MCP kubernaut_complete_no_action without escalation_reason", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
