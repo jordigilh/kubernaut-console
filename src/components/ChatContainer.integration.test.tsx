@@ -185,8 +185,8 @@ describe("ChatContainer Integration", () => {
     // Recommended card has parameters
     expect(screen.getByText(/TARGET_RESOURCE_NAMESPACE=demo-webui/)).toBeInTheDocument();
 
-    // Ruled out card shows reason
-    expect(screen.getByText(/selfHeal:true will revert in-cluster patches/)).toBeInTheDocument();
+    // Ruled out card shows description
+    expect(screen.getByText(/Patches ConfigMap directly in the cluster/)).toBeInTheDocument();
 
     // IT-CONSOLE-JOURNEY-007: Execute button is visible, click to start countdown (SC-5)
     const executeButton = screen.getByRole("button", { name: /execute/i });
