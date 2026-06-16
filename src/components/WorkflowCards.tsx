@@ -148,7 +148,16 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
         </div>
       )}
 
-      {/* Target divergence explanation when no workflows and targets differ */}
+      {/* Target divergence: informative note when workflows exist */}
+      {targetDivergence && options.length > 0 && (
+        <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-700" role="status" aria-label="Target divergence note">
+          <span className="font-medium">Targeting root cause:</span>{" "}
+          {targetDivergence.discoveryTarget.kind}/{targetDivergence.discoveryTarget.name}
+          <span className="text-blue-500 ml-1">(differs from alert target: {targetDivergence.signalTarget.kind}/{targetDivergence.signalTarget.name})</span>
+        </div>
+      )}
+
+      {/* Target divergence: amber warning when no workflows found */}
       {targetDivergence && options.length === 0 && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-3 text-xs space-y-1.5" role="status" aria-label="Target divergence explanation">
           <p className="font-semibold text-amber-800">No remediation workflows found</p>

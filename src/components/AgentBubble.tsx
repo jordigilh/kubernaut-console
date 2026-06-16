@@ -77,6 +77,7 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
             onDismiss={onDismiss}
             onEscalate={onEscalate}
             recoverySignal={recoverySignal}
+            targetDivergence={message.targetDivergence}
           />
         )}
 
