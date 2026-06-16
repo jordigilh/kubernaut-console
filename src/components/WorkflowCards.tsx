@@ -268,8 +268,11 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
               Ruled out
             </span>
             <span
-              className="ml-auto text-[10px] font-mono text-text-dim shrink-0"
-              title={opt.workflowId}
+              className="ml-auto text-[10px] font-mono text-text-dim shrink-0 cursor-pointer hover:text-text-secondary"
+              title={`Click to copy: ${opt.workflowId}`}
+              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(opt.workflowId); }}
+              role="button"
+              aria-label={`Copy workflow ID ${opt.workflowId}`}
             >
               ID: {opt.workflowId.slice(0, 8)}
             </span>

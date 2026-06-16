@@ -757,6 +757,7 @@ export function useChat() {
 
   const clearHistory = useCallback(() => {
     setMessages([]);
+    setCurrentPhase(undefined);
     contextIdRef.current = undefined;
     sessionStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(CONTEXT_KEY);

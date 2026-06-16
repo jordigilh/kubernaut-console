@@ -25,11 +25,20 @@ function Field({ label, value }: { label: string; value: string }) {
 
   const handleClick = () => {
     setShowPopover(true);
-    navigator.clipboard.writeText(value).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
+    navigator.clipboard.writeText(value).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      },
+      () => {
+        setCopied(false);
+      }
+    );
     setTimeout(() => setShowPopover(false), 2000);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") setShowPopover(false);
   };
 
   return (
@@ -40,13 +49,19 @@ function Field({ label, value }: { label: string; value: string }) {
       <button
         type="button"
         onClick={handleClick}
-        className="text-xs text-white truncate break-words text-left hover:text-kubernaut-teal-200 transition-colors cursor-pointer max-w-[180px]"
+        onKeyDown={handleKeyDown}
+        className="text-xs text-white truncate text-left hover:text-kubernaut-teal-200 transition-colors cursor-pointer max-w-[180px]"
+        aria-label={`${label}: ${value} — click to copy`}
         title="Click to copy"
       >
         {value}
       </button>
       {showPopover && (
-        <div className="absolute top-full left-0 mt-1 z-50 px-2 py-1 rounded bg-white text-text-primary text-[11px] shadow-lg border border-border whitespace-nowrap">
+        <div
+          role="tooltip"
+          aria-live="polite"
+          className="absolute top-full left-0 mt-1 z-50 px-2 py-1 rounded bg-white text-text-primary text-[11px] shadow-lg border border-border max-w-[280px] break-words"
+        >
           {copied ? "Copied!" : value}
         </div>
       )}
@@ -70,14 +85,7 @@ export function InvestigationContext({ alertName, namespace, resource, cluster, 
     >
       {rrId && (
         <>
-          <div className="flex flex-col gap-0.5 min-w-0 shrink-0" title={rrId}>
-            <span className="text-[9px] font-medium tracking-wide text-kubernaut-teal-200 uppercase">
-              Remediation ID
-            </span>
-            <span className="text-xs font-semibold text-white truncate max-w-[180px]">
-              {rrId}
-            </span>
-          </div>
+          <Field label="Remediation ID" value={rrId} />
           <Separator />
         </>
       )}
