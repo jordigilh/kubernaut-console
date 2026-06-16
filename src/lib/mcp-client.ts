@@ -72,22 +72,6 @@ async function sendMcpRequest(
   return { result: body.result };
 }
 
-async function sendMcpNotification(method: string, params?: Record<string, unknown>): Promise<void> {
-  try {
-    await fetch("/mcp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        method,
-        ...(params ? { params } : {}),
-      }),
-    });
-  } catch {
-    // Notifications are fire-and-forget per JSON-RPC spec
-  }
-}
-
 async function ensureInitialized(): Promise<McpResult | null> {
   if (sessionInitialized) return null;
 
