@@ -21,7 +21,7 @@ auth:
   # Reference to a pre-existing Secret containing OIDC credentials
   # The Secret must have keys: client-id, client-secret, cookie-secret
   existingSecret: "kubernaut-console-oidc" # pre-commit:allow-sensitive (Secret name, not a value)
-  redirectUrl: ""  # Auto-derived from service if empty
+  redirectUrl: "https://kubernaut-console-kubernaut-system.apps.dev.redhat-internal.com/oauth2/callback"
 
 # Ingress / exposure
 service:
