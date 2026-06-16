@@ -277,8 +277,11 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
               ID: {opt.workflowId.slice(0, 8)}
             </span>
           </div>
+          {opt.description && (
+            <p className="text-xs text-text-secondary mt-1 ml-6 leading-relaxed">{opt.description}</p>
+          )}
           {opt.ruledOutReason && (
-            <p className="text-[11px] text-text-dim mt-1 ml-6 leading-relaxed">{opt.ruledOutReason}</p>
+            <p className="text-[11px] text-text-dim mt-1 ml-6 leading-relaxed italic">{opt.ruledOutReason}</p>
           )}
 
           {/* Confirmation inline (inside the card) */}
