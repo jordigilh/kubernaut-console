@@ -104,7 +104,7 @@ export interface ChatMessage {
   verifyingStartedAt?: number;
   verificationSteps?: VerificationStep[];
   isStreaming?: boolean;
-  phase?: "investigation" | "decision" | "remediation" | "verifying" | "failed" | "complete";
+  phase?: "investigation" | "decision" | "remediation" | "verifying" | "failed" | "timed_out" | "complete";
   thinkingLabel?: string;
   approvalRequest?: ApprovalRequest;
   approvalResolution?: ApprovalResolution;
@@ -201,6 +201,7 @@ export function useChat() {
   const lastSendRef = useRef(0);
   const terminalReceivedRef = useRef(false);
   const [investigationStartTime, setInvestigationStartTime] = useState<number | undefined>(undefined);
+  const [currentPhase, setCurrentPhase] = useState<ChatMessage["phase"]>(undefined);
 
   useEffect(() => {
     if (!isStreaming) {
@@ -292,6 +293,7 @@ export function useChat() {
             .join("");
 
           const updates: Partial<ChatMessage> = { phase: "decision", thinking: [...thinkingRef.current], thinkingLabel: undefined };
+          setCurrentPhase("decision");
 
           const metaRrId = event.artifact.metadata?.rr_id as string | undefined;
           if (metaRrId) {
@@ -356,18 +358,19 @@ export function useChat() {
             completed_at?: string;
           };
 
-          const currentPhase = payload.current_phase;
-          const isTerminal = currentPhase === "Completed" || currentPhase === "Failed";
+          const artifactPhase = payload.current_phase;
+          const isTerminal = artifactPhase === "Completed" || artifactPhase === "Failed";
           if (isTerminal) {
             terminalReceivedRef.current = true;
           }
 
-          const updates: Partial<ChatMessage> = {
-            phase: currentPhase === "Failed" ? "failed"
-                 : isTerminal ? "complete"
-                 : currentPhase === "Verifying" ? "verifying"
-                 : "remediation",
-          };
+          const mappedPhase: ChatMessage["phase"] = artifactPhase === "Failed" ? "failed"
+               : isTerminal ? "complete"
+               : artifactPhase === "Verifying" ? "verifying"
+               : "remediation";
+
+          const updates: Partial<ChatMessage> = { phase: mappedPhase };
+          setCurrentPhase(mappedPhase);
 
           if (payload.rr_name) {
             updates.rrId = payload.rr_name;
@@ -379,7 +382,7 @@ export function useChat() {
             if (sw > 0) updates.stabilizationWindow = sw;
           }
 
-          if (payload.started_at && currentPhase === "Verifying") {
+          if (payload.started_at && artifactPhase === "Verifying") {
             const ts = new Date(payload.started_at).getTime();
             if (!Number.isNaN(ts)) updates.verifyingStartedAt = ts;
           }
@@ -432,11 +435,12 @@ export function useChat() {
             Blocked: "failed",
             Completed: "complete",
             Failed: "failed",
-            TimedOut: "failed",
+            TimedOut: "timed_out",
             Skipped: "complete",
             Cancelled: "complete",
           };
           rrUpdate.phase = phaseMap[event.metadata.phase as string] ?? "investigation";
+          setCurrentPhase(rrUpdate.phase);
 
           if (event.metadata.phase === "Verifying" || event.metadata.phase === "Executing") {
             const swRaw = event.metadata.stabilization_window;
@@ -547,6 +551,7 @@ export function useChat() {
           }
           const parsed = JSON.parse(msgText);
           const updates: Partial<ChatMessage> = { phase: "decision", text: "", thinkingLabel: undefined };
+          setCurrentPhase("decision");
           updates.thinking = [...thinkingRef.current];
 
           if (parsed.rca) {
@@ -757,5 +762,5 @@ export function useChat() {
     sessionStorage.removeItem(CONTEXT_KEY);
   }, []);
 
-  return { messages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime };
+  return { messages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase };
 }

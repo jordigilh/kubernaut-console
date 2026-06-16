@@ -10,8 +10,7 @@ import { WelcomeState } from "./WelcomeState";
 import { Modal } from "./Modal";
 
 export function ChatContainer() {
-  const { messages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime } = useChat();
-  const currentPhase = messages.findLast(m => m.role === "agent" && m.phase)?.phase;
+  const { messages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase } = useChat();
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
   const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName ?? lastRca?.signalName;

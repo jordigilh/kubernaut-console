@@ -293,7 +293,7 @@ describe("IT: Status event metadata extracts RR context for early banner populat
       ["Blocked", "failed"],
       ["Completed", "complete"],
       ["Failed", "failed"],
-      ["TimedOut", "failed"],
+      ["TimedOut", "timed_out"],
       ["Skipped", "complete"],
       ["Cancelled", "complete"],
     ];
