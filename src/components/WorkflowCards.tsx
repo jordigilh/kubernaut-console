@@ -19,6 +19,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
   const [countdown, setCountdown] = useState<number | null>(null);
   const [executed, setExecuted] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [ruledOutCountdown, setRuledOutCountdown] = useState<number | null>(null);
   const onExecuteRef = useRef(onExecute);
   useEffect(() => { onExecuteRef.current = onExecute; });
 
@@ -38,6 +39,23 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
     return () => clearInterval(id);
   }, [countdown, recommended]);
 
+  useEffect(() => {
+    if (ruledOutCountdown === null || ruledOutCountdown <= 0) return;
+    const id = setInterval(() => {
+      setRuledOutCountdown((c) => {
+        if (c === null) return null;
+        if (c <= 1) {
+          if (confirmingId) onExecuteRef.current?.(confirmingId);
+          setConfirmingId(null);
+          setExecuted(true);
+          return null;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [ruledOutCountdown, confirmingId]);
+
   const handleExecute = useCallback(() => {
     setCountdown(COUNTDOWN_SECONDS);
   }, []);
@@ -51,14 +69,11 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
   }, []);
 
   const handleConfirmRuledOut = useCallback(() => {
-    if (confirmingId) {
-      onExecuteRef.current?.(confirmingId);
-      setConfirmingId(null);
-      setExecuted(true);
-    }
-  }, [confirmingId]);
+    setRuledOutCountdown(COUNTDOWN_SECONDS);
+  }, []);
 
   const handleCancelRuledOut = useCallback(() => {
+    setRuledOutCountdown(null);
     setConfirmingId(null);
   }, []);
 
@@ -270,14 +285,47 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
                 This workflow was ruled out: {opt.ruledOutReason || "No reason provided"}
               </p>
               <p className="text-amber-700 mb-3">Are you sure you want to proceed?</p>
-              <button
-                type="button"
-                onClick={handleConfirmRuledOut}
-                className="w-full py-2 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors"
-                aria-label="Proceed anyway"
-              >
-                Proceed anyway
-              </button>
+              <div className="flex gap-2">
+                {ruledOutCountdown === null ? (
+                  <button
+                    type="button"
+                    onClick={handleConfirmRuledOut}
+                    className="flex-1 py-2 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors"
+                    aria-label="Proceed anyway"
+                  >
+                    Proceed anyway
+                  </button>
+                ) : (
+                  <>
+                    <div className="flex-1 relative">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRuledOutCountdown(null);
+                          setExecuted(true);
+                          if (confirmingId) onExecuteRef.current?.(confirmingId);
+                          setConfirmingId(null);
+                        }}
+                        className="w-full py-2 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors cursor-pointer"
+                        aria-label={`Proceed now (${ruledOutCountdown}s remaining)`}
+                      >
+                        Proceeding in {ruledOutCountdown}s...
+                      </button>
+                      <div className="absolute bottom-0 left-0 h-1 rounded-b-lg bg-black/10 w-full">
+                        <div className="h-full rounded-b-lg bg-white/50 countdown-bar" />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCancelRuledOut}
+                      className="flex-1 py-2 rounded-lg border border-border bg-white text-text-muted text-xs font-medium hover:bg-gray-50 transition-colors"
+                      aria-label="Cancel"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>

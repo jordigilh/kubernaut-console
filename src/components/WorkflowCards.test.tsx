@@ -123,13 +123,21 @@ describe("WorkflowCards", () => {
     expect(screen.getByRole("button", { name: /proceed anyway/i })).toBeInTheDocument();
   });
 
-  it("UT-CONSOLE-WF-014: SI-10 — confirming ruled-out calls onExecute with its workflowId", () => {
+  it("UT-CONSOLE-WF-014: SI-10 — confirming ruled-out starts countdown then executes", () => {
+    vi.useFakeTimers();
     const onExecute = vi.fn();
     render(<WorkflowCards options={options} onExecute={onExecute} />);
     const card = screen.getByTestId("workflow-card-patch-configuration-v1");
     fireEvent.click(card);
     fireEvent.click(screen.getByRole("button", { name: /proceed anyway/i }));
+    expect(screen.getByText(/Proceeding in 10s/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
+    expect(onExecute).not.toHaveBeenCalled();
+
+    // Click to execute immediately
+    fireEvent.click(screen.getByRole("button", { name: /proceed now/i }));
     expect(onExecute).toHaveBeenCalledWith("patch-configuration-v1");
+    vi.useRealTimers();
   });
 
   it("UT-CONSOLE-WF-015: SI-10 — clicking ruled-out card again dismisses confirmation", () => {
