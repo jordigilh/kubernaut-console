@@ -256,20 +256,17 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
           <div className="flex items-center gap-2">
             <span
               data-testid="ruled-out-icon"
-              className="flex h-4 w-4 items-center justify-center rounded-full bg-kubernaut-red-600"
+              className="flex h-4 w-4 items-center justify-center rounded-full bg-kubernaut-red-600 shrink-0"
               aria-hidden="true"
             >
               <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path d="M3 6h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
             </span>
-            <span className="text-xs font-bold text-text-primary">{opt.name}</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-kubernaut-red-50 text-kubernaut-red-600">
+            <span className="text-xs font-bold text-text-primary truncate">{opt.name}</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-kubernaut-red-50 text-kubernaut-red-600 whitespace-nowrap shrink-0">
               Ruled out
             </span>
-            {opt.ruledOutReason && (
-              <span className="text-[11px] text-text-dim">{opt.ruledOutReason}</span>
-            )}
             <span
               className="ml-auto text-[10px] font-mono text-text-dim shrink-0"
               title={opt.workflowId}
@@ -277,6 +274,9 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
               ID: {opt.workflowId.slice(0, 8)}
             </span>
           </div>
+          {opt.ruledOutReason && (
+            <p className="text-[11px] text-text-dim mt-1 ml-6 leading-relaxed">{opt.ruledOutReason}</p>
+          )}
 
           {/* Confirmation inline (inside the card) */}
           {confirmingId === opt.workflowId && (
