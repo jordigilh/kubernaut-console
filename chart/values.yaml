@@ -2,9 +2,9 @@ replicaCount: 1
 
 image:
   repository: ghcr.io/jordigilh/kubernaut-demo-console
-  tag: "09bcfd2"
+  tag: "b3698f1"
   # digest overrides tag when set (use for immutable pinning)
-  digest: "sha256:00510b5eb6b332865ca7b99a97d998dec455776dcf846e02c93810d4118ca73e"
+  digest: "sha256:3e4fa26d6a46f48bb7cadf9e4531d03aa9a63e7d62ccaee98e2823b5c7fc3e4f"
   pullPolicy: IfNotPresent
 
 # Agent discovery — how Console finds AF
