@@ -29,3 +29,8 @@ dist-ssr
 
 # Recording frames
 assets/recording/
+
+*storybook.log
+storybook-static
+test-results/
+playwright-report/
