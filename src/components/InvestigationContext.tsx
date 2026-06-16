@@ -1,10 +1,12 @@
+import { useState } from "react";
+
 interface Props {
   alertName?: string;
   namespace?: string;
   resource?: string;
   cluster?: string;
   rrId?: string;
-  phase?: "investigation" | "decision" | "remediation" | "verifying" | "failed" | "complete";
+  phase?: "investigation" | "decision" | "remediation" | "verifying" | "failed" | "timed_out" | "complete";
 }
 
 const PHASE_CONFIG: Record<string, { label: string; dotClass: string }> = {
@@ -13,16 +15,41 @@ const PHASE_CONFIG: Record<string, { label: string; dotClass: string }> = {
   remediation: { label: "Executing", dotClass: "bg-kubernaut-teal-400 animate-pulse" },
   verifying: { label: "Verifying", dotClass: "bg-kubernaut-teal-300 animate-pulse" },
   failed: { label: "Failed", dotClass: "bg-kubernaut-red-400" },
+  timed_out: { label: "Timed Out", dotClass: "bg-kubernaut-red-400" },
   complete: { label: "Complete", dotClass: "bg-kubernaut-green-400" },
 };
 
 function Field({ label, value }: { label: string; value: string }) {
+  const [showPopover, setShowPopover] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleClick = () => {
+    setShowPopover(true);
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+    setTimeout(() => setShowPopover(false), 2000);
+  };
+
   return (
-    <div className="flex flex-col gap-0.5 min-w-0 shrink">
+    <div className="relative flex flex-col gap-0.5 min-w-0 shrink">
       <span className="text-[9px] font-medium tracking-wide text-kubernaut-teal-200 uppercase whitespace-nowrap">
         {label}
       </span>
-      <span className="text-xs text-white truncate break-words">{value}</span>
+      <button
+        type="button"
+        onClick={handleClick}
+        className="text-xs text-white truncate break-words text-left hover:text-kubernaut-teal-200 transition-colors cursor-pointer max-w-[180px]"
+        title="Click to copy"
+      >
+        {value}
+      </button>
+      {showPopover && (
+        <div className="absolute top-full left-0 mt-1 z-50 px-2 py-1 rounded bg-white text-text-primary text-[11px] shadow-lg border border-border whitespace-nowrap">
+          {copied ? "Copied!" : value}
+        </div>
+      )}
     </div>
   );
 }
