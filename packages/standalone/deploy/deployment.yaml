@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: console
-          image: quay.io/kubernaut-cicd/kubernaut-standalone:latest
+          image: ghcr.io/jordigilh/kubernaut-standalone:latest
           ports:
             - name: http
               containerPort: 8080
