@@ -184,6 +184,23 @@ describe("WorkflowCards", () => {
     expect(onEscalate).toHaveBeenCalledWith("DBA team needed");
   });
 
+  // --- Escape hatch button disable after click (#13) ---
+
+  it("UT-CONSOLE-WF-036: #13 — clicking 'No action needed' disables both escape-hatch buttons", () => {
+    const onDismiss = vi.fn();
+    render(<WorkflowCards options={options} onDismiss={onDismiss} onEscalate={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /no action needed/i }));
+    expect(screen.getByRole("button", { name: /no action needed/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /escalate to team/i })).toBeDisabled();
+  });
+
+  it("UT-CONSOLE-WF-037: #13 — clicking 'Escalate to team' hides buttons and shows escalation input", () => {
+    render(<WorkflowCards options={options} onDismiss={vi.fn()} onEscalate={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /escalate to team/i }));
+    expect(screen.queryByRole("button", { name: /no action needed/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /escalation reason/i })).toBeInTheDocument();
+  });
+
   // --- Reactive banner (IR-5: recovery/alignment signals surface to operator) ---
 
   it("UT-CONSOLE-WF-021: IR-5 — shows recovery banner when recoverySignal='problem_resolved'", () => {

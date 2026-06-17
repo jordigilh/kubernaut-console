@@ -371,7 +371,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
           {onDismiss && (
             <button
               type="button"
-              onClick={onDismiss}
+              onClick={() => { setExecuted(true); onDismiss(); }}
               disabled={executed}
               className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
                 executed
@@ -388,7 +388,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
           {onEscalate && (
             <button
               type="button"
-              onClick={() => setEscalating(true)}
+              onClick={() => { setExecuted(true); setEscalating(true); }}
               disabled={executed}
               className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
                 executed
