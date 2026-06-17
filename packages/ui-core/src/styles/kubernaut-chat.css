@@ -202,6 +202,8 @@
 
 .kn-user-bubble {
   max-width: 75%;
+  width: fit-content;
+  margin-left: auto;
   background: var(--kn-user-bubble);
   border-radius: 1rem;
   padding: 0.625rem 1rem;
@@ -215,7 +217,8 @@
   font-size: 0.875rem;
   color: var(--kn-user-text);
   word-break: break-word;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
   margin: 0;
 }
 
