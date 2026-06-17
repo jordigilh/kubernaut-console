@@ -1,5 +1,5 @@
 import type { Preview } from '@storybook/react-vite'
-import '../src/index.css';
+import '../packages/ui-core/src/index.css';
 import '@patternfly/react-core/dist/styles/base.css';
 import '@patternfly/chatbot/dist/css/main.css';
 

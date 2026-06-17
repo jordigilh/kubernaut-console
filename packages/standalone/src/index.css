@@ -1,0 +1,110 @@
+@import "tailwindcss";
+@import "@patternfly/react-core/dist/styles/base.css";
+@import "@patternfly/chatbot/dist/css/main.css";
+
+@theme {
+  --color-kubernaut-teal-50: #F0FDFA;
+  --color-kubernaut-teal-100: #CCFBF1;
+  --color-kubernaut-teal-200: #99F6E4;
+  --color-kubernaut-teal-300: #5EEAD4;
+  --color-kubernaut-teal-400: #2DD4BF;
+  --color-kubernaut-teal-500: #14B8A6;
+  --color-kubernaut-teal-600: #0097A7;
+  --color-kubernaut-teal-700: #00838F;
+  --color-kubernaut-teal-800: #006064;
+  --color-kubernaut-teal-900: #003D42;
+  --color-kubernaut-red-50: #FEF2F2;
+  --color-kubernaut-red-400: #F87171;
+  --color-kubernaut-red-600: #DC2626;
+  --color-kubernaut-red-900: #7F1D1D;
+  --color-kubernaut-green-50: #F0FDF4;
+  --color-kubernaut-green-100: #DCFCE7;
+  --color-kubernaut-green-200: #BBF7D0;
+  --color-kubernaut-green-300: #86EFAC;
+  --color-kubernaut-green-400: #4ADE80;
+  --color-kubernaut-green-500: #22C55E;
+  --color-kubernaut-green-600: #16A34A;
+  --color-kubernaut-green-700: #15803D;
+  --color-kubernaut-green-800: #166534;
+  --color-user-bubble: #E0F2FE;
+  --color-user-text: #0C4A6E;
+  --color-surface: #F9FAFB;
+  --color-surface-secondary: #F9FAFB;
+  --color-border: #EBEBEB;
+  --color-text-primary: #151515;
+  --color-text-secondary: #292929;
+  --color-text-muted: #6A6E73;
+  --color-text-dim: #A3A6A9;
+  --font-family-display: "Red Hat Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-body: "Red Hat Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-kubernaut-teal-600);
+  outline-offset: 2px;
+}
+
+input.focus-self-managed:focus-visible,
+[data-focus-delegate] input,
+[data-focus-delegate] input:focus,
+[data-focus-delegate] input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+  30%           { opacity: 1; transform: scale(1); }
+}
+
+@keyframes countdown-progress {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out forwards;
+}
+
+.typing-dot:nth-child(1) { animation: typing-dot 1.2s ease-in-out infinite 0s; }
+.typing-dot:nth-child(2) { animation: typing-dot 1.2s ease-in-out infinite 0.2s; }
+.typing-dot:nth-child(3) { animation: typing-dot 1.2s ease-in-out infinite 0.4s; }
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: var(--color-border);
+  border-radius: 2px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 2px;
+}
+
+.countdown-bar {
+  animation: countdown-progress 10s linear forwards;
+}
