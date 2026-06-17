@@ -276,17 +276,18 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  border-radius: 9999px;
+  border-radius: 1.5rem;
   border: 1px solid var(--kn-border);
-  background: var(--kn-surface);
-  padding: 0.625rem 1rem;
+  background: #fff;
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
   cursor: text;
+  min-height: 2.75rem;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .kn-input-wrapper:focus-within {
   border-color: var(--kn-teal-600);
-  box-shadow: 0 0 0 2px var(--kn-teal-600);
+  box-shadow: 0 0 0 1px var(--kn-teal-600);
 }
 
 .kn-input-field {
@@ -311,8 +312,8 @@
 
 .kn-send-btn {
   display: flex;
-  height: 2.5rem;
-  width: 2.5rem;
+  height: 2rem;
+  width: 2rem;
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
@@ -332,8 +333,8 @@
 
 .kn-stop-btn {
   display: flex;
-  height: 2.5rem;
-  width: 2.5rem;
+  height: 2rem;
+  width: 2rem;
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
