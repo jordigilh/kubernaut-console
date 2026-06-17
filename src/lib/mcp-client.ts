@@ -3,14 +3,18 @@ export interface McpResult {
   error?: { code: number; message: string };
 }
 
+const SESSION_HEADER = "Mcp-Session-Id";
+
 let requestId = 0;
 let sessionInitialized = false;
 let initializingPromise: Promise<McpResult | null> | null = null;
+let mcpSessionId: string | null = null;
 
 export function _resetSession() {
   sessionInitialized = false;
   initializingPromise = null;
   requestId = 0;
+  mcpSessionId = null;
 }
 
 function nextId(): number {
@@ -31,6 +35,17 @@ function parseSSEResponse(text: string): unknown {
   return JSON.parse(text);
 }
 
+function mcpHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Accept": "application/json, text/event-stream",
+  };
+  if (mcpSessionId) {
+    headers[SESSION_HEADER] = mcpSessionId;
+  }
+  return headers;
+}
+
 async function sendMcpRequest(
   method: string,
   params?: Record<string, unknown>
@@ -41,7 +56,7 @@ async function sendMcpRequest(
   try {
     response = await fetch("/mcp", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: mcpHeaders(),
       body: JSON.stringify({
         jsonrpc: "2.0",
         id,
@@ -53,8 +68,21 @@ async function sendMcpRequest(
     return { error: { code: -1, message: (err as Error).message } };
   }
 
+  if (response.status === 404 && mcpSessionId) {
+    // Session expired on the server — clear and signal re-init needed
+    mcpSessionId = null;
+    sessionInitialized = false;
+    return { error: { code: 404, message: "MCP session expired" } };
+  }
+
   if (!response.ok) {
     return { error: { code: response.status, message: `HTTP ${response.status}: ${response.statusText}` } };
+  }
+
+  // Capture session ID from initialize response
+  const sid = response.headers.get(SESSION_HEADER);
+  if (sid) {
+    mcpSessionId = sid;
   }
 
   const text = await response.text();
@@ -77,7 +105,7 @@ async function sendMcpNotification(method: string): Promise<McpResult> {
   try {
     response = await fetch("/mcp", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: mcpHeaders(),
       body: JSON.stringify({
         jsonrpc: "2.0",
         method,
@@ -92,10 +120,6 @@ async function sendMcpNotification(method: string): Promise<McpResult> {
   }
 
   return { result: null };
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function ensureInitialized(): Promise<McpResult | null> {
@@ -115,18 +139,11 @@ async function ensureInitialized(): Promise<McpResult | null> {
       return initResult;
     }
 
-    // Per MCP spec, notifications/initialized is a JSON-RPC notification
-    // (no id field). Backend returns 202 Accepted (async processing), so
-    // we must wait briefly for the server to transition out of init state.
     const notifyResult = await sendMcpNotification("notifications/initialized");
     if (notifyResult.error) {
       initializingPromise = null;
       return notifyResult;
     }
-
-    // Backend processes the notification asynchronously (202). Wait for
-    // the state transition to complete before sending tools/call.
-    await delay(300);
 
     sessionInitialized = true;
     initializingPromise = null;
@@ -148,10 +165,15 @@ export async function callMcpTool(
     arguments: args,
   });
 
-  // Retry once if the server is still transitioning from init state
-  // (202 async processing may take longer than our initial delay)
-  if (result.error?.message?.includes("invalid during session initialization")) {
-    await delay(500);
+  // If session expired or server lost state, re-initialize and retry once
+  if (
+    result.error?.message?.includes("invalid during session initialization") ||
+    result.error?.message === "MCP session expired"
+  ) {
+    sessionInitialized = false;
+    mcpSessionId = null;
+    const reInitError = await ensureInitialized();
+    if (reInitError) return reInitError;
     return sendMcpRequest("tools/call", {
       name: toolName,
       arguments: args,

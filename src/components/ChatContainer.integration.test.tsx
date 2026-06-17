@@ -1374,4 +1374,191 @@ describe("ChatContainer Integration", () => {
 
     fetchSpy.mockRestore();
   });
+
+  it("IT-CONSOLE-DISMISS-002: #14 — 'No action needed' shows error when RR is timed out", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "inv-1",
+          parts: [{ kind: "data", data: { session_id: "s1", rr_id: "rr-test-timeout-001", signal_name: "TestAlert", rca: { summary: "Test" }, options: [{ workflow_id: "wf-1", name: "Test WF", description: "desc", recommended: true }] } }],
+          metadata: { type: "investigation_summary" },
+        },
+      });
+      opts.onEvent?.({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        status: { state: "working" },
+        metadata: { rr_id: "rr-test-timeout-001", phase: "TimedOut" },
+      });
+      opts.onComplete?.();
+    });
+
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(600);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /no action needed/i })).toBeInTheDocument();
+    });
+
+    const dismissBtn = screen.getByRole("button", { name: /no action needed/i });
+    await act(async () => {
+      fireEvent.click(dismissBtn);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/expired.*no longer accept actions/i);
+    });
+
+    const mcpCall = fetchSpy.mock.calls.find(c => {
+      if (c[0] !== "/mcp") return false;
+      const b = JSON.parse((c[1] as RequestInit).body as string);
+      return b.method === "tools/call";
+    });
+    expect(mcpCall).toBeUndefined();
+
+    fetchSpy.mockRestore();
+  });
+
+  it("IT-CONSOLE-DISMISS-003: #13 — buttons are disabled after 'No action needed' click in full container", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "inv-1",
+          parts: [{ kind: "data", data: { session_id: "s1", rr_id: "rr-test-disable-001", signal_name: "TestAlert", rca: { summary: "Test" }, options: [{ workflow_id: "wf-1", name: "Test WF", description: "desc", recommended: true }] } }],
+          metadata: { type: "investigation_summary" },
+        },
+      });
+      opts.onComplete?.();
+    });
+
+    fetchSpy.mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { status: "completed_no_action" } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    ));
+
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(600);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /no action needed/i })).toBeInTheDocument();
+    });
+
+    const dismissBtn = screen.getByRole("button", { name: /no action needed/i });
+    await act(async () => {
+      fireEvent.click(dismissBtn);
+    });
+
+    expect(screen.getByRole("button", { name: /no action needed/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /escalate to team/i })).toBeDisabled();
+
+    fetchSpy.mockRestore();
+  });
+
+  it("IT-CONSOLE-ESCALATE-002: #14 — 'Escalate to team' shows error when RR is timed out", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "inv-1",
+          parts: [{ kind: "data", data: { session_id: "s1", rr_id: "rr-test-timeout-esc-001", signal_name: "TestAlert", rca: { summary: "Test" }, options: [{ workflow_id: "wf-1", name: "Test WF", description: "desc", recommended: true }] } }],
+          metadata: { type: "investigation_summary" },
+        },
+      });
+      opts.onEvent?.({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        status: { state: "working" },
+        metadata: { rr_id: "rr-test-timeout-esc-001", phase: "TimedOut" },
+      });
+      opts.onComplete?.();
+    });
+
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByLabelText("Type your message");
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.submit(input.closest("form")!);
+      vi.advanceTimersByTime(600);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /escalate to team/i })).toBeInTheDocument();
+    });
+
+    const escalateBtn = screen.getByRole("button", { name: /escalate to team/i });
+    await act(async () => {
+      fireEvent.click(escalateBtn);
+    });
+
+    const reasonInput = screen.getByLabelText(/escalation reason/i);
+    await act(async () => {
+      fireEvent.change(reasonInput, { target: { value: "Needs DBA" } });
+    });
+    const submitBtn = screen.getByRole("button", { name: /submit escalation/i });
+    await act(async () => {
+      fireEvent.click(submitBtn);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/expired.*no longer accept actions/i);
+    });
+
+    const mcpCall = fetchSpy.mock.calls.find(c => {
+      if (c[0] !== "/mcp") return false;
+      const b = JSON.parse((c[1] as RequestInit).body as string);
+      return b.method === "tools/call";
+    });
+    expect(mcpCall).toBeUndefined();
+
+    fetchSpy.mockRestore();
+  });
 });

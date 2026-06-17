@@ -107,6 +107,10 @@ export function ChatContainer() {
         setError("Cannot dismiss: no active remediation request found.");
         return;
       }
+      if (currentPhase === "timed_out" || currentPhase === "failed") {
+        setError("This investigation has expired and can no longer accept actions.");
+        return;
+      }
       const res = await callMcpTool("kubernaut_complete_no_action", {
         rr_id: rrId,
         reason: "Dismissed by operator: no action needed",
@@ -118,12 +122,16 @@ export function ChatContainer() {
       sendMessage("Investigation dismissed. No remediation action taken.", { silent: true });
       emitAuditEvent({ action: "dismiss", timestamp: new Date().toISOString(), user: user.name || user.email, rrId });
     },
-    [rrId, sendMessage, setError, user.name, user.email],
+    [rrId, sendMessage, setError, user.name, user.email, currentPhase],
   );
 
   const handleEscalate = useCallback(async (reason: string) => {
     if (!rrId) {
       setError("Cannot escalate: no active remediation request found.");
+      return;
+    }
+    if (currentPhase === "timed_out" || currentPhase === "failed") {
+      setError("This investigation has expired and can no longer accept actions.");
       return;
     }
     const res = await callMcpTool("kubernaut_complete_no_action", {
@@ -137,7 +145,7 @@ export function ChatContainer() {
     }
     sendMessage("Investigation escalated to team for manual review.", { silent: true });
     emitAuditEvent({ action: "escalate", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { escalation_reason: reason } });
-  }, [rrId, sendMessage, setError, user.name, user.email]);
+  }, [rrId, sendMessage, setError, user.name, user.email, currentPhase]);
 
   const handleClearHistory = useCallback(() => {
     if (messages.length === 0) {
