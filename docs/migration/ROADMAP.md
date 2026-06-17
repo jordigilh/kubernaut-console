@@ -131,7 +131,7 @@ Phase 3: Hardening & Handoff    ░░░░░░░░░░░░░░░░
 
 ## Phase 2 — OCM Console Plugin (Weeks 7-9)
 
-**Goal**: Produce a working OCM console plugin with CSS isolation and a ManagedClusterAddon for agent deployment.
+**Goal**: Produce a working OCM console plugin with a ManagedClusterAddon for agent deployment, targeting OCP 4.18+.
 
 ### Week 7: Plugin Scaffold + Module Federation
 
@@ -142,14 +142,14 @@ Phase 3: Hardening & Handoff    ░░░░░░░░░░░░░░░░
 | Console extensions (route + nav) | `console-extensions.json` | Nav item and page appear |
 | Implement `OCMAuthProvider` | Token via console proxy | getToken() returns valid JWT |
 
-### Week 8: CSS Isolation + Integration
+### Week 8: Integration + ManagedClusterAddon
 
 | Task | Deliverable | Done Criteria |
 |------|-------------|---------------|
-| PF6 token scoping (CSS modules) | `kubernaut-plugin-root` class | No style leaks to host |
-| Test in PF5 host (OCP 4.17) | Visual verification | No rendering conflicts |
+| PF6 style verification in OCP 4.18 host | Visual check | Shared PF6 — no conflicts |
 | Console proxy configuration | Backend API accessible | A2A/MCP calls succeed |
 | ManagedClusterAddon CRD | Addon controller manifest | Agent deploys to spoke cluster |
+| Addon lifecycle (install/upgrade/delete) | Controller tests | Addon reconciles correctly |
 
 ### Week 9: Testing + Container Image
 
@@ -158,15 +158,15 @@ Phase 3: Hardening & Handoff    ░░░░░░░░░░░░░░░░
 | Integration tests (Cypress + OCP) | Test suite | Plugin loads in test console |
 | Container image build | `ghcr.io/jordigilh/kubernaut-console-plugin` | Image runs nginx serving bundle |
 | Helm chart for ConsolePlugin | `deploy/helm/console-plugin/` | Installs plugin + service |
-| Test against OCM 0.14+ / OCP 4.17+ | Compatibility matrix | No breaking API usage |
+| Test against OCM 0.14+ / OCP 4.18+ | Compatibility matrix | No breaking API usage |
 
 **Phase 2 Exit Criteria**:
 - [ ] Plugin renders Kubernaut chat inside OCM hub console
-- [ ] CSS isolation prevents PF6/PF5 conflicts
+- [ ] PF6 styles render correctly in OCP 4.18+ console (shared PF6 host)
 - [ ] Auth flows through OCP console proxy
 - [ ] ManagedClusterAddon deploys agent to spoke clusters
 - [ ] Container image published and Helm chart ready
-- [ ] Tested against OCM 0.14+ / OCP 4.17+
+- [ ] Tested against OCM 0.14+ / OCP 4.18+
 
 ---
 
