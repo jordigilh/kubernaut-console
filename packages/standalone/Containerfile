@@ -1,0 +1,25 @@
+FROM registry.access.redhat.com/ubi9/nodejs-22-minimal:latest AS build
+USER 0
+WORKDIR /build
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/ui-core/package.json packages/ui-core/
+COPY packages/standalone/package.json packages/standalone/
+
+RUN npm install -g corepack && corepack enable && corepack prepare pnpm@latest --activate \
+    && pnpm install --frozen-lockfile --filter @kubernaut/standalone...
+
+COPY packages/ui-core/ packages/ui-core/
+COPY packages/standalone/ packages/standalone/
+
+RUN pnpm --filter @kubernaut/ui-core build \
+    && pnpm --filter @kubernaut/standalone build
+
+FROM registry.access.redhat.com/ubi9/nginx-126:latest
+COPY --from=build /build/packages/standalone/dist /opt/app-root/src
+COPY deploy/nginx-http.conf /opt/app-root/etc/nginx.d/kubernaut.conf
+COPY deploy/nginx-server.conf /opt/app-root/etc/nginx.default.d/kubernaut.conf
+
+USER 1001
+EXPOSE 8080
+CMD ["nginx", "-g", "daemon off;"]

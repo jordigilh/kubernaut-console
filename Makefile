@@ -1,18 +1,43 @@
-.PHONY: dev build docker-build kind-load deploy copy-dist clean \
+.PHONY: dev build docker-build kind-load deploy deploy-ocp copy-dist clean \
+       standalone-build standalone-push \
        visual-regenerate visual-push visual-update
 
 CONSOLE_IMAGE ?= kubernaut-demo-console:latest
+STANDALONE_IMAGE ?= quay.io/kubernaut-cicd/kubernaut-standalone
 KIND_CLUSTER ?= kubernaut-demo
 NAMESPACE ?= kubernaut-system
+STANDALONE_NS ?= kubernaut-console
 BASELINES_REGISTRY ?= quay.io/kubernaut-cicd/visual-baselines
 PLAYWRIGHT_IMAGE ?= mcr.microsoft.com/playwright:v1.61.0-noble
 SNAPSHOT_DIR ?= e2e/visual.spec.ts-snapshots
 
 dev:
-	npm run dev
+	pnpm run dev --filter @kubernaut/standalone
 
 build:
-	npm run build
+	pnpm build
+
+## ─── Standalone Image ────────────────────────────────────────────────────────
+
+standalone-build: ## Build standalone container image locally
+	docker build -t $(STANDALONE_IMAGE):latest -f packages/standalone/Containerfile .
+
+standalone-push: standalone-build ## Build and push standalone image to Quay
+	@BRANCH=$$(git branch --show-current); \
+	TAG="branch-$$(echo $$BRANCH | sed 's/[^a-zA-Z0-9._-]/-/g')"; \
+	docker tag $(STANDALONE_IMAGE):latest $(STANDALONE_IMAGE):$$TAG; \
+	docker push $(STANDALONE_IMAGE):latest; \
+	docker push $(STANDALONE_IMAGE):$$TAG
+	@echo "Pushed $(STANDALONE_IMAGE)"
+
+deploy-ocp: ## Deploy standalone to OCP (requires oc login)
+	oc apply -k packages/standalone/deploy
+	oc rollout status deployment/kubernaut-console -n $(STANDALONE_NS) --timeout=120s
+	@echo ""
+	@ROUTE=$$(oc get route kubernaut-console -n $(STANDALONE_NS) -o jsonpath='{.spec.host}'); \
+	echo "Console available at: https://$$ROUTE"
+
+## ─── Legacy (kind) ───────────────────────────────────────────────────────────
 
 docker-build:
 	docker build -t $(CONSOLE_IMAGE) .
