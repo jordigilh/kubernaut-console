@@ -4,7 +4,6 @@ on: [pull_request]
 jobs:
   visual:
     runs-on: ubuntu-latest
-    continue-on-error: true
     container: mcr.microsoft.com/playwright:v1.61.0-noble
     steps:
       - uses: actions/checkout@v4
@@ -31,9 +30,7 @@ jobs:
         run: npx wait-on http://localhost:6006/iframe.html --timeout 30000
 
       - name: Run visual regression tests
-        id: visual-test
         run: npx playwright test e2e/visual.spec.ts --update-snapshots
-        continue-on-error: true
 
       - uses: actions/upload-artifact@v4
         if: always()

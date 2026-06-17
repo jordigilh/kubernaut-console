@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 
+const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "http://localhost:6006";
+
 const COMPONENTS = [
   { story: "components-agentbubble--text-only", name: "AgentBubble-text" },
   { story: "components-agentbubble--with-rca", name: "AgentBubble-rca" },
@@ -37,17 +39,64 @@ const COMPONENTS = [
   { story: "components-workflowcards--with-target-divergence", name: "WorkflowCards-target-divergence" },
 ];
 
+const FREEZE_STYLES = `
+  *, *::before, *::after {
+    animation: none !important;
+    animation-delay: 0s !important;
+    animation-duration: 0s !important;
+    transition: none !important;
+    transition-delay: 0s !important;
+    transition-duration: 0s !important;
+    caret-color: transparent !important;
+    scroll-behavior: auto !important;
+  }
+`;
+
 for (const { story, name } of COMPONENTS) {
   test(`visual: ${name}`, async ({ page }) => {
-    await page.goto(`/iframe.html?id=${story}&viewMode=story`);
-    await page.waitForLoadState("networkidle");
-    await page.addStyleTag({
-      content: "*, *::before, *::after { animation: none !important; transition: none !important; }",
+    // Inject motion-freezing styles before page load
+    await page.addInitScript(() => {
+      const style = document.createElement("style");
+      style.textContent = `
+        *, *::before, *::after {
+          animation: none !important;
+          animation-delay: 0s !important;
+          animation-duration: 0s !important;
+          transition: none !important;
+          transition-delay: 0s !important;
+          transition-duration: 0s !important;
+          caret-color: transparent !important;
+          scroll-behavior: auto !important;
+        }
+      `;
+      if (document.head) {
+        document.head.appendChild(style);
+      } else {
+        document.addEventListener("DOMContentLoaded", () =>
+          document.head.appendChild(style),
+        );
+      }
     });
+
+    await page.goto(`${STORYBOOK_URL}/iframe.html?id=${story}&viewMode=story`);
+    await page.waitForLoadState("networkidle");
+
+    // Re-inject styles in case Storybook cleared them during hydration
+    await page.addStyleTag({ content: FREEZE_STYLES });
+
     const root = page.locator("#storybook-root");
+
+    // Wait for the component to render with non-zero dimensions
+    await root.waitFor({ state: "visible", timeout: 15000 });
+    await expect(root).not.toBeEmpty({ timeout: 10000 });
+
+    // Brief settle time for PatternFly layout computations
+    await page.waitForTimeout(500);
+
     await expect(root).toHaveScreenshot(`${name}.png`, {
       maxDiffPixelRatio: 0.05,
       animations: "disabled",
+      timeout: 15000,
     });
   });
 }
