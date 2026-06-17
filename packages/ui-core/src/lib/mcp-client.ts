@@ -11,10 +11,12 @@ export interface McpClientOptions {
 let requestId = 0;
 let sessionInitialized = false;
 let initializingPromise: Promise<McpResult | null> | null = null;
+let mcpSessionId: string | null = null;
 
 export function _resetSession() {
   sessionInitialized = false;
   initializingPromise = null;
+  mcpSessionId = null;
   requestId = 0;
 }
 
@@ -45,6 +47,9 @@ async function sendMcpRequest(
   const url = `${options?.baseUrl || ""}/mcp`;
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (mcpSessionId) {
+    headers["Mcp-Session-Id"] = mcpSessionId;
+  }
   if (options?.getToken) {
     try {
       headers["Authorization"] = `Bearer ${await options.getToken()}`;
@@ -71,6 +76,11 @@ async function sendMcpRequest(
     return { error: { code: response.status, message: `HTTP ${response.status}: ${response.statusText}` } };
   }
 
+  const sessionHeader = response.headers.get("mcp-session-id");
+  if (sessionHeader) {
+    mcpSessionId = sessionHeader;
+  }
+
   const text = await response.text();
   let body: { error?: { code: number; message: string }; result?: unknown };
   try {
@@ -90,6 +100,9 @@ async function sendMcpNotification(method: string, options?: McpClientOptions): 
   const url = `${options?.baseUrl || ""}/mcp`;
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (mcpSessionId) {
+    headers["Mcp-Session-Id"] = mcpSessionId;
+  }
   if (options?.getToken) {
     try {
       headers["Authorization"] = `Bearer ${await options.getToken()}`;
@@ -112,6 +125,11 @@ async function sendMcpNotification(method: string, options?: McpClientOptions): 
 
   if (!response.ok) {
     return { error: { code: response.status, message: `HTTP ${response.status}: ${response.statusText}` } };
+  }
+
+  const sessionHeader = response.headers.get("mcp-session-id");
+  if (sessionHeader) {
+    mcpSessionId = sessionHeader;
   }
 
   return { result: null };
