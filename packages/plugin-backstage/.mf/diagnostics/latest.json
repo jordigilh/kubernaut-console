@@ -1,10 +1,10 @@
 {
   "latestErrorEvent": {
     "code": "TYPE-001",
-    "message": "Failed to generate type declaration. Execute the below cmd to reproduce and fix the error. #TYPE-001\nargs: {\"cmd\":\"npx tsc --project /Users/jgil/go/src/github.com/jordigilh/kubernaut-demo-console/packages/plugin-backstage/node_modules/.federation/tsconfig.bd1a2303d2ec42297bb08c1631f06436.json\"}\nView the docs to see how to solve: https://module-federation.io/guide/troubleshooting/type#type-001",
+    "message": "Failed to generate type declaration. Execute the below cmd to reproduce and fix the error. #TYPE-001\nargs: {\"cmd\":\"npx tsc --project /Users/jgil/go/src/github.com/jordigilh/kubernaut-demo-console/packages/plugin-backstage/node_modules/.federation/tsconfig.5f8b176cc293e6dd207429ddf948495b.json\"}\nView the docs to see how to solve: https://module-federation.io/guide/troubleshooting/type#type-001",
     "args": {
-      "cmd": "npx tsc --project /Users/jgil/go/src/github.com/jordigilh/kubernaut-demo-console/packages/plugin-backstage/node_modules/.federation/tsconfig.bd1a2303d2ec42297bb08c1631f06436.json"
+      "cmd": "npx tsc --project /Users/jgil/go/src/github.com/jordigilh/kubernaut-demo-console/packages/plugin-backstage/node_modules/.federation/tsconfig.5f8b176cc293e6dd207429ddf948495b.json"
     },
-    "timestamp": 1781715847544
+    "timestamp": 1781737292777
   }
 }
