@@ -17,8 +17,6 @@ RUN pnpm --filter @kubernaut/ui-core build \
 
 FROM registry.access.redhat.com/ubi9/nginx-126:latest
 COPY --from=build /build/packages/standalone/dist /opt/app-root/src
-COPY deploy/nginx-http.conf /opt/app-root/etc/nginx.d/kubernaut.conf
-COPY deploy/nginx-server.conf /opt/app-root/etc/nginx.default.d/kubernaut.conf
 
 USER 1001
 EXPOSE 8080

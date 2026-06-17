@@ -1,11 +1,11 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/jordigilh/kubernaut-demo-console
-  tag: "6db04cb"
+  repository: ghcr.io/jordigilh/kubernaut-standalone
+  tag: "latest"
   # digest overrides tag when set (use for immutable pinning)
-  digest: "sha256:5878a9c1c794cabf74f63d5e900e8ebec1e836c5263506da802d0c3b3449a014"
-  pullPolicy: IfNotPresent
+  digest: ""
+  pullPolicy: Always
 
 # Agent discovery — how Console finds AF
 apiFrontend:
