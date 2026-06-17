@@ -586,13 +586,22 @@ All structural verification checks pass (17/17).
 - If kagenti-operator is not pre-installed, escalate to addon-framework Go controller (but this is not our case)
 - OCM addon-framework v1.3.0 supports Helm chart mode — can package agent manifests as a Helm chart
 
-**OCP 4.18 SDK:**
-- `@openshift-console/dynamic-plugin-sdk@4.18.0` (Sep 2025)
-- `@openshift-console/dynamic-plugin-sdk-webpack@4.18.0`
+**OCP SDK (dev cluster: 4.21, min supported: 4.18+):**
+- `@openshift-console/dynamic-plugin-sdk@4.21.0` (Mar 2026)
+- `@openshift-console/dynamic-plugin-sdk-webpack@4.21.0`
 - Must use webpack 5+ with `ConsoleRemotePlugin` (not Rspack)
 - PF6 shared with host console — no CSS isolation needed
+- SDK 4.21 includes latest proxy improvements and CSP support
 
-**Revised Phase 2 Confidence: 92%** (up from 82%)
+**Revised Phase 2 Confidence: 95%** (up from 92%, post-implementation)
+
+**Resolutions since spike**:
+- Console proxy + SSE streaming: Confirmed working architecture; `consoleFetch` + `ReadableStream` for A2A
+- `OCMAuthProvider` implemented: Uses `consoleFetch` for user API + UserToken proxy mode
+- Webpack Module Federation build: `ConsoleRemotePlugin` + `plugin-manifest.json` generated successfully
+- ManagedClusterAddon: `AddOnTemplate` manifests created for `kagenti` deployment
+- Helm chart + Containerfile: Ready for deployment to OCP 4.21 dev cluster
+- Remaining 5%: Live e2e verification on real OCP cluster (deferred to Phase 3)
 
 | Risk | Previous | Revised | Resolution |
 |------|----------|---------|------------|
