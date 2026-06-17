@@ -6,7 +6,7 @@ CONSOLE_IMAGE ?= kubernaut-demo-console:latest
 STANDALONE_IMAGE ?= ghcr.io/jordigilh/kubernaut-standalone
 KIND_CLUSTER ?= kubernaut-demo
 NAMESPACE ?= kubernaut-system
-STANDALONE_NS ?= kubernaut-console
+DEPLOY_NS ?= kubernaut-system
 BASELINES_REGISTRY ?= quay.io/kubernaut-cicd/visual-baselines
 PLAYWRIGHT_IMAGE ?= mcr.microsoft.com/playwright:v1.61.0-noble
 SNAPSHOT_DIR ?= e2e/visual.spec.ts-snapshots
@@ -30,11 +30,11 @@ standalone-push: standalone-build ## Build and push standalone image to Quay
 	docker push $(STANDALONE_IMAGE):$$TAG
 	@echo "Pushed $(STANDALONE_IMAGE)"
 
-deploy-ocp: ## Deploy standalone to OCP (requires oc login)
-	oc apply -k packages/standalone/deploy
-	oc rollout status deployment/kubernaut-console -n $(STANDALONE_NS) --timeout=120s
+deploy-ocp: ## Deploy standalone to OCP via Helm (requires oc login)
+	helm upgrade --install kubernaut-console ./chart -n $(DEPLOY_NS) --create-namespace
+	oc rollout status deployment/kubernaut-console -n $(DEPLOY_NS) --timeout=120s
 	@echo ""
-	@ROUTE=$$(oc get route kubernaut-console -n $(STANDALONE_NS) -o jsonpath='{.spec.host}'); \
+	@ROUTE=$$(oc get route kubernaut-console -n $(DEPLOY_NS) -o jsonpath='{.spec.host}'); \
 	echo "Console available at: https://$$ROUTE"
 
 ## ─── Legacy (kind) ───────────────────────────────────────────────────────────
