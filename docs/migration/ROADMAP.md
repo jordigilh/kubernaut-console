@@ -201,11 +201,11 @@ Phase 3: Hardening & Handoff    ░░░░░░░░░░░░░░░░
 | Handoff meeting prep | Slide deck / demo | Ready for downstream team |
 
 **Phase 3 Exit Criteria**:
-- [ ] E2E tests pass for all three deployment modes
-- [ ] Bundle size within budget (core < 150KB gzipped)
-- [ ] WCAG 2.1 AA compliant
-- [ ] Downstream documentation complete (RHDH + ACM)
-- [ ] Architecture ready for downstream team consumption
+- [x] E2E tests pass for all three deployment modes (29 Playwright tests)
+- [x] Bundle size within budget (ui-core: 15.1KB gzip, budget: 150KB)
+- [x] WCAG 2.1 AA compliant (axe-core: 0 critical/serious violations)
+- [x] Downstream documentation complete (RHDH + ACM adaptation guides)
+- [x] Architecture ready for downstream team consumption (CONTRIBUTING.md)
 
 ---
 

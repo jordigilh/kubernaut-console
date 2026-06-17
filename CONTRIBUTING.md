@@ -1,146 +1,140 @@
-# Contributing to Kubernaut Demo Console
+# Contributing to Kubernaut Console
 
-Thank you for your interest in contributing! This document provides guidelines for contributing to the Kubernaut Demo Console.
+## Repository Structure
+
+```
+kubernaut-demo-console/
+├── packages/
+│   ├── ui-core/           # Shared UI components (@kubernaut/ui-core)
+│   ├── standalone/        # Standalone Vite application
+│   ├── plugin-backstage/  # Backstage frontend plugin
+│   └── plugin-ocm/        # OCP console dynamic plugin
+├── e2e/                   # Playwright E2E tests
+├── scripts/               # Build/CI utility scripts
+└── docs/migration/        # Architecture and migration docs
+```
 
 ## Prerequisites
 
-- **Node.js 22+** (use `.nvmrc` or check CI for exact version)
-- **npm** (comes with Node.js)
-- **Git**
-- For deployment testing: **kubectl**, **kind**, **Helm 3**
+- Node.js 22+
+- pnpm 11+ (`corepack enable && corepack prepare pnpm@latest --activate`)
+- For E2E tests: `npx playwright install chromium`
 
 ## Getting Started
 
-### 1. Clone and Install
-
 ```bash
-git clone https://github.com/jordigilh/kubernaut-demo-console.git
-cd kubernaut-demo-console
-npm ci
-```
+# Install dependencies
+pnpm install
 
-### 2. Set Up Git Hooks
+# Build all packages (respects dependency order via Turborepo)
+pnpm build
 
-```bash
-./scripts/setup-githooks.sh
-```
+# Run all tests
+pnpm test
 
-This installs a pre-commit hook that scans for accidentally committed secrets.
-
-### 3. Run Locally
-
-```bash
-# With mock backend (no external dependencies)
-VITE_MOCK_A2A=true npm run dev
-
-# With real backend (requires port-forward to apifrontend)
-cp .env.example .env
-npm run dev
-```
-
-### 4. Run Tests
-
-```bash
-npm test          # Single run
-npm run test:watch  # Watch mode
+# Start standalone dev server (with mock A2A)
+VITE_MOCK_A2A=true pnpm dev
 ```
 
 ## Development Workflow
 
-### Branch Naming
+### Working on ui-core
 
-- `feat/<description>` — New features
-- `fix/<description>` — Bug fixes
-- `chore/<description>` — Maintenance, refactoring, docs
-- `docs/<description>` — Documentation only
+```bash
+cd packages/ui-core
+pnpm test -- --watch   # Run tests in watch mode
+```
 
-### Commit Messages
+Changes to `ui-core` automatically propagate to downstream packages via `workspace:*` linking.
+
+### Working on plugin-backstage
+
+```bash
+cd packages/plugin-backstage
+pnpm start             # Backstage dev app at http://localhost:3000
+pnpm test              # Unit tests
+pnpm build             # Module Federation build
+pnpm bundle            # Create dist-dynamic/ for OCI
+pnpm verify-bundle     # Structural verification (17 checks)
+```
+
+### Working on plugin-ocm
+
+```bash
+cd packages/plugin-ocm
+pnpm start             # Webpack dev server at http://localhost:9001
+pnpm test              # Unit tests
+pnpm build             # Production webpack build
+```
+
+## Adding a New Platform Plugin
+
+1. Create `packages/plugin-<name>/` with a `package.json`
+2. Add `@kubernaut/ui-core: "workspace:*"` as a dependency
+3. Implement `KubernautAuthProvider` for your platform's auth
+4. Create a `KubernautConfig` with the correct `backendUrl` (and optional `fetchFn`)
+5. Wrap `<KubernautChat authProvider={...} config={...} />` in your platform's shell
+6. Add appropriate CSS scoping (`.kubernaut-plugin-root`)
+
+### Key Interfaces
+
+```typescript
+// From @kubernaut/ui-core
+interface KubernautAuthProvider {
+  getToken(): Promise<string>;
+  getUser(): Promise<KubernautUser>;
+}
+
+interface KubernautConfig {
+  backendUrl: string;
+  fetchFn?: (url: string, init?: RequestInit) => Promise<Response>;
+}
+```
+
+## Testing
+
+### Unit Tests (Vitest)
+
+```bash
+pnpm test                          # All packages
+pnpm --filter @kubernaut/ui-core test  # Single package
+```
+
+### E2E Tests (Playwright)
+
+```bash
+npx playwright test e2e/standalone.spec.ts    # Standalone mode
+npx playwright test e2e/backstage.spec.ts     # Backstage structural
+npx playwright test e2e/ocm.spec.ts           # OCM structural
+npx playwright test e2e/accessibility.spec.ts # WCAG 2.1 AA
+npx playwright test e2e/visual.spec.ts        # Visual regression (needs Storybook)
+```
+
+### Bundle Size
+
+```bash
+./scripts/bundle-size.sh  # Check all bundles against budgets
+```
+
+## Code Style
+
+- TypeScript strict mode
+- PatternFly 6 components (no Tailwind CSS)
+- React 19 for development; OCP plugin targets React 18 at runtime (Module Federation shared)
+- Imports from `@kubernaut/ui-core` should use the public API (`src/index.ts` exports)
+
+## Commit Conventions
 
 Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
-<type>(<scope>): <description>
-
-[optional body]
+feat(ui-core): add new component
+fix(plugin-ocm): handle proxy timeout
+docs: update RHDH installation guide
+chore: update dependencies
+test: add E2E for approval workflow
 ```
 
-Types: `feat`, `fix`, `refactor`, `test`, `docs`, `ci`, `chore`
+## Architecture Decisions
 
-Scopes: `ux`, `auth`, `mcp`, `a2a`, `infra`, `types`, `test`
-
-### Pull Request Process
-
-1. Create a feature branch from `main`
-2. Make your changes with tests
-3. Ensure all CI checks pass:
-   - `npm run lint` — ESLint
-   - `npm test` — Vitest (unit + integration)
-   - `npm run build` — TypeScript compilation + Vite build
-4. Push and open a PR
-5. Request review from a CODEOWNER
-
-### CI Requirements
-
-All PRs must pass:
-
-| Job | Command | What it checks |
-|-----|---------|----------------|
-| lint | `eslint .` | Code style and errors |
-| test | `vitest run` | Unit and integration tests |
-| build | `tsc -b && vite build` | Type safety and bundling |
-| security | `npm audit`, Trivy | Dependency and container vulnerabilities |
-| helm-lint | `helm lint ./chart` | Helm chart validity |
-
-## Coding Standards
-
-### TypeScript
-
-- Strict mode enabled (`tsconfig.json`)
-- No `any` — use proper types or `unknown`
-- Interfaces over type aliases for object shapes
-- Export types alongside their implementations
-
-### React
-
-- Functional components only
-- Custom hooks for shared logic (`src/hooks/`)
-- CSS via Tailwind utility classes (no CSS modules)
-- Accessibility: semantic HTML, ARIA attributes, keyboard navigation
-
-### Testing
-
-- Framework: **Vitest** + **Testing Library**
-- Test files co-located with source: `Component.test.tsx`
-- Test IDs: `UT-CONSOLE-<AREA>-<NUMBER>` (e.g., `UT-CONSOLE-MCP-001`)
-- Mock only external boundaries (fetch, timers)
-- Use `screen.getByTestId` / `screen.getByRole` for queries
-
-### File Organization
-
-```
-src/
-├── components/    # React components (one per file)
-├── hooks/         # Custom React hooks
-├── lib/           # Non-React utilities (clients, schemas)
-├── index.css      # Global styles and Tailwind config
-└── main.tsx       # Entry point
-```
-
-## Helm Chart Changes
-
-When modifying `chart/`:
-
-- Update `chart/values.yaml` with sensible defaults
-- Add comments explaining non-obvious values
-- Run `helm lint ./chart` before committing
-- Test with `helm template kubernaut-console ./chart | kubectl apply --dry-run=client -f -`
-
-## Getting Help
-
-- Open a [GitHub Discussion](https://github.com/jordigilh/kubernaut-demo-console/discussions) for questions
-- File an [Issue](https://github.com/jordigilh/kubernaut-demo-console/issues) for bugs or feature requests
-- Check existing issues before creating new ones
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the [Apache License 2.0](LICENSE).
+See `docs/migration/design.md` for the full design document and `docs/migration/ROADMAP.md` for the implementation timeline.
