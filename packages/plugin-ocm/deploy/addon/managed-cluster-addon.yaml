@@ -1,0 +1,30 @@
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: ManagedClusterAddOn
+metadata:
+  name: kubernaut-agent
+  namespace: ${CLUSTER_NAME}
+spec:
+  installNamespace: kubernaut
+---
+# Placement for auto-deploying to clusters with the 'kubernaut=enabled' label
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: kubernaut-agent-placement
+  namespace: open-cluster-management
+spec:
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchLabels:
+            kubernaut: enabled
+---
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: AddOnDeploymentConfig
+metadata:
+  name: kubernaut-agent-config
+  namespace: open-cluster-management
+spec:
+  customizedVariables:
+    - name: agentImage
+      value: ghcr.io/jordigilh/kagenti:latest

@@ -1,0 +1,28 @@
+image:
+  repository: ghcr.io/jordigilh/kubernaut-console-plugin
+  tag: latest
+  pullPolicy: IfNotPresent
+
+plugin:
+  name: kubernaut-console-plugin
+  port: 9443
+
+kagenti:
+  service:
+    name: kagenti
+    namespace: kubernaut
+    port: 8443
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi
+
+replicaCount: 1
+
+namespace: kubernaut
+
+enablePlugin: true

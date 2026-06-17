@@ -1,0 +1,22 @@
+apiVersion: console.openshift.io/v1
+kind: ConsolePlugin
+metadata:
+  name: {{ include "kubernaut-console-plugin.name" . }}
+spec:
+  displayName: Kubernaut
+  backend:
+    type: Service
+    service:
+      name: {{ include "kubernaut-console-plugin.name" . }}
+      namespace: {{ .Values.namespace }}
+      port: {{ .Values.plugin.port }}
+      basePath: /
+  proxy:
+    - alias: kagenti
+      authorization: UserToken
+      endpoint:
+        type: Service
+        service:
+          name: {{ .Values.kagenti.service.name }}
+          namespace: {{ .Values.kagenti.service.namespace }}
+          port: {{ .Values.kagenti.service.port }}

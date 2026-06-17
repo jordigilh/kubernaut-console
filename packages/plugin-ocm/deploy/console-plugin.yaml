@@ -1,0 +1,22 @@
+apiVersion: console.openshift.io/v1
+kind: ConsolePlugin
+metadata:
+  name: kubernaut-console-plugin
+spec:
+  displayName: Kubernaut
+  backend:
+    type: Service
+    service:
+      name: kubernaut-console-plugin
+      namespace: kubernaut
+      port: 9443
+      basePath: /
+  proxy:
+    - alias: kagenti
+      authorization: UserToken
+      endpoint:
+        type: Service
+        service:
+          name: kagenti
+          namespace: kubernaut
+          port: 8443

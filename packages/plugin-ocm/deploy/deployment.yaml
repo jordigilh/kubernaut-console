@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubernaut
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubernaut-console-plugin
+  namespace: kubernaut
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: kubernaut-console-plugin-cert
+spec:
+  selector:
+    app: kubernaut-console-plugin
+  ports:
+    - name: https
+      protocol: TCP
+      port: 9443
+      targetPort: https
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubernaut-console-plugin
+  namespace: kubernaut
+  labels:
+    app: kubernaut-console-plugin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubernaut-console-plugin
+  template:
+    metadata:
+      labels:
+        app: kubernaut-console-plugin
+    spec:
+      containers:
+        - name: plugin
+          image: ghcr.io/jordigilh/kubernaut-console-plugin:latest
+          ports:
+            - name: https
+              containerPort: 9443
+              protocol: TCP
+          volumeMounts:
+            - name: cert
+              mountPath: /var/cert
+              readOnly: true
+            - name: nginx-conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      volumes:
+        - name: cert
+          secret:
+            secretName: kubernaut-console-plugin-cert
+        - name: nginx-conf
+          configMap:
+            name: kubernaut-console-plugin-nginx
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubernaut-console-plugin-nginx
+  namespace: kubernaut
+data:
+  nginx.conf: |
+    error_log /dev/stderr;
+    events {}
+    http {
+      include /etc/nginx/mime.types;
+      default_type application/octet-stream;
+      access_log /dev/stdout;
+
+      server {
+        listen 9443 ssl;
+        ssl_certificate /var/cert/tls.crt;
+        ssl_certificate_key /var/cert/tls.key;
+
+        root /usr/share/nginx/html;
+
+        location / {
+          try_files $uri $uri/ =404;
+          add_header Cache-Control "no-cache, no-store, must-revalidate";
+        }
+
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+          expires 1y;
+          add_header Cache-Control "public, immutable";
+        }
+      }
+    }

@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kubernaut-console-plugin.name" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "kubernaut-console-plugin.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "kubernaut-console-plugin.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kubernaut-console-plugin.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: plugin
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: https
+              containerPort: {{ .Values.plugin.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: cert
+              mountPath: /var/cert
+              readOnly: true
+            - name: nginx-conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: cert
+          secret:
+            secretName: {{ include "kubernaut-console-plugin.name" . }}-cert
+        - name: nginx-conf
+          configMap:
+            name: {{ include "kubernaut-console-plugin.name" . }}-nginx

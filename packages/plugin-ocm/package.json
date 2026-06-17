@@ -1,0 +1,50 @@
+{
+  "name": "@kubernaut/plugin-ocm",
+  "version": "0.1.0",
+  "description": "OCP console dynamic plugin for Kubernaut",
+  "private": true,
+  "consolePlugin": {
+    "name": "kubernaut-console-plugin",
+    "version": "0.1.0",
+    "displayName": "Kubernaut",
+    "description": "AI-powered Kubernetes incident response console",
+    "exposedModules": {
+      "KubernautPage": "./src/components/KubernautPage"
+    },
+    "dependencies": {
+      "@console/pluginAPI": "*"
+    }
+  },
+  "scripts": {
+    "build": "webpack --mode production",
+    "build:dev": "webpack --mode development",
+    "start": "webpack serve --mode development",
+    "test": "vitest run",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@kubernaut/ui-core": "workspace:*",
+    "@openshift-console/dynamic-plugin-sdk": "^4.21.0",
+    "@patternfly/react-core": "^6.0.0"
+  },
+  "devDependencies": {
+    "@openshift-console/dynamic-plugin-sdk-webpack": "^4.21.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "css-loader": "^7.0.0",
+    "style-loader": "^4.0.0",
+    "ts-loader": "^9.5.0",
+    "typescript": "^5.8.0",
+    "webpack": "^5.98.0",
+    "webpack-cli": "^6.0.0",
+    "webpack-dev-server": "^5.2.0",
+    "vitest": "^4.1.8",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/jest-dom": "^6.9.0"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
