@@ -4,19 +4,24 @@ on: [pull_request]
 jobs:
   visual:
     runs-on: ubuntu-latest
-    container: mcr.microsoft.com/playwright:v1.52.0-noble
+    container: mcr.microsoft.com/playwright:v1.61.0-noble
     steps:
       - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
 
       - name: Build Storybook
-        run: npx storybook build -o storybook-static
+        run: pnpm run build-storybook
 
       - name: Start Storybook server
         run: npx http-server storybook-static -p 6006 -s &
