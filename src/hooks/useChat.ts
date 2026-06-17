@@ -781,5 +781,15 @@ export function useChat() {
     sessionStorage.removeItem(CONTEXT_KEY);
   }, []);
 
-  return { messages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase };
+  const addLocalMessage = useCallback((text: string, role: "agent" | "user" = "agent") => {
+    const msg: ChatMessage = {
+      id: `msg-${++messageIdRef.current}`,
+      role,
+      text,
+      timestamp: Date.now(),
+    };
+    setMessages((prev) => [...prev, msg]);
+  }, []);
+
+  return { messages, isStreaming, error, setError, connectionStatus, sendMessage, addLocalMessage, cancelStream, clearHistory, investigationStartTime, currentPhase };
 }

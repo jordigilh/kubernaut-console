@@ -10,7 +10,7 @@ import { WelcomeState } from "./WelcomeState";
 import { Modal } from "./Modal";
 
 export function ChatContainer() {
-  const { messages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase } = useChat();
+  const { messages, isStreaming, error, setError, connectionStatus, sendMessage, addLocalMessage, cancelStream, clearHistory, investigationStartTime, currentPhase } = useChat();
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
   const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName ?? lastRca?.signalName;
@@ -61,10 +61,10 @@ export function ChatContainer() {
         setError(res.error.message);
         return;
       }
-      sendMessage(`Workflow ${workflowId} selected for execution.`, { silent: true });
+      addLocalMessage(`Workflow ${workflowId} selected for execution.`);
       emitAuditEvent({ action: "execute_workflow", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { workflowId } });
     },
-    [rrId, sendMessage, setError, user.name, user.email],
+    [rrId, addLocalMessage, setError, user.name, user.email],
   );
 
   const handleApprove = useCallback(
@@ -78,10 +78,10 @@ export function ChatContainer() {
         setError(res.error.message);
         return;
       }
-      sendMessage("The remediation has been approved. Continue monitoring.", { silent: true });
+      addLocalMessage("The remediation has been approved. Continue monitoring.");
       emitAuditEvent({ action: "approve", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { rarName, reason } });
     },
-    [sendMessage, setError, rrId, user.name, user.email],
+    [addLocalMessage, setError, rrId, user.name, user.email],
   );
 
   const handleDecline = useCallback(
@@ -95,10 +95,10 @@ export function ChatContainer() {
         setError(res.error.message);
         return;
       }
-      sendMessage("The remediation has been rejected.", { silent: true });
+      addLocalMessage("The remediation has been rejected.");
       emitAuditEvent({ action: "decline", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { rarName, reason } });
     },
-    [sendMessage, setError, rrId, user.name, user.email],
+    [addLocalMessage, setError, rrId, user.name, user.email],
   );
 
   const handleDismiss = useCallback(
@@ -119,10 +119,10 @@ export function ChatContainer() {
         setError(res.error.message);
         return;
       }
-      sendMessage("Investigation dismissed. No remediation action taken.", { silent: true });
+      addLocalMessage("Investigation dismissed. No remediation action taken.");
       emitAuditEvent({ action: "dismiss", timestamp: new Date().toISOString(), user: user.name || user.email, rrId });
     },
-    [rrId, sendMessage, setError, user.name, user.email, currentPhase],
+    [rrId, addLocalMessage, setError, user.name, user.email, currentPhase],
   );
 
   const handleEscalate = useCallback(async (reason: string) => {
@@ -143,9 +143,9 @@ export function ChatContainer() {
       setError(res.error.message);
       return;
     }
-    sendMessage("Investigation escalated to team for manual review.", { silent: true });
+    addLocalMessage("Investigation escalated to team for manual review.");
     emitAuditEvent({ action: "escalate", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { escalation_reason: reason } });
-  }, [rrId, sendMessage, setError, user.name, user.email, currentPhase]);
+  }, [rrId, addLocalMessage, setError, user.name, user.email, currentPhase]);
 
   const handleClearHistory = useCallback(() => {
     if (messages.length === 0) {
