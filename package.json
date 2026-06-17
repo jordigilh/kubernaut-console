@@ -13,6 +13,7 @@
     "test:visual:update": "npx playwright test e2e/visual.spec.ts --update-snapshots"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
     "@patternfly/chatbot": "^6.6.0",
     "@patternfly/react-core": "^6.5.1",
     "@patternfly/react-icons": "^6.5.1",

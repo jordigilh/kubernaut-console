@@ -1,29 +1,30 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 30000,
-  snapshotPathTemplate: "{testDir}/{testFileDir}/{testFileName}-snapshots/{arg}{ext}",
-  expect: {
-    toHaveScreenshot: {
-      maxDiffPixelRatio: 0.05,
-      animations: "disabled",
-    },
-  },
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: process.env.CI ? "github" : "html",
   use: {
-    baseURL: "http://localhost:6006",
-    viewport: { width: 820, height: 750 },
-    actionTimeout: 10000,
+    baseURL: "http://localhost:5173",
+    trace: "on-first-retry",
+    screenshot: "only-on-failure",
   },
   projects: [
     {
       name: "chromium",
-      use: { browserName: "chromium" },
+      use: { ...devices["Desktop Chrome"] },
     },
   ],
   webServer: {
-    command: "npx http-server storybook-static -p 6006 -s",
-    port: 6006,
-    reuseExistingServer: true,
+    command: "pnpm dev",
+    url: "http://localhost:5173",
+    reuseExistingServer: !process.env.CI,
+    timeout: 30_000,
+    env: {
+      VITE_MOCK_A2A: "true",
+    },
   },
 });
