@@ -528,7 +528,7 @@ describe("ChatContainer Integration", () => {
       expect(screen.getByText(/Production namespace requires approval/)).toBeInTheDocument();
     });
 
-    // Click Approve — triggers MCP call then silent A2A follow-up
+    // Click Approve — triggers MCP call, local confirmation (no A2A follow-up)
     const approveBtn = screen.getByRole("button", { name: /approve/i });
     await act(async () => {
       fireEvent.click(approveBtn);
@@ -540,10 +540,8 @@ describe("ChatContainer Integration", () => {
     });
     // Verify no user bubble with "Approve rar-..." (silent)
     expect(screen.queryByText("Approve rar-rr-drift-xyz")).not.toBeInTheDocument();
-    // streamA2A called twice (initial + follow-up)
-    await waitFor(() => {
-      expect(mockStreamA2A).toHaveBeenCalledTimes(2);
-    });
+    // streamA2A called only once (initial message), NOT a second time for confirmation
+    expect(mockStreamA2A).toHaveBeenCalledTimes(1);
 
     fetchSpy.mockRestore();
   });
@@ -771,11 +769,6 @@ describe("ChatContainer Integration", () => {
       })
     ));
 
-    // Follow-up stream: just complete
-    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
-      opts.onComplete?.();
-    });
-
     render(<ChatContainer />);
     const input = screen.getByLabelText("Type your message");
     await act(async () => {
@@ -815,8 +808,7 @@ describe("ChatContainer Integration", () => {
     fetchSpy.mockRestore();
   });
 
-  // AU-2: On MCP success, follow-up A2A message is sent to resume LLM monitoring
-  it("IT-CONSOLE-MCP-002: sends follow-up A2A message after successful MCP approval", async () => {
+  it("IT-CONSOLE-MCP-002: successful MCP approval shows local confirmation without A2A follow-up", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
@@ -856,11 +848,6 @@ describe("ChatContainer Integration", () => {
       })
     ));
 
-    // Follow-up stream: just complete
-    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
-      opts.onComplete?.();
-    });
-
     render(<ChatContainer />);
     const input = screen.getByLabelText("Type your message");
     await act(async () => {
@@ -878,11 +865,11 @@ describe("ChatContainer Integration", () => {
       fireEvent.click(approveBtn);
     });
 
-    // AU-2: Follow-up A2A message sent after approval
-    // Wait for async MCP init (delay after 202 notification) + follow-up sendMessage
+    // Local confirmation message appears without triggering A2A
     await waitFor(() => {
-      expect(mockStreamA2A).toHaveBeenCalledTimes(2);
+      expect(screen.getByText("The remediation has been approved. Continue monitoring.")).toBeInTheDocument();
     });
+    expect(mockStreamA2A).toHaveBeenCalledTimes(1);
 
     fetchSpy.mockRestore();
   });
