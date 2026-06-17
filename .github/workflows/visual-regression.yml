@@ -4,6 +4,12 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      regenerate:
+        description: "Force baseline regeneration and push to OCI"
+        type: boolean
+        default: false
 
 env:
   BASELINES_REGISTRY: quay.io/kubernaut-cicd/visual-baselines
@@ -34,6 +40,7 @@ jobs:
 
       - name: Pull baselines
         id: baselines
+        if: ${{ inputs.regenerate != true }}
         run: |
           BRANCH_TAG="branch-${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
           BRANCH_TAG=$(echo "$BRANCH_TAG" | sed 's/[^a-zA-Z0-9._-]/-/g')
@@ -66,12 +73,27 @@ jobs:
         run: npx wait-on http://localhost:6006/iframe.html --timeout 30000
 
       - name: Run visual regression tests
-        if: steps.baselines.outputs.found == 'true'
+        if: steps.baselines.outputs.found == 'true' && inputs.regenerate != true
         run: npx playwright test e2e/visual.spec.ts
 
-      - name: Generate baselines (no existing baselines)
-        if: steps.baselines.outputs.found == 'false'
+      - name: Generate baselines
+        if: steps.baselines.outputs.found == 'false' || inputs.regenerate == true
         run: npx playwright test e2e/visual.spec.ts --update-snapshots
+
+      - name: Login to Quay.io
+        if: inputs.regenerate == true
+        run: echo "${{ secrets.QUAY_PASSWORD }}" | oras login quay.io --username "${{ secrets.QUAY_USERNAME }}" --password-stdin
+
+      - name: Push baselines to OCI
+        if: inputs.regenerate == true
+        run: |
+          BRANCH_TAG="branch-${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          BRANCH_TAG=$(echo "$BRANCH_TAG" | sed 's/[^a-zA-Z0-9._-]/-/g')
+          cd e2e/visual.spec.ts-snapshots
+          oras push "$BASELINES_REGISTRY:$BRANCH_TAG" \
+            --artifact-type application/vnd.kubernaut.visual-baselines.v1 \
+            ./:application/vnd.kubernaut.visual-baselines.layer.v1.tar
+          echo "::notice::Baselines pushed to $BASELINES_REGISTRY:$BRANCH_TAG"
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -90,7 +112,7 @@ jobs:
           retention-days: 7
 
   push-baselines:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || inputs.regenerate == true
     needs: [visual]
     runs-on: ubuntu-latest
     container: mcr.microsoft.com/playwright:v1.61.0-noble
