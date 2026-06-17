@@ -34,7 +34,6 @@
     "@backstage/core-components": "^0.18.11",
     "@backstage/core-plugin-api": "^1.12.7",
     "@backstage/frontend-plugin-api": "^0.17.2",
-    "@backstage/theme": "^0.7.3",
     "@kubernaut/ui-core": "workspace:*",
     "react-use": "^17.5.0"
   },
