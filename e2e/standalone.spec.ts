@@ -11,11 +11,11 @@ test.describe("Standalone Mode E2E", () => {
     ).toBeVisible();
   });
 
-  test("renders PF6 chatbot container", async ({ page }) => {
+  test("renders chat container", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    const chatbot = page.locator(".pf-chatbot");
+    const chatbot = page.locator(".kn-chat");
     await expect(chatbot).toBeVisible();
   });
 
@@ -23,10 +23,10 @@ test.describe("Standalone Mode E2E", () => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    const textarea = page.locator("textarea").first();
-    await expect(textarea).toBeVisible();
-    await textarea.fill("Hello, Kubernaut!");
-    await expect(textarea).toHaveValue("Hello, Kubernaut!");
+    const input = page.locator("input[aria-label='Type your message']");
+    await expect(input).toBeVisible();
+    await input.fill("Hello, Kubernaut!");
+    await expect(input).toHaveValue("Hello, Kubernaut!");
   });
 
   test("sending a message shows user bubble and triggers agent response", async ({
@@ -35,30 +35,28 @@ test.describe("Standalone Mode E2E", () => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    const textarea = page.locator("textarea").first();
-    await textarea.fill("pod crashlooping in production");
+    const input = page.locator("input[aria-label='Type your message']");
+    await input.fill("pod crashlooping in production");
 
-    const sendButton = page.locator('button[aria-label="Send"]').first();
-    if (await sendButton.isVisible()) {
-      await sendButton.click();
-    } else {
-      await textarea.press("Enter");
-    }
+    const sendButton = page.locator("button[aria-label='Send message']");
+    await sendButton.click();
 
-    // User message should appear
     await expect(
       page.getByText("pod crashlooping in production"),
     ).toBeVisible({ timeout: 5000 });
   });
 
-  test("PF6 styles are loaded (PatternFly classes present)", async ({
+  test("PF6 styles are loaded (PatternFly CSS custom properties present)", async ({
     page,
   }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    const pfElement = page.locator("[class*='pf-']").first();
-    await expect(pfElement).toBeVisible();
+    const hasKnVars = await page.evaluate(() => {
+      const styles = getComputedStyle(document.documentElement);
+      return styles.getPropertyValue("--kn-teal-600").trim().length > 0;
+    });
+    expect(hasKnVars).toBe(true);
   });
 
   test("no console errors on page load", async ({ page }) => {
@@ -86,8 +84,7 @@ test.describe("Standalone Mode E2E", () => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    // PF6 Chatbot should have proper ARIA roles
-    const mainContent = page.locator("[role='main'], main, .pf-chatbot");
+    const mainContent = page.locator("main[role='log'], .kn-chat");
     await expect(mainContent.first()).toBeVisible();
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, type FormEvent } from "react";
+import { useEffect, useRef, useState, useCallback, type FormEvent, type KeyboardEvent } from "react";
 import { useChat } from "../hooks/useChat";
 import { useUser } from "../hooks/useUser";
 import { callMcpTool } from "../lib/mcp-client";
@@ -36,6 +36,16 @@ export function ChatContainer() {
     if (!text || isStreaming) return;
     setInput("");
     sendMessage(text);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      const text = input.trim();
+      if (!text || isStreaming) return;
+      setInput("");
+      sendMessage(text);
+    }
   };
 
   const handleSuggest = useCallback(
@@ -275,6 +285,7 @@ export function ChatContainer() {
             disabled={isStreaming && currentPhase !== "verifying"}
             aria-label="Type your message"
             className="kn-input-field"
+            onKeyDown={handleKeyDown}
           />
           {isStreaming && currentPhase !== "verifying" ? (
             <button

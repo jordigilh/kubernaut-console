@@ -127,9 +127,9 @@ describe("AU-2/SI-4: Investigation context bar provides audit correlation and si
     );
 
     const banner = screen.getByTestId("investigation-context");
-    expect(banner).toHaveTextContent("RR");
+    expect(banner).toHaveTextContent("Remediation ID");
     expect(banner).toHaveTextContent("Alert");
-    expect(banner).toHaveTextContent("NS");
+    expect(banner).toHaveTextContent("Namespace");
     expect(banner).toHaveTextContent("Resource");
     expect(banner).toHaveTextContent("Investigating");
   });
@@ -144,14 +144,14 @@ describe("AU-2/SI-4: Investigation context bar provides audit correlation and si
     expect(banner).toHaveTextContent("Ready");
   });
 
-  it("UT-CONSOLE-CTX-011: CLS prevention — always renders as PF6 Toolbar", () => {
+  it("UT-CONSOLE-CTX-011: CLS prevention — always renders as context bar", () => {
     const { rerender } = render(<InvestigationContext />);
     const bannerIdle = screen.getByTestId("investigation-context");
-    expect(bannerIdle.className).toContain("pf-v6-c-toolbar");
+    expect(bannerIdle.className).toContain("kn-context-bar");
 
     rerender(<InvestigationContext rrId="rr-abc-123" phase="investigation" />);
     const bannerActive = screen.getByTestId("investigation-context");
-    expect(bannerActive.className).toContain("pf-v6-c-toolbar");
+    expect(bannerActive.className).toContain("kn-context-bar");
   });
 
   it("UT-CONSOLE-CTX-012: CLS prevention — idle state does not show field labels", () => {

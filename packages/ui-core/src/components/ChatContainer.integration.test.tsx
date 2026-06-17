@@ -144,7 +144,7 @@ describe("ChatContainer Integration", () => {
     render(<ChatContainer />);
 
     // Send investigation message (AU-10: audit event generation)
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
 
     await act(async () => {
       fireEvent.change(input, { target: { value: "Investigate this alert" } });
@@ -225,7 +225,7 @@ describe("ChatContainer Integration", () => {
     render(<ChatContainer />);
 
     // Send a remediation trigger message
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "Use git-revert-v2" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -301,7 +301,7 @@ describe("ChatContainer Integration", () => {
 
     render(<ChatContainer />);
 
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "Investigate" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -329,7 +329,7 @@ describe("ChatContainer Integration", () => {
 
     render(<ChatContainer />);
 
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "Investigate" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -362,7 +362,7 @@ describe("ChatContainer Integration", () => {
 
     render(<ChatContainer />);
 
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "Investigate" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -399,7 +399,7 @@ describe("ChatContainer Integration", () => {
 
     render(<ChatContainer />);
 
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
 
     // First submit
     await act(async () => {
@@ -442,7 +442,7 @@ describe("ChatContainer Integration", () => {
 
     const { unmount } = render(<ChatContainer />);
 
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "Persistent message" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -513,7 +513,7 @@ describe("ChatContainer Integration", () => {
     });
 
     render(<ChatContainer />);
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "investigate alert" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -589,7 +589,7 @@ describe("ChatContainer Integration", () => {
     });
 
     render(<ChatContainer />);
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "investigate" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -615,7 +615,7 @@ describe("ChatContainer Integration", () => {
     const banner = screen.getByTestId("investigation-context");
     expect(banner).toBeInTheDocument();
     expect(banner).toHaveTextContent("Ready");
-    expect(banner.className).toContain("pf-v6-c-toolbar");
+    expect(banner.className).toContain("kn-context-bar");
   });
 
   // IR-4: execution_progress artifact wiring — renders execution steps from structured artifact
@@ -650,7 +650,7 @@ describe("ChatContainer Integration", () => {
     });
 
     render(<ChatContainer />);
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "execute remediation" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -668,7 +668,7 @@ describe("ChatContainer Integration", () => {
     });
 
     render(<ChatContainer />);
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "Hello" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -706,7 +706,7 @@ describe("ChatContainer Integration", () => {
     });
 
     render(<ChatContainer />);
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "Investigate" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -718,14 +718,14 @@ describe("ChatContainer Integration", () => {
     });
   });
 
-  it("IT-CONSOLE-UX-003: MessageBar is rendered by PF6", () => {
+  it("IT-CONSOLE-UX-003: MessageBar is rendered", () => {
     mockStreamA2A.mockImplementation(async () => {});
 
     render(<ChatContainer />);
-    const footer = document.querySelector(".pf-chatbot__footer");
-    expect(footer).toBeInTheDocument();
-    const textarea = screen.getByRole("textbox", { name: /send a message/i });
-    expect(textarea).toBeInTheDocument();
+    const inputForm = document.querySelector(".kn-input-form");
+    expect(inputForm).toBeInTheDocument();
+    const textInput = screen.getByRole("textbox", { name: /type your message/i });
+    expect(textInput).toBeInTheDocument();
   });
 
   // AC-6: Approve button triggers MCP call with correct payload (not A2A text message)
@@ -777,7 +777,7 @@ describe("ChatContainer Integration", () => {
     });
 
     render(<ChatContainer />);
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "investigate" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -862,7 +862,7 @@ describe("ChatContainer Integration", () => {
     });
 
     render(<ChatContainer />);
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "investigate" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -931,7 +931,7 @@ describe("ChatContainer Integration", () => {
     ));
 
     render(<ChatContainer />);
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "investigate" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -1005,7 +1005,7 @@ describe("ChatContainer Integration", () => {
     });
 
     render(<ChatContainer />);
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "investigate" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -1098,7 +1098,7 @@ describe("ChatContainer Integration", () => {
     });
 
     render(<ChatContainer />);
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "Investigate this alert" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -1159,7 +1159,7 @@ describe("ChatContainer Integration", () => {
     });
 
     render(<ChatContainer />);
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "investigate" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -1212,7 +1212,7 @@ describe("ChatContainer Integration", () => {
     });
 
     render(<ChatContainer />);
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "investigate" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -1261,7 +1261,7 @@ describe("ChatContainer Integration", () => {
     });
 
     render(<ChatContainer />);
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "investigate" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -1328,7 +1328,7 @@ describe("ChatContainer Integration", () => {
     });
 
     render(<ChatContainer />);
-    const input = screen.getByRole("textbox", { name: /send a message/i });
+    const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
       fireEvent.change(input, { target: { value: "investigate" } });
       fireEvent.keyDown(input, { key: "Enter", code: "Enter" });

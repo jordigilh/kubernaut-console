@@ -89,7 +89,7 @@ export function ThinkingPanel({ entries, isActive, startTime, label }: Props) {
           {entries.map((entry) => (
             <div key={entry.id} className="kn-fade-in" style={{ padding: "0.125rem 0" }}>
               {entry.type === "tool_call" ? (
-                <span style={{ fontFamily: "monospace", color: "var(--kn-text-dim)" }}>{entry.text}</span>
+                <code style={{ fontFamily: "monospace", color: "var(--kn-text-dim)" }}>{entry.text}</code>
               ) : (
                 <div className="kn-markdown" style={{ fontSize: "0.6875rem" }}>
                   <MarkdownContent text={entry.text} />
