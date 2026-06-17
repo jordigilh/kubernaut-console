@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { ExpandableSection, List, ListItem, Content, ContentVariants } from "@patternfly/react-core";
 import type { ThinkingEntry } from "../hooks/useChat";
 import { MarkdownContent } from "./MarkdownContent";
 
@@ -19,14 +18,14 @@ function formatElapsed(startTime: number): string {
 }
 
 export function ThinkingPanel({ entries, isActive, startTime, label }: Props) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
   const [elapsed, setElapsed] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevActiveRef = useRef(isActive);
 
   useEffect(() => {
     if (prevActiveRef.current && !isActive) {
-      setIsExpanded(false);
+      setCollapsed(true);
     }
     prevActiveRef.current = isActive;
   }, [isActive]);
@@ -40,43 +39,66 @@ export function ThinkingPanel({ entries, isActive, startTime, label }: Props) {
   }, [isActive, startTime]);
 
   useEffect(() => {
-    if (isExpanded && scrollRef.current) {
+    if (!collapsed && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [entries, isExpanded]);
+  }, [entries, collapsed]);
 
-  const toggleText = isActive
-    ? `${label || "Thinking"}...`
-    : `Thought for ${entries.length} steps`;
+  const toggle = () => setCollapsed((c) => !c);
 
   return (
-    <ExpandableSection
-      toggleText={toggleText}
-      isExpanded={isExpanded}
-      onToggle={(_e, expanded) => setIsExpanded(expanded)}
-    >
-      {startTime && (
-        <Content component={ContentVariants.small} data-testid="elapsed-time">
-          {elapsed}
-        </Content>
-      )}
-      <div
-        ref={scrollRef}
-        data-testid="thinking-body"
-        style={{ maxHeight: "200px", overflowY: "auto" }}
+    <div className="kn-thinking kn-fade-in">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={!collapsed}
+        className="kn-thinking-header"
       >
-        <List isPlain>
+        <svg
+          style={{ height: 12, width: 12, transition: "transform 0.15s", transform: collapsed ? "rotate(0deg)" : "rotate(90deg)" }}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+        {isActive ? (
+          <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+            <span>{label || "Thinking"}</span>
+            <span className="kn-typing-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--kn-teal-600)" }} />
+            <span className="kn-typing-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--kn-teal-600)" }} />
+            <span className="kn-typing-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--kn-teal-600)" }} />
+          </span>
+        ) : (
+          <span>Thought for {entries.length} steps</span>
+        )}
+        {startTime && (
+          <span data-testid="elapsed-time" style={{ marginLeft: "auto", color: "var(--kn-text-dim)", fontSize: "0.6875rem" }}>
+            {elapsed}
+          </span>
+        )}
+      </button>
+
+      {!collapsed && (
+        <div
+          ref={scrollRef}
+          data-testid="thinking-body"
+          className="kn-thinking-body kn-scrollbar-thin"
+        >
           {entries.map((entry) => (
-            <ListItem key={entry.id}>
+            <div key={entry.id} className="kn-fade-in" style={{ padding: "0.125rem 0" }}>
               {entry.type === "tool_call" ? (
-                <code>{entry.text}</code>
+                <span style={{ fontFamily: "monospace", color: "var(--kn-text-dim)" }}>{entry.text}</span>
               ) : (
-                <MarkdownContent text={entry.text} />
+                <div className="kn-markdown" style={{ fontSize: "0.6875rem" }}>
+                  <MarkdownContent text={entry.text} />
+                </div>
               )}
-            </ListItem>
+            </div>
           ))}
-        </List>
-      </div>
-    </ExpandableSection>
+        </div>
+      )}
+    </div>
   );
 }

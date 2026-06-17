@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { Flex, FlexItem, Label, Toolbar, ToolbarContent, ToolbarItem, Tooltip } from "@patternfly/react-core";
-import { CheckCircleIcon, ExclamationCircleIcon, InProgressIcon, SyncAltIcon } from "@patternfly/react-icons";
 
 interface Props {
   alertName?: string;
@@ -11,44 +9,78 @@ interface Props {
   phase?: "investigation" | "decision" | "remediation" | "verifying" | "failed" | "timed_out" | "complete";
 }
 
-type PFLabelColor = "blue" | "green" | "orange" | "red" | "purple" | "teal" | "grey" | "yellow";
-
-const PHASE_CONFIG: Record<string, { label: string; color: PFLabelColor; icon: React.ReactElement }> = {
-  investigation: { label: "Investigating", color: "blue", icon: <InProgressIcon /> },
-  decision: { label: "Decision pending", color: "yellow", icon: <InProgressIcon /> },
-  remediation: { label: "Executing", color: "teal", icon: <SyncAltIcon /> },
-  verifying: { label: "Verifying", color: "blue", icon: <SyncAltIcon /> },
-  failed: { label: "Failed", color: "red", icon: <ExclamationCircleIcon /> },
-  timed_out: { label: "Timed Out", color: "red", icon: <ExclamationCircleIcon /> },
-  complete: { label: "Complete", color: "green", icon: <CheckCircleIcon /> },
+const PHASE_CONFIG: Record<string, { label: string; dotColor: string; pulse: boolean }> = {
+  investigation: { label: "Investigating", dotColor: "var(--kn-green-400)", pulse: true },
+  decision: { label: "Decision pending", dotColor: "#fbbf24", pulse: false },
+  remediation: { label: "Executing", dotColor: "var(--kn-teal-400)", pulse: true },
+  verifying: { label: "Verifying", dotColor: "var(--kn-teal-300)", pulse: true },
+  failed: { label: "Failed", dotColor: "var(--kn-red-400)", pulse: false },
+  timed_out: { label: "Timed Out", dotColor: "var(--kn-red-400)", pulse: false },
+  complete: { label: "Complete", dotColor: "var(--kn-green-400)", pulse: false },
 };
 
 function Field({ label, value }: { label: string; value: string }) {
+  const [showPopover, setShowPopover] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const handleClick = () => {
+    setShowPopover(true);
     navigator.clipboard.writeText(value).then(
       () => {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       },
-      () => {}
+      () => { setCopied(false); }
     );
+    setTimeout(() => setShowPopover(false), 2000);
   };
 
   return (
-    <Tooltip content={copied ? "Copied!" : `Click to copy: ${value}`}>
-      <FlexItem>
-        <Label isCompact color="blue" onClick={handleClick} style={{ cursor: "pointer" }}>
-          {label}: {value}
-        </Label>
-      </FlexItem>
-    </Tooltip>
+    <div className="kn-context-field">
+      <span className="kn-context-label">{label}</span>
+      <button
+        type="button"
+        onClick={handleClick}
+        className="kn-context-value"
+        aria-label={`${label}: ${value} — click to copy`}
+        title="Click to copy"
+      >
+        {value}
+      </button>
+      {showPopover && (
+        <div
+          role="tooltip"
+          aria-live="polite"
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            marginTop: "0.25rem",
+            zIndex: 50,
+            padding: "0.25rem 0.5rem",
+            borderRadius: "0.25rem",
+            background: "#fff",
+            color: "var(--kn-text-primary)",
+            fontSize: "0.6875rem",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            border: "1px solid var(--kn-border)",
+            maxWidth: "17.5rem",
+            wordBreak: "break-word",
+          }}
+        >
+          {copied ? "Copied!" : value}
+        </div>
+      )}
+    </div>
   );
 }
 
+function Separator() {
+  return <div className="kn-context-separator" aria-hidden="true" />;
+}
+
 export function InvestigationContext({ alertName, namespace, resource, cluster, rrId, phase }: Props) {
-  const phaseConfig = phase ? PHASE_CONFIG[phase] : { label: "Ready", color: "green" as PFLabelColor, icon: <CheckCircleIcon /> };
+  const phaseConfig = phase ? PHASE_CONFIG[phase] : { label: "Ready", dotColor: "var(--kn-green-400)", pulse: false };
 
   let displayResource = resource;
   if (resource && namespace) {
@@ -56,26 +88,56 @@ export function InvestigationContext({ alertName, namespace, resource, cluster, 
   }
 
   return (
-    <Toolbar
+    <div
       data-testid="investigation-context"
+      className="kn-context-bar"
+      role="region"
       aria-label="Investigation context"
     >
-      <ToolbarContent>
-        <ToolbarItem>
-          <Flex spaceItems={{ default: "spaceItemsSm" }} alignItems={{ default: "alignItemsCenter" }}>
-            {rrId && <Field label="RR" value={rrId} />}
-            {alertName && alertName !== "unknown" && <Field label="Alert" value={alertName} />}
-            {namespace && <Field label="NS" value={namespace} />}
-            {displayResource && <Field label="Resource" value={displayResource} />}
-            {cluster && <Field label="Cluster" value={cluster} />}
-          </Flex>
-        </ToolbarItem>
-        <ToolbarItem align={{ default: "alignEnd" }}>
-          <Label color={phaseConfig.color} icon={phaseConfig.icon} isCompact data-testid="phase-indicator">
-            {phaseConfig.label}
-          </Label>
-        </ToolbarItem>
-      </ToolbarContent>
-    </Toolbar>
+      {rrId && (
+        <>
+          <Field label="Remediation ID" value={rrId} />
+          <Separator />
+        </>
+      )}
+
+      {alertName && alertName !== "unknown" && (
+        <>
+          <Field label="Alert" value={alertName} />
+          <Separator />
+        </>
+      )}
+
+      {namespace && (
+        <>
+          <Field label="Namespace" value={namespace} />
+          <Separator />
+        </>
+      )}
+
+      {displayResource && (
+        <>
+          <Field label="Resource" value={displayResource} />
+          <Separator />
+        </>
+      )}
+
+      {cluster && (
+        <>
+          <Field label="Cluster" value={cluster} />
+          <Separator />
+        </>
+      )}
+
+      <div className="kn-context-phase" role="status" aria-live="polite" data-testid="phase-indicator">
+        <span
+          data-testid="phase-dot"
+          className={`kn-phase-dot ${phaseConfig.pulse ? "kn-pulse" : ""}`}
+          style={{ background: phaseConfig.dotColor }}
+          aria-hidden="true"
+        />
+        <span className="kn-phase-label">{phaseConfig.label}</span>
+      </div>
+    </div>
   );
 }

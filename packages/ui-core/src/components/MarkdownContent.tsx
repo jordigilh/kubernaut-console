@@ -16,22 +16,10 @@ const sanitizeSchema = {
 
 export function MarkdownContent({ text }: Props) {
   return (
-    <div className="pf-v6-c-content">
+    <div className="kn-markdown">
       <Markdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[[rehypeSanitize, sanitizeSchema]]}
-        components={{
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={typeof children === "string" ? `${children} (opens in new tab)` : undefined}
-            >
-              {children}
-            </a>
-          ),
-        }}
       >
         {text}
       </Markdown>

@@ -8,8 +8,8 @@ function App() {
   const config = useMemo(() => ({ backendUrl: "" }), []);
 
   return (
-    <div className="flex h-screen items-center justify-center bg-surface p-0 sm:p-4">
-      <div className="h-full w-full sm:h-[750px] sm:max-w-[820px]">
+    <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "var(--kn-surface)", padding: 0 }}>
+      <div style={{ height: "100%", width: "100%", maxWidth: 820, maxHeight: 750 }}>
         <ErrorBoundary>
           <KubernautChat authProvider={authProvider} config={config} />
         </ErrorBoundary>

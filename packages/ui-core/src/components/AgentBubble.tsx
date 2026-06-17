@@ -1,4 +1,3 @@
-import { Message } from "@patternfly/chatbot";
 import type { ChatMessage } from "../hooks/useChat";
 import { ThinkingPanel } from "./ThinkingPanel";
 import { RCACard } from "./RCACard";
@@ -6,6 +5,9 @@ import { AgentCTA } from "./AgentCTA";
 import { WorkflowCards } from "./WorkflowCards";
 import { ApprovalCard } from "./ApprovalCard";
 import { VerificationTimer } from "./VerificationTimer";
+import { MarkdownContent } from "./MarkdownContent";
+import { StreamingCursor } from "./StreamingCursor";
+import { TypingIndicator } from "./TypingIndicator";
 
 interface Props {
   message: ChatMessage;
@@ -36,9 +38,16 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
   const hasApproval = !!message.approvalRequest;
   const hasAlignmentVerdict = !!message.alignmentVerdict;
 
-  const extraContent = {
-    afterMainContent: (
-      <>
+  return (
+    <div className="kn-agent-row kn-fade-in">
+      <div className="kn-agent-content">
+        {!hasWorkflows && !hasRCA && hasContent && (
+          <div className="kn-agent-bubble">
+            <MarkdownContent text={message.text.trimEnd()} />
+            {message.isStreaming && <StreamingCursor />}
+          </div>
+        )}
+
         {hasWorkflows && !hasRCA && hasContent && (
           <AgentCTA text={message.text} />
         )}
@@ -102,20 +111,15 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
             steps={message.verificationSteps}
           />
         )}
-      </>
-    ),
-  };
 
-  const showMainContent = !hasWorkflows && !hasRCA && hasContent;
+        {message.isStreaming && !hasContent && !hasThinking && (
+          <TypingIndicator />
+        )}
 
-  return (
-    <Message
-      role="bot"
-      name="Kubernaut"
-      content={showMainContent ? message.text.trimEnd() : undefined}
-      isLoading={message.isStreaming && !hasContent && !hasThinking}
-      timestamp={!message.isStreaming && message.timestamp ? formatTime(message.timestamp) : undefined}
-      extraContent={extraContent}
-    />
+        {!message.isStreaming && message.timestamp && (
+          <p className="kn-agent-time">{formatTime(message.timestamp)}</p>
+        )}
+      </div>
+    </div>
   );
 }

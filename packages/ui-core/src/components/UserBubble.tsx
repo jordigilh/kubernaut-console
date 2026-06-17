@@ -1,5 +1,3 @@
-import { Message } from "@patternfly/chatbot";
-
 interface Props {
   text: string;
   timestamp: number;
@@ -11,11 +9,18 @@ function formatTime(ts: number): string {
 
 export function UserBubble({ text, timestamp }: Props) {
   return (
-    <Message
-      role="user"
-      content={text}
-      name="You"
-      timestamp={formatTime(timestamp)}
-    />
+    <div className="kn-user-row kn-fade-in">
+      <div>
+        <div className="kn-user-bubble">
+          <p>{text}</p>
+        </div>
+        <time
+          dateTime={new Date(timestamp).toISOString()}
+          className="kn-user-time"
+        >
+          {formatTime(timestamp)}
+        </time>
+      </div>
+    </div>
   );
 }

@@ -1,11 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
-import Chatbot, { ChatbotDisplayMode } from "@patternfly/chatbot/dist/esm/Chatbot";
-import ChatbotContent from "@patternfly/chatbot/dist/esm/ChatbotContent";
-import ChatbotHeader from "@patternfly/chatbot/dist/esm/ChatbotHeader";
-import ChatbotFooter from "@patternfly/chatbot/dist/esm/ChatbotFooter";
-import MessageBar from "@patternfly/chatbot/dist/esm/MessageBar";
-import MessageBox from "@patternfly/chatbot/dist/esm/MessageBox";
-import { Button, Alert, Modal, ModalBody, ModalFooter, ModalHeader, Flex, FlexItem, Content, ContentVariants } from "@patternfly/react-core";
+import { useEffect, useRef, useState, useCallback, type FormEvent } from "react";
 import { useChat } from "../hooks/useChat";
 import { useUser } from "../hooks/useUser";
 import { callMcpTool } from "../lib/mcp-client";
@@ -24,17 +17,26 @@ export function ChatContainer() {
   const resource = messages.findLast(m => m.role === "agent" && m.resource)?.resource ?? lastRca?.target;
   const recoverySignal = messages.findLast(m => m.role === "agent" && m.recoverySignal)?.recoverySignal ?? null;
   const user = useUser();
+  const [input, setInput] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
-  const handleSend = useCallback(
-    (message: string | number) => {
-      const text = String(message).trim();
-      if (!text || isStreaming) return;
-      sendMessage(text);
-    },
-    [isStreaming, sendMessage],
-  );
+  useEffect(() => {
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages]);
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || isStreaming) return;
+    setInput("");
+    sendMessage(text);
+  };
 
   const handleSuggest = useCallback(
     (text: string) => {
@@ -152,37 +154,50 @@ export function ChatContainer() {
   }, [clearHistory, setError, user.name, user.email, rrId]);
 
   return (
-    <Chatbot displayMode={ChatbotDisplayMode.embedded}>
-      <ChatbotHeader>
-        <Flex alignItems={{ default: "alignItemsCenter" }} spaceItems={{ default: "spaceItemsSm" }} style={{ width: "100%" }}>
-          <FlexItem>
-            <img src="/logo.svg" alt="Kubernaut" style={{ height: 28, width: 28, borderRadius: 4 }} />
-          </FlexItem>
-          <FlexItem grow={{ default: "grow" }}>
-            <strong>Kubernaut Console</strong>
-          </FlexItem>
-          {connectionStatus === "reconnecting" && (
-            <FlexItem><Content component={ContentVariants.small}>Reconnecting...</Content></FlexItem>
-          )}
-          {connectionStatus === "lost" && (
-            <FlexItem>
-              <Button variant="link" isDanger size="sm" onClick={() => sendMessage("", { silent: true })} aria-label="Connection lost. Click to retry.">
-                Connection lost — tap to retry
-              </Button>
-            </FlexItem>
-          )}
-          <FlexItem>
-            <Button variant="plain" aria-label="New conversation" onClick={handleClearHistory} size="sm">
-              New
-            </Button>
-          </FlexItem>
-          <FlexItem>
-            <Button variant="plain" component="a" href="/oauth2/sign_out" aria-label="Sign out" size="sm">
-              {user.initials}
-            </Button>
-          </FlexItem>
-        </Flex>
-      </ChatbotHeader>
+    <div className="kn-chat">
+      <a href="#chat-input" className="kn-sr-only">
+        Skip to chat input
+      </a>
+
+      {/* Header */}
+      <header className="kn-header">
+        <img src="/logo.svg" alt="Kubernaut" style={{ height: 28, width: 28, borderRadius: 6 }} />
+        <h1 className="kn-header-title">Kubernaut Console</h1>
+        {connectionStatus === "reconnecting" && (
+          <span style={{ fontSize: "0.75rem", color: "#fef08a", animation: "kn-pulse 2s infinite" }} role="status">Reconnecting...</span>
+        )}
+        {connectionStatus === "lost" && (
+          <button
+            type="button"
+            onClick={() => sendMessage("", { silent: true })}
+            style={{ fontSize: "0.75rem", color: "#fecaca", background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}
+            role="status"
+            aria-label="Connection lost. Click to retry."
+          >
+            Connection lost — tap to retry
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={handleClearHistory}
+          className="kn-header-btn"
+          aria-label="New conversation"
+          title="New conversation"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style={{ width: 16, height: 16 }}>
+            <path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
+            <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25h5.5a.75.75 0 000-1.5h-5.5A2.75 2.75 0 002 5.75v8.5A2.75 2.75 0 004.75 17h8.5A2.75 2.75 0 0016 14.25v-5.5a.75.75 0 00-1.5 0v5.5c0 .69-.56 1.25-1.25 1.25h-8.5c-.69 0-1.25-.56-1.25-1.25v-8.5z" />
+          </svg>
+        </button>
+        <a
+          href="/oauth2/sign_out"
+          className="kn-header-avatar"
+          title={user.name || user.email || "Sign out"}
+          aria-label="Sign out"
+        >
+          {user.initials}
+        </a>
+      </header>
 
       <InvestigationContext
         rrId={rrId}
@@ -192,62 +207,128 @@ export function ChatContainer() {
         phase={currentPhase}
       />
 
-      <ChatbotContent>
-        <MessageBox aria-label="Conversation">
-          {messages.length === 0 ? (
-            <WelcomeState onSuggest={handleSuggest} />
-          ) : (
-            messages.map((msg) =>
-              msg.role === "user" ? (
-                <UserBubble key={msg.id} text={msg.text} timestamp={msg.timestamp} />
-              ) : (
-                <AgentBubble
-                  key={msg.id}
-                  message={msg}
-                  investigationStartTime={investigationStartTime}
-                  onExecuteWorkflow={handleExecuteWorkflow}
-                  onApprove={handleApprove}
-                  onDecline={handleDecline}
-                  onDismiss={handleDismiss}
-                  onEscalate={handleEscalate}
-                  userName={user.name || user.email}
-                  recoverySignal={recoverySignal}
-                />
-              ),
-            )
-          )}
-        </MessageBox>
-      </ChatbotContent>
+      {/* Messages */}
+      <main
+        ref={scrollRef}
+        className="kn-messages"
+        role="log"
+        aria-label="Conversation"
+      >
+        {messages.length === 0 ? (
+          <WelcomeState onSuggest={handleSuggest} />
+        ) : (
+          messages.map((msg) =>
+            msg.role === "user" ? (
+              <UserBubble key={msg.id} text={msg.text} timestamp={msg.timestamp} />
+            ) : (
+              <AgentBubble
+                key={msg.id}
+                message={msg}
+                investigationStartTime={investigationStartTime}
+                onExecuteWorkflow={handleExecuteWorkflow}
+                onApprove={handleApprove}
+                onDecline={handleDecline}
+                onDismiss={handleDismiss}
+                onEscalate={handleEscalate}
+                userName={user.name || user.email}
+                recoverySignal={recoverySignal}
+              />
+            ),
+          )
+        )}
+      </main>
 
+      {/* Live status announcements (screen reader only) */}
+      <div aria-live="polite" aria-atomic="true" className="kn-sr-only">
+        {isStreaming && "Agent is responding"}
+        {connectionStatus === "reconnecting" && "Reconnecting to server"}
+        {connectionStatus === "lost" && "Connection lost"}
+      </div>
+
+      {/* Error */}
       {error && (
-        <Alert variant="danger" title={error} isInline isPlain />
+        <div className="kn-error" role="alert">{error}</div>
       )}
 
-      <ChatbotFooter>
-        <MessageBar
-          onSendMessage={handleSend}
-          hasStopButton={isStreaming && currentPhase !== "verifying"}
-          handleStopButton={cancelStream}
-          isSendButtonDisabled={isStreaming && currentPhase !== "verifying"}
-          alwayShowSendButton
-        />
-      </ChatbotFooter>
-
-      <Modal
-        isOpen={clearConfirmOpen}
-        onClose={() => setClearConfirmOpen(false)}
-        variant="small"
-        aria-label="Confirm clear history"
+      {/* Input Bar */}
+      <form
+        id="chat-input"
+        onSubmit={handleSubmit}
+        className="kn-input-form"
+        aria-label="Message input"
       >
-        <ModalHeader title="Start new conversation?" />
-        <ModalBody>
-          <Content component={ContentVariants.p}>Current history will be cleared. This cannot be undone.</Content>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant="danger" onClick={confirmClear}>Clear history</Button>
-          <Button variant="link" onClick={() => setClearConfirmOpen(false)}>Cancel</Button>
-        </ModalFooter>
-      </Modal>
-    </Chatbot>
+        <div
+          className="kn-input-wrapper"
+          data-focus-delegate
+          onClick={(e) => {
+            if ((e.target as HTMLElement).tagName !== "BUTTON") {
+              inputRef.current?.focus();
+            }
+          }}
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={isStreaming && currentPhase !== "verifying" ? "Agent is responding..." : "Ask a follow-up or start a new investigation..."}
+            disabled={isStreaming && currentPhase !== "verifying"}
+            aria-label="Type your message"
+            className="kn-input-field"
+          />
+          {isStreaming && currentPhase !== "verifying" ? (
+            <button
+              type="button"
+              onClick={cancelStream}
+              className="kn-stop-btn"
+              aria-label="Stop agent response"
+            >
+              <svg style={{ width: 14, height: 14 }} viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+                <rect x="2" y="2" width="8" height="8" rx="1" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!input.trim()}
+              className="kn-send-btn"
+              aria-label="Send message"
+            >
+              <svg style={{ width: 16, height: 16 }} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M7 12V2M3 6l4-4 4 4" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </form>
+
+      {/* Clear History Confirmation Modal */}
+      {clearConfirmOpen && (
+        <div className="kn-modal-backdrop" onClick={() => setClearConfirmOpen(false)}>
+          <div className="kn-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Start new conversation?</h2>
+            <p style={{ fontSize: "0.75rem", color: "var(--kn-text-secondary)", marginBottom: "1rem" }}>
+              Current history will be cleared. This cannot be undone.
+            </p>
+            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setClearConfirmOpen(false)}
+                style={{ padding: "0.375rem 0.75rem", borderRadius: "0.375rem", border: "1px solid var(--kn-border)", fontSize: "0.75rem", color: "var(--kn-text-secondary)", background: "none", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmClear}
+                style={{ padding: "0.375rem 0.75rem", borderRadius: "0.375rem", background: "var(--kn-red-600)", color: "#fff", fontSize: "0.75rem", fontWeight: 600, border: "none", cursor: "pointer" }}
+              >
+                Clear history
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

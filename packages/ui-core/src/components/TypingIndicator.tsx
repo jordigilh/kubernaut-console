@@ -1,5 +1,9 @@
-import { MessageLoading } from "@patternfly/chatbot";
-
 export function TypingIndicator() {
-  return <MessageLoading />;
+  return (
+    <div className="kn-typing">
+      <span className="kn-typing-dot" />
+      <span className="kn-typing-dot" />
+      <span className="kn-typing-dot" />
+    </div>
+  );
 }
