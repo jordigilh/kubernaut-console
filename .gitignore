@@ -36,3 +36,4 @@ assets/recording/
 storybook-static
 test-results/
 playwright-report/
+e2e/visual.spec.ts-snapshots/

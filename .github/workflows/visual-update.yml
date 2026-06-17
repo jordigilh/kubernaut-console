@@ -1,0 +1,73 @@
+name: Update Visual Baselines
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to generate baselines from"
+        required: false
+        default: ""
+
+env:
+  BASELINES_REGISTRY: quay.io/kubernaut-cicd/visual-baselines
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.61.0-noble
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch || github.ref }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install oras
+        run: |
+          apt-get update && apt-get install -y curl
+          curl -LO https://github.com/oras-project/oras/releases/download/v1.2.2/oras_1.2.2_linux_amd64.tar.gz
+          tar -xzf oras_1.2.2_linux_amd64.tar.gz -C /usr/local/bin oras
+          rm oras_1.2.2_linux_amd64.tar.gz
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Build Storybook
+        run: pnpm run build-storybook
+
+      - name: Start Storybook server
+        run: npx http-server storybook-static -p 6006 -s &
+
+      - name: Wait for server
+        run: npx wait-on http://localhost:6006/iframe.html --timeout 30000
+
+      - name: Generate baselines
+        run: npx playwright test e2e/visual.spec.ts --update-snapshots
+
+      - name: Login to Quay.io
+        run: echo "${{ secrets.QUAY_PASSWORD }}" | oras login quay.io --username "${{ secrets.QUAY_USERNAME }}" --password-stdin
+
+      - name: Push baselines
+        run: |
+          REF="${{ inputs.branch || github.ref_name }}"
+          BRANCH_TAG="branch-$(echo "$REF" | sed 's/[^a-zA-Z0-9._-]/-/g')"
+          cd e2e/visual.spec.ts-snapshots
+          oras push "$BASELINES_REGISTRY:$BRANCH_TAG" \
+            --artifact-type application/vnd.kubernaut.visual-baselines.v1 \
+            ./:application/vnd.kubernaut.visual-baselines.layer.v1.tar
+          echo "::notice::Baselines pushed to $BASELINES_REGISTRY:$BRANCH_TAG"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines
+          path: e2e/visual.spec.ts-snapshots/
+          retention-days: 30

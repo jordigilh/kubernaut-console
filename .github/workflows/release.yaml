@@ -59,6 +59,22 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  tag-visual-baselines:
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - name: Install oras
+        run: |
+          curl -LO https://github.com/oras-project/oras/releases/download/v1.2.2/oras_1.2.2_linux_amd64.tar.gz
+          tar -xzf oras_1.2.2_linux_amd64.tar.gz -C /usr/local/bin oras
+          rm oras_1.2.2_linux_amd64.tar.gz
+
+      - name: Login to Quay.io
+        run: echo "${{ secrets.QUAY_PASSWORD }}" | oras login quay.io --username "${{ secrets.QUAY_USERNAME }}" --password-stdin
+
+      - name: Tag baselines with release version
+        run: oras cp quay.io/kubernaut-cicd/visual-baselines:latest quay.io/kubernaut-cicd/visual-baselines:${{ github.ref_name }}
+
   helm-package:
     runs-on: ubuntu-latest
     needs: [build-and-push]
