@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { buildStreamRequest, streamA2A } from "../lib/a2a-client";
 import { mockStreamA2A } from "../lib/a2a-mock";
 import type { A2AEvent, DataPart, StatusUpdateEvent } from "../lib/a2a-types";
+import { AuthContext } from "../providers/auth";
+import { ConfigContext } from "../providers/config";
 
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
@@ -193,6 +195,9 @@ function parseDuration(value: string | number): number {
 }
 
 export function useChat() {
+  const authCtx = useContext(AuthContext);
+  const configCtx = useContext(ConfigContext);
+
   const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -736,6 +741,8 @@ export function useChat() {
     }
 
     await streamA2A(request, {
+      baseUrl: configCtx?.backendUrl,
+      fetchFn: configCtx?.fetchFn,
       onEvent: handleEvent,
       onError: (err) => {
         setError(friendlyError(err.message));

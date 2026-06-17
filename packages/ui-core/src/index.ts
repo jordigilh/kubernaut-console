@@ -6,7 +6,7 @@ export type { KubernautChatProps } from "./components/KubernautChat";
 export { AuthContext, useAuth } from "./providers/auth";
 export type { KubernautAuthProvider, KubernautUser, AuthContextValue } from "./providers/auth";
 export { ConfigContext, useConfig } from "./providers/config";
-export type { KubernautConfig } from "./providers/config";
+export type { KubernautConfig, FetchFn } from "./providers/config";
 
 // Components (for advanced composition)
 export { ChatContainer } from "./components/ChatContainer";

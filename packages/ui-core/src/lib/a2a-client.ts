@@ -1,8 +1,12 @@
 import type { A2AEvent, JsonRpcRequest, JsonRpcResponse } from "./a2a-types";
 
+export type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
+
 export interface StreamOptions {
   baseUrl?: string;
   token?: string;
+  /** Custom fetch function (e.g. consoleFetch for OCP console plugins) */
+  fetchFn?: FetchFn;
   onEvent: (event: A2AEvent) => void;
   onError: (error: Error) => void;
   onComplete: () => void;
@@ -88,9 +92,10 @@ async function attemptStream(
     headers["Authorization"] = `Bearer ${options.token}`;
   }
 
+  const doFetch = options.fetchFn ?? fetch;
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await doFetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify(request),

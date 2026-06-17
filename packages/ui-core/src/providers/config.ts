@@ -1,7 +1,11 @@
 import { createContext, useContext } from "react";
 
+export type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
+
 export interface KubernautConfig {
   backendUrl: string;
+  /** Optional custom fetch function (e.g. consoleFetch for OCP plugins) */
+  fetchFn?: FetchFn;
 }
 
 export const ConfigContext = createContext<KubernautConfig | null>(null);
