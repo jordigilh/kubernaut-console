@@ -562,6 +562,49 @@ const needsIsolation = !document.documentElement.classList.contains("pf-v6-theme
 **Remaining risk (4%)**: Live RHDH cluster e2e verification deferred to Phase 2.
 All structural verification checks pass (17/17).
 
+### Phase 2 Spike Findings (2026-06-16)
+
+**Console Proxy + SSE Streaming — Confirmed working:**
+- `consoleFetch` returns standard `Promise<Response>` — can access `response.body.getReader()` for streaming
+- OCP console backend uses Go's `httputil.ReverseProxy` with `FlushInterval: 100ms`
+- Go's reverse proxy auto-flushes immediately for chunked/streaming responses (ContentLength=-1)
+- SSE (`text/event-stream`) responses are inherently chunked — flushed immediately by the proxy
+- WebSocket also confirmed working through console proxy (merged PRs #12877/#12978)
+- Only concern: `consoleFetch` default timeout is 60s — must pass larger value for long-lived SSE connections
+- Best practice: kagenti should set `X-Accel-Buffering: no` response header
+
+**consoleFetch Adapter — Low effort:**
+- Our `a2a-client.ts` already accepts custom `baseUrl` and `getToken` options
+- `OCMAuthProvider` wraps `consoleFetch` for auth headers (UserToken mode in ConsolePlugin CR)
+- For SSE: use raw `consoleFetch(url, opts, timeout)` and read `.body` as ReadableStream
+- No need to refactor the streaming logic — just swap the fetch function
+
+**ManagedClusterAddon for kagenti — AddOnTemplate viable:**
+- **Assumption**: SPIRE agent DaemonSet + kagenti-operator are cluster infrastructure (pre-installed)
+- **Addon deploys**: Agent Deployment (with `protocol.kagenti.io/a2a` label) + AgentRuntime CR + ConfigMap
+- **AddOnTemplate approach works**: No custom Go controller needed — just k8s manifest templates
+- If kagenti-operator is not pre-installed, escalate to addon-framework Go controller (but this is not our case)
+- OCM addon-framework v1.3.0 supports Helm chart mode — can package agent manifests as a Helm chart
+
+**OCP 4.18 SDK:**
+- `@openshift-console/dynamic-plugin-sdk@4.18.0` (Sep 2025)
+- `@openshift-console/dynamic-plugin-sdk-webpack@4.18.0`
+- Must use webpack 5+ with `ConsoleRemotePlugin` (not Rspack)
+- PF6 shared with host console — no CSS isolation needed
+
+**Revised Phase 2 Confidence: 92%** (up from 82%)
+
+| Risk | Previous | Revised | Resolution |
+|------|----------|---------|------------|
+| Console proxy SSE streaming | 72% | 95% | Go reverse proxy flushes immediately for chunked responses |
+| consoleFetch adapter | 78% | 96% | Standard Response; just pass timeout and read body stream |
+| PF6 in OCP 4.18 | 98% | 98% | Confirmed shared PF6 host — no conflicts |
+| ManagedClusterAddon | 70% | 88% | AddOnTemplate viable (assuming SPIRE + operator pre-installed) |
+| webpack MF build | 93% | 93% | Well-documented, ConsoleRemotePlugin SDK |
+| Helm chart + image | 95% | 95% | Standard pattern |
+
+**Remaining risk (8%)**: Live OCP 4.18 cluster e2e verification needed (SSE through proxy, addon lifecycle).
+
 ### CI/CD Matrix
 
 ```yaml
