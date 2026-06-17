@@ -3,7 +3,7 @@
        visual-regenerate visual-push visual-update
 
 CONSOLE_IMAGE ?= kubernaut-demo-console:latest
-STANDALONE_IMAGE ?= ghcr.io/jordigilh/kubernaut-standalone
+STANDALONE_IMAGE ?= ghcr.io/jordigilh/kubernaut-demo-console
 KIND_CLUSTER ?= kubernaut-demo
 NAMESPACE ?= kubernaut-system
 DEPLOY_NS ?= kubernaut-system

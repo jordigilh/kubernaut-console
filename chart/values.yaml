@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/jordigilh/kubernaut-standalone
+  repository: ghcr.io/jordigilh/kubernaut-demo-console
   tag: "latest"
   # digest overrides tag when set (use for immutable pinning)
   digest: ""
