@@ -1,0 +1,10 @@
+{
+  "latestErrorEvent": {
+    "code": "TYPE-001",
+    "message": "Failed to generate type declaration. Execute the below cmd to reproduce and fix the error. #TYPE-001\nargs: {\"cmd\":\"npx tsc --project /Users/jgil/go/src/github.com/jordigilh/kubernaut-demo-console/packages/plugin-backstage/node_modules/.federation/tsconfig.02691d7044349dd7e496a38908b18c6b.json\"}\nView the docs to see how to solve: https://module-federation.io/guide/troubleshooting/type#type-001",
+    "args": {
+      "cmd": "npx tsc --project /Users/jgil/go/src/github.com/jordigilh/kubernaut-demo-console/packages/plugin-backstage/node_modules/.federation/tsconfig.02691d7044349dd7e496a38908b18c6b.json"
+    },
+    "timestamp": 1781659825025
+  }
+}

@@ -1,0 +1,20 @@
+# Kubernaut plugin configuration for Backstage
+#
+# Add this to your app-config.yaml or include it as a separate config file.
+
+# Backend proxy forwards API calls to the Kubernaut backend
+proxy:
+  endpoints:
+    '/kubernaut':
+      target: ${KUBERNAUT_BACKEND_URL}
+      changeOrigin: true
+      pathRewrite:
+        '^/api/proxy/kubernaut': ''
+      headers:
+        # Forward the Backstage token for backend-to-backend auth
+        Authorization: Bearer ${KUBERNAUT_SERVICE_TOKEN}
+
+# Plugin frontend configuration
+kubernaut:
+  # Override if not using the proxy (e.g. direct backend URL in dev)
+  # backendUrl: http://localhost:8080
