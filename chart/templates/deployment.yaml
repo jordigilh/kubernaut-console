@@ -109,8 +109,12 @@ spec:
             - name: nginx-tmp
               mountPath: /tmp
             - name: nginx-config
-              mountPath: /opt/app-root/etc/nginx.default.d/kubernaut.conf
-              subPath: kubernaut.conf
+              mountPath: /opt/app-root/etc/nginx.d/kubernaut-http.conf
+              subPath: http.conf
+              readOnly: true
+            - name: nginx-config
+              mountPath: /opt/app-root/etc/nginx.default.d/kubernaut-server.conf
+              subPath: server.conf
               readOnly: true
       volumes:
         - name: nginx-tmp

@@ -6,21 +6,21 @@ metadata:
   labels:
     {{- include "kubernaut-console.labels" . | nindent 4 }}
 data:
-  kubernaut.conf: |
+  http.conf: |
+    limit_req_zone $binary_remote_addr zone=api:10m rate=30r/s;
+    limit_req_zone $binary_remote_addr zone=mcp:10m rate=10r/s;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript image/svg+xml;
+    gzip_min_length 256;
+    gzip_vary on;
+  server.conf: |
     add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self'; font-src 'self' https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript image/svg+xml;
-    gzip_min_length 256;
-    gzip_vary on;
-
-    limit_req_zone $binary_remote_addr zone=api:10m rate=30r/s;
-    limit_req_zone $binary_remote_addr zone=mcp:10m rate=10r/s;
 
     location /a2a/ {
       limit_req zone=api burst=50 nodelay;
