@@ -128,4 +128,70 @@ test.describe("Standalone Mode E2E", () => {
     await expect(input).toBeEnabled();
     await expect(input).toHaveAttribute("placeholder", "Type to interrupt...");
   });
+
+  test("banner phase updates via status stream after investigation", async ({ page }) => {
+    const rrId = "rr-gitops-001";
+
+    // Mock the A2A invoke endpoint to simulate a complete investigation
+    await page.route("**/a2a/invoke", async (route) => {
+      const taskId = `mock-task-${Date.now()}`;
+      const contextId = `mock-ctx-${Date.now()}`;
+
+      const investigationArtifact = {
+        type: "investigation_summary",
+        schema_version: "1.0",
+        rr_id: rrId,
+        rca: {
+          root_cause: "Misconfigured ConfigMap",
+          confidence: 0.92,
+          causal_chain: ["Config change", "Pod restart"],
+          target: "demo-webui/v1/ConfigMap/app-config",
+          tool_calls_count: 5,
+          llm_turns: 3,
+        },
+        summary: "Investigation complete",
+        options: [{ workflow_id: "git-revert-v2", name: "git-revert-v2", description: "Revert commit", risk: "low", recommended: true }],
+      };
+
+      const sseFrames = [
+        `data: ${JSON.stringify({ jsonrpc: "2.0", id: "1", result: { kind: "status-update", taskId, contextId, status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Analyzing alert..." }] } }, metadata: { type: "preflight" } } })}\n\n`,
+        `data: ${JSON.stringify({ jsonrpc: "2.0", id: "1", result: { kind: "status-update", taskId, contextId, status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Investigating root cause..." }] } }, metadata: { type: "reasoning" } } })}\n\n`,
+        `data: ${JSON.stringify({ jsonrpc: "2.0", id: "1", result: { kind: "artifact-update", taskId, contextId, artifact: { artifactId: "inv-001", parts: [{ kind: "data", data: investigationArtifact, mediaType: "application/json", metadata: { schema: "investigation_summary", schema_version: "1.0" } }, { kind: "text", text: "Investigation complete" }], metadata: { type: "investigation_summary", rr_id: rrId } }, lastChunk: true, append: false } })}\n\n`,
+        `data: ${JSON.stringify({ jsonrpc: "2.0", id: "1", result: { kind: "status-update", taskId, contextId, status: { state: "completed" }, final: true } })}\n\n`,
+      ];
+
+      await route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+        body: sseFrames.join(""),
+      });
+    });
+
+    // Mock the status stream endpoint to return phase transitions
+    await page.route("**/a2a/status", async (route) => {
+      const sseFrames = [
+        `data: ${JSON.stringify({ method: "status/update", params: { phase: "Investigating", metadata: {} } })}\n\n`,
+        `data: ${JSON.stringify({ method: "status/update", params: { phase: "Executing", metadata: { workflow_id: "git-revert-v2" } } })}\n\n`,
+        `data: ${JSON.stringify({ method: "status/update", params: { phase: "Verifying", metadata: { ea_phase: "Stabilizing" } } })}\n\n`,
+      ];
+
+      await route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+        body: sseFrames.join(""),
+      });
+    });
+
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    const input = page.locator("textarea[aria-label='Type your message']");
+    await input.fill("pod crashlooping in production");
+    await page.locator("button[aria-label='Send message']").click();
+
+    // The A2A stream produces an investigation artifact with rr_id,
+    // which triggers the status stream subscription.
+    // The status stream returns phase transitions; banner should show "Verifying".
+    await expect(page.locator(".kn-phase-label")).toHaveText("Verifying", { timeout: 15000 });
+  });
 });

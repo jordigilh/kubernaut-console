@@ -19,12 +19,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm dev",
+    command: "pnpm --filter @kubernaut/standalone exec vite",
     url: "http://localhost:5173",
     reuseExistingServer: true,
     timeout: 30_000,
-    env: {
-      VITE_MOCK_A2A: "true",
-    },
   },
 });

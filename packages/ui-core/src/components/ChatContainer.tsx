@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, type FormEvent, type KeyboardEvent } from "react";
 import { useChat, type ChatMessage } from "../hooks/useChat";
+import { useRRStatus } from "../hooks/useRRStatus";
 import { useUser } from "../hooks/useUser";
 import { callMcpTool } from "../lib/mcp-client";
 import { emitAuditEvent } from "../lib/audit";
@@ -8,10 +9,18 @@ import { AgentBubble } from "./AgentBubble";
 import { InvestigationContext } from "./InvestigationContext";
 import { WelcomeState } from "./WelcomeState";
 
+const PHASE_MAP: Record<string, ChatMessage["phase"]> = {
+  Pending: "investigation", Processing: "investigation", Analyzing: "investigation", Investigating: "investigation",
+  AwaitingApproval: "decision", Executing: "remediation", Verifying: "verifying",
+  Blocked: "failed", Completed: "complete", Failed: "failed", TimedOut: "timed_out", Skipped: "complete", Cancelled: "complete",
+};
+
 export function ChatContainer() {
   const { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase } = useChat();
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
+  const { statusPhase, statusConnection } = useRRStatus(rrId);
+  const bannerPhase = statusPhase ? PHASE_MAP[statusPhase] ?? currentPhase : currentPhase;
   const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName ?? lastRca?.signalName;
   const namespace = messages.findLast(m => m.role === "agent" && m.namespace)?.namespace ?? lastRca?.namespace;
   const resource = messages.findLast(m => m.role === "agent" && m.resource)?.resource ?? lastRca?.target;
@@ -71,14 +80,9 @@ export function ChatContainer() {
         setError(res.error.message);
         return;
       }
-      const phaseMap: Record<string, ChatMessage["phase"]> = {
-        Pending: "investigation", Processing: "investigation", Analyzing: "investigation", Investigating: "investigation",
-        AwaitingApproval: "decision", Executing: "remediation", Verifying: "verifying",
-        Blocked: "failed", Completed: "complete", Failed: "failed", TimedOut: "timed_out", Skipped: "complete", Cancelled: "complete",
-      };
       const resBody = res.result as { phase?: string } | undefined;
-      if (resBody?.phase && phaseMap[resBody.phase]) {
-        setCurrentPhase(phaseMap[resBody.phase]);
+      if (resBody?.phase && PHASE_MAP[resBody.phase]) {
+        setCurrentPhase(PHASE_MAP[resBody.phase]);
       }
       emitAuditEvent({ action: "execute_workflow", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { workflowId } });
     },
@@ -195,19 +199,11 @@ export function ChatContainer() {
       <header className="kn-header">
         <img src="/logo.svg" alt="Kubernaut" style={{ height: 28, width: 28, borderRadius: 6 }} />
         <h1 className="kn-header-title">Kubernaut Console</h1>
-        {connectionStatus === "reconnecting" && (
-          <span style={{ fontSize: "0.75rem", color: "#fef08a", animation: "kn-pulse 2s infinite" }} role="status">Reconnecting...</span>
+        {statusConnection === "reconnecting" && (
+          <span style={{ fontSize: "0.75rem", color: "#fef08a", animation: "kn-pulse 2s infinite" }} role="status">Status reconnecting...</span>
         )}
-        {connectionStatus === "lost" && (
-          <button
-            type="button"
-            onClick={() => sendMessage("", { silent: true })}
-            style={{ fontSize: "0.75rem", color: "#fecaca", background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}
-            role="status"
-            aria-label="Connection lost. Click to retry."
-          >
-            Connection lost — tap to retry
-          </button>
+        {statusConnection === "error" && (
+          <span style={{ fontSize: "0.75rem", color: "#fecaca" }} role="status">Status stream lost</span>
         )}
         <button
           type="button"
@@ -236,7 +232,7 @@ export function ChatContainer() {
         alertName={alertName}
         namespace={namespace}
         resource={resource}
-        phase={currentPhase}
+        phase={bannerPhase}
       />
 
       {/* Messages */}
@@ -273,8 +269,8 @@ export function ChatContainer() {
       {/* Live status announcements (screen reader only) */}
       <div aria-live="polite" aria-atomic="true" className="kn-sr-only">
         {isStreaming && "Agent is responding"}
-        {connectionStatus === "reconnecting" && "Reconnecting to server"}
-        {connectionStatus === "lost" && "Connection lost"}
+        {statusConnection === "reconnecting" && "Status stream reconnecting"}
+        {statusConnection === "error" && "Status stream lost"}
       </div>
 
       {/* Error */}

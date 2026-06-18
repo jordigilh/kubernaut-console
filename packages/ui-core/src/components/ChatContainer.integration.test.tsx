@@ -18,6 +18,10 @@ vi.mock("../lib/a2a-client", () => ({
   streamA2A: vi.fn(),
 }));
 
+vi.mock("../lib/a2a-status-client", () => ({
+  subscribeRRStatus: vi.fn(async () => {}),
+}));
+
 const mockStreamA2A = vi.mocked(streamA2A);
 
 beforeAll(() => {
@@ -317,7 +321,7 @@ describe("ChatContainer Integration", () => {
    * B2: Reconnecting status IT
    * FedRAMP Control: SI-17 (Fail-Safe Procedures)
    */
-  it("shows Reconnecting status when connection is retrying", async () => {
+  it("SI-17: chat stream reconnecting does NOT show Reconnecting in header (status stream owns banner)", async () => {
     mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
       onEvent?: (event: unknown) => void;
       onComplete?: () => void;
@@ -336,10 +340,7 @@ describe("ChatContainer Integration", () => {
       vi.advanceTimersByTime(100);
     });
 
-    // SI-17: Reconnecting state visible to operator
-    await waitFor(() => {
-      expect(screen.getByText("Reconnecting...")).toBeInTheDocument();
-    });
+    expect(screen.queryByText("Reconnecting...")).not.toBeInTheDocument();
   });
 
   /**
@@ -693,7 +694,7 @@ describe("ChatContainer Integration", () => {
     expect(screen.getByText("Hello")).toBeInTheDocument();
   });
 
-  it("IT-CONSOLE-UX-002: connection lost state shows retry button in header", async () => {
+  it("IT-CONSOLE-UX-002: chat stream connection lost does NOT show retry in header (status stream owns banner)", async () => {
     mockStreamA2A.mockImplementation(async (_req, opts: {
       onEvent?: (event: unknown) => void;
       onComplete?: () => void;
@@ -713,9 +714,7 @@ describe("ChatContainer Integration", () => {
       vi.advanceTimersByTime(100);
     });
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/connection lost/i)).toBeInTheDocument();
-    });
+    expect(screen.queryByLabelText(/connection lost/i)).not.toBeInTheDocument();
   });
 
   it("IT-CONSOLE-UX-003: MessageBar is rendered", () => {

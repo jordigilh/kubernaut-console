@@ -1,4 +1,5 @@
 import type { A2AEvent, JsonRpcRequest, JsonRpcResponse } from "./a2a-types";
+import { readSSEStream, postForSSE, type SSEFetchError } from "./sse-reader";
 
 export type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -73,7 +74,6 @@ export async function streamA2A(
     if (result === "fatal") {
       return;
     }
-    // result === "retryable" — loop continues
     options.onConnectionLost?.();
   }
 
@@ -88,102 +88,43 @@ async function attemptStream(
 ): Promise<StreamResult> {
   const url = `${options.baseUrl || ""}/a2a/invoke`;
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: "text/event-stream",
-  };
-  if (options.token) {
-    headers["Authorization"] = `Bearer ${options.token}`;
-  }
+  const fetchResult = await postForSSE(url, request, {
+    signal: options.signal,
+    token: options.token,
+    fetchFn: options.fetchFn,
+  });
 
-  const doFetch = options.fetchFn ?? fetch;
-  let response: Response;
-  try {
-    response = await doFetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(request),
-      signal: options.signal,
-    });
-  } catch {
-    if (options.signal?.aborted) return "aborted";
-    return "retryable";
+  if (typeof fetchResult === "string") {
+    return fetchResult;
   }
-
-  if (!response.ok) {
-    if (response.status >= 500) return "retryable";
-    options.onError(new Error(`HTTP ${response.status}: ${response.statusText}`));
+  if ("kind" in fetchResult && fetchResult.kind === "fatal") {
+    options.onError(new Error(`HTTP ${fetchResult.status}: ${fetchResult.statusText}`));
     return "fatal";
   }
 
-  if (!response.body) {
-    options.onError(new Error("Response body is null"));
-    return "fatal";
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  const idleTimeout = options.idleTimeoutMs ?? 300_000; // 5 min default
-
-  try {
-    while (true) {
-      let timerId: ReturnType<typeof setTimeout> | undefined;
-      const readPromise = reader.read();
-      const timeoutPromise = new Promise<{ done: true; value: undefined; timedOut: true }>((resolve) => {
-        timerId = setTimeout(() => resolve({ done: true, value: undefined, timedOut: true }), idleTimeout);
-      });
-
-      const result = await Promise.race([readPromise, timeoutPromise]);
-      clearTimeout(timerId);
-
-      if ("timedOut" in result) {
-        reader.cancel();
-        return "retryable";
-      }
-
-      const { done, value } = result;
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      let idx: number;
-      while ((idx = buffer.indexOf("\n\n")) !== -1) {
-        const frame = buffer.slice(0, idx);
-        buffer = buffer.slice(idx + 2);
-
-        for (const line of frame.split("\n")) {
-          if (line.startsWith("data:")) {
-            const json = line.slice(5).trimStart();
-            if (!json) continue;
-
-            try {
-              const rpc: JsonRpcResponse = JSON.parse(json);
-              if (rpc.error) {
-                const msg = rpc.error.message || "";
-                const data = rpc.error.data as Record<string, unknown> | undefined;
-                const detail = (data?.error as string) || "";
-                const isTransient = /execution.*in progress|task.*in progress/i.test(msg + detail);
-                if (isTransient) {
-                  return "retryable";
-                }
-                options.onError(new Error(rpc.error.message));
-                return "fatal";
-              }
-              if (rpc.result) {
-                options.onEvent(rpc.result);
-              }
-            } catch {
-              // Malformed JSON frame, skip
-            }
-          }
+  const response = fetchResult;
+  const streamResult = await readSSEStream(
+    response.body!,
+    (parsed) => {
+      const rpc = parsed as unknown as JsonRpcResponse;
+      if (rpc.error) {
+        const msg = rpc.error.message || "";
+        const data = rpc.error.data as Record<string, unknown> | undefined;
+        const detail = (data?.error as string) || "";
+        const isTransient = /execution.*in progress|task.*in progress/i.test(msg + detail);
+        if (isTransient) {
+          return "retryable";
         }
+        options.onError(new Error(rpc.error.message));
+        return "fatal";
       }
-    }
-  } catch {
-    if (options.signal?.aborted) return "aborted";
-    return "retryable";
-  }
+      if (rpc.result) {
+        options.onEvent(rpc.result);
+      }
+      return "continue";
+    },
+    { signal: options.signal, idleTimeoutMs: options.idleTimeoutMs ?? 300_000 },
+  );
 
-  return "complete";
+  return streamResult as StreamResult;
 }
