@@ -1,18 +1,25 @@
 name: Build Standalone Image
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "packages/standalone/**"
-      - "packages/ui-core/**"
-      - "deploy/**"
   pull_request:
+    branches: [main, 'release/**']
     paths:
       - "packages/standalone/**"
       - "packages/ui-core/**"
       - "deploy/**"
+      - "chart/**"
+  push:
+    branches: [main, 'release/**']
+    paths:
+      - "packages/standalone/**"
+      - "packages/ui-core/**"
+      - "deploy/**"
+      - "chart/**"
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
