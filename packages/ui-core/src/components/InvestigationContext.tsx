@@ -116,16 +116,29 @@ function usePhaseTimer(phase: string | undefined): string | undefined {
   return formatElapsed(elapsed);
 }
 
+function parseDuration(deadline: string, startedAt: string | undefined, now: number): { elapsed: number; total: number } | undefined {
+  const end = new Date(deadline).getTime();
+  const start = startedAt ? new Date(startedAt).getTime() : undefined;
+  if (isNaN(end)) return undefined;
+  const total = start && !isNaN(start) ? Math.round((end - start) / 1000) : undefined;
+  if (!total || total <= 0) return undefined;
+  const elapsed = Math.max(0, Math.round((now - (start ?? now)) / 1000));
+  return { elapsed: Math.min(elapsed, total), total };
+}
+
 function formatSubStatus(phase: string | undefined, metadata: Record<string, unknown> | undefined, elapsedStr: string | undefined): string | undefined {
   if (metadata && phase === "verifying") {
     const eaPhase = metadata.ea_phase as string | undefined;
     if (eaPhase) {
       const deadline = metadata.stabilization_deadline as string | undefined;
+      const startedAt = metadata.started_at as string | undefined;
       if (deadline) {
-        const remaining = Math.max(0, Math.round((new Date(deadline).getTime() - Date.now()) / 1000));
-        if (remaining > 0) return `${eaPhase} (${remaining}s)`;
+        const dur = parseDuration(deadline, startedAt, Date.now());
+        if (dur) {
+          return `${eaPhase} · ${formatElapsed(dur.elapsed)} / ${formatElapsed(dur.total)}`;
+        }
       }
-      return eaPhase;
+      return elapsedStr ? `${eaPhase} · ${elapsedStr}` : eaPhase;
     }
   }
   return elapsedStr;
