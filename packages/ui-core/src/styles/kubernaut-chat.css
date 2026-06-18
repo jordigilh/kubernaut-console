@@ -229,7 +229,6 @@
 .kn-user-bubble p {
   font-size: 0.875rem;
   color: var(--kn-user-text);
-  word-break: break-word;
   overflow-wrap: break-word;
   white-space: pre-wrap;
   margin: 0;
