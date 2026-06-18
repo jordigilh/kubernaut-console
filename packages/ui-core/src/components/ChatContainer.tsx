@@ -304,7 +304,7 @@ export function ChatContainer() {
             rows={1}
             onKeyDown={handleKeyDown}
           />
-          {isStreaming && currentPhase !== "verifying" ? (
+          {isStreaming && currentPhase !== "verifying" && !input.trim() ? (
             <button
               type="button"
               onClick={cancelStream}
