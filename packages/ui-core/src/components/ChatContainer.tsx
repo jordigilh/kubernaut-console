@@ -33,7 +33,7 @@ export function ChatContainer() {
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text || isStreaming) return;
+    if (!text) return;
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto";
     sendMessage(text);
@@ -43,7 +43,7 @@ export function ChatContainer() {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       const text = input.trim();
-      if (!text || isStreaming) return;
+      if (!text) return;
       setInput("");
       if (inputRef.current) inputRef.current.style.height = "auto";
       sendMessage(text);
@@ -52,9 +52,9 @@ export function ChatContainer() {
 
   const handleSuggest = useCallback(
     (text: string) => {
-      if (!isStreaming) sendMessage(text);
+      sendMessage(text);
     },
-    [isStreaming, sendMessage],
+    [sendMessage],
   );
 
   const handleExecuteWorkflow = useCallback(
@@ -298,8 +298,7 @@ export function ChatContainer() {
               e.target.style.height = "auto";
               e.target.style.height = `${Math.min(e.target.scrollHeight, 128)}px`;
             }}
-            placeholder={isStreaming && currentPhase !== "verifying" ? "Agent is responding..." : currentPhase === "complete" ? "Investigation closed — ask a follow-up question..." : "Send a message..."}
-            disabled={isStreaming && currentPhase !== "verifying"}
+            placeholder={isStreaming ? "Type to interrupt..." : currentPhase === "complete" ? "Investigation closed — ask a follow-up question..." : "Send a message..."}
             aria-label="Type your message"
             className="kn-input-field"
             rows={1}

@@ -15,6 +15,8 @@ export interface StreamOptions {
   signal?: AbortSignal;
   maxRetries?: number;
   idleTimeoutMs?: number;
+  /** Delay before the first retry attempt (ms). Useful after aborting a previous stream to give the server time to detect the disconnect. Default: 500 */
+  preRetryDelayMs?: number;
 }
 
 let requestCounter = 0;
@@ -54,7 +56,9 @@ export async function streamA2A(
 
     if (attempt > 0) {
       options.onReconnecting?.(attempt);
-      const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+      const backoff = attempt === 1
+        ? (options.preRetryDelayMs ?? 500)
+        : Math.min(1000 * Math.pow(2, attempt - 1), 8000);
       await sleep(backoff);
       if (options.signal?.aborted) return;
     }
@@ -156,6 +160,13 @@ async function attemptStream(
             try {
               const rpc: JsonRpcResponse = JSON.parse(json);
               if (rpc.error) {
+                const msg = rpc.error.message || "";
+                const data = rpc.error.data as Record<string, unknown> | undefined;
+                const detail = (data?.error as string) || "";
+                const isTransient = /execution.*in progress|task.*in progress/i.test(msg + detail);
+                if (isTransient) {
+                  return "retryable";
+                }
                 options.onError(new Error(rpc.error.message));
                 return "fatal";
               }
