@@ -133,7 +133,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  background: var(--kn-teal-600);
+  background: var(--kn-teal-700);
   border-radius: 0;
 }
 
@@ -147,7 +147,7 @@
 .kn-header-title {
   color: #fff;
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: 1rem;
   font-family: var(--kn-font-display);
   flex: 1;
   min-width: 0;
