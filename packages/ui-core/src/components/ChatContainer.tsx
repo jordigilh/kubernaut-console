@@ -9,7 +9,7 @@ import { InvestigationContext } from "./InvestigationContext";
 import { WelcomeState } from "./WelcomeState";
 
 export function ChatContainer() {
-  const { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase } = useChat();
+  const { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase } = useChat();
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
   const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName ?? lastRca?.signalName;
@@ -131,9 +131,10 @@ export function ChatContainer() {
         text: "Investigation dismissed. No remediation action taken.",
         timestamp: Date.now(),
       }]);
+      setCurrentPhase("complete");
       emitAuditEvent({ action: "dismiss", timestamp: new Date().toISOString(), user: user.name || user.email, rrId });
     },
-    [rrId, setMessages, setError, user.name, user.email],
+    [rrId, setMessages, setCurrentPhase, setError, user.name, user.email],
   );
 
   const handleEscalate = useCallback(async (reason: string) => {
@@ -156,8 +157,9 @@ export function ChatContainer() {
       text: `Escalated to team: "${reason}"`,
       timestamp: Date.now(),
     }]);
+    setCurrentPhase("complete");
     emitAuditEvent({ action: "escalate", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { escalation_reason: reason } });
-  }, [rrId, setMessages, setError, user.name, user.email]);
+  }, [rrId, setMessages, setCurrentPhase, setError, user.name, user.email]);
 
   const handleClearHistory = useCallback(() => {
     if (messages.length === 0) {
@@ -296,7 +298,7 @@ export function ChatContainer() {
               e.target.style.height = "auto";
               e.target.style.height = `${Math.min(e.target.scrollHeight, 128)}px`;
             }}
-            placeholder={isStreaming && currentPhase !== "verifying" ? "Agent is responding..." : "Send a message..."}
+            placeholder={isStreaming && currentPhase !== "verifying" ? "Agent is responding..." : currentPhase === "complete" ? "Investigation closed — ask a follow-up question..." : "Send a message..."}
             disabled={isStreaming && currentPhase !== "verifying"}
             aria-label="Type your message"
             className="kn-input-field"

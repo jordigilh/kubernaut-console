@@ -788,5 +788,5 @@ export function useChat() {
     sessionStorage.removeItem(CONTEXT_KEY);
   }, []);
 
-  return { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase };
+  return { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase };
 }
