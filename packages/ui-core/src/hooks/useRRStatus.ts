@@ -4,7 +4,7 @@ import type { RRPhase } from "../lib/a2a-status-client";
 
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
-export type StatusConnection = "idle" | "connected" | "reconnecting" | "error";
+export type StatusConnection = "idle" | "connected" | "reconnecting" | "error" | "not_found";
 
 export interface UseRRStatusResult {
   statusPhase: RRPhase | undefined;
@@ -41,6 +41,12 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
     setStatusConnection("reconnecting");
   }, []);
 
+  const handleNotFound = useCallback(() => {
+    setStatusConnection("not_found");
+    setIsTerminal(true);
+    terminalRef.current = true;
+  }, []);
+
   useEffect(() => {
     if (!rrId) return;
 
@@ -65,6 +71,7 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
         onPhaseChange: handlePhaseChange,
         onError: handleError,
         onTerminal: handleTerminal,
+        onNotFound: handleNotFound,
         onReconnecting: handleReconnecting,
         signal: controller.signal,
       });
@@ -73,7 +80,7 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
     return () => {
       controller.abort();
     };
-  }, [rrId, handlePhaseChange, handleError, handleTerminal, handleReconnecting]);
+  }, [rrId, handlePhaseChange, handleError, handleTerminal, handleNotFound, handleReconnecting]);
 
   return { statusPhase, statusConnection, statusMetadata, isTerminal };
 }

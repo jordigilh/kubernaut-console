@@ -7,6 +7,8 @@ export type RRPhase =
 
 const TERMINAL_PHASES: Set<RRPhase> = new Set(["Completed", "Failed", "TimedOut", "Cancelled", "Skipped"]);
 
+const RR_NOT_FOUND_CODE = -32001;
+
 export class StatusStreamError extends Error {
   code: number;
   constructor(message: string, code: number) {
@@ -20,6 +22,7 @@ export interface StatusSubscribeOptions {
   onPhaseChange: (phase: RRPhase, metadata: Record<string, unknown>) => void;
   onError: (error: Error | StatusStreamError) => void;
   onTerminal?: (phase: RRPhase) => void;
+  onNotFound?: () => void;
   onReconnecting?: (attempt: number) => void;
   onClosing?: (reason: string) => void;
   signal?: AbortSignal;
@@ -71,7 +74,12 @@ async function attemptSubscription(
     return fetchResult;
   }
   if ("kind" in fetchResult && fetchResult.kind === "fatal") {
-    options.onError(new Error(`HTTP ${(fetchResult as SSEFetchError).status}: ${(fetchResult as SSEFetchError).statusText}`));
+    const httpErr = fetchResult as SSEFetchError;
+    if (httpErr.status === 404) {
+      options.onNotFound?.();
+      return "terminal";
+    }
+    options.onError(new Error(`HTTP ${httpErr.status}: ${httpErr.statusText}`));
     return "fatal";
   }
 
@@ -81,6 +89,10 @@ async function attemptSubscription(
     (parsed) => {
       if (parsed.error) {
         const err = parsed.error as { code: number; message: string };
+        if (err.code === RR_NOT_FOUND_CODE) {
+          options.onNotFound?.();
+          return "terminal";
+        }
         options.onError(new StatusStreamError(err.message, err.code));
         return "fatal";
       }

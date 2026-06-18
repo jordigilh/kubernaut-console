@@ -205,6 +205,9 @@ export function ChatContainer() {
         {statusConnection === "error" && (
           <span style={{ fontSize: "0.75rem", color: "#fecaca" }} role="status">Status stream lost</span>
         )}
+        {statusConnection === "not_found" && (
+          <span style={{ fontSize: "0.75rem", color: "#fecaca" }} role="status">RR not found</span>
+        )}
         <button
           type="button"
           onClick={handleClearHistory}
@@ -272,6 +275,7 @@ export function ChatContainer() {
         {isStreaming && "Agent is responding"}
         {statusConnection === "reconnecting" && "Status stream reconnecting"}
         {statusConnection === "error" && "Status stream lost"}
+        {statusConnection === "not_found" && "Remediation request not found"}
       </div>
 
       {/* Error */}
