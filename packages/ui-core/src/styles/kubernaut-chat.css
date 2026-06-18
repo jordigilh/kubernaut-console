@@ -557,6 +557,12 @@
   color: #fff;
 }
 
+.kn-phase-substatus {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.75);
+}
+
 /* Thinking panel */
 .kn-thinking {
   width: 100%;

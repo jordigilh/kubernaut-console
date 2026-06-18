@@ -7,6 +7,7 @@ interface Props {
   cluster?: string;
   rrId?: string;
   phase?: "investigation" | "decision" | "remediation" | "verifying" | "failed" | "timed_out" | "complete";
+  phaseMetadata?: Record<string, unknown>;
 }
 
 const PHASE_CONFIG: Record<string, { label: string; dotColor: string; pulse: boolean }> = {
@@ -79,12 +80,30 @@ function Separator() {
   return <div className="kn-context-separator" aria-hidden="true" />;
 }
 
-export function InvestigationContext({ alertName, namespace, resource, cluster, rrId, phase }: Props) {
+function formatSubStatus(phase: string | undefined, metadata: Record<string, unknown> | undefined): string | undefined {
+  if (!metadata || phase !== "verifying") return undefined;
+  const eaPhase = metadata.ea_phase as string | undefined;
+  if (!eaPhase) return undefined;
+  const deadline = metadata.stabilization_deadline as string | undefined;
+  if (deadline) {
+    const remaining = Math.max(0, Math.round((new Date(deadline).getTime() - Date.now()) / 1000));
+    if (remaining > 0) return `${eaPhase} (${remaining}s)`;
+  }
+  return eaPhase;
+}
+
+export function InvestigationContext({ alertName, namespace, resource, cluster, rrId, phase, phaseMetadata }: Props) {
   const phaseConfig = phase ? PHASE_CONFIG[phase] : { label: "Ready", dotColor: "var(--kn-green-400)", pulse: false };
+  const subStatus = formatSubStatus(phase, phaseMetadata);
 
   let displayResource = resource;
   if (resource && namespace) {
-    displayResource = resource.replace(` (${namespace})`, "").replace(`(${namespace})`, "");
+    const escaped = namespace.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    displayResource = resource
+      .replace(` (${namespace})`, "")
+      .replace(`(${namespace})`, "")
+      .replace(new RegExp(`\\s+in\\s+${escaped}$`), "")
+      .replace(new RegExp(`\\s+in\\s+${escaped}[\\s,.]`), " ");
   }
 
   return (
@@ -137,6 +156,7 @@ export function InvestigationContext({ alertName, namespace, resource, cluster, 
           aria-hidden="true"
         />
         <span className="kn-phase-label">{phaseConfig.label}</span>
+        {subStatus && <span className="kn-phase-substatus" data-testid="phase-substatus"> · {subStatus}</span>}
       </div>
     </div>
   );

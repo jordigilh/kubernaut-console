@@ -19,7 +19,7 @@ export function ChatContainer() {
   const { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase } = useChat();
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
-  const { statusPhase, statusConnection } = useRRStatus(rrId);
+  const { statusPhase, statusConnection, statusMetadata } = useRRStatus(rrId);
   const bannerPhase = statusPhase ? PHASE_MAP[statusPhase] ?? currentPhase : currentPhase;
   const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName ?? lastRca?.signalName;
   const namespace = messages.findLast(m => m.role === "agent" && m.namespace)?.namespace ?? lastRca?.namespace;
@@ -233,6 +233,7 @@ export function ChatContainer() {
         namespace={namespace}
         resource={resource}
         phase={bannerPhase}
+        phaseMetadata={statusMetadata}
       />
 
       {/* Messages */}
