@@ -336,7 +336,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
               <Button
                 variant={highlightDismiss ? "primary" : "secondary"}
                 isBlock
-                onClick={onDismiss}
+                onClick={() => { setExecuted(true); onDismiss(); }}
                 isDisabled={executed || countdown !== null || ruledOutCountdown !== null}
                 aria-label="No action needed"
               >
@@ -372,6 +372,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
                   onEscalate?.(escalateReason.trim());
                   setEscalating(false);
                   setEscalateReason("");
+                  setExecuted(true);
                 }
                 if (e.key === "Escape") {
                   setEscalating(false);
@@ -390,6 +391,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
                   onEscalate?.(escalateReason.trim());
                   setEscalating(false);
                   setEscalateReason("");
+                  setExecuted(true);
                 }
               }}
               isDisabled={!escalateReason.trim()}
