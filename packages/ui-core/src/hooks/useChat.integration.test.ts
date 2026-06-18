@@ -352,3 +352,146 @@ describe("IT: Status event metadata extracts RR context for early banner populat
     expect(agentMsg.resource).toBe("my-pod-xyz");
   });
 });
+
+describe("IT: Stream interrupt and cancel recovery", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    sessionStorage.clear();
+  });
+
+  it("IT-CONSOLE-INTERRUPT-001: sendMessage while streaming aborts previous stream and processes new message", async () => {
+    vi.useRealTimers();
+    const { streamA2A: streamFn } = await import("../lib/a2a-client");
+    const mockedStream = vi.mocked(streamFn);
+
+    let callCount = 0;
+    mockedStream.mockImplementation(async (_req, opts) => {
+      callCount++;
+      if (callCount === 1) {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-int-1",
+          status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Thinking..." }] } },
+          metadata: { type: "investigation" },
+        });
+        await new Promise((resolve) => {
+          const checkAbort = () => {
+            if (opts.signal?.aborted) { resolve(undefined); return; }
+            setTimeout(checkAbort, 5);
+          };
+          checkAbort();
+        });
+        return;
+      }
+      opts.onEvent({
+        kind: "artifact-update",
+        taskId: "t2",
+        contextId: "ctx-int-1",
+        artifact: {
+          artifactId: "a2",
+          parts: [{ kind: "text", text: "Response to second message" }],
+        },
+        lastChunk: true,
+        append: false,
+      });
+      opts.onComplete?.();
+    });
+
+    const { result } = renderHook(() => useChat());
+
+    act(() => { result.current.sendMessage("first message"); });
+
+    await waitFor(() => {
+      expect(result.current.isStreaming).toBe(true);
+    });
+
+    // Wait past the 500ms rate limiter before sending second message
+    await new Promise((r) => setTimeout(r, 550));
+
+    await act(async () => { await result.current.sendMessage("second message"); });
+
+    await waitFor(() => {
+      expect(result.current.isStreaming).toBe(false);
+    });
+
+    expect(callCount).toBe(2);
+    const userMessages = result.current.messages.filter(m => m.role === "user");
+    expect(userMessages).toHaveLength(2);
+    expect(userMessages[0].text).toBe("first message");
+    expect(userMessages[1].text).toBe("second message");
+
+    const agentMessages = result.current.messages.filter(m => m.role === "agent");
+    expect(agentMessages.length).toBeGreaterThanOrEqual(1);
+    const lastAgent = agentMessages[agentMessages.length - 1];
+    expect(lastAgent.text).toBe("Response to second message");
+  });
+
+  it("IT-CONSOLE-INTERRUPT-002: cancelStream then sendMessage succeeds without stuck state", async () => {
+    vi.useRealTimers();
+    const { streamA2A: streamFn } = await import("../lib/a2a-client");
+    const mockedStream = vi.mocked(streamFn);
+
+    let callCount = 0;
+    mockedStream.mockImplementation(async (_req, opts) => {
+      callCount++;
+      if (callCount === 1) {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-int-2",
+          status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Working..." }] } },
+          metadata: { type: "investigation" },
+        });
+        await new Promise((resolve) => {
+          const checkAbort = () => {
+            if (opts.signal?.aborted) { resolve(undefined); return; }
+            setTimeout(checkAbort, 5);
+          };
+          checkAbort();
+        });
+        return;
+      }
+      opts.onEvent({
+        kind: "artifact-update",
+        taskId: "t2",
+        contextId: "ctx-int-2",
+        artifact: {
+          artifactId: "a3",
+          parts: [{ kind: "text", text: "After cancel" }],
+        },
+        lastChunk: true,
+        append: false,
+      });
+      opts.onComplete?.();
+    });
+
+    const { result } = renderHook(() => useChat());
+
+    act(() => { result.current.sendMessage("start investigation"); });
+
+    await waitFor(() => {
+      expect(result.current.isStreaming).toBe(true);
+    });
+
+    act(() => { result.current.cancelStream(); });
+
+    await waitFor(() => {
+      expect(result.current.isStreaming).toBe(false);
+    });
+
+    // Wait past the 500ms rate limiter before sending follow-up
+    await new Promise((r) => setTimeout(r, 550));
+
+    await act(async () => { await result.current.sendMessage("follow up"); });
+
+    await waitFor(() => {
+      expect(result.current.isStreaming).toBe(false);
+    });
+
+    expect(callCount).toBe(2);
+    expect(result.current.error).toBeNull();
+    const lastAgent = result.current.messages.filter(m => m.role === "agent").pop()!;
+    expect(lastAgent.text).toBe("After cancel");
+  });
+});

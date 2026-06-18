@@ -87,4 +87,45 @@ test.describe("Standalone Mode E2E", () => {
     const mainContent = page.locator("main[role='log'], .kn-chat");
     await expect(mainContent.first()).toBeVisible();
   });
+
+  test("stop streaming then send follow-up message succeeds", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    const input = page.locator("textarea[aria-label='Type your message']");
+    await input.fill("pod crashlooping in production");
+    await page.locator("button[aria-label='Send message']").click();
+
+    const stopBtn = page.locator("button[aria-label='Stop agent response']");
+    await expect(stopBtn).toBeVisible({ timeout: 5000 });
+    await stopBtn.click();
+
+    await expect(stopBtn).not.toBeVisible({ timeout: 3000 });
+    await expect(input).toBeEnabled();
+
+    // Wait past the 500ms send rate limiter
+    await page.waitForTimeout(600);
+
+    await input.fill("what did you find so far?");
+    await page.locator("button[aria-label='Send message']").click();
+
+    await expect(
+      page.getByText("what did you find so far?"),
+    ).toBeVisible({ timeout: 5000 });
+  });
+
+  test("input remains enabled during agent streaming", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    const input = page.locator("textarea[aria-label='Type your message']");
+    await input.fill("investigate network latency");
+    await page.locator("button[aria-label='Send message']").click();
+
+    const stopBtn = page.locator("button[aria-label='Stop agent response']");
+    await expect(stopBtn).toBeVisible({ timeout: 5000 });
+
+    await expect(input).toBeEnabled();
+    await expect(input).toHaveAttribute("placeholder", "Type to interrupt...");
+  });
 });

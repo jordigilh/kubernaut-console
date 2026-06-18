@@ -279,4 +279,92 @@ describe("streamA2A", () => {
     expect(onEvent).not.toHaveBeenCalled();
     expect(onComplete).not.toHaveBeenCalled();
   });
+
+  it("UT-CONSOLE-A2A-010: retries on JSON-RPC -32603 with 'execution in progress' and succeeds", async () => {
+    const transientError = {
+      jsonrpc: "2.0",
+      id: "1",
+      error: { code: -32603, message: "Internal error", data: { error: "task execution is already in progress" } },
+    };
+    const successFrame = {
+      jsonrpc: "2.0",
+      id: "2",
+      result: { kind: "artifact-update", taskId: "t1", contextId: "ctx-1", artifact: { artifactId: "a1", parts: [{ kind: "text", text: "OK" }] }, lastChunk: true },
+    };
+
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(createSSEResponse([sseFrame(transientError)]))
+      .mockResolvedValueOnce(createSSEResponse([sseFrame(successFrame)]));
+
+    const events: A2AEvent[] = [];
+    const onError = vi.fn();
+    const onReconnecting = vi.fn();
+    await streamA2A(buildStreamRequest("test"), {
+      onEvent: (e) => events.push(e),
+      onError,
+      onComplete: () => {},
+      onReconnecting,
+      maxRetries: 1,
+      preRetryDelayMs: 10,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(onReconnecting).toHaveBeenCalledWith(1);
+    expect(onError).not.toHaveBeenCalled();
+    expect(events).toHaveLength(1);
+    expect(events[0].kind).toBe("artifact-update");
+  });
+
+  it("UT-CONSOLE-A2A-011: JSON-RPC -32603 with unrelated error text remains fatal", async () => {
+    const fatalError = {
+      jsonrpc: "2.0",
+      id: "1",
+      error: { code: -32603, message: "Internal error", data: { error: "unexpected nil pointer" } },
+    };
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(createSSEResponse([sseFrame(fatalError)]));
+
+    const onError = vi.fn();
+    const onReconnecting = vi.fn();
+    await streamA2A(buildStreamRequest("test"), {
+      onEvent: () => {},
+      onError,
+      onComplete: () => {},
+      onReconnecting,
+      maxRetries: 2,
+    });
+
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: "Internal error" }));
+    expect(onReconnecting).not.toHaveBeenCalled();
+  });
+
+  it("UT-CONSOLE-A2A-012: preRetryDelayMs is applied before the first retry attempt", async () => {
+    const transientError = {
+      jsonrpc: "2.0",
+      id: "1",
+      error: { code: -32603, message: "Internal error", data: { error: "task execution is already in progress" } },
+    };
+    const successFrame = {
+      jsonrpc: "2.0",
+      id: "2",
+      result: { kind: "artifact-update", taskId: "t1", contextId: "ctx-1", artifact: { artifactId: "a1", parts: [{ kind: "text", text: "Delayed" }] }, lastChunk: true },
+    };
+
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(createSSEResponse([sseFrame(transientError)]))
+      .mockResolvedValueOnce(createSSEResponse([sseFrame(successFrame)]));
+
+    const preRetryDelayMs = 150;
+    const start = Date.now();
+    await streamA2A(buildStreamRequest("test"), {
+      onEvent: () => {},
+      onError: () => {},
+      onComplete: () => {},
+      maxRetries: 1,
+      preRetryDelayMs,
+    });
+    const elapsed = Date.now() - start;
+
+    expect(elapsed).toBeGreaterThanOrEqual(preRetryDelayMs - 10);
+  });
 });
