@@ -97,19 +97,20 @@ async function attemptStream(
   if (typeof fetchResult === "string") {
     return fetchResult;
   }
-  if ("kind" in fetchResult && fetchResult.kind === "fatal") {
-    options.onError(new Error(`HTTP ${fetchResult.status}: ${fetchResult.statusText}`));
+  if ("kind" in fetchResult && (fetchResult as SSEFetchError).kind === "fatal") {
+    const httpErr = fetchResult as SSEFetchError;
+    options.onError(new Error(`HTTP ${httpErr.status}: ${httpErr.statusText}`));
     return "fatal";
   }
 
-  const response = fetchResult;
+  const response = fetchResult as Response;
   const streamResult = await readSSEStream(
     response.body!,
     (parsed) => {
       const rpc = parsed as unknown as JsonRpcResponse;
       if (rpc.error) {
         const msg = rpc.error.message || "";
-        const data = rpc.error.data as Record<string, unknown> | undefined;
+        const data = (rpc.error as Record<string, unknown>).data as Record<string, unknown> | undefined;
         const detail = (data?.error as string) || "";
         const isTransient = /execution.*in progress|task.*in progress/i.test(msg + detail);
         if (isTransient) {

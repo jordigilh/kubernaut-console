@@ -73,7 +73,7 @@ async function attemptSubscription(
   if (typeof fetchResult === "string") {
     return fetchResult;
   }
-  if ("kind" in fetchResult && fetchResult.kind === "fatal") {
+  if ("kind" in fetchResult && (fetchResult as SSEFetchError).kind === "fatal") {
     const httpErr = fetchResult as SSEFetchError;
     if (httpErr.status === 404) {
       options.onNotFound?.();
@@ -83,7 +83,7 @@ async function attemptSubscription(
     return "fatal";
   }
 
-  const response = fetchResult;
+  const response = fetchResult as Response;
   const streamResult = await readSSEStream(
     response.body!,
     (parsed) => {

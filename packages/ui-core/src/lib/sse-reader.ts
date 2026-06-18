@@ -90,7 +90,7 @@ export async function postForSSE(
   options?: {
     signal?: AbortSignal;
     token?: string;
-    fetchFn?: typeof fetch;
+    fetchFn?: (url: string, init?: RequestInit) => Promise<Response>;
   },
 ): Promise<Response | "aborted" | "retryable" | SSEFetchError> {
   const headers: Record<string, string> = {
