@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface Props {
   alertName?: string;
@@ -80,21 +80,61 @@ function Separator() {
   return <div className="kn-context-separator" aria-hidden="true" />;
 }
 
-function formatSubStatus(phase: string | undefined, metadata: Record<string, unknown> | undefined): string | undefined {
-  if (!metadata || phase !== "verifying") return undefined;
-  const eaPhase = metadata.ea_phase as string | undefined;
-  if (!eaPhase) return undefined;
-  const deadline = metadata.stabilization_deadline as string | undefined;
-  if (deadline) {
-    const remaining = Math.max(0, Math.round((new Date(deadline).getTime() - Date.now()) / 1000));
-    if (remaining > 0) return `${eaPhase} (${remaining}s)`;
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function usePhaseTimer(phase: string | undefined): string | undefined {
+  const phaseStartRef = useRef<{ phase: string; time: number } | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!phase || phase === "complete" || phase === "failed" || phase === "timed_out") {
+      phaseStartRef.current = null;
+      setElapsed(0);
+      return;
+    }
+
+    if (!phaseStartRef.current || phaseStartRef.current.phase !== phase) {
+      phaseStartRef.current = { phase, time: Date.now() };
+      setElapsed(0);
+    }
+
+    const id = setInterval(() => {
+      if (phaseStartRef.current) {
+        setElapsed(Math.floor((Date.now() - phaseStartRef.current.time) / 1000));
+      }
+    }, 1000);
+
+    return () => clearInterval(id);
+  }, [phase]);
+
+  if (!phase || phase === "complete" || phase === "failed" || phase === "timed_out") return undefined;
+  if (elapsed === 0) return undefined;
+  return formatElapsed(elapsed);
+}
+
+function formatSubStatus(phase: string | undefined, metadata: Record<string, unknown> | undefined, elapsedStr: string | undefined): string | undefined {
+  if (metadata && phase === "verifying") {
+    const eaPhase = metadata.ea_phase as string | undefined;
+    if (eaPhase) {
+      const deadline = metadata.stabilization_deadline as string | undefined;
+      if (deadline) {
+        const remaining = Math.max(0, Math.round((new Date(deadline).getTime() - Date.now()) / 1000));
+        if (remaining > 0) return `${eaPhase} (${remaining}s)`;
+      }
+      return eaPhase;
+    }
   }
-  return eaPhase;
+  return elapsedStr;
 }
 
 export function InvestigationContext({ alertName, namespace, resource, cluster, rrId, phase, phaseMetadata }: Props) {
   const phaseConfig = phase ? PHASE_CONFIG[phase] : { label: "Ready", dotColor: "var(--kn-green-400)", pulse: false };
-  const subStatus = formatSubStatus(phase, phaseMetadata);
+  const elapsedStr = usePhaseTimer(phase);
+  const subStatus = formatSubStatus(phase, phaseMetadata, elapsedStr);
 
   let displayResource = resource;
   if (resource && namespace) {

@@ -232,6 +232,7 @@ describe("subscribeRRStatus", () => {
   });
 
   it("UT-CONSOLE-STATUS-013: handles JSON-RPC error response (rr_not_found)", async () => {
+    const onNotFound = vi.fn();
     const onError = vi.fn();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       createSSEResponse([sseFrame({
@@ -240,9 +241,10 @@ describe("subscribeRRStatus", () => {
       })])
     );
 
-    await subscribeRRStatus("rr-nonexistent", { onPhaseChange: vi.fn(), onError, maxRetries: 0 });
+    await subscribeRRStatus("rr-nonexistent", { onPhaseChange: vi.fn(), onError, onNotFound, maxRetries: 0 });
 
-    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("rr_not_found") }));
+    expect(onNotFound).toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it("UT-CONSOLE-STATUS-014: uses custom baseUrl when provided", async () => {

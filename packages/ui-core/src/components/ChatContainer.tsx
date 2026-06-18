@@ -29,10 +29,19 @@ export function ChatContainer() {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const isNearBottomRef = useRef(true);
 
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const threshold = 80;
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+  };
+
   useEffect(() => {
+    if (!isNearBottomRef.current) return;
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
@@ -45,6 +54,7 @@ export function ChatContainer() {
     if (!text) return;
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto";
+    isNearBottomRef.current = true;
     sendMessage(text);
   };
 
@@ -242,6 +252,7 @@ export function ChatContainer() {
       {/* Messages */}
       <main
         ref={scrollRef}
+        onScroll={handleScroll}
         className="kn-messages"
         role="log"
         aria-label="Conversation"
