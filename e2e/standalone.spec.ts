@@ -23,7 +23,7 @@ test.describe("Standalone Mode E2E", () => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    const input = page.locator("input[aria-label='Type your message']");
+    const input = page.locator("textarea[aria-label='Type your message']");
     await expect(input).toBeVisible();
     await input.fill("Hello, Kubernaut!");
     await expect(input).toHaveValue("Hello, Kubernaut!");
@@ -35,7 +35,7 @@ test.describe("Standalone Mode E2E", () => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    const input = page.locator("input[aria-label='Type your message']");
+    const input = page.locator("textarea[aria-label='Type your message']");
     await input.fill("pod crashlooping in production");
 
     const sendButton = page.locator("button[aria-label='Send message']");

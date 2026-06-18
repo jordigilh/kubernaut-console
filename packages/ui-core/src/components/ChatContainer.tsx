@@ -19,7 +19,7 @@ export function ChatContainer() {
   const user = useUser();
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
@@ -35,15 +35,17 @@ export function ChatContainer() {
     const text = input.trim();
     if (!text || isStreaming) return;
     setInput("");
+    if (inputRef.current) inputRef.current.style.height = "auto";
     sendMessage(text);
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       const text = input.trim();
       if (!text || isStreaming) return;
       setInput("");
+      if (inputRef.current) inputRef.current.style.height = "auto";
       sendMessage(text);
     }
   };
@@ -276,15 +278,29 @@ export function ChatContainer() {
             }
           }}
         >
-          <input
+          <button
+            type="button"
+            className="kn-attach-btn"
+            aria-label="Attach file"
+            title="Attach file"
+          >
+            <svg style={{ width: 16, height: 16 }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M14 8.5l-5.5 5.5a3.5 3.5 0 01-5-5l5.5-5.5a2.5 2.5 0 013.5 3.5l-5.5 5.5a1.5 1.5 0 01-2-2L10 5" />
+            </svg>
+          </button>
+          <textarea
             ref={inputRef}
-            type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={isStreaming && currentPhase !== "verifying" ? "Agent is responding..." : "Ask a follow-up or start a new investigation..."}
+            onChange={(e) => {
+              setInput(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 128)}px`;
+            }}
+            placeholder={isStreaming && currentPhase !== "verifying" ? "Agent is responding..." : "Send a message..."}
             disabled={isStreaming && currentPhase !== "verifying"}
             aria-label="Type your message"
             className="kn-input-field"
+            rows={1}
             onKeyDown={handleKeyDown}
           />
           {isStreaming && currentPhase !== "verifying" ? (

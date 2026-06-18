@@ -23,6 +23,9 @@
   --kn-green-600: #16A34A;
   --kn-green-700: #15803D;
   --kn-green-800: #166534;
+  --kn-blue-500: #0066CC;
+  --kn-blue-600: #004080;
+  --kn-blue-700: #002952;
   --kn-user-bubble: #E0F2FE;
   --kn-user-text: #0C4A6E;
   --kn-surface: #F9FAFB;
@@ -274,31 +277,36 @@
 
 .kn-input-wrapper {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 0.5rem;
   border-radius: 1.5rem;
   border: 1px solid var(--kn-border);
   background: #fff;
-  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  padding: 0.625rem 0.625rem 0.625rem 1rem;
   cursor: text;
   min-height: 2.75rem;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .kn-input-wrapper:focus-within {
-  border-color: var(--kn-teal-600);
+  border-color: var(--kn-blue-500);
 }
 
 .kn-input-field {
   flex: 1;
   background: transparent;
   font-size: 0.875rem;
+  line-height: 1.375rem;
   color: var(--kn-text-primary);
   border: none;
   outline: none;
   box-shadow: none;
   appearance: none;
   font-family: var(--kn-font-body);
+  resize: none;
+  overflow-y: auto;
+  max-height: 8rem;
+  min-height: 1.375rem;
 }
 
 .kn-input-field::placeholder {
@@ -315,18 +323,18 @@
   width: 2rem;
   align-items: center;
   justify-content: center;
-  border-radius: 9999px;
-  background: var(--kn-teal-600);
+  border-radius: 0.5rem;
+  background: var(--kn-blue-500);
   color: #fff;
   border: none;
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s;
 }
-.kn-send-btn:hover { background: var(--kn-teal-700); }
+.kn-send-btn:hover { background: var(--kn-blue-600); }
 .kn-send-btn:disabled { opacity: 0.4; cursor: default; }
 .kn-send-btn:focus-visible {
-  outline: 2px solid var(--kn-teal-600);
+  outline: 2px solid var(--kn-blue-500);
   outline-offset: 2px;
 }
 
@@ -336,7 +344,7 @@
   width: 2rem;
   align-items: center;
   justify-content: center;
-  border-radius: 9999px;
+  border-radius: 0.5rem;
   background: var(--kn-red-600);
   color: #fff;
   border: none;
@@ -347,6 +355,26 @@
 .kn-stop-btn:hover { background: var(--kn-red-700); }
 .kn-stop-btn:focus-visible {
   outline: 2px solid var(--kn-red-600);
+  outline-offset: 2px;
+}
+
+.kn-attach-btn {
+  display: flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--kn-text-muted);
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+.kn-attach-btn:hover { background: var(--kn-surface); color: var(--kn-text-primary); }
+.kn-attach-btn:focus-visible {
+  outline: 2px solid var(--kn-blue-500);
   outline-offset: 2px;
 }
 
@@ -489,6 +517,7 @@
   background: rgba(0, 151, 167, 0.3);
   align-self: center;
   flex-shrink: 0;
+}
 }
 
 .kn-context-phase {
