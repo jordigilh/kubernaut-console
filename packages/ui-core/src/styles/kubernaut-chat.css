@@ -212,13 +212,13 @@
 
 /* User bubble */
 .kn-user-row {
-  display: flex;
-  justify-content: flex-end;
+  text-align: right;
 }
 
 .kn-user-bubble {
+  display: inline-block;
+  text-align: left;
   max-width: 75%;
-  width: max-content;
   background: var(--kn-user-bubble);
   border-radius: 1rem;
   padding: 0.625rem 1rem;
