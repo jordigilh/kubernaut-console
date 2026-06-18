@@ -278,16 +278,6 @@ export function ChatContainer() {
             }
           }}
         >
-          <button
-            type="button"
-            className="kn-attach-btn"
-            aria-label="Attach file"
-            title="Attach file"
-          >
-            <svg style={{ width: 16, height: 16 }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M14 8.5l-5.5 5.5a3.5 3.5 0 01-5-5l5.5-5.5a2.5 2.5 0 013.5 3.5l-5.5 5.5a1.5 1.5 0 01-2-2L10 5" />
-            </svg>
-          </button>
           <textarea
             ref={inputRef}
             value={input}

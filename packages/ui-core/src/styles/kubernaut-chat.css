@@ -44,9 +44,17 @@
   outline-offset: 2px;
 }
 
+.kn-chat .pf-v6-c-form-control:focus-within,
+.kn-chat .pf-v6-c-form-control input:focus-visible,
+.kn-chat .pf-v6-c-text-input-group input:focus-visible {
+  outline: none;
+}
+
 .kn-chat [data-focus-delegate] input,
 .kn-chat [data-focus-delegate] input:focus,
-.kn-chat [data-focus-delegate] input:focus-visible {
+.kn-chat [data-focus-delegate] input:focus-visible,
+.kn-chat [data-focus-delegate] textarea:focus,
+.kn-chat [data-focus-delegate] textarea:focus-visible {
   outline: none !important;
   box-shadow: none !important;
   border: 0 !important;
@@ -277,7 +285,7 @@
 
 .kn-input-wrapper {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 0.5rem;
   border-radius: 1.5rem;
   border: 1px solid var(--kn-border);
@@ -290,6 +298,7 @@
 
 .kn-input-wrapper:focus-within {
   border-color: var(--kn-blue-500);
+  outline: none;
 }
 
 .kn-input-field {
@@ -298,15 +307,24 @@
   font-size: 0.875rem;
   line-height: 1.375rem;
   color: var(--kn-text-primary);
-  border: none;
-  outline: none;
-  box-shadow: none;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
   appearance: none;
   font-family: var(--kn-font-body);
   resize: none;
   overflow-y: auto;
   max-height: 8rem;
   min-height: 1.375rem;
+  padding: 0;
+  margin: 0;
+}
+
+.kn-input-field:focus,
+.kn-input-field:focus-visible {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .kn-input-field::placeholder {
