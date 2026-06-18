@@ -337,7 +337,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
                 variant={highlightDismiss ? "primary" : "secondary"}
                 isBlock
                 onClick={onDismiss}
-                isDisabled={executed}
+                isDisabled={executed || countdown !== null || ruledOutCountdown !== null}
                 aria-label="No action needed"
               >
                 No action needed
@@ -350,7 +350,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
                 variant={highlightEscalate ? "danger" : "secondary"}
                 isBlock
                 onClick={() => setEscalating(true)}
-                isDisabled={executed}
+                isDisabled={executed || countdown !== null || ruledOutCountdown !== null}
                 aria-label="Escalate to team"
               >
                 Escalate to team
