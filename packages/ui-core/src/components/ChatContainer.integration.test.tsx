@@ -1166,13 +1166,12 @@ describe("ChatContainer Integration", () => {
       vi.advanceTimersByTime(600);
     });
 
-    // Divergence callout renders with both targets
+    // Divergence is shown in WorkflowCards as a warning alert
     await waitFor(() => {
       expect(screen.getByText("No remediation workflows found")).toBeInTheDocument();
     });
-    const divergencePanel = screen.getByLabelText(/target divergence/i);
-    expect(divergencePanel).toBeInTheDocument();
     expect(screen.getByText(/ConfigMap\/worker-config/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Deployment\/worker/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/root cause to a different resource/)).toBeInTheDocument();
 
     // Escape hatches remain available

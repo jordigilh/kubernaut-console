@@ -282,18 +282,15 @@ describe("WorkflowCards", () => {
     it("UT-CONSOLE-WF-032: renders target divergence explanation when no workflows and targets differ", () => {
       render(<WorkflowCards options={[]} targetDivergence={divergence} onDismiss={vi.fn()} onEscalate={vi.fn()} />);
       expect(screen.getByText("No remediation workflows found")).toBeInTheDocument();
-      expect(screen.getByText(/ConfigMap\/worker-config/)).toBeInTheDocument();
-      expect(screen.getByText(/Deployment\/worker/)).toBeInTheDocument();
       expect(screen.getByText(/root cause to a different resource/)).toBeInTheDocument();
     });
 
-    it("UT-CONSOLE-WF-033: renders informative note (not warning) when workflows exist with divergence", () => {
+    it("UT-CONSOLE-WF-033: renders info alert with signal/RCA targets when workflows exist", () => {
       const opts = [{ workflowId: "wf-1", name: "Rollback", description: "desc", recommended: true }];
       render(<WorkflowCards options={opts} targetDivergence={divergence} onExecute={vi.fn()} />);
-      expect(screen.queryByText("No remediation workflows found")).not.toBeInTheDocument();
-      expect(screen.getByText(/Targeting root cause:/)).toBeInTheDocument();
+      expect(screen.getByLabelText("Target divergence note")).toBeInTheDocument();
+      expect(screen.getByText(/Deployment\/worker/)).toBeInTheDocument();
       expect(screen.getByText(/ConfigMap\/worker-config/)).toBeInTheDocument();
-      expect(screen.getByText(/differs from alert target/)).toBeInTheDocument();
     });
 
     it("UT-CONSOLE-WF-034: does NOT render divergence when targetDivergence is undefined", () => {

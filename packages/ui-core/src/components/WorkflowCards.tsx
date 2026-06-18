@@ -145,16 +145,27 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
       )}
 
       {targetDivergence && options.length > 0 && (
-        <Alert variant="info" title={`Targeting root cause: ${targetDivergence.discoveryTarget.kind}/${targetDivergence.discoveryTarget.name} (differs from alert target: ${targetDivergence.signalTarget.kind}/${targetDivergence.signalTarget.name})`} isInline isPlain aria-label="Target divergence note" />
+        <Alert variant="info" title={`RCA target differs from signal`} isInline aria-label="Target divergence note" style={{ marginBottom: "var(--pf-t--global--spacer--sm)" }}>
+          <Content component={ContentVariants.p}>
+            Signal: {targetDivergence.signalTarget.kind}/{targetDivergence.signalTarget.name}
+            {targetDivergence.signalTarget.namespace && ` (${targetDivergence.signalTarget.namespace})`}
+          </Content>
+          <Content component={ContentVariants.p}>
+            Root cause: <strong>{targetDivergence.discoveryTarget.kind}/{targetDivergence.discoveryTarget.name}</strong>
+            {targetDivergence.discoveryTarget.namespace && ` (${targetDivergence.discoveryTarget.namespace})`}
+          </Content>
+        </Alert>
       )}
 
       {targetDivergence && options.length === 0 && (
         <Alert variant="warning" title="No remediation workflows found" isInline aria-label="Target divergence explanation">
           <Content component={ContentVariants.p}>
-            Root cause target: {targetDivergence.discoveryTarget.kind}/{targetDivergence.discoveryTarget.name}
+            Signal: {targetDivergence.signalTarget.kind}/{targetDivergence.signalTarget.name}
+            {targetDivergence.signalTarget.namespace && ` (${targetDivergence.signalTarget.namespace})`}
           </Content>
           <Content component={ContentVariants.p}>
-            Original alert target: {targetDivergence.signalTarget.kind}/{targetDivergence.signalTarget.name}
+            Root cause: <strong>{targetDivergence.discoveryTarget.kind}/{targetDivergence.discoveryTarget.name}</strong>
+            {targetDivergence.discoveryTarget.namespace && ` (${targetDivergence.discoveryTarget.namespace})`}
           </Content>
           <Content component={ContentVariants.small}>
             The agent traced the root cause to a different resource than the alerting target.
