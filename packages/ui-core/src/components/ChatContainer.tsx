@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, type FormEvent, type KeyboardEvent } from "react";
-import { useChat } from "../hooks/useChat";
+import { useChat, type ChatMessage } from "../hooks/useChat";
 import { useUser } from "../hooks/useUser";
 import { callMcpTool } from "../lib/mcp-client";
 import { emitAuditEvent } from "../lib/audit";
@@ -71,10 +71,18 @@ export function ChatContainer() {
         setError(res.error.message);
         return;
       }
-      sendMessage(`Workflow ${workflowId} selected for execution.`, { silent: true });
+      const phaseMap: Record<string, ChatMessage["phase"]> = {
+        Pending: "investigation", Processing: "investigation", Analyzing: "investigation", Investigating: "investigation",
+        AwaitingApproval: "decision", Executing: "remediation", Verifying: "verifying",
+        Blocked: "failed", Completed: "complete", Failed: "failed", TimedOut: "timed_out", Skipped: "complete", Cancelled: "complete",
+      };
+      const resBody = res.result as { phase?: string } | undefined;
+      if (resBody?.phase && phaseMap[resBody.phase]) {
+        setCurrentPhase(phaseMap[resBody.phase]);
+      }
       emitAuditEvent({ action: "execute_workflow", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { workflowId } });
     },
-    [rrId, sendMessage, setError, user.name, user.email],
+    [rrId, setCurrentPhase, setError, user.name, user.email],
   );
 
   const handleApprove = useCallback(
