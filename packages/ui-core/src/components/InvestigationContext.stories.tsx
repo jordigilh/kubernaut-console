@@ -15,26 +15,17 @@ export const AllFields: Story = {
     alertName: "KubePodCrashLooping",
     namespace: "production",
     resource: "deployment/api-gateway",
-    phase: "investigation",
   },
 };
 
-export const InvestigationPhase: Story = {
-  args: { rrId: "rr-def456", alertName: "KubePodCrashLooping", namespace: "staging", phase: "investigation" },
+export const MinimalFields: Story = {
+  args: { rrId: "rr-def456", alertName: "KubePodCrashLooping", namespace: "staging" },
 };
 
-export const DecisionPhase: Story = {
-  args: { rrId: "rr-def456", alertName: "HighMemoryUsage", namespace: "production", phase: "decision" },
+export const WithCluster: Story = {
+  args: { rrId: "rr-def456", alertName: "HighMemoryUsage", namespace: "production", cluster: "prod-us-east-1" },
 };
 
-export const RemediationPhase: Story = {
-  args: { rrId: "rr-ghi789", alertName: "KubePodCrashLooping", namespace: "production", resource: "deployment/api-gateway", phase: "remediation" },
-};
-
-export const VerifyingPhase: Story = {
-  args: { rrId: "rr-ghi789", alertName: "KubePodCrashLooping", namespace: "production", phase: "verifying" },
-};
-
-export const CompletePhase: Story = {
-  args: { rrId: "rr-ghi789", alertName: "KubePodCrashLooping", namespace: "production", phase: "complete" },
+export const Idle: Story = {
+  args: {},
 };

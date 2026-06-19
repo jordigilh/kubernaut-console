@@ -281,8 +281,7 @@ describe("ChatContainer Integration", () => {
       vi.advanceTimersByTime(100);
     });
 
-    // IT-CONSOLE-JOURNEY-006: Phase status reflects execution via InvestigationContext banner
-    // (ExecutionProgress cards removed — status shown only via InvestigationContext)
+    // IT-CONSOLE-JOURNEY-006: Phase status reflects execution via PhaseIndicator
     await waitFor(() => {
       expect(screen.getByTestId("phase-indicator")).toBeInTheDocument();
     });

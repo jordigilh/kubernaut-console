@@ -6,9 +6,7 @@ import { InvestigationContext } from "./InvestigationContext";
 // The investigation context bar provides real-time situational awareness
 // of the active remediation — displaying the RR ID (audit correlation),
 // alert name (signal identification), namespace/resource (resource scoping),
-// cluster (multi-cluster disambiguation), and phase status. This ensures
-// operators can correlate console activity with audit logs and identify the
-// exact scope of automated remediation actions.
+// and cluster (multi-cluster disambiguation).
 
 describe("AU-2/SI-4: Investigation context bar provides audit correlation and situational awareness", () => {
   it("UT-CONSOLE-CTX-001: AU-2 — renders RR ID for audit trail correlation", () => {
@@ -42,14 +40,14 @@ describe("AU-2/SI-4: Investigation context bar provides audit correlation and si
     expect(banner).toHaveTextContent("prod-us-east-1");
   });
 
-  it("UT-CONSOLE-CTX-005: SI-4 — hides phase indicator when no investigation is active", () => {
+  it("UT-CONSOLE-CTX-005: SI-4 — renders empty bar when no props", () => {
     render(<InvestigationContext />);
     const banner = screen.getByTestId("investigation-context");
     expect(banner).toBeInTheDocument();
-    expect(screen.queryByTestId("phase-indicator")).not.toBeInTheDocument();
+    expect(banner).not.toHaveTextContent("Remediation ID");
   });
 
-  it("UT-CONSOLE-CTX-006: AU-2 — renders all fields together for complete audit context", () => {
+  it("UT-CONSOLE-CTX-006: AU-2 — renders all metadata fields together", () => {
     render(
       <InvestigationContext
         rrId="rr-9e1b7bf4140b-ed9f1796"
@@ -57,7 +55,6 @@ describe("AU-2/SI-4: Investigation context bar provides audit correlation and si
         namespace="demo-crashloop"
         resource="Pod: worker-77784c6cf7-stxv4"
         cluster="prod-us-east-1"
-        phase="investigation"
       />
     );
 
@@ -67,7 +64,6 @@ describe("AU-2/SI-4: Investigation context bar provides audit correlation and si
     expect(banner).toHaveTextContent("demo-crashloop");
     expect(banner).toHaveTextContent("Pod: worker-77784c6cf7-stxv4");
     expect(banner).toHaveTextContent("prod-us-east-1");
-    expect(banner).toHaveTextContent("Investigating");
   });
 
   it("UT-CONSOLE-CTX-007: SI-4 — progressively reveals fields as they become available", () => {
@@ -95,34 +91,13 @@ describe("AU-2/SI-4: Investigation context bar provides audit correlation and si
     expect(banner).toHaveTextContent("rr-660dc089f630-5fca223e");
   });
 
-  it("UT-CONSOLE-CTX-009: SI-4 — displays phase status with label", () => {
-    render(<InvestigationContext phase="remediation" />);
-
-    const banner = screen.getByTestId("investigation-context");
-    expect(banner).toHaveTextContent("Executing");
-    const phaseLabel = screen.getByTestId("phase-indicator");
-    expect(phaseLabel).toBeInTheDocument();
-  });
-
-  it("UT-CONSOLE-CTX-010: SI-4 — status field shows correct label for each phase", () => {
-    const { rerender } = render(<InvestigationContext phase="investigation" />);
-    expect(screen.getByTestId("investigation-context")).toHaveTextContent("Investigating");
-
-    rerender(<InvestigationContext phase="complete" />);
-    expect(screen.getByTestId("investigation-context")).toHaveTextContent("Complete");
-
-    rerender(<InvestigationContext phase="failed" />);
-    expect(screen.getByTestId("investigation-context")).toHaveTextContent("Failed");
-  });
-
-  it("UT-CONSOLE-CTX-011: SI-4 — shows labeled fields for first-time user clarity", () => {
+  it("UT-CONSOLE-CTX-009: SI-4 — shows labeled fields for first-time user clarity", () => {
     render(
       <InvestigationContext
         rrId="rr-abc123"
         alertName="KubePodCrashLooping"
         namespace="production"
         resource="Deployment: api"
-        phase="investigation"
       />
     );
 
@@ -131,35 +106,34 @@ describe("AU-2/SI-4: Investigation context bar provides audit correlation and si
     expect(banner).toHaveTextContent("Alert");
     expect(banner).toHaveTextContent("Namespace");
     expect(banner).toHaveTextContent("Resource");
-    expect(banner).toHaveTextContent("Investigating");
   });
 
-  // --- Always-reserve layout (zero CLS) ---
-
-  it("UT-CONSOLE-CTX-010: CLS prevention — hides phase indicator when no props are provided", () => {
-    render(<InvestigationContext />);
-
-    const banner = screen.getByTestId("investigation-context");
-    expect(banner).toBeInTheDocument();
-    expect(screen.queryByTestId("phase-indicator")).not.toBeInTheDocument();
-  });
-
-  it("UT-CONSOLE-CTX-011: CLS prevention — always renders as context bar", () => {
+  it("UT-CONSOLE-CTX-010: CLS prevention — always renders as context bar", () => {
     const { rerender } = render(<InvestigationContext />);
     const bannerIdle = screen.getByTestId("investigation-context");
     expect(bannerIdle.className).toContain("kn-context-bar");
 
-    rerender(<InvestigationContext rrId="rr-abc-123" phase="investigation" />);
+    rerender(<InvestigationContext rrId="rr-abc-123" />);
     const bannerActive = screen.getByTestId("investigation-context");
     expect(bannerActive.className).toContain("kn-context-bar");
   });
 
-  it("UT-CONSOLE-CTX-012: CLS prevention — idle state does not show field labels", () => {
+  it("UT-CONSOLE-CTX-011: CLS prevention — idle state does not show field labels", () => {
     render(<InvestigationContext />);
 
     const banner = screen.getByTestId("investigation-context");
     expect(banner).not.toHaveTextContent("Remediation ID");
     expect(banner).not.toHaveTextContent("Alert");
     expect(banner).not.toHaveTextContent("Status");
+  });
+
+  it("UT-CONSOLE-CTX-012: deduplicates namespace from resource field", () => {
+    render(
+      <InvestigationContext namespace="demo-web" resource="Pod/web-frontend in demo-web" />
+    );
+
+    const banner = screen.getByTestId("investigation-context");
+    expect(banner).toHaveTextContent("Pod/web-frontend");
+    expect(banner).not.toHaveTextContent("in demo-web");
   });
 });

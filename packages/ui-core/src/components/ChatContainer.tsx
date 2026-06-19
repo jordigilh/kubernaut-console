@@ -7,6 +7,7 @@ import { emitAuditEvent } from "../lib/audit";
 import { UserBubble } from "./UserBubble";
 import { AgentBubble } from "./AgentBubble";
 import { InvestigationContext } from "./InvestigationContext";
+import { PhaseIndicator } from "./PhaseIndicator";
 import { WelcomeState } from "./WelcomeState";
 
 const PHASE_MAP: Record<string, ChatMessage["phase"]> = {
@@ -250,9 +251,6 @@ export function ChatContainer() {
         alertName={alertName}
         namespace={namespace}
         resource={resource}
-        phase={bannerPhase}
-        phaseMetadata={statusMetadata}
-        isActive={isStreaming || (bannerPhase !== "investigation" && bannerPhase !== undefined)}
       />
 
       {/* Messages */}
@@ -294,6 +292,12 @@ export function ChatContainer() {
         {statusConnection === "error" && "Status stream lost"}
         {statusConnection === "not_found" && "Remediation request not found"}
       </div>
+
+      <PhaseIndicator
+        phase={bannerPhase}
+        phaseMetadata={statusMetadata}
+        isActive={isStreaming || (bannerPhase !== "investigation" && bannerPhase !== undefined)}
+      />
 
       {/* Error */}
       {error && (
