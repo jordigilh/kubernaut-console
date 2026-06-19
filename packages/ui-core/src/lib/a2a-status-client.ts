@@ -136,13 +136,9 @@ export async function subscribeRRStatus(rrId: string, options: StatusSubscribeOp
 
     const result = await attemptSubscription(rrId, options);
 
-    if (result === "aborted" || result === "complete" || result === "terminal") return;
+    if (result === "aborted" || result === "complete" || result === "terminal" || result === "fatal") return;
     if (result === "not_found") {
       lastNotFound = true;
-      continue;
-    }
-    if (result === "fatal") {
-      lastNotFound = false;
       continue;
     }
     lastNotFound = false;

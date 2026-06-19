@@ -36,7 +36,9 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
   }, []);
 
   const handleError = useCallback((_error: Error) => {
-    setStatusConnection("error");
+    if (everConnectedRef.current) {
+      setStatusConnection("error");
+    }
   }, []);
 
   const handleReconnecting = useCallback((_attempt: number) => {

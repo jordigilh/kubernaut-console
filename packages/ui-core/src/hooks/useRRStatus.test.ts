@@ -119,8 +119,9 @@ describe("useRRStatus — Integration Tests", () => {
     });
   });
 
-  it("IT-CONSOLE-STATUS-009: onError sets statusConnection to 'error'", async () => {
+  it("IT-CONSOLE-STATUS-009: onError sets statusConnection to 'error' after prior connection", async () => {
     mockSubscribe.mockImplementation(async (_rrId, opts) => {
+      opts.onPhaseChange("Investigating", {});
       opts.onError(new Error("connection failed"));
     });
 
