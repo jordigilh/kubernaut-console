@@ -330,7 +330,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
       ))}
 
       {!escalating && (
-        <Split hasGutter style={{ marginTop: options.length > 0 ? "var(--pf-t--global--spacer--md)" : undefined }}>
+        <Split hasGutter style={{ marginTop: "var(--pf-t--global--spacer--md)" }}>
           {onDismiss && (
             <SplitItem isFilled>
               <Button
