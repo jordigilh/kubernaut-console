@@ -8,6 +8,7 @@ interface Props {
   rrId?: string;
   phase?: "investigation" | "decision" | "remediation" | "verifying" | "failed" | "timed_out" | "complete";
   phaseMetadata?: Record<string, unknown>;
+  isActive?: boolean;
 }
 
 const PHASE_CONFIG: Record<string, { label: string; dotColor: string; pulse: boolean }> = {
@@ -86,7 +87,7 @@ function formatElapsed(seconds: number): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-function usePhaseTimer(phase: string | undefined): string | undefined {
+function usePhaseTimer(phase: string | undefined, isActive: boolean): string | undefined {
   const phaseStartRef = useRef<{ phase: string; time: number } | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
@@ -102,6 +103,8 @@ function usePhaseTimer(phase: string | undefined): string | undefined {
       setElapsed(0);
     }
 
+    if (!isActive) return;
+
     const id = setInterval(() => {
       if (phaseStartRef.current) {
         setElapsed(Math.floor((Date.now() - phaseStartRef.current.time) / 1000));
@@ -109,7 +112,7 @@ function usePhaseTimer(phase: string | undefined): string | undefined {
     }, 1000);
 
     return () => clearInterval(id);
-  }, [phase]);
+  }, [phase, isActive]);
 
   if (!phase || phase === "complete" || phase === "failed" || phase === "timed_out") return undefined;
   if (elapsed === 0) return undefined;
@@ -144,9 +147,9 @@ function formatSubStatus(phase: string | undefined, metadata: Record<string, unk
   return elapsedStr;
 }
 
-export function InvestigationContext({ alertName, namespace, resource, cluster, rrId, phase, phaseMetadata }: Props) {
+export function InvestigationContext({ alertName, namespace, resource, cluster, rrId, phase, phaseMetadata, isActive = true }: Props) {
   const phaseConfig = phase ? PHASE_CONFIG[phase] : { label: "Ready", dotColor: "var(--kn-green-400)", pulse: false };
-  const elapsedStr = usePhaseTimer(phase);
+  const elapsedStr = usePhaseTimer(phase, isActive);
   const subStatus = formatSubStatus(phase, phaseMetadata, elapsedStr);
 
   let displayResource = resource;

@@ -252,6 +252,7 @@ export function ChatContainer() {
         resource={resource}
         phase={bannerPhase}
         phaseMetadata={statusMetadata}
+        isActive={isStreaming || (bannerPhase !== "investigation" && bannerPhase !== undefined)}
       />
 
       {/* Messages */}
