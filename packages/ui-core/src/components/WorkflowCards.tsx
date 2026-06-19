@@ -252,6 +252,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
         <Card
           key={opt.workflowId}
           isCompact
+          isFlat
           isClickable
           isSelectable
           isSelected={confirmingId === opt.workflowId}
@@ -293,7 +294,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
                   <Split hasGutter>
                     {ruledOutCountdown === null ? (
                       <SplitItem isFilled>
-                        <Button variant="warning" isBlock onClick={handleConfirmRuledOut} aria-label="Proceed anyway">
+                        <Button variant="warning" isBlock onClick={handleConfirmRuledOut} isDisabled={executed} aria-label="Proceed anyway">
                           Proceed anyway
                         </Button>
                       </SplitItem>
