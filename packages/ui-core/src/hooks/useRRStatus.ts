@@ -48,7 +48,17 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
   }, []);
 
   useEffect(() => {
-    if (!rrId) return;
+    if (!rrId) {
+      if (prevRrIdRef.current) {
+        setStatusPhase(undefined);
+        setStatusMetadata(undefined);
+        setIsTerminal(false);
+        setStatusConnection("idle");
+        terminalRef.current = false;
+        prevRrIdRef.current = undefined;
+      }
+      return;
+    }
 
     if (rrId !== prevRrIdRef.current) {
       setStatusPhase(undefined);
