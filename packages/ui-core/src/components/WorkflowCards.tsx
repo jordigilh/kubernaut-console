@@ -252,7 +252,6 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
         <Card
           key={opt.workflowId}
           isCompact
-          isFlat
           isClickable
           isSelectable
           isSelected={confirmingId === opt.workflowId}
@@ -260,7 +259,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
           onClick={() => handleRuledOutClick(opt.workflowId)}
           aria-expanded={confirmingId === opt.workflowId}
           aria-label={`${opt.name} — ruled out${opt.ruledOutReason ? `: ${opt.ruledOutReason}` : ""}`}
-          style={{ marginTop: "var(--pf-t--global--spacer--sm)" }}
+          style={{ marginTop: "var(--pf-t--global--spacer--sm)", border: "1px solid var(--pf-t--global--border--color--default)" }}
         >
           <CardHeader>
             <CardTitle>

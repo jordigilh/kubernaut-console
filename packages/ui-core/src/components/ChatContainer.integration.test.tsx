@@ -181,8 +181,8 @@ describe("ChatContainer Integration", () => {
     // IT-CONSOLE-JOURNEY-004: RCA summary contains recommendation (IR-5)
     expect(screen.getByText(/In-cluster patches won't persist/)).toBeInTheDocument();
 
-    // IT-CONSOLE-JOURNEY-001: PhaseIndicator transitions to "Decision pending"
-    expect(screen.getByText("Decision pending")).toBeInTheDocument();
+    // IT-CONSOLE-JOURNEY-001: PhaseIndicator remains "Investigating" during workflow discovery
+    expect(screen.getByText("Investigating")).toBeInTheDocument();
 
     // IT-CONSOLE-JOURNEY-005: WorkflowCards render (SC-5)
     expect(screen.getByTestId("workflow-card-git-revert-v2")).toBeInTheDocument();
