@@ -199,18 +199,21 @@ export function InvestigationContext({ alertName, namespace, resource, cluster, 
         </>
       )}
 
-      <Separator />
-
-      <div className="kn-context-phase" role="status" aria-live="polite" data-testid="phase-indicator">
-        <span
-          data-testid="phase-dot"
-          className={`kn-phase-dot ${phaseConfig.pulse ? "kn-pulse" : ""}`}
-          style={{ background: phaseConfig.dotColor }}
-          aria-hidden="true"
-        />
-        <span className="kn-phase-label">{phaseConfig.label}</span>
-        {subStatus && <span className="kn-phase-substatus" data-testid="phase-substatus"> · {subStatus}</span>}
-      </div>
+      {phase && (
+        <>
+          <Separator />
+          <div className="kn-context-phase" role="status" aria-live="polite" data-testid="phase-indicator">
+            <span
+              data-testid="phase-dot"
+              className={`kn-phase-dot ${phaseConfig.pulse ? "kn-pulse" : ""}`}
+              style={{ background: phaseConfig.dotColor }}
+              aria-hidden="true"
+            />
+            <span className="kn-phase-label">{phaseConfig.label}</span>
+            {subStatus && <span className="kn-phase-substatus" data-testid="phase-substatus"> · {subStatus}</span>}
+          </div>
+        </>
+      )}
     </div>
   );
 }
