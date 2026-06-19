@@ -15,9 +15,9 @@ export interface SSEReaderOptions {
  */
 export async function readSSEStream(
   body: ReadableStream<Uint8Array>,
-  onFrame: (parsed: Record<string, unknown>) => "continue" | "complete" | "retryable" | "fatal" | "terminal",
+  onFrame: (parsed: Record<string, unknown>) => "continue" | "complete" | "retryable" | "fatal" | "terminal" | "not_found",
   options?: SSEReaderOptions,
-): Promise<SSEStreamResult | "fatal" | "terminal"> {
+): Promise<SSEStreamResult | "fatal" | "terminal" | "not_found"> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";

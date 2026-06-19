@@ -200,7 +200,7 @@ export function InvestigationContext({ alertName, namespace, resource, cluster, 
       )}
 
       {phase && (
-        <>
+        <div className="kn-context-phase-group">
           <Separator />
           <div className="kn-context-phase" role="status" aria-live="polite" data-testid="phase-indicator">
             <span
@@ -212,7 +212,7 @@ export function InvestigationContext({ alertName, namespace, resource, cluster, 
             <span className="kn-phase-label">{phaseConfig.label}</span>
             {subStatus && <span className="kn-phase-substatus" data-testid="phase-substatus"> · {subStatus}</span>}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

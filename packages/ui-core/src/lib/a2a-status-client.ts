@@ -55,7 +55,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-type StreamResult = "complete" | "terminal" | "aborted" | "retryable" | "fatal";
+type StreamResult = "complete" | "terminal" | "not_found" | "aborted" | "retryable" | "fatal";
 
 async function attemptSubscription(
   rrId: string,
@@ -76,8 +76,7 @@ async function attemptSubscription(
   if ("kind" in fetchResult && (fetchResult as SSEFetchError).kind === "fatal") {
     const httpErr = fetchResult as SSEFetchError;
     if (httpErr.status === 404) {
-      options.onNotFound?.();
-      return "terminal";
+      return "not_found";
     }
     options.onError(new Error(`HTTP ${httpErr.status}: ${httpErr.statusText}`));
     return "fatal";
@@ -90,8 +89,7 @@ async function attemptSubscription(
       if (parsed.error) {
         const err = parsed.error as { code: number; message: string };
         if (err.code === RR_NOT_FOUND_CODE) {
-          options.onNotFound?.();
-          return "terminal";
+          return "not_found";
         }
         options.onError(new StatusStreamError(err.message, err.code));
         return "fatal";
@@ -124,6 +122,7 @@ async function attemptSubscription(
 
 export async function subscribeRRStatus(rrId: string, options: StatusSubscribeOptions): Promise<void> {
   const maxRetries = options.maxRetries ?? 3;
+  let lastNotFound = false;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (options.signal?.aborted) return;
@@ -137,9 +136,21 @@ export async function subscribeRRStatus(rrId: string, options: StatusSubscribeOp
 
     const result = await attemptSubscription(rrId, options);
 
-    if (result === "terminal" || result === "aborted" || result === "fatal") return;
-    if (result === "complete") return;
+    if (result === "aborted" || result === "complete" || result === "terminal") return;
+    if (result === "not_found") {
+      lastNotFound = true;
+      continue;
+    }
+    if (result === "fatal") {
+      lastNotFound = false;
+      continue;
+    }
+    lastNotFound = false;
   }
 
-  options.onError(new Error("Connection lost after maximum retries"));
+  if (lastNotFound) {
+    options.onNotFound?.();
+  } else {
+    options.onError(new Error("Connection lost after maximum retries"));
+  }
 }

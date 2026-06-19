@@ -29,23 +29,27 @@ export function ChatContainer() {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const isNearBottomRef = useRef(true);
+  const userScrolledUpRef = useRef(false);
+  const programmaticScrollRef = useRef(false);
 
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   const handleScroll = () => {
+    if (programmaticScrollRef.current) return;
     const el = scrollRef.current;
     if (!el) return;
     const threshold = 80;
-    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    userScrolledUpRef.current = !nearBottom;
   };
 
   useEffect(() => {
-    if (!isNearBottomRef.current) return;
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
-    });
+    if (userScrolledUpRef.current) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    programmaticScrollRef.current = true;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    setTimeout(() => { programmaticScrollRef.current = false; }, 400);
   }, [messages]);
 
   const handleSubmit = (e: FormEvent) => {
@@ -54,7 +58,7 @@ export function ChatContainer() {
     if (!text) return;
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto";
-    isNearBottomRef.current = true;
+    userScrolledUpRef.current = false;
     sendMessage(text);
   };
 
