@@ -190,16 +190,16 @@ export function InvestigationContext({ alertName, namespace, resource, cluster, 
       {displayResource && (
         <>
           <Field label="Resource" value={displayResource} />
-          <Separator />
         </>
       )}
 
       {cluster && (
         <>
           <Field label="Cluster" value={cluster} />
-          <Separator />
         </>
       )}
+
+      <Separator />
 
       <div className="kn-context-phase" role="status" aria-live="polite" data-testid="phase-indicator">
         <span

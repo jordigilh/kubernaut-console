@@ -541,7 +541,6 @@
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  margin-left: auto;
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
