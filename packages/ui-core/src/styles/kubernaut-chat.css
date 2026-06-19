@@ -542,7 +542,7 @@
   align-items: center;
   gap: 0.375rem;
   margin-left: auto;
-  min-width: 14rem;
+  min-width: 10rem;
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
