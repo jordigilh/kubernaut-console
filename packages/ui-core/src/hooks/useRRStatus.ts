@@ -21,8 +21,10 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
   const abortRef = useRef<AbortController | null>(null);
   const prevRrIdRef = useRef<string | undefined>(undefined);
   const terminalRef = useRef(false);
+  const everConnectedRef = useRef(false);
 
   const handlePhaseChange = useCallback((phase: RRPhase, metadata: Record<string, unknown>) => {
+    everConnectedRef.current = true;
     setStatusPhase(phase);
     setStatusMetadata(metadata);
     setStatusConnection("connected");
@@ -42,7 +44,9 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
   }, []);
 
   const handleNotFound = useCallback(() => {
-    setStatusConnection("not_found");
+    if (everConnectedRef.current) {
+      setStatusConnection("not_found");
+    }
     setIsTerminal(true);
     terminalRef.current = true;
   }, []);
@@ -66,6 +70,7 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
       setIsTerminal(false);
       setStatusConnection("idle");
       terminalRef.current = false;
+      everConnectedRef.current = false;
     }
     prevRrIdRef.current = rrId;
 
