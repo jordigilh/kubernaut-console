@@ -15,7 +15,6 @@ const COMPONENTS = [
   { story: "components-chatcontainer--with-error", name: "ChatContainer-error" },
   { story: "components-investigationcontext--all-fields", name: "InvestigationContext-all" },
   { story: "components-investigationcontext--minimal-fields", name: "InvestigationContext-minimal" },
-  { story: "components-investigationcontext--idle", name: "InvestigationContext-idle" },
   { story: "components-rcacard--critical", name: "RCACard-critical" },
   { story: "components-rcacard--low", name: "RCACard-low" },
   { story: "components-rcacard--long-chain", name: "RCACard-long-chain" },
