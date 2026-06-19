@@ -42,11 +42,11 @@ describe("AU-2/SI-4: Investigation context bar provides audit correlation and si
     expect(banner).toHaveTextContent("prod-us-east-1");
   });
 
-  it("UT-CONSOLE-CTX-005: SI-4 — shows idle 'Ready' state when no investigation metadata available", () => {
+  it("UT-CONSOLE-CTX-005: SI-4 — hides phase indicator when no investigation is active", () => {
     render(<InvestigationContext />);
     const banner = screen.getByTestId("investigation-context");
     expect(banner).toBeInTheDocument();
-    expect(banner).toHaveTextContent("Ready");
+    expect(screen.queryByTestId("phase-indicator")).not.toBeInTheDocument();
   });
 
   it("UT-CONSOLE-CTX-006: AU-2 — renders all fields together for complete audit context", () => {
@@ -136,12 +136,12 @@ describe("AU-2/SI-4: Investigation context bar provides audit correlation and si
 
   // --- Always-reserve layout (zero CLS) ---
 
-  it("UT-CONSOLE-CTX-010: CLS prevention — renders idle 'Ready' state when no props are provided", () => {
+  it("UT-CONSOLE-CTX-010: CLS prevention — hides phase indicator when no props are provided", () => {
     render(<InvestigationContext />);
 
     const banner = screen.getByTestId("investigation-context");
     expect(banner).toBeInTheDocument();
-    expect(banner).toHaveTextContent("Ready");
+    expect(screen.queryByTestId("phase-indicator")).not.toBeInTheDocument();
   });
 
   it("UT-CONSOLE-CTX-011: CLS prevention — always renders as context bar", () => {

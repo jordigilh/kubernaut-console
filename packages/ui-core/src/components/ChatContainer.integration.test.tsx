@@ -264,7 +264,7 @@ describe("ChatContainer Integration", () => {
             }],
           },
         },
-        metadata: { type: "output" },
+        metadata: { type: "output", rr_id: "rr-mock-exec", phase: "Executing" },
       });
       opts.onComplete?.();
     });
@@ -615,8 +615,8 @@ describe("ChatContainer Integration", () => {
 
     const banner = screen.getByTestId("investigation-context");
     expect(banner).toBeInTheDocument();
-    expect(banner).toHaveTextContent("Ready");
     expect(banner.className).toContain("kn-context-bar");
+    expect(screen.queryByTestId("phase-indicator")).not.toBeInTheDocument();
   });
 
   // IR-4: execution_progress artifact wiring — renders execution steps from structured artifact
