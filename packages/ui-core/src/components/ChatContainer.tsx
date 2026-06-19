@@ -20,7 +20,8 @@ export function ChatContainer() {
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
   const { statusPhase, statusConnection, statusMetadata } = useRRStatus(rrId);
-  const bannerPhase = statusPhase ? PHASE_MAP[statusPhase] ?? currentPhase : currentPhase;
+  const rawBannerPhase = statusPhase ? PHASE_MAP[statusPhase] ?? currentPhase : currentPhase;
+  const bannerPhase = rawBannerPhase === "decision" ? "investigation" : rawBannerPhase;
   const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName ?? lastRca?.signalName;
   const namespace = messages.findLast(m => m.role === "agent" && m.namespace)?.namespace ?? lastRca?.namespace;
   const resource = messages.findLast(m => m.role === "agent" && m.resource)?.resource ?? lastRca?.target;
