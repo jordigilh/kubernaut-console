@@ -66,16 +66,12 @@ export function ChatContainer() {
   }, [messages]);
 
   const [approvalRequest, setApprovalRequest] = useState<ApprovalRequest | undefined>(undefined);
+  const [approvalResolution, setApprovalResolution] = useState<{ decision: string; decidedBy: string } | undefined>(undefined);
   const [approvalDenied, setApprovalDenied] = useState(false);
   const approvalFetchedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (statusPhase !== "AwaitingApproval") {
-      if (approvalRequest || approvalDenied) {
-        setApprovalRequest(undefined);
-        setApprovalDenied(false);
-      }
-      approvalFetchedRef.current = null;
       return;
     }
 
@@ -88,20 +84,31 @@ export function ChatContainer() {
         setApprovalDenied(true);
         return;
       }
-      const data = res.result as Record<string, unknown>;
+      const rawResult = res.result as { content?: Array<{ type: string; text: string }> } | Record<string, unknown>;
+      let data: Record<string, unknown>;
+      if ("content" in rawResult && Array.isArray(rawResult.content)) {
+        const textEntry = rawResult.content.find((c: { type: string; text: string }) => c.type === "text");
+        try {
+          data = textEntry?.text ? JSON.parse(textEntry.text) : {};
+        } catch {
+          data = {};
+        }
+      } else {
+        data = rawResult as Record<string, unknown>;
+      }
       setApprovalRequest({
         name: (data.name as string) ?? rarName,
         namespace: data.namespace as string | undefined,
-        remediationRequestName: data.remediation_request as string | undefined,
+        remediationRequestName: (data.remediation_request as string) ?? (data.remediationRequest as string) ?? undefined,
         confidence: (data.confidence as number) ?? 0,
-        confidenceLevel: (data.confidence_level as string) ?? "Medium",
-        reason: (data.reason as string) ?? "Workflow execution requires human approval.",
-        whyApprovalRequired: data.why_approval_required as string | undefined,
-        recommendedWorkflow: data.recommended_workflow as ApprovalRequest["recommendedWorkflow"],
-        investigationSummary: data.investigation_summary as string | undefined,
-        evidenceCollected: data.evidence_collected as string[] | undefined,
-        policyEvaluation: data.policy_evaluation as ApprovalRequest["policyEvaluation"],
-        requiredBy: (data.required_by as string) ?? new Date(Date.now() + 300_000).toISOString(),
+        confidenceLevel: (data.confidence_level as string) ?? (data.confidenceLevel as string) ?? "Medium",
+        reason: (data.reason as string) ?? (data.why_approval_required as string) ?? "Workflow execution requires human approval.",
+        whyApprovalRequired: (data.why_approval_required as string) ?? (data.whyApprovalRequired as string) ?? undefined,
+        recommendedWorkflow: (data.recommended_workflow ?? data.recommendedWorkflow) as ApprovalRequest["recommendedWorkflow"],
+        investigationSummary: (data.investigation_summary as string) ?? (data.investigationSummary as string) ?? undefined,
+        evidenceCollected: (data.evidence_collected ?? data.evidenceCollected) as string[] | undefined,
+        policyEvaluation: (data.policy_evaluation ?? data.policyEvaluation) as ApprovalRequest["policyEvaluation"],
+        requiredBy: (data.required_by as string) ?? (data.requiredBy as string) ?? new Date(Date.now() + 300_000).toISOString(),
       });
     });
   }, [statusPhase, statusMetadata]);
@@ -172,10 +179,16 @@ export function ChatContainer() {
         setError(res.error.message);
         return;
       }
-      sendMessage("The remediation has been approved. Continue monitoring.", { silent: true });
+      setApprovalResolution({ decision: "Approved", decidedBy: user.name || user.email });
+      setMessages((prev) => [...prev, {
+        id: `approval-${Date.now()}`,
+        role: "agent" as const,
+        text: "Remediation approved. The workflow will now execute.",
+        timestamp: Date.now(),
+      }]);
       emitAuditEvent({ action: "approve", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { rarName, reason } });
     },
-    [sendMessage, setError, rrId, user.name, user.email],
+    [setMessages, setError, rrId, user.name, user.email],
   );
 
   const handleDecline = useCallback(
@@ -189,10 +202,17 @@ export function ChatContainer() {
         setError(res.error.message);
         return;
       }
-      sendMessage("The remediation has been rejected.", { silent: true });
+      setApprovalResolution({ decision: "Rejected", decidedBy: user.name || user.email });
+      setMessages((prev) => [...prev, {
+        id: `decline-${Date.now()}`,
+        role: "agent" as const,
+        text: "Remediation rejected. The investigation will be marked as blocked.",
+        timestamp: Date.now(),
+      }]);
+      setCurrentPhase("failed");
       emitAuditEvent({ action: "decline", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { rarName, reason } });
     },
-    [sendMessage, setError, rrId, user.name, user.email],
+    [setMessages, setCurrentPhase, setError, rrId, user.name, user.email],
   );
 
   const handleDismiss = useCallback(
@@ -354,6 +374,7 @@ export function ChatContainer() {
         <div style={{ padding: "0.5rem 1rem" }}>
           <ApprovalCard
             request={approvalRequest}
+            resolution={approvalResolution}
             onApprove={(reason) => handleApprove(approvalRequest.name, reason)}
             onDecline={(reason) => handleDecline(approvalRequest.name, reason)}
             userName={user.name || user.email}

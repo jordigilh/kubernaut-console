@@ -466,7 +466,7 @@ describe("ChatContainer Integration", () => {
     });
   });
 
-  // AC-6/IR-4: Approval card wiring — user approve sends silent A2A message
+  // AC-6/IR-4: Approval card wiring — user approve calls MCP and shows local confirmation
   it("IT-CONSOLE-APPROVAL-001: renders ApprovalCard from approval_request event and sends silent approve via MCP+A2A", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     fetchSpy.mockImplementation(() => Promise.resolve(
@@ -507,11 +507,6 @@ describe("ChatContainer Integration", () => {
       opts.onComplete?.();
     });
 
-    // Follow-up stream
-    mockStreamA2A.mockImplementation(async (_req, opts: { onComplete?: () => void }) => {
-      opts.onComplete?.();
-    });
-
     render(<ChatContainer />);
     const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
@@ -528,11 +523,11 @@ describe("ChatContainer Integration", () => {
       expect(screen.getByText(/Production namespace requires approval/)).toBeInTheDocument();
     });
 
-    // Click Approve — triggers MCP call then silent A2A follow-up
+    // Click Approve — triggers MCP call then local confirmation (no A2A follow-up)
     const approveBtn = screen.getByRole("button", { name: /approve/i });
-    await act(async () => {
-      fireEvent.click(approveBtn);
-    });
+    fireEvent.click(approveBtn);
+    await act(async () => { vi.advanceTimersByTime(600); });
+    await act(async () => { vi.advanceTimersByTime(600); });
 
     // Wait for async MCP init (delay after 202 notification) to complete
     await waitFor(() => {
@@ -540,10 +535,12 @@ describe("ChatContainer Integration", () => {
     });
     // Verify no user bubble with "Approve rar-..." (silent)
     expect(screen.queryByText("Approve rar-rr-drift-xyz")).not.toBeInTheDocument();
-    // streamA2A called twice (initial + follow-up)
+    // Local confirmation message appears instead of A2A follow-up
     await waitFor(() => {
-      expect(mockStreamA2A).toHaveBeenCalledTimes(2);
+      expect(screen.getByText(/Remediation approved/)).toBeInTheDocument();
     });
+    // No follow-up stream opened
+    expect(mockStreamA2A).toHaveBeenCalledTimes(1);
 
     fetchSpy.mockRestore();
   });
@@ -726,7 +723,7 @@ describe("ChatContainer Integration", () => {
     expect(textInput).toBeInTheDocument();
   });
 
-  // AC-6: Approve button triggers MCP call with correct payload (not A2A text message)
+  // AC-6: Approve button triggers MCP call with correct payload (no A2A follow-up)
   it("IT-CONSOLE-MCP-001: approve button calls POST /mcp with kubernaut_approve tool", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
@@ -769,11 +766,6 @@ describe("ChatContainer Integration", () => {
       })
     ));
 
-    // Follow-up stream: just complete
-    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
-      opts.onComplete?.();
-    });
-
     render(<ChatContainer />);
     const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
@@ -794,7 +786,6 @@ describe("ChatContainer Integration", () => {
     });
 
     // AC-6: Verify MCP was called (not A2A text message)
-    // Wait for async MCP init (delay after 202 notification) to complete
     let mcpCall: unknown[] | undefined;
     await waitFor(() => {
       mcpCall = fetchSpy.mock.calls.find(c => {
@@ -813,8 +804,8 @@ describe("ChatContainer Integration", () => {
     fetchSpy.mockRestore();
   });
 
-  // AU-2: On MCP success, follow-up A2A message is sent to resume LLM monitoring
-  it("IT-CONSOLE-MCP-002: sends follow-up A2A message after successful MCP approval", async () => {
+  // AU-2: On MCP success, local confirmation shown and NO follow-up A2A stream opened
+  it("IT-CONSOLE-MCP-002: approval success shows local confirmation without A2A follow-up", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
@@ -854,11 +845,6 @@ describe("ChatContainer Integration", () => {
       })
     ));
 
-    // Follow-up stream: just complete
-    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
-      opts.onComplete?.();
-    });
-
     render(<ChatContainer />);
     const input = screen.getByRole("textbox", { name: /type your message/i });
     await act(async () => {
@@ -874,13 +860,15 @@ describe("ChatContainer Integration", () => {
     const approveBtn = screen.getByRole("button", { name: /approve/i });
     await act(async () => {
       fireEvent.click(approveBtn);
+      vi.advanceTimersByTime(600);
     });
 
-    // AU-2: Follow-up A2A message sent after approval
-    // Wait for async MCP init (delay after 202 notification) + follow-up sendMessage
+    // Local confirmation message appears
     await waitFor(() => {
-      expect(mockStreamA2A).toHaveBeenCalledTimes(2);
+      expect(screen.getByText(/Remediation approved/)).toBeInTheDocument();
     });
+    // No follow-up A2A stream opened
+    expect(mockStreamA2A).toHaveBeenCalledTimes(1);
 
     fetchSpy.mockRestore();
   });

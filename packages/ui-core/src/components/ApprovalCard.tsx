@@ -3,7 +3,7 @@ import {
   Card, CardBody, CardHeader, CardTitle,
   Button, Content, ContentVariants, Divider,
   Flex, FlexItem, Label, List, ListItem,
-  TextInput, Split, SplitItem,
+  TextInput,
 } from "@patternfly/react-core";
 import type { ApprovalRequest, ApprovalResolution } from "../hooks/useChat";
 
@@ -133,8 +133,8 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline, userNa
           />
         )}
 
-        <Split hasGutter>
-          <SplitItem isFilled>
+        <Flex spaceItems={{ default: "spaceItemsMd" }} style={{ marginTop: "var(--pf-t--global--spacer--md)" }}>
+          <FlexItem grow={{ default: "grow" }}>
             <Button
               variant="primary"
               isBlock
@@ -143,8 +143,8 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline, userNa
             >
               Approve
             </Button>
-          </SplitItem>
-          <SplitItem isFilled>
+          </FlexItem>
+          <FlexItem grow={{ default: "grow" }}>
             <Button
               variant="secondary"
               isBlock
@@ -153,8 +153,8 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline, userNa
             >
               Decline
             </Button>
-          </SplitItem>
-        </Split>
+          </FlexItem>
+        </Flex>
       </CardBody>
     </Card>
   );
