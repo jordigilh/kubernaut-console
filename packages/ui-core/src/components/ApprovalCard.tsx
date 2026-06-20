@@ -38,11 +38,12 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline, userNa
   const [reason, setReason] = useState(() => `Approved by ${userName || "operator"}`);
 
   useEffect(() => {
+    if (submitted || resolution) return;
     const interval = setInterval(() => {
       setTimeRemaining(new Date(request.requiredBy).getTime() - Date.now());
     }, 1000);
     return () => clearInterval(interval);
-  }, [request.requiredBy]);
+  }, [request.requiredBy, submitted, resolution]);
 
   const isExpired = timeRemaining <= 0;
   const isResolved = !!resolution;
@@ -109,15 +110,17 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline, userNa
           alignItems={{ default: "alignItemsCenter" }}
           style={{ marginTop: "var(--pf-t--global--spacer--sm)", marginBottom: "var(--pf-t--global--spacer--md)" }}
         >
-          <FlexItem>
-            <Label
-              data-testid="approval-countdown"
-              color={isExpired ? "red" : "grey"}
-              isCompact
-            >
-              {formatTimeRemaining(timeRemaining)}
-            </Label>
-          </FlexItem>
+          {!isResolved && !submitted && (
+            <FlexItem>
+              <Label
+                data-testid="approval-countdown"
+                color={isExpired ? "red" : "grey"}
+                isCompact
+              >
+                {formatTimeRemaining(timeRemaining)}
+              </Label>
+            </FlexItem>
+          )}
           {isResolved && (
             <FlexItem align={{ default: "alignRight" }}>
               <Content component={ContentVariants.small}>
