@@ -535,9 +535,9 @@ describe("ChatContainer Integration", () => {
     });
     // Verify no user bubble with "Approve rar-..." (silent)
     expect(screen.queryByText("Approve rar-rr-drift-xyz")).not.toBeInTheDocument();
-    // Local confirmation message appears instead of A2A follow-up
+    // Resolution shown inline on the approval card
     await waitFor(() => {
-      expect(screen.getByText(/Remediation approved/)).toBeInTheDocument();
+      expect(screen.getByText(/Approved by/)).toBeInTheDocument();
     });
     // No follow-up stream opened
     expect(mockStreamA2A).toHaveBeenCalledTimes(1);
@@ -863,9 +863,9 @@ describe("ChatContainer Integration", () => {
       vi.advanceTimersByTime(600);
     });
 
-    // Local confirmation message appears
+    // Resolution shown inline on the approval card
     await waitFor(() => {
-      expect(screen.getByText(/Remediation approved/)).toBeInTheDocument();
+      expect(screen.getByText(/Approved by/)).toBeInTheDocument();
     });
     // No follow-up A2A stream opened
     expect(mockStreamA2A).toHaveBeenCalledTimes(1);

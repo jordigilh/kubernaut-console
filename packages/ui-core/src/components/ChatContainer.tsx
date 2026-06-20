@@ -8,7 +8,6 @@ import { UserBubble } from "./UserBubble";
 import { AgentBubble } from "./AgentBubble";
 import { InvestigationContext } from "./InvestigationContext";
 import { PhaseIndicator } from "./PhaseIndicator";
-import { ApprovalCard } from "./ApprovalCard";
 import { WelcomeState } from "./WelcomeState";
 
 const PHASE_MAP: Record<string, ChatMessage["phase"]> = {
@@ -65,8 +64,6 @@ export function ChatContainer() {
     setTimeout(() => { programmaticScrollRef.current = false; }, 400);
   }, [messages]);
 
-  const [approvalRequest, setApprovalRequest] = useState<ApprovalRequest | undefined>(undefined);
-  const [approvalResolution, setApprovalResolution] = useState<{ decision: string; decidedBy: string } | undefined>(undefined);
   const [approvalDenied, setApprovalDenied] = useState(false);
   const approvalFetchedRef = useRef<string | null>(null);
 
@@ -96,11 +93,10 @@ export function ChatContainer() {
       } else {
         parsed = rawResult as Record<string, unknown>;
       }
-      // MCP tool may return CRD structure with spec/status or flat fields
       const spec = (parsed.spec as Record<string, unknown>) ?? undefined;
       const data = spec ?? parsed;
       const meta = parsed.metadata as Record<string, unknown> | undefined;
-      setApprovalRequest({
+      const approvalData: ApprovalRequest = {
         name: (meta?.name as string) ?? (data.name as string) ?? rarName,
         namespace: (meta?.namespace as string) ?? (data.namespace as string) ?? undefined,
         remediationRequestName: (data.remediationRequestRef as { name?: string })?.name
@@ -115,9 +111,20 @@ export function ChatContainer() {
         evidenceCollected: (data.evidenceCollected ?? data.evidence_collected) as string[] | undefined,
         policyEvaluation: (data.policyEvaluation ?? data.policy_evaluation) as ApprovalRequest["policyEvaluation"],
         requiredBy: (data.requiredBy as string) ?? (data.required_by as string) ?? new Date(Date.now() + 300_000).toISOString(),
+      };
+      setMessages((prev) => {
+        const alreadyHasApproval = prev.some((m) => m.approvalRequest?.name === approvalData.name);
+        if (alreadyHasApproval) return prev;
+        return [...prev, {
+          id: `approval-${rarName}`,
+          role: "agent" as const,
+          text: "",
+          timestamp: Date.now(),
+          approvalRequest: approvalData,
+        }];
       });
     });
-  }, [statusPhase, statusMetadata]);
+  }, [statusPhase, statusMetadata, setMessages]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -185,13 +192,11 @@ export function ChatContainer() {
         setError(res.error.message);
         return;
       }
-      setApprovalResolution({ decision: "Approved", decidedBy: user.name || user.email });
-      setMessages((prev) => [...prev, {
-        id: `approval-${Date.now()}`,
-        role: "agent" as const,
-        text: "Remediation approved. The workflow will now execute.",
-        timestamp: Date.now(),
-      }]);
+      setMessages((prev) => prev.map((msg) =>
+        msg.approvalRequest?.name === rarName
+          ? { ...msg, approvalResolution: { name: rarName, decision: "Approved" as const, decidedBy: user.name || user.email } }
+          : msg,
+      ));
       emitAuditEvent({ action: "approve", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { rarName, reason } });
     },
     [setMessages, setError, rrId, user.name, user.email],
@@ -208,13 +213,11 @@ export function ChatContainer() {
         setError(res.error.message);
         return;
       }
-      setApprovalResolution({ decision: "Rejected", decidedBy: user.name || user.email });
-      setMessages((prev) => [...prev, {
-        id: `decline-${Date.now()}`,
-        role: "agent" as const,
-        text: "Remediation rejected. The investigation will be marked as blocked.",
-        timestamp: Date.now(),
-      }]);
+      setMessages((prev) => prev.map((msg) =>
+        msg.approvalRequest?.name === rarName
+          ? { ...msg, approvalResolution: { name: rarName, decision: "Rejected" as const, decidedBy: user.name || user.email } }
+          : msg,
+      ));
       setCurrentPhase("failed");
       emitAuditEvent({ action: "decline", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { rarName, reason } });
     },
@@ -304,7 +307,7 @@ export function ChatContainer() {
           <span style={{ fontSize: "0.75rem", color: "#fecaca" }} role="status">Status stream lost</span>
         )}
         {statusConnection === "not_found" && (
-          <span style={{ fontSize: "0.75rem", color: "#fecaca" }} role="status">RR not found</span>
+          <span style={{ fontSize: "0.75rem", color: "#fecaca" }} role="status">Status unavailable</span>
         )}
         <button
           type="button"
@@ -373,22 +376,10 @@ export function ChatContainer() {
         {isStreaming && "Agent is responding"}
         {statusConnection === "reconnecting" && "Status stream reconnecting"}
         {statusConnection === "error" && "Status stream lost"}
-        {statusConnection === "not_found" && "Remediation request not found"}
+        {statusConnection === "not_found" && "Status unavailable"}
       </div>
 
-      {approvalRequest && (
-        <div style={{ padding: "0.5rem 1rem" }}>
-          <ApprovalCard
-            request={approvalRequest}
-            resolution={approvalResolution}
-            onApprove={(reason) => handleApprove(approvalRequest.name, reason)}
-            onDecline={(reason) => handleDecline(approvalRequest.name, reason)}
-            userName={user.name || user.email}
-          />
-        </div>
-      )}
-
-      {approvalDenied && !approvalRequest && (
+      {approvalDenied && (
         <div className="kn-approval-denied" style={{ padding: "0.5rem 1rem" }}>
           <div className="kn-approval-denied-card">
             <strong>Approval Required</strong>
