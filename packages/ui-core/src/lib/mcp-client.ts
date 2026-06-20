@@ -185,9 +185,14 @@ export async function callMcpTool(
     arguments: args,
   }, options);
 
-  if (result.error?.message?.includes("invalid during session initialization")) {
+  const shouldRetry =
+    result.error?.message?.includes("invalid during session initialization") ||
+    result.error?.code === 404;
+
+  if (shouldRetry) {
     sessionInitialized = false;
     initializingPromise = null;
+    mcpSessionId = null;
     await delay(300);
     const reInitError = await ensureInitialized(options);
     if (reInitError) return reInitError;
