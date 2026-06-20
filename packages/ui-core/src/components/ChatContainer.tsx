@@ -114,6 +114,10 @@ export function ChatContainer() {
     if (inputRef.current) inputRef.current.style.height = "auto";
     userScrolledUpRef.current = false;
     sendMessage(text);
+    requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    });
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
