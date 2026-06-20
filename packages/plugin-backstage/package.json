@@ -1,6 +1,12 @@
 {
   "name": "@kubernaut/plugin-backstage",
   "version": "0.1.0",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jordigilh/kubernaut-demo-console.git",
+    "directory": "packages/plugin-backstage"
+  },
   "description": "Backstage frontend plugin for Kubernaut Console",
   "backstage": {
     "role": "frontend-plugin"

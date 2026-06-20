@@ -1,5 +1,7 @@
 # Roadmap: Multi-Platform Plugin Architecture
 
+> **Status: Migration Complete** (2026-06-20) — All phases delivered. See PR #15 for the consolidated changeset.
+
 > **ADR**: [ADR-004](../adr/004-multi-platform-plugin-architecture.md)
 > **Design**: [Design Document](./design.md)
 > **Last Updated**: 2026-06-16
@@ -74,13 +76,13 @@ Phase 3: Hardening & Handoff    ░░░░░░░░░░░░░░░░
 | End of Week 3 | All Phase 0 exit criteria met | >= 95% |
 
 **Phase 0 Exit Criteria**:
-- [ ] `packages/ui-core` builds independently (ESM + types)
-- [ ] `packages/standalone` runs the chat with full functionality
-- [ ] All existing tests pass in new package structure
-- [ ] Zero Tailwind dependencies in `ui-core`
-- [ ] `KubernautAuthProvider` interface defined and used
-- [ ] CI pipeline builds both packages
-- [ ] Confidence score >= 95%
+- [x] `packages/ui-core` builds independently (ESM + types)
+- [x] `packages/standalone` runs the chat with full functionality
+- [x] All existing tests pass in new package structure
+- [x] Zero Tailwind dependencies in `ui-core`
+- [x] `KubernautAuthProvider` interface defined and used
+- [x] CI pipeline builds both packages
+- [x] Confidence score >= 95%
 
 ---
 

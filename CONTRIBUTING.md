@@ -138,3 +138,28 @@ test: add E2E for approval workflow
 ## Architecture Decisions
 
 See `docs/migration/design.md` for the full design document and `docs/migration/ROADMAP.md` for the implementation timeline.
+
+## Pull Request Process
+
+1. **Branch from `main`** using the naming convention: `feat/`, `fix/`, `docs/`, `chore/`, `test/`
+2. **Write tests first** for any behavioral change (TDD preferred)
+3. **Run the full suite** before opening: `pnpm build && pnpm test && pnpm lint`
+4. **Open a PR** with a clear description:
+   - What changed and why
+   - How to test (steps or automated)
+   - Screenshots for UI changes
+5. **CI must pass** — build, lint, unit tests, E2E, and visual regression
+6. **One approval required** from a CODEOWNER
+7. **Squash merge** to `main` with a Conventional Commit message
+
+### PR Checklist
+
+- [ ] Tests added/updated for new behavior
+- [ ] No lint errors (`pnpm lint`)
+- [ ] CHANGELOG.md updated (if user-facing)
+- [ ] Documentation updated (if API/behavior changed)
+- [ ] Visual regression baselines updated (if component changed)
+
+## Code of Conduct
+
+This project follows the [Contributor Covenant](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) Code of Conduct. Be respectful, inclusive, and constructive.

@@ -1,6 +1,14 @@
 {
   "name": "@kubernaut/ui-core",
   "version": "0.1.0",
+  "description": "Shared UI component library for Kubernaut Console",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jordigilh/kubernaut-demo-console.git",
+    "directory": "packages/ui-core"
+  },
+  "homepage": "https://github.com/jordigilh/kubernaut-demo-console/tree/main/packages/ui-core",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

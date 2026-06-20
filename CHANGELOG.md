@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Multi-platform plugin architecture: standalone (Vite), OCP Console (Webpack Federation), Backstage (Module Federation)
+- `@kubernaut/ui-core` shared component library with PatternFly 6
+- Phase indicator with live elapsed timer above input area
+- Real-time status stream via SSE (`/a2a/status`) with reconnection and idle timeout
+- Session persistence across page refreshes (sessionStorage)
+- Investigation context bar (RR ID, cluster, severity)
+- Approval card with countdown timer, RBAC denial display, and state persistence
+- Workflow cards with alignment verdicts and target divergence display
+- Verification timer with progress arc
+- Query intent gating — remediation UX hidden for read-only queries
+- Monotonic phase progression (`maxChatPhase`) preventing stale status regression
+- E2E test suite (Playwright): standalone, Backstage, OCM, accessibility, visual regression
+- Visual regression baselines stored in OCI registry
+- Storybook component stories for all major UI components
+- pnpm + Turborepo monorepo orchestration
+- CI workflows: build, test, E2E, visual regression, standalone image, OCM image
+- Helm chart for standalone deployment with OAuth2 Proxy and nginx
 - Verification activity log with live step events (#1427)
 - MCP-direct workflow selection (bypasses A2A for deterministic actions)
 - Verification step types and event handling in useChat
@@ -18,12 +35,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive documentation: architecture, deployment, integration guide, development guide
 
 ### Changed
+- Migrated from single Vite SPA to monorepo workspace structure
+- Replaced Tailwind CSS with PatternFly 6 design tokens in ui-core
+- Upgraded to React 19, TypeScript 6, Vite 8
+- Moved all shared code from `src/` to `packages/ui-core/src/`
 - VerificationTimer uses server timestamps instead of component mount time
 
 ### Removed
 - `ExecutionStep` interface and `executionSteps`/`executionComplete` fields (replaced by phase-based banner)
 
 ### Fixed
+- Investigation timer not clearing on new session start
+- Phase indicator regression from stale status stream data
+- Status stream reconnection flashing before initial connection
+- Approval countdown freeze on submit
+- Auto-scroll to bottom on message submit
+- MCP tool call retry on 404 (stale session recovery)
 - MCP session initialization: send notifications/initialized without JSON-RPC id field
 - Add verification_step to StatusUpdateEvent type union
 - Fix MCP promise type mismatch
