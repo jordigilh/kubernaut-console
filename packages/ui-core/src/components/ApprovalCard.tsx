@@ -104,7 +104,11 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline, userNa
 
         <Divider />
 
-        <Flex spaceItems={{ default: "spaceItemsSm" }} alignItems={{ default: "alignItemsCenter" }}>
+        <Flex
+          spaceItems={{ default: "spaceItemsSm" }}
+          alignItems={{ default: "alignItemsCenter" }}
+          style={{ marginTop: "var(--pf-t--global--spacer--sm)", marginBottom: "var(--pf-t--global--spacer--md)" }}
+        >
           <FlexItem>
             <Label
               data-testid="approval-countdown"
@@ -130,6 +134,7 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline, userNa
             onChange={(_e, val) => setReason(val)}
             isDisabled={isDisabled}
             aria-label="Reason"
+            placeholder="Reason for decision"
           />
         )}
 

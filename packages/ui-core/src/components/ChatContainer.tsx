@@ -85,30 +85,36 @@ export function ChatContainer() {
         return;
       }
       const rawResult = res.result as { content?: Array<{ type: string; text: string }> } | Record<string, unknown>;
-      let data: Record<string, unknown>;
+      let parsed: Record<string, unknown>;
       if ("content" in rawResult && Array.isArray(rawResult.content)) {
         const textEntry = rawResult.content.find((c: { type: string; text: string }) => c.type === "text");
         try {
-          data = textEntry?.text ? JSON.parse(textEntry.text) : {};
+          parsed = textEntry?.text ? JSON.parse(textEntry.text) : {};
         } catch {
-          data = {};
+          parsed = {};
         }
       } else {
-        data = rawResult as Record<string, unknown>;
+        parsed = rawResult as Record<string, unknown>;
       }
+      // MCP tool may return CRD structure with spec/status or flat fields
+      const spec = (parsed.spec as Record<string, unknown>) ?? undefined;
+      const data = spec ?? parsed;
+      const meta = parsed.metadata as Record<string, unknown> | undefined;
       setApprovalRequest({
-        name: (data.name as string) ?? rarName,
-        namespace: data.namespace as string | undefined,
-        remediationRequestName: (data.remediation_request as string) ?? (data.remediationRequest as string) ?? undefined,
+        name: (meta?.name as string) ?? (data.name as string) ?? rarName,
+        namespace: (meta?.namespace as string) ?? (data.namespace as string) ?? undefined,
+        remediationRequestName: (data.remediationRequestRef as { name?: string })?.name
+          ?? (data.remediation_request as string) ?? (data.remediationRequest as string) ?? undefined,
         confidence: (data.confidence as number) ?? 0,
         confidenceLevel: (data.confidence_level as string) ?? (data.confidenceLevel as string) ?? "Medium",
-        reason: (data.reason as string) ?? (data.why_approval_required as string) ?? "Workflow execution requires human approval.",
-        whyApprovalRequired: (data.why_approval_required as string) ?? (data.whyApprovalRequired as string) ?? undefined,
-        recommendedWorkflow: (data.recommended_workflow ?? data.recommendedWorkflow) as ApprovalRequest["recommendedWorkflow"],
-        investigationSummary: (data.investigation_summary as string) ?? (data.investigationSummary as string) ?? undefined,
-        evidenceCollected: (data.evidence_collected ?? data.evidenceCollected) as string[] | undefined,
-        policyEvaluation: (data.policy_evaluation ?? data.policyEvaluation) as ApprovalRequest["policyEvaluation"],
-        requiredBy: (data.required_by as string) ?? (data.requiredBy as string) ?? new Date(Date.now() + 300_000).toISOString(),
+        reason: (data.reason as string) ?? (data.whyApprovalRequired as string)
+          ?? (data.why_approval_required as string) ?? "Workflow execution requires human approval.",
+        whyApprovalRequired: (data.whyApprovalRequired as string) ?? (data.why_approval_required as string) ?? undefined,
+        recommendedWorkflow: (data.recommendedWorkflow ?? data.recommended_workflow) as ApprovalRequest["recommendedWorkflow"],
+        investigationSummary: (data.investigationSummary as string) ?? (data.investigation_summary as string) ?? undefined,
+        evidenceCollected: (data.evidenceCollected ?? data.evidence_collected) as string[] | undefined,
+        policyEvaluation: (data.policyEvaluation ?? data.policy_evaluation) as ApprovalRequest["policyEvaluation"],
+        requiredBy: (data.requiredBy as string) ?? (data.required_by as string) ?? new Date(Date.now() + 300_000).toISOString(),
       });
     });
   }, [statusPhase, statusMetadata]);
