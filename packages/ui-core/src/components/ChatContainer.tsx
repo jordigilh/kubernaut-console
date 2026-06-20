@@ -24,9 +24,19 @@ export function ChatContainer() {
   const { statusPhase, statusConnection, statusMetadata } = useRRStatus(rrId);
   const rawBannerPhase = statusPhase ? PHASE_MAP[statusPhase] ?? currentPhase : currentPhase;
   const bannerPhase = (!statusPhase && rawBannerPhase === "decision") ? "investigation" : rawBannerPhase;
-  const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName ?? lastRca?.signalName;
-  const namespace = messages.findLast(m => m.role === "agent" && m.namespace)?.namespace ?? lastRca?.namespace;
-  const resource = messages.findLast(m => m.role === "agent" && m.resource)?.resource ?? lastRca?.target;
+  const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName
+    ?? lastRca?.signalName
+    ?? (statusMetadata?.alert_name as string | undefined)
+    ?? (statusMetadata?.signal_name as string | undefined);
+  const namespace = messages.findLast(m => m.role === "agent" && m.namespace)?.namespace
+    ?? lastRca?.namespace
+    ?? (statusMetadata?.namespace as string | undefined)
+    ?? (statusMetadata?.target_namespace as string | undefined);
+  const resource = messages.findLast(m => m.role === "agent" && m.resource)?.resource
+    ?? lastRca?.target
+    ?? (statusMetadata?.target as string | undefined)
+    ?? (statusMetadata?.resource as string | undefined);
+  const cluster = (statusMetadata?.cluster as string | undefined);
   const recoverySignal = messages.findLast(m => m.role === "agent" && m.recoverySignal)?.recoverySignal ?? null;
   const user = useUser();
   const [input, setInput] = useState("");
@@ -293,6 +303,7 @@ export function ChatContainer() {
         alertName={alertName}
         namespace={namespace}
         resource={resource}
+        cluster={cluster}
       />
 
       {/* Messages */}
