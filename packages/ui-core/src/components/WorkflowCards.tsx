@@ -18,9 +18,16 @@ interface Props {
 
 const COUNTDOWN_SECONDS = 10;
 
+function targetsAreDifferent(d: TargetDivergence): boolean {
+  const s = d.signalTarget;
+  const t = d.discoveryTarget;
+  return s.kind !== t.kind || s.name !== t.name || (s.namespace ?? "") !== (t.namespace ?? "");
+}
+
 export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recoverySignal, alignmentVerdict, targetDivergence }: Props) {
   const recommended = options.find((o) => o.recommended);
   const ruledOut = options.filter((o) => !o.recommended);
+  const showDivergence = targetDivergence && targetsAreDifferent(targetDivergence);
 
   const [countdown, setCountdown] = useState<number | null>(null);
   const [executed, setExecuted] = useState(false);
@@ -144,7 +151,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
         <Alert variant="warning" title="Security concern detected during investigation. Manual review recommended." isInline isPlain />
       )}
 
-      {targetDivergence && options.length > 0 && (
+      {showDivergence && options.length > 0 && (
         <Alert variant="info" title={`RCA target differs from signal`} isInline aria-label="Target divergence note" style={{ marginBottom: "var(--pf-t--global--spacer--sm)" }}>
           <Content component={ContentVariants.p}>
             Signal: {targetDivergence.signalTarget.kind}/{targetDivergence.signalTarget.name}
@@ -157,7 +164,7 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
         </Alert>
       )}
 
-      {targetDivergence && options.length === 0 && (
+      {showDivergence && options.length === 0 && (
         <Alert variant="warning" title="No remediation workflows found" isInline aria-label="Target divergence explanation">
           <Content component={ContentVariants.p}>
             Signal: {targetDivergence.signalTarget.kind}/{targetDivergence.signalTarget.name}
