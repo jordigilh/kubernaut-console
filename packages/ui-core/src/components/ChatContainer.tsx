@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, type FormEvent, type KeyboardEvent } from "react";
-import { useChat, type ChatMessage } from "../hooks/useChat";
+import { useChat, type ChatMessage, type ApprovalRequest } from "../hooks/useChat";
 import { useRRStatus } from "../hooks/useRRStatus";
 import { useUser } from "../hooks/useUser";
 import { callMcpTool } from "../lib/mcp-client";
@@ -8,6 +8,7 @@ import { UserBubble } from "./UserBubble";
 import { AgentBubble } from "./AgentBubble";
 import { InvestigationContext } from "./InvestigationContext";
 import { PhaseIndicator } from "./PhaseIndicator";
+import { ApprovalCard } from "./ApprovalCard";
 import { WelcomeState } from "./WelcomeState";
 
 const PHASE_MAP: Record<string, ChatMessage["phase"]> = {
@@ -53,6 +54,23 @@ export function ChatContainer() {
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     setTimeout(() => { programmaticScrollRef.current = false; }, 400);
   }, [messages]);
+
+  const approvalFromStatus: ApprovalRequest | undefined = (statusPhase === "AwaitingApproval" && statusMetadata?.rar_name)
+    ? {
+        name: statusMetadata.rar_name as string,
+        namespace: statusMetadata.namespace as string | undefined,
+        remediationRequestName: statusMetadata.rr_name as string | undefined,
+        confidence: (statusMetadata.confidence as number) ?? 0,
+        confidenceLevel: (statusMetadata.confidence_level as string) ?? "Medium",
+        reason: (statusMetadata.reason as string) ?? "Workflow execution requires human approval.",
+        whyApprovalRequired: statusMetadata.why_approval_required as string | undefined,
+        recommendedWorkflow: statusMetadata.recommended_workflow as ApprovalRequest["recommendedWorkflow"],
+        investigationSummary: statusMetadata.investigation_summary as string | undefined,
+        evidenceCollected: statusMetadata.evidence_collected as string[] | undefined,
+        policyEvaluation: statusMetadata.policy_evaluation as ApprovalRequest["policyEvaluation"],
+        requiredBy: (statusMetadata.required_by as string) ?? new Date(Date.now() + 300_000).toISOString(),
+      }
+    : undefined;
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -101,9 +119,8 @@ export function ChatContainer() {
         setCurrentPhase(PHASE_MAP[resBody.phase]);
       }
       emitAuditEvent({ action: "execute_workflow", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { workflowId } });
-      sendMessage(`Workflow ${workflowId} selected. Proceed with execution.`, { silent: true });
     },
-    [rrId, setCurrentPhase, setError, user.name, user.email, sendMessage],
+    [rrId, setCurrentPhase, setError, user.name, user.email],
   );
 
   const handleApprove = useCallback(
@@ -293,6 +310,17 @@ export function ChatContainer() {
         {statusConnection === "error" && "Status stream lost"}
         {statusConnection === "not_found" && "Remediation request not found"}
       </div>
+
+      {approvalFromStatus && (
+        <div style={{ padding: "0.5rem 1rem" }}>
+          <ApprovalCard
+            request={approvalFromStatus}
+            onApprove={(reason) => handleApprove(approvalFromStatus.name, reason)}
+            onDecline={(reason) => handleDecline(approvalFromStatus.name, reason)}
+            userName={user.name || user.email}
+          />
+        </div>
+      )}
 
       <PhaseIndicator
         phase={bannerPhase}
