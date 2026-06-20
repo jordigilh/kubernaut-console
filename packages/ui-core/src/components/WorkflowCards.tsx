@@ -14,6 +14,7 @@ interface Props {
   recoverySignal?: "problem_resolved" | "alignment_check_failed" | null;
   alignmentVerdict?: AlignmentVerdict;
   targetDivergence?: TargetDivergence;
+  actionTaken?: boolean;
 }
 
 const COUNTDOWN_SECONDS = 10;
@@ -24,17 +25,21 @@ function targetsAreDifferent(d: TargetDivergence): boolean {
   return s.kind !== t.kind || s.name !== t.name || (s.namespace ?? "") !== (t.namespace ?? "");
 }
 
-export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recoverySignal, alignmentVerdict, targetDivergence }: Props) {
+export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recoverySignal, alignmentVerdict, targetDivergence, actionTaken = false }: Props) {
   const recommended = options.find((o) => o.recommended);
   const ruledOut = options.filter((o) => !o.recommended);
   const showDivergence = targetDivergence && targetsAreDifferent(targetDivergence);
 
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [executed, setExecuted] = useState(false);
+  const [executed, setExecuted] = useState(actionTaken);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [ruledOutCountdown, setRuledOutCountdown] = useState<number | null>(null);
   const onExecuteRef = useRef(onExecute);
   useEffect(() => { onExecuteRef.current = onExecute; });
+
+  useEffect(() => {
+    if (actionTaken) setExecuted(true);
+  }, [actionTaken]);
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;

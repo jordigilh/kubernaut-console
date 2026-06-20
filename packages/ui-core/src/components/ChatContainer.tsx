@@ -4,6 +4,8 @@ import { useRRStatus } from "../hooks/useRRStatus";
 import { useUser } from "../hooks/useUser";
 import { callMcpTool } from "../lib/mcp-client";
 import { emitAuditEvent } from "../lib/audit";
+import { isPastDecisionPhase, isWorkflowResolved, markWorkflowResolved } from "../lib/session-state";
+import { isInvestigationEngaged } from "../lib/query-intent";
 import { UserBubble } from "./UserBubble";
 import { AgentBubble } from "./AgentBubble";
 import { InvestigationContext } from "./InvestigationContext";
@@ -20,9 +22,17 @@ export function ChatContainer() {
   const { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase } = useChat();
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
-  const { statusPhase, statusConnection, statusMetadata } = useRRStatus(rrId);
-  const rawBannerPhase = statusPhase ? PHASE_MAP[statusPhase] ?? currentPhase : currentPhase;
-  const bannerPhase = (!statusPhase && rawBannerPhase === "decision") ? "investigation" : rawBannerPhase;
+  const investigationEngaged = isInvestigationEngaged(messages);
+  const effectiveRrId = investigationEngaged ? rrId : undefined;
+  const { statusPhase, statusConnection, statusMetadata } = useRRStatus(effectiveRrId);
+  const lastAgentPhase = messages.findLast(m => m.role === "agent" && m.phase)?.phase;
+  const rawBannerPhase = statusPhase
+    ? PHASE_MAP[statusPhase] ?? currentPhase ?? lastAgentPhase
+    : (currentPhase ?? lastAgentPhase);
+  const bannerPhase = !investigationEngaged
+    ? undefined
+    : ((!statusPhase && rawBannerPhase === "decision") ? "investigation" : rawBannerPhase);
+  const workflowActionTaken = isWorkflowResolved(rrId) || isPastDecisionPhase(bannerPhase);
   const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName
     ?? lastRca?.signalName
     ?? (statusMetadata?.alert_name as string | undefined)
@@ -126,6 +136,12 @@ export function ChatContainer() {
     });
   }, [statusPhase, statusMetadata, setMessages]);
 
+  useEffect(() => {
+    if (statusPhase && PHASE_MAP[statusPhase]) {
+      setCurrentPhase(PHASE_MAP[statusPhase]);
+    }
+  }, [statusPhase, setCurrentPhase]);
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const text = input.trim();
@@ -164,6 +180,10 @@ export function ChatContainer() {
         setError("Cannot select workflow: no active remediation request found.");
         return;
       }
+      if (workflowActionTaken) {
+        setError("Workflow action already taken for this remediation.");
+        return;
+      }
       const res = await callMcpTool("kubernaut_select_workflow", {
         rr_id: rrId,
         workflow_id: workflowId,
@@ -172,13 +192,14 @@ export function ChatContainer() {
         setError(res.error.message);
         return;
       }
+      markWorkflowResolved(rrId);
       const resBody = res.result as { phase?: string } | undefined;
       if (resBody?.phase && PHASE_MAP[resBody.phase]) {
         setCurrentPhase(PHASE_MAP[resBody.phase]);
       }
       emitAuditEvent({ action: "execute_workflow", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { workflowId } });
     },
-    [rrId, setCurrentPhase, setError, user.name, user.email],
+    [rrId, workflowActionTaken, setCurrentPhase, setError, user.name, user.email],
   );
 
   const handleApprove = useCallback(
@@ -230,6 +251,10 @@ export function ChatContainer() {
         setError("Cannot dismiss: no active remediation request found.");
         return;
       }
+      if (workflowActionTaken) {
+        setError("Workflow action already taken for this remediation.");
+        return;
+      }
       const res = await callMcpTool("kubernaut_complete_no_action", {
         rr_id: rrId,
         reason: "Dismissed by operator: no action needed",
@@ -238,6 +263,7 @@ export function ChatContainer() {
         setError(res.error.message);
         return;
       }
+      markWorkflowResolved(rrId);
       setMessages((prev) => [...prev, {
         id: `msg-${Date.now()}`,
         role: "agent" as const,
@@ -247,12 +273,16 @@ export function ChatContainer() {
       setCurrentPhase("complete");
       emitAuditEvent({ action: "dismiss", timestamp: new Date().toISOString(), user: user.name || user.email, rrId });
     },
-    [rrId, setMessages, setCurrentPhase, setError, user.name, user.email],
+    [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, user.name, user.email],
   );
 
   const handleEscalate = useCallback(async (reason: string) => {
     if (!rrId) {
       setError("Cannot escalate: no active remediation request found.");
+      return;
+    }
+    if (workflowActionTaken) {
+      setError("Workflow action already taken for this remediation.");
       return;
     }
     const res = await callMcpTool("kubernaut_complete_no_action", {
@@ -264,6 +294,7 @@ export function ChatContainer() {
       setError(res.error.message);
       return;
     }
+    markWorkflowResolved(rrId);
     setMessages((prev) => [...prev, {
       id: `msg-${Date.now()}`,
       role: "agent" as const,
@@ -272,7 +303,7 @@ export function ChatContainer() {
     }]);
     setCurrentPhase("complete");
     emitAuditEvent({ action: "escalate", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { escalation_reason: reason } });
-  }, [rrId, setMessages, setCurrentPhase, setError, user.name, user.email]);
+  }, [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, user.name, user.email]);
 
   const handleClearHistory = useCallback(() => {
     if (messages.length === 0) {
@@ -300,13 +331,13 @@ export function ChatContainer() {
       <header className="kn-header">
         <img src="/logo.svg" alt="Kubernaut" style={{ height: 28, width: 28, borderRadius: 6 }} />
         <h1 className="kn-header-title">Kubernaut Console</h1>
-        {statusConnection === "reconnecting" && (
+        {effectiveRrId && statusConnection === "reconnecting" && (
           <span style={{ fontSize: "0.75rem", color: "#fef08a", animation: "kn-pulse 2s infinite" }} role="status">Status reconnecting...</span>
         )}
-        {statusConnection === "error" && (
+        {effectiveRrId && statusConnection === "error" && (
           <span style={{ fontSize: "0.75rem", color: "#fecaca" }} role="status">Status stream lost</span>
         )}
-        {statusConnection === "not_found" && (
+        {effectiveRrId && statusConnection === "not_found" && (
           <span style={{ fontSize: "0.75rem", color: "#fecaca" }} role="status">Status unavailable</span>
         )}
         <button
@@ -332,7 +363,7 @@ export function ChatContainer() {
       </header>
 
       <InvestigationContext
-        rrId={rrId}
+        rrId={investigationEngaged ? rrId : undefined}
         alertName={alertName}
         namespace={namespace}
         resource={resource}
@@ -365,6 +396,7 @@ export function ChatContainer() {
                 onEscalate={handleEscalate}
                 userName={user.name || user.email}
                 recoverySignal={recoverySignal}
+                workflowActionTaken={workflowActionTaken}
               />
             ),
           )
@@ -374,9 +406,9 @@ export function ChatContainer() {
       {/* Live status announcements (screen reader only) */}
       <div aria-live="polite" aria-atomic="true" className="kn-sr-only">
         {isStreaming && "Agent is responding"}
-        {statusConnection === "reconnecting" && "Status stream reconnecting"}
-        {statusConnection === "error" && "Status stream lost"}
-        {statusConnection === "not_found" && "Status unavailable"}
+        {effectiveRrId && statusConnection === "reconnecting" && "Status stream reconnecting"}
+        {effectiveRrId && statusConnection === "error" && "Status stream lost"}
+        {effectiveRrId && statusConnection === "not_found" && "Status unavailable"}
       </div>
 
       {approvalDenied && (

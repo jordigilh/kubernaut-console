@@ -362,13 +362,29 @@ describe("useChat", () => {
       expect(agentMsg.thinking![0].type).toBe("tool_call");
     });
 
-    it("UT-CONSOLE-CHAT-011: exposes investigationStartTime when streaming begins", async () => {
+    it("UT-CONSOLE-CHAT-011: exposes investigationStartTime when rr_id is received", async () => {
       vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Starting" }] } },
+          metadata: { type: "rr_update", rr_id: "rr-test-001", phase: "Investigating" },
+        });
+        opts.onComplete?.();
+      });
+
       const { result } = renderHook(() => useChat());
 
-      await act(async () => { await result.current.sendMessage("test"); });
+      await act(async () => { await result.current.sendMessage("investigate pod crash"); });
 
-      expect(result.current.investigationStartTime).toBeDefined();
+      await waitFor(() => {
+        expect(result.current.investigationStartTime).toBeDefined();
+      });
       expect(typeof result.current.investigationStartTime).toBe("number");
     });
   });
@@ -606,7 +622,7 @@ describe("useChat", () => {
       });
 
       const agentMsg = result.current.messages.find(m => m.role === "agent");
-      expect(agentMsg?.phase).toBe("investigation");
+      expect(agentMsg?.phase).toBeUndefined();
     });
 
     it("UT-CONSOLE-CHAT-020: gracefully handles malformed JSON in decision payload", async () => {
@@ -668,7 +684,7 @@ describe("useChat", () => {
       });
 
       const agentMsg = result.current.messages.find(m => m.role === "agent");
-      expect(agentMsg?.phase).toBe("investigation");
+      expect(agentMsg?.phase).toBeUndefined();
     });
   });
 

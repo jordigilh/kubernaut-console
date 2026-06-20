@@ -4,6 +4,7 @@ import { mockStreamA2A } from "../lib/a2a-mock";
 import type { A2AEvent, DataPart, StatusUpdateEvent } from "../lib/a2a-types";
 import { AuthContext } from "../providers/auth";
 import { ConfigContext } from "../providers/config";
+import { clearSessionState, loadPersistedPhase, savePersistedPhase } from "../lib/session-state";
 
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
@@ -212,13 +213,17 @@ export function useChat() {
   const lastSendRef = useRef(0);
   const terminalReceivedRef = useRef(false);
   const [investigationStartTime, setInvestigationStartTime] = useState<number | undefined>(undefined);
-  const [currentPhase, setCurrentPhase] = useState<ChatMessage["phase"]>(undefined);
+  const [currentPhase, setCurrentPhase] = useState<ChatMessage["phase"]>(() => loadPersistedPhase());
 
   useEffect(() => {
     if (!isStreaming) {
       saveMessages(messages);
     }
   }, [messages, isStreaming]);
+
+  useEffect(() => {
+    savePersistedPhase(currentPhase);
+  }, [currentPhase]);
 
   useEffect(() => {
     return () => {
@@ -263,11 +268,9 @@ export function useChat() {
       timestamp: Date.now(),
       thinking: [],
       isStreaming: true,
-      phase: "investigation",
     };
     setMessages((prev) => [...prev, agentMsg]);
     setIsStreaming(true);
-    setInvestigationStartTime(Date.now());
 
     const request = buildStreamRequest(text, contextIdRef.current);
     const controller = new AbortController();
@@ -438,6 +441,7 @@ export function useChat() {
       const metaType = event.metadata?.type;
 
       if (event.metadata?.rr_id && typeof event.metadata.rr_id === "string") {
+        setInvestigationStartTime((prev) => prev ?? Date.now());
         const rrUpdate: Partial<ChatMessage> = { rrId: event.metadata.rr_id };
         if (event.metadata.alert_name) rrUpdate.alertName = event.metadata.alert_name as string;
         if (event.metadata.namespace) rrUpdate.namespace = event.metadata.namespace as string;
@@ -716,9 +720,6 @@ export function useChat() {
             ];
           }
           thinkingUpdates.thinking = [...thinkingRef.current];
-          if (!thinkingUpdates.thinkingLabel) {
-            thinkingUpdates.phase = "investigation";
-          }
           update(thinkingUpdates);
         }
         return;
@@ -786,6 +787,7 @@ export function useChat() {
     contextIdRef.current = undefined;
     sessionStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(CONTEXT_KEY);
+    clearSessionState();
   }, []);
 
   return { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase };
