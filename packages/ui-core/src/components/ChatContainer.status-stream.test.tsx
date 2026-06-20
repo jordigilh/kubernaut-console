@@ -9,6 +9,7 @@ import { ChatContainer } from "./ChatContainer";
 import { streamA2A } from "../lib/a2a-client";
 import { subscribeRRStatus } from "../lib/a2a-status-client";
 import { _resetSession } from "../lib/mcp-client";
+import { markWorkflowResolved, savePersistedPhase } from "../lib/session-state";
 import type { StatusSubscribeOptions } from "../lib/a2a-status-client";
 
 vi.mock("../lib/a2a-client", () => ({
@@ -163,5 +164,60 @@ describe("ChatContainer — Banner Status Stream Separation", () => {
       expect(screen.getByText(/Executing/)).toBeInTheDocument();
     });
     expect(screen.queryByText(/Investigating/)).not.toBeInTheDocument();
+  });
+
+  it("IT-CONSOLE-BANNER-005: stale Investigating status does not regress banner after workflow execution", async () => {
+    savePersistedPhase("remediation");
+    markWorkflowResolved("rr-test-001");
+
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      emitRRFromChatStream(opts);
+    });
+
+    mockSubscribeStatus.mockImplementation(async (_rrId, opts) => {
+      opts.onPhaseChange("Investigating", {});
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate crashloop" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Executing/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/^Investigating/)).not.toBeInTheDocument();
+  });
+
+  it("IT-CONSOLE-BANNER-006: status stream Verifying wins over stale chat investigation phase", async () => {
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      emitRRFromChatStream(opts);
+    });
+
+    mockSubscribeStatus.mockImplementation(async (_rrId, opts) => {
+      opts.onPhaseChange("Investigating", {});
+      opts.onPhaseChange("Verifying", { ea_phase: "Stabilizing" });
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "test" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Verifying/)).toBeInTheDocument();
+    });
   });
 });

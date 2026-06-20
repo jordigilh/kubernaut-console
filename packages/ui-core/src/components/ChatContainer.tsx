@@ -6,6 +6,7 @@ import { callMcpTool } from "../lib/mcp-client";
 import { emitAuditEvent } from "../lib/audit";
 import { isPastDecisionPhase, isWorkflowResolved, markWorkflowResolved } from "../lib/session-state";
 import { isInvestigationEngaged } from "../lib/query-intent";
+import { maxChatPhase } from "../lib/phase-rank";
 import { UserBubble } from "./UserBubble";
 import { AgentBubble } from "./AgentBubble";
 import { InvestigationContext } from "./InvestigationContext";
@@ -26,13 +27,14 @@ export function ChatContainer() {
   const effectiveRrId = investigationEngaged ? rrId : undefined;
   const { statusPhase, statusConnection, statusMetadata } = useRRStatus(effectiveRrId);
   const lastAgentPhase = messages.findLast(m => m.role === "agent" && m.phase)?.phase;
-  const rawBannerPhase = statusPhase
-    ? PHASE_MAP[statusPhase] ?? currentPhase ?? lastAgentPhase
-    : (currentPhase ?? lastAgentPhase);
+  const chatPhase = currentPhase ?? lastAgentPhase;
+  const statusMapped = statusPhase ? PHASE_MAP[statusPhase] : undefined;
+  const rawBannerPhase = maxChatPhase(statusMapped, chatPhase) ?? chatPhase;
+  const workflowResolved = isWorkflowResolved(rrId);
   const bannerPhase = !investigationEngaged
     ? undefined
-    : ((!statusPhase && rawBannerPhase === "decision") ? "investigation" : rawBannerPhase);
-  const workflowActionTaken = isWorkflowResolved(rrId) || isPastDecisionPhase(bannerPhase);
+    : ((!statusPhase && !workflowResolved && rawBannerPhase === "decision") ? "investigation" : rawBannerPhase);
+  const workflowActionTaken = workflowResolved || isPastDecisionPhase(bannerPhase);
   const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName
     ?? lastRca?.signalName
     ?? (statusMetadata?.alert_name as string | undefined)
@@ -138,7 +140,8 @@ export function ChatContainer() {
 
   useEffect(() => {
     if (statusPhase && PHASE_MAP[statusPhase]) {
-      setCurrentPhase(PHASE_MAP[statusPhase]);
+      const mapped = PHASE_MAP[statusPhase];
+      setCurrentPhase((prev) => maxChatPhase(prev, mapped) ?? mapped);
     }
   }, [statusPhase, setCurrentPhase]);
 
@@ -193,9 +196,11 @@ export function ChatContainer() {
         return;
       }
       markWorkflowResolved(rrId);
+      setCurrentPhase((prev) => maxChatPhase(prev, "remediation") ?? "remediation");
       const resBody = res.result as { phase?: string } | undefined;
       if (resBody?.phase && PHASE_MAP[resBody.phase]) {
-        setCurrentPhase(PHASE_MAP[resBody.phase]);
+        const mapped = PHASE_MAP[resBody.phase];
+        setCurrentPhase((prev) => maxChatPhase(prev, mapped) ?? mapped);
       }
       emitAuditEvent({ action: "execute_workflow", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { workflowId } });
     },

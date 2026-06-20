@@ -5,6 +5,7 @@ import type { A2AEvent, DataPart, StatusUpdateEvent } from "../lib/a2a-types";
 import { AuthContext } from "../providers/auth";
 import { ConfigContext } from "../providers/config";
 import { clearSessionState, loadPersistedPhase, savePersistedPhase } from "../lib/session-state";
+import { maxChatPhase } from "../lib/phase-rank";
 
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
@@ -307,7 +308,7 @@ export function useChat() {
             .join("");
 
           const updates: Partial<ChatMessage> = { phase: "decision", thinking: [...thinkingRef.current], thinkingLabel: undefined };
-          setCurrentPhase("decision");
+          setCurrentPhase((prev) => maxChatPhase(prev, "decision") ?? "decision");
 
           const metaRrId = event.artifact.metadata?.rr_id as string | undefined;
           if (metaRrId) {
@@ -396,7 +397,7 @@ export function useChat() {
                : "remediation";
 
           const updates: Partial<ChatMessage> = { phase: mappedPhase };
-          setCurrentPhase(mappedPhase);
+          setCurrentPhase((prev) => maxChatPhase(prev, mappedPhase) ?? mappedPhase);
 
           if (payload.rr_name) {
             updates.rrId = payload.rr_name;
@@ -467,7 +468,7 @@ export function useChat() {
             Cancelled: "complete",
           };
           rrUpdate.phase = phaseMap[event.metadata.phase as string] ?? "investigation";
-          setCurrentPhase(rrUpdate.phase);
+          setCurrentPhase((prev) => maxChatPhase(prev, rrUpdate.phase) ?? rrUpdate.phase);
 
           if (event.metadata.phase === "Verifying" || event.metadata.phase === "Executing") {
             const swRaw = event.metadata.stabilization_window;
@@ -578,7 +579,7 @@ export function useChat() {
           }
           const parsed = JSON.parse(msgText);
           const updates: Partial<ChatMessage> = { phase: "decision", text: "", thinkingLabel: undefined };
-          setCurrentPhase("decision");
+          setCurrentPhase((prev) => maxChatPhase(prev, "decision") ?? "decision");
           updates.thinking = [...thinkingRef.current];
 
           if (parsed.rca) {
