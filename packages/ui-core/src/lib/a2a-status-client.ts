@@ -55,7 +55,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-type StreamResult = "complete" | "terminal" | "not_found" | "aborted" | "retryable" | "fatal";
+type StreamResult = "complete" | "terminal" | "not_found" | "aborted" | "retryable" | "fatal" | "service_unavailable";
 
 async function attemptSubscription(
   rrId: string,
@@ -76,7 +76,7 @@ async function attemptSubscription(
   if ("kind" in fetchResult && (fetchResult as SSEFetchError).kind === "fatal") {
     const httpErr = fetchResult as SSEFetchError;
     if (httpErr.status === 404) {
-      return "not_found";
+      return "service_unavailable";
     }
     options.onError(new Error(`HTTP ${httpErr.status}: ${httpErr.statusText}`));
     return "fatal";
@@ -139,6 +139,10 @@ export async function subscribeRRStatus(rrId: string, options: StatusSubscribeOp
     if (result === "aborted" || result === "complete" || result === "terminal" || result === "fatal") return;
     if (result === "not_found") {
       lastNotFound = true;
+      continue;
+    }
+    if (result === "service_unavailable") {
+      lastNotFound = false;
       continue;
     }
     lastNotFound = false;
