@@ -107,8 +107,9 @@ describe("useRRStatus — Integration Tests", () => {
     expect(mockSubscribe).toHaveBeenLastCalledWith("rr-2", expect.anything());
   });
 
-  it("IT-CONSOLE-STATUS-008: onReconnecting sets statusConnection to 'reconnecting'", async () => {
+  it("IT-CONSOLE-STATUS-008: onReconnecting sets statusConnection to 'reconnecting' after prior phase", async () => {
     mockSubscribe.mockImplementation(async (_rrId, opts) => {
+      opts.onPhaseChange("Investigating", {});
       opts.onReconnecting?.(1);
     });
 
@@ -117,6 +118,19 @@ describe("useRRStatus — Integration Tests", () => {
     await waitFor(() => {
       expect(result.current.statusConnection).toBe("reconnecting");
     });
+  });
+
+  it("IT-CONSOLE-STATUS-008b: onReconnecting before first phase does not flash reconnecting", async () => {
+    mockSubscribe.mockImplementation(async (_rrId, opts) => {
+      opts.onReconnecting?.(1);
+    });
+
+    const { result } = renderHook(() => useRRStatus("rr-1"));
+
+    await waitFor(() => {
+      expect(mockSubscribe).toHaveBeenCalled();
+    });
+    expect(result.current.statusConnection).toBe("idle");
   });
 
   it("IT-CONSOLE-STATUS-009: onError sets statusConnection to 'error' after prior connection", async () => {

@@ -7,6 +7,9 @@ export type RRPhase =
 
 const TERMINAL_PHASES: Set<RRPhase> = new Set(["Completed", "Failed", "TimedOut", "Cancelled", "Skipped"]);
 
+/** Match chat stream idle tolerance; Verifying can be quiet for minutes. */
+export const STATUS_STREAM_IDLE_TIMEOUT_MS = 300_000;
+
 const RR_NOT_FOUND_CODE = -32001;
 
 export class StatusStreamError extends Error {
@@ -114,7 +117,7 @@ async function attemptSubscription(
 
       return "continue";
     },
-    { signal: options.signal, idleTimeoutMs: options.idleTimeoutMs ?? 45_000 },
+    { signal: options.signal, idleTimeoutMs: options.idleTimeoutMs ?? STATUS_STREAM_IDLE_TIMEOUT_MS },
   );
 
   return streamResult as StreamResult;

@@ -42,7 +42,10 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
   }, []);
 
   const handleReconnecting = useCallback((_attempt: number) => {
-    setStatusConnection("reconnecting");
+    // Avoid flashing "reconnecting" on the initial subscribe before any phase was delivered.
+    if (everConnectedRef.current) {
+      setStatusConnection("reconnecting");
+    }
   }, []);
 
   const handleNotFound = useCallback(() => {
@@ -91,6 +94,7 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
         onNotFound: handleNotFound,
         onReconnecting: handleReconnecting,
         signal: controller.signal,
+        idleTimeoutMs: 300_000,
       });
     }
 
