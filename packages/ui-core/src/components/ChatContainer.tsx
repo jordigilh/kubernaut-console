@@ -55,22 +55,46 @@ export function ChatContainer() {
     setTimeout(() => { programmaticScrollRef.current = false; }, 400);
   }, [messages]);
 
-  const approvalFromStatus: ApprovalRequest | undefined = (statusPhase === "AwaitingApproval" && statusMetadata?.rar_name)
-    ? {
-        name: statusMetadata.rar_name as string,
-        namespace: statusMetadata.namespace as string | undefined,
-        remediationRequestName: statusMetadata.rr_name as string | undefined,
-        confidence: (statusMetadata.confidence as number) ?? 0,
-        confidenceLevel: (statusMetadata.confidence_level as string) ?? "Medium",
-        reason: (statusMetadata.reason as string) ?? "Workflow execution requires human approval.",
-        whyApprovalRequired: statusMetadata.why_approval_required as string | undefined,
-        recommendedWorkflow: statusMetadata.recommended_workflow as ApprovalRequest["recommendedWorkflow"],
-        investigationSummary: statusMetadata.investigation_summary as string | undefined,
-        evidenceCollected: statusMetadata.evidence_collected as string[] | undefined,
-        policyEvaluation: statusMetadata.policy_evaluation as ApprovalRequest["policyEvaluation"],
-        requiredBy: (statusMetadata.required_by as string) ?? new Date(Date.now() + 300_000).toISOString(),
+  const [approvalRequest, setApprovalRequest] = useState<ApprovalRequest | undefined>(undefined);
+  const [approvalDenied, setApprovalDenied] = useState(false);
+  const approvalFetchedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (statusPhase !== "AwaitingApproval") {
+      if (approvalRequest || approvalDenied) {
+        setApprovalRequest(undefined);
+        setApprovalDenied(false);
       }
-    : undefined;
+      approvalFetchedRef.current = null;
+      return;
+    }
+
+    const rarName = (statusMetadata?.approval_request_name as string) ?? undefined;
+    if (!rarName || approvalFetchedRef.current === rarName) return;
+    approvalFetchedRef.current = rarName;
+
+    callMcpTool("kubernaut_get_approval_request", { rar_id: rarName }).then((res) => {
+      if (res.error) {
+        setApprovalDenied(true);
+        return;
+      }
+      const data = res.result as Record<string, unknown>;
+      setApprovalRequest({
+        name: (data.name as string) ?? rarName,
+        namespace: data.namespace as string | undefined,
+        remediationRequestName: data.remediation_request as string | undefined,
+        confidence: (data.confidence as number) ?? 0,
+        confidenceLevel: (data.confidence_level as string) ?? "Medium",
+        reason: (data.reason as string) ?? "Workflow execution requires human approval.",
+        whyApprovalRequired: data.why_approval_required as string | undefined,
+        recommendedWorkflow: data.recommended_workflow as ApprovalRequest["recommendedWorkflow"],
+        investigationSummary: data.investigation_summary as string | undefined,
+        evidenceCollected: data.evidence_collected as string[] | undefined,
+        policyEvaluation: data.policy_evaluation as ApprovalRequest["policyEvaluation"],
+        requiredBy: (data.required_by as string) ?? new Date(Date.now() + 300_000).toISOString(),
+      });
+    });
+  }, [statusPhase, statusMetadata]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -311,14 +335,23 @@ export function ChatContainer() {
         {statusConnection === "not_found" && "Remediation request not found"}
       </div>
 
-      {approvalFromStatus && (
+      {approvalRequest && (
         <div style={{ padding: "0.5rem 1rem" }}>
           <ApprovalCard
-            request={approvalFromStatus}
-            onApprove={(reason) => handleApprove(approvalFromStatus.name, reason)}
-            onDecline={(reason) => handleDecline(approvalFromStatus.name, reason)}
+            request={approvalRequest}
+            onApprove={(reason) => handleApprove(approvalRequest.name, reason)}
+            onDecline={(reason) => handleDecline(approvalRequest.name, reason)}
             userName={user.name || user.email}
           />
+        </div>
+      )}
+
+      {approvalDenied && !approvalRequest && (
+        <div className="kn-approval-denied" style={{ padding: "0.5rem 1rem" }}>
+          <div className="kn-approval-denied-card">
+            <strong>Approval Required</strong>
+            <p>You don't have permission to view the details of this approval request. Contact a team member with the approver role.</p>
+          </div>
         </div>
       )}
 
