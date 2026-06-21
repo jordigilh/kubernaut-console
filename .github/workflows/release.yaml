@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/kubernaut-demo-console
+  IMAGE_NAME: ${{ github.repository_owner }}/kubernaut-console
 
 jobs:
   test:
