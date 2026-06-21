@@ -67,6 +67,7 @@ async function sendMcpRequest(
         method,
         ...(params ? { params } : {}),
       }),
+      signal: AbortSignal.timeout(30_000),
     });
   } catch (err) {
     return { error: { code: -1, message: (err as Error).message } };
@@ -118,6 +119,7 @@ async function sendMcpNotification(method: string, options?: McpClientOptions): 
         jsonrpc: "2.0",
         method,
       }),
+      signal: AbortSignal.timeout(30_000),
     });
   } catch (err) {
     return { error: { code: -1, message: (err as Error).message } };

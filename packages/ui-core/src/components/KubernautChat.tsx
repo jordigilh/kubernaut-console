@@ -29,6 +29,27 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
     return () => { cancelled = true; };
   }, [authProvider]);
 
+  if (isLoading) {
+    return (
+      <div className="kn-chat kn-chat--loading" role="status" aria-label="Loading authentication">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", opacity: 0.6 }}>
+          <span>Authenticating...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="kn-chat kn-chat--error" role="alert">
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "0.5rem" }}>
+          <strong>Authentication Error</strong>
+          <span style={{ fontSize: "0.875rem", opacity: 0.7 }}>{error}</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ConfigContext.Provider value={config}>
       <AuthContext.Provider value={{ provider: authProvider, user, isLoading, error }}>

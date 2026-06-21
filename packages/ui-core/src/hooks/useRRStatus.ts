@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useContext, useEffect, useRef, useState, useCallback } from "react";
 import { subscribeRRStatus } from "../lib/a2a-status-client";
 import type { RRPhase } from "../lib/a2a-status-client";
+import { AuthContext } from "../providers/auth";
+import { ConfigContext } from "../providers/config";
 
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
@@ -22,6 +24,8 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
   const prevRrIdRef = useRef<string | undefined>(undefined);
   const terminalRef = useRef(false);
   const everConnectedRef = useRef(false);
+  const configCtx = useContext(ConfigContext);
+  const authCtx = useContext(AuthContext);
 
   const handlePhaseChange = useCallback((phase: RRPhase, metadata: Record<string, unknown>) => {
     everConnectedRef.current = true;
@@ -87,21 +91,34 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
     if (USE_MOCK) {
       mockStatusStream(controller.signal, handlePhaseChange, handleTerminal);
     } else {
-      subscribeRRStatus(rrId, {
-        onPhaseChange: handlePhaseChange,
-        onError: handleError,
-        onTerminal: handleTerminal,
-        onNotFound: handleNotFound,
-        onReconnecting: handleReconnecting,
-        signal: controller.signal,
-        idleTimeoutMs: 300_000,
+      const startSubscription = async () => {
+        let token: string | undefined;
+        try {
+          token = authCtx?.provider ? await authCtx.provider.getToken() : undefined;
+        } catch { /* proceed without token */ }
+        if (controller.signal.aborted) return;
+        await subscribeRRStatus(rrId, {
+          onPhaseChange: handlePhaseChange,
+          onError: handleError,
+          onTerminal: handleTerminal,
+          onNotFound: handleNotFound,
+          onReconnecting: handleReconnecting,
+          signal: controller.signal,
+          idleTimeoutMs: 300_000,
+          baseUrl: configCtx?.backendUrl,
+          fetchFn: configCtx?.fetchFn,
+          token,
+        });
+      };
+      startSubscription().catch((err) => {
+        handleError(err instanceof Error ? err : new Error(String(err)));
       });
     }
 
     return () => {
       controller.abort();
     };
-  }, [rrId, handlePhaseChange, handleError, handleTerminal, handleNotFound, handleReconnecting]);
+  }, [rrId, handlePhaseChange, handleError, handleTerminal, handleNotFound, handleReconnecting, configCtx, authCtx]);
 
   return { statusPhase, statusConnection, statusMetadata, isTerminal };
 }
