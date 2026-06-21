@@ -208,6 +208,7 @@ export function useChat() {
   const contextIdRef = useRef<string | undefined>(loadContextId());
   const abortRef = useRef<AbortController | null>(null);
   const activeAgentMsgIdRef = useRef<string | null>(null);
+  const activeRrIdRef = useRef<string | undefined>(undefined);
   const thinkingRef = useRef<ThinkingEntry[]>([]);
   const artifactRef = useRef("");
   const messageIdRef = useRef(0);
@@ -442,6 +443,12 @@ export function useChat() {
       const metaType = event.metadata?.type;
 
       if (event.metadata?.rr_id && typeof event.metadata.rr_id === "string") {
+        const incomingRrId = event.metadata.rr_id;
+        if (activeRrIdRef.current && activeRrIdRef.current !== incomingRrId) {
+          setCurrentPhase(undefined);
+          setInvestigationStartTime(undefined);
+        }
+        activeRrIdRef.current = incomingRrId;
         setInvestigationStartTime((prev) => prev ?? Date.now());
         const rrUpdate: Partial<ChatMessage> = { rrId: event.metadata.rr_id };
         if (event.metadata.alert_name) rrUpdate.alertName = event.metadata.alert_name as string;
@@ -792,6 +799,7 @@ export function useChat() {
     setMessages([]);
     setCurrentPhase(undefined);
     setInvestigationStartTime(undefined);
+    activeRrIdRef.current = undefined;
     contextIdRef.current = undefined;
     sessionStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(CONTEXT_KEY);
