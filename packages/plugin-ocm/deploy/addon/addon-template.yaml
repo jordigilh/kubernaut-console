@@ -1,0 +1,147 @@
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: AddOnTemplate
+metadata:
+  name: kubernaut-agent
+spec:
+  addonName: kubernaut-agent
+  agentSpec:
+    kubeClientRequirement:
+      type: None
+    manifestConfigs:
+      - resourceIdentifier:
+          group: apps
+          resource: deployments
+          name: kagenti
+          namespace: kubernaut
+        updateStrategy:
+          type: ServerSideApply
+      - resourceIdentifier:
+          group: kagenti.dev
+          resource: agentruntimes
+          name: kubernaut-runtime
+          namespace: kubernaut
+        updateStrategy:
+          type: ServerSideApply
+    registrationOption:
+      csr:
+        signerName: kubernetes.io/kube-apiserver-client
+        approvals:
+          - type: Auto
+    workloadManifests:
+      - apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: kubernaut
+      - apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: kagenti
+          namespace: kubernaut
+      - apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: kagenti
+          namespace: kubernaut
+          labels:
+            app.kubernetes.io/name: kagenti
+            app.kubernetes.io/component: agent
+            app.kubernetes.io/part-of: kubernaut
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app.kubernetes.io/name: kagenti
+          template:
+            metadata:
+              labels:
+                app.kubernetes.io/name: kagenti
+            spec:
+              serviceAccountName: kagenti
+              containers:
+                - name: kagenti
+                  image: ghcr.io/jordigilh/kagenti:latest
+                  ports:
+                    - name: a2a
+                      containerPort: 8443
+                      protocol: TCP
+                    - name: health
+                      containerPort: 8081
+                      protocol: TCP
+                  env:
+                    - name: SPIRE_AGENT_SOCKET
+                      value: unix:///run/spire/sockets/agent.sock
+                    - name: A2A_PORT
+                      value: "8443"
+                    - name: CLUSTER_NAME
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: metadata.annotations['open-cluster-management.io/cluster-name']
+                  readinessProbe:
+                    httpGet:
+                      path: /healthz
+                      port: health
+                    initialDelaySeconds: 5
+                    periodSeconds: 10
+                  livenessProbe:
+                    httpGet:
+                      path: /healthz
+                      port: health
+                    initialDelaySeconds: 10
+                    periodSeconds: 30
+                  resources:
+                    requests:
+                      cpu: 50m
+                      memory: 128Mi
+                    limits:
+                      cpu: 500m
+                      memory: 512Mi
+                  volumeMounts:
+                    - name: spire-agent-socket
+                      mountPath: /run/spire/sockets
+                      readOnly: true
+              volumes:
+                - name: spire-agent-socket
+                  hostPath:
+                    path: /run/spire/sockets
+                    type: Directory
+      - apiVersion: v1
+        kind: Service
+        metadata:
+          name: kagenti
+          namespace: kubernaut
+          annotations:
+            service.beta.openshift.io/serving-cert-secret-name: kagenti-cert
+        spec:
+          selector:
+            app.kubernetes.io/name: kagenti
+          ports:
+            - name: a2a
+              port: 8443
+              targetPort: a2a
+              protocol: TCP
+      - apiVersion: kagenti.dev/v1alpha1
+        kind: AgentRuntime
+        metadata:
+          name: kubernaut-runtime
+          namespace: kubernaut
+        spec:
+          agent:
+            name: kubernaut-incident-responder
+            description: AI-powered incident response agent for Kubernetes
+            capabilities:
+              - streaming
+              - pushNotifications
+            skills:
+              - rootCauseAnalysis
+              - remediation
+              - incidentCorrelation
+          transport:
+            type: a2a
+            a2a:
+              port: 8443
+              tlsSecretName: kagenti-cert
+          identity:
+            type: spire
+            spire:
+              trustDomain: kubernaut.dev
+              agentSocketPath: /run/spire/sockets/agent.sock

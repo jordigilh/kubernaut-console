@@ -1,0 +1,25 @@
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: ClusterManagementAddOn
+metadata:
+  name: kubernaut-agent
+  annotations:
+    addon.open-cluster-management.io/lifecycle: addon-manager
+spec:
+  displayName: Kubernaut Agent
+  description: |
+    Deploys the kagenti A2A agent for AI-powered incident response
+    on managed clusters. Requires SPIRE and kagenti-operator as
+    pre-installed infrastructure.
+  supportedConfigs:
+    - group: addon.open-cluster-management.io
+      resource: addondeploymentconfigs
+  installStrategy:
+    type: Placements
+    placements:
+      - name: kubernaut-agent-placement
+        namespace: open-cluster-management
+        configs:
+          - group: addon.open-cluster-management.io
+            resource: addondeploymentconfigs
+            name: kubernaut-agent-config
+            namespace: open-cluster-management

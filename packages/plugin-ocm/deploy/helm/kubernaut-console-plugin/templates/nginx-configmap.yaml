@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kubernaut-console-plugin.name" . }}-nginx
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "kubernaut-console-plugin.labels" . | nindent 4 }}
+data:
+  nginx.conf: |
+    error_log /dev/stderr;
+    events {}
+    http {
+      include /etc/nginx/mime.types;
+      default_type application/octet-stream;
+      access_log /dev/stdout;
+
+      server {
+        listen {{ .Values.plugin.port }} ssl;
+        ssl_certificate /var/cert/tls.crt;
+        ssl_certificate_key /var/cert/tls.key;
+
+        root /usr/share/nginx/html;
+
+        location / {
+          try_files $uri $uri/ =404;
+          add_header Cache-Control "no-cache, no-store, must-revalidate";
+        }
+
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+          expires 1y;
+          add_header Cache-Control "public, immutable";
+        }
+      }
+    }

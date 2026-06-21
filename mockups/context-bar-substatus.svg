@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 56" width="800" height="56">
+  <defs>
+    <linearGradient id="headerBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1a4a4a"/>
+      <stop offset="100%" stop-color="#1d4e4e"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="56" fill="url(#headerBg)" rx="0"/>
+
+  <!-- Remediation ID -->
+  <text x="20" y="20" font-family="system-ui, sans-serif" font-size="9" fill="#7ec8c8" font-weight="500" letter-spacing="0.5">REMEDIATION ID</text>
+  <text x="20" y="38" font-family="system-ui, sans-serif" font-size="12" fill="#ffffff">48dec870</text>
+
+  <!-- Separator 1 -->
+  <line x1="115" y1="12" x2="115" y2="44" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+
+  <!-- Namespace -->
+  <text x="130" y="20" font-family="system-ui, sans-serif" font-size="9" fill="#7ec8c8" font-weight="500" letter-spacing="0.5">NAMESPACE</text>
+  <text x="130" y="38" font-family="system-ui, sans-serif" font-size="12" fill="#ffffff">demo-webui</text>
+
+  <!-- Separator 2 -->
+  <line x1="230" y1="12" x2="230" y2="44" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+
+  <!-- Resource (without namespace) -->
+  <text x="245" y="20" font-family="system-ui, sans-serif" font-size="9" fill="#7ec8c8" font-weight="500" letter-spacing="0.5">RESOURCE</text>
+  <text x="245" y="38" font-family="system-ui, sans-serif" font-size="12" fill="#ffffff">ConfigMap/app-config</text>
+
+  <!-- Separator 3 -->
+  <line x1="410" y1="12" x2="410" y2="44" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+
+  <!-- Phase with sub-status -->
+  <circle cx="430" cy="30" r="5" fill="#5eead4">
+    <animate attributeName="opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <text x="443" y="34" font-family="system-ui, sans-serif" font-size="12" fill="#ffffff" font-weight="500">Verifying</text>
+  <text x="502" y="34" font-family="system-ui, sans-serif" font-size="11" fill="rgba(255,255,255,0.7)"> � Stabilizing (24s)</text>
+</svg>

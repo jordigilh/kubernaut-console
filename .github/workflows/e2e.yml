@@ -1,0 +1,54 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Install Playwright
+        run: npx playwright install chromium --with-deps
+
+      - name: Bundle Backstage plugin
+        run: pnpm --filter @kubernaut/plugin-backstage bundle
+
+      - name: Run structural E2E (Backstage + OCM)
+        run: npx playwright test e2e/backstage.spec.ts e2e/ocm.spec.ts
+
+      - name: Run standalone E2E
+        run: VITE_MOCK_A2A=true npx playwright test e2e/standalone.spec.ts
+        env:
+          CI: true
+
+      - name: Run accessibility E2E
+        run: VITE_MOCK_A2A=true npx playwright test e2e/accessibility.spec.ts
+        env:
+          CI: true
+
+      - name: Bundle size check
+        run: ./scripts/bundle-size.sh
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

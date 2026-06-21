@@ -1,0 +1,167 @@
+name: Visual Regression
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      regenerate:
+        description: "Force baseline regeneration and push to OCI"
+        type: boolean
+        default: false
+
+env:
+  BASELINES_REGISTRY: quay.io/kubernaut-cicd/visual-baselines
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.61.0-noble
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install oras
+        run: |
+          apt-get update && apt-get install -y curl
+          curl -LO https://github.com/oras-project/oras/releases/download/v1.2.2/oras_1.2.2_linux_amd64.tar.gz
+          tar -xzf oras_1.2.2_linux_amd64.tar.gz -C /usr/local/bin oras
+          rm oras_1.2.2_linux_amd64.tar.gz
+
+      - name: Pull baselines
+        id: baselines
+        if: ${{ inputs.regenerate != true }}
+        run: |
+          BRANCH_TAG="branch-${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          BRANCH_TAG=$(echo "$BRANCH_TAG" | sed 's/[^a-zA-Z0-9._-]/-/g')
+          mkdir -p e2e/visual.spec.ts-snapshots
+
+          # Try branch-specific baselines first, then :latest
+          if oras pull "$BASELINES_REGISTRY:$BRANCH_TAG" -o e2e/visual.spec.ts-snapshots 2>/dev/null; then
+            echo "source=$BRANCH_TAG" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          elif oras pull "$BASELINES_REGISTRY:latest" -o e2e/visual.spec.ts-snapshots 2>/dev/null; then
+            echo "source=latest" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No baselines found. Running in update mode."
+          fi
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Build Storybook
+        run: pnpm run build-storybook
+
+      - name: Start Storybook server
+        run: npx http-server storybook-static -p 6006 -s &
+
+      - name: Wait for server
+        run: npx wait-on http://localhost:6006/iframe.html --timeout 30000
+
+      - name: Run visual regression tests
+        if: steps.baselines.outputs.found == 'true' && inputs.regenerate != true
+        run: npx playwright test e2e/visual.spec.ts
+
+      - name: Generate baselines
+        if: steps.baselines.outputs.found == 'false' || inputs.regenerate == true
+        run: npx playwright test e2e/visual.spec.ts --update-snapshots
+
+      - name: Login to Quay.io
+        if: inputs.regenerate == true
+        run: echo "${{ secrets.QUAY_CICD_PASSWORD }}" | oras login quay.io --username "${{ secrets.QUAY_CICD_USERNAME }}" --password-stdin
+
+      - name: Push baselines to OCI
+        if: inputs.regenerate == true
+        run: |
+          BRANCH_TAG="branch-${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          BRANCH_TAG=$(echo "$BRANCH_TAG" | sed 's/[^a-zA-Z0-9._-]/-/g')
+          cd e2e/visual.spec.ts-snapshots
+          oras push "$BASELINES_REGISTRY:$BRANCH_TAG" \
+            --artifact-type application/vnd.kubernaut.visual-baselines.v1 \
+            ./:application/vnd.kubernaut.visual-baselines.layer.v1.tar
+          echo "::notice::Baselines pushed to $BASELINES_REGISTRY:$BRANCH_TAG"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-snapshots
+          path: e2e/visual.spec.ts-snapshots/
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: visual-diffs
+          path: |
+            test-results/**/*-diff.png
+            test-results/**/*-actual.png
+          retention-days: 7
+
+  push-baselines:
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || inputs.regenerate == true
+    needs: [visual]
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.61.0-noble
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install oras
+        run: |
+          apt-get update && apt-get install -y curl
+          curl -LO https://github.com/oras-project/oras/releases/download/v1.2.2/oras_1.2.2_linux_amd64.tar.gz
+          tar -xzf oras_1.2.2_linux_amd64.tar.gz -C /usr/local/bin oras
+          rm oras_1.2.2_linux_amd64.tar.gz
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Build Storybook
+        run: pnpm run build-storybook
+
+      - name: Start Storybook server
+        run: npx http-server storybook-static -p 6006 -s &
+
+      - name: Wait for server
+        run: npx wait-on http://localhost:6006/iframe.html --timeout 30000
+
+      - name: Generate baselines
+        run: npx playwright test e2e/visual.spec.ts --update-snapshots
+
+      - name: Login to Quay.io
+        run: echo "${{ secrets.QUAY_CICD_PASSWORD }}" | oras login quay.io --username "${{ secrets.QUAY_CICD_USERNAME }}" --password-stdin
+
+      - name: Push baselines
+        run: |
+          cd e2e/visual.spec.ts-snapshots
+          SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
+          oras push "$BASELINES_REGISTRY:latest" \
+            --artifact-type application/vnd.kubernaut.visual-baselines.v1 \
+            ./:application/vnd.kubernaut.visual-baselines.layer.v1.tar
+          oras push "$BASELINES_REGISTRY:sha-$SHORT_SHA" \
+            --artifact-type application/vnd.kubernaut.visual-baselines.v1 \
+            ./:application/vnd.kubernaut.visual-baselines.layer.v1.tar

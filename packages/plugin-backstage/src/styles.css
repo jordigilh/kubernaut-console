@@ -1,0 +1,24 @@
+/*
+ * Scoped PF6 styles for the Kubernaut Backstage plugin.
+ *
+ * PF6 component classes (.pf-v6-*) are namespaced and don't conflict with
+ * Backstage UI (BUI) or MUI. We scope base resets under .kubernaut-plugin-root
+ * to prevent PF6 global resets from affecting the host.
+ */
+@import "@patternfly/react-core/dist/styles/base.css";
+@import "@patternfly/chatbot/dist/css/main.css";
+
+.kubernaut-plugin-root {
+  all: initial;
+  display: block;
+  font-family: var(--pf-t--global--font--family--body);
+  color: var(--pf-t--global--text--color--regular);
+  line-height: var(--pf-t--global--font--line-height--body);
+  height: 100%;
+}
+
+.kubernaut-plugin-root *,
+.kubernaut-plugin-root *::before,
+.kubernaut-plugin-root *::after {
+  box-sizing: border-box;
+}

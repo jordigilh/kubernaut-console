@@ -1,0 +1,7 @@
+FROM registry.access.redhat.com/ubi9/nginx-126:1
+
+COPY dist/ /usr/share/nginx/html/
+
+USER 1001
+EXPOSE 9443
+CMD ["nginx", "-g", "daemon off;"]

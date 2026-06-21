@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="52" viewBox="0 0 960 52">
+  <!-- Background -->
+  <rect width="960" height="52" rx="0" fill="#006064"/>
+
+  <!-- Remediation ID field -->
+  <text x="16" y="18" font-family="Red Hat Text, sans-serif" font-size="9" font-weight="500" letter-spacing="0.5" fill="#80CBC4" text-transform="uppercase">REMEDIATION ID</text>
+  <text x="16" y="36" font-family="Red Hat Text, sans-serif" font-size="13" fill="#FFFFFF">48dec870</text>
+
+  <!-- Separator 1 -->
+  <rect x="110" y="12" width="1" height="28" fill="rgba(0,151,167,0.4)"/>
+
+  <!-- Alert field -->
+  <text x="124" y="18" font-family="Red Hat Text, sans-serif" font-size="9" font-weight="500" letter-spacing="0.5" fill="#80CBC4">ALERT</text>
+  <text x="124" y="36" font-family="Red Hat Text, sans-serif" font-size="13" fill="#FFFFFF">CertificateExpiring</text>
+
+  <!-- Separator 2 -->
+  <rect x="268" y="12" width="1" height="28" fill="rgba(0,151,167,0.4)"/>
+
+  <!-- Namespace field -->
+  <text x="282" y="18" font-family="Red Hat Text, sans-serif" font-size="9" font-weight="500" letter-spacing="0.5" fill="#80CBC4">NAMESPACE</text>
+  <text x="282" y="36" font-family="Red Hat Text, sans-serif" font-size="13" fill="#FFFFFF">demo-portal</text>
+
+  <!-- Separator 3 -->
+  <rect x="380" y="12" width="1" height="28" fill="rgba(0,151,167,0.4)"/>
+
+  <!-- Signal Target field -->
+  <text x="394" y="18" font-family="Red Hat Text, sans-serif" font-size="9" font-weight="500" letter-spacing="0.5" fill="#80CBC4">SIGNAL TARGET</text>
+  <text x="394" y="36" font-family="Red Hat Text, sans-serif" font-size="13" fill="#FFFFFF">Certificate/demo-app-cert</text>
+
+  <!-- Arrow -->
+  <text x="580" y="34" font-family="Red Hat Text, sans-serif" font-size="16" font-weight="700" fill="#FBBF24">�</text>
+
+  <!-- Root Cause field (highlighted) -->
+  <rect x="604" y="8" width="2" height="36" rx="1" fill="#FBBF24"/>
+  <text x="616" y="18" font-family="Red Hat Text, sans-serif" font-size="9" font-weight="500" letter-spacing="0.5" fill="#FBBF24">ROOT CAUSE</text>
+  <text x="616" y="36" font-family="Red Hat Text, sans-serif" font-size="13" fill="#FFFFFF">ClusterIssuer/demo-selfsigned-ca</text>
+
+  <!-- Separator 4 -->
+  <rect x="822" y="12" width="1" height="28" fill="rgba(0,151,167,0.4)"/>
+
+  <!-- Phase indicator -->
+  <circle cx="844" cy="27" r="4" fill="#4ADE80"/>
+  <text x="856" y="32" font-family="Red Hat Text, sans-serif" font-size="12" fill="#FFFFFF">Investigating</text>
+</svg>

@@ -1,0 +1,22 @@
+[
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/kubernaut",
+      "component": {
+        "$codeRef": "KubernautPage"
+      }
+    }
+  },
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "kubernaut",
+      "name": "Kubernaut",
+      "href": "/kubernaut",
+      "perspective": "admin",
+      "section": "observe"
+    }
+  }
+]

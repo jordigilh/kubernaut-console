@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="300" viewBox="0 0 960 300">
+  <defs>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-opacity="0.1"/>
+    </filter>
+  </defs>
+
+  <!-- HEADER BAR -->
+  <rect width="960" height="48" fill="#0097A7"/>
+  <rect x="12" y="10" width="28" height="28" rx="6" fill="#1a1a2e"/>
+  <text x="50" y="31" font-family="sans-serif" font-size="15" font-weight="600" fill="#FFFFFF">Kubernaut Console</text>
+  <circle cx="195" cy="26" r="2" fill="rgba(255,255,255,0.4)"/>
+  <circle cx="210" cy="26" r="4" fill="#4ADE80"/>
+  <text x="220" y="30" font-family="sans-serif" font-size="12" fill="rgba(255,255,255,0.9)">Investigating</text>
+  <rect x="300" y="16" width="96" height="20" rx="10" fill="rgba(255,255,255,0.15)"/>
+  <text x="310" y="30" font-family="monospace" font-size="11" fill="#FFFFFF">rr-48dec870</text>
+  <circle cx="920" cy="24" r="14" fill="rgba(255,255,255,0.2)"/>
+  <text x="913" y="29" font-family="sans-serif" font-size="11" font-weight="600" fill="#FFFFFF">AD</text>
+
+  <!-- Label -->
+  <text x="16" y="72" font-family="sans-serif" font-size="10" fill="#888">Collapsed: phase + RR badge in header. Click badge to expand.</text>
+
+  <!-- POPOVER -->
+  <text x="16" y="100" font-family="sans-serif" font-size="10" fill="#888">Expanded popover (on badge click):</text>
+
+  <rect x="200" y="110" width="440" height="180" rx="8" fill="#FFFFFF" filter="url(#shadow)" stroke="#E0E0E0" stroke-width="1"/>
+
+  <text x="220" y="136" font-family="sans-serif" font-size="13" font-weight="600" fill="#151515">Investigation Context</text>
+  <circle cx="400" cy="132" r="4" fill="#4ADE80"/>
+  <text x="408" y="136" font-family="sans-serif" font-size="11" fill="#6A6E73">Investigating</text>
+
+  <line x1="220" y1="148" x2="620" y2="148" stroke="#EBEBEB" stroke-width="1"/>
+
+  <text x="220" y="168" font-family="sans-serif" font-size="10" fill="#6A6E73">Remediation</text>
+  <text x="320" y="168" font-family="monospace" font-size="11" fill="#151515">rr-48dec870-f2a1-4c3b-9e77-1a2b3c4d5e6f</text>
+
+  <text x="220" y="192" font-family="sans-serif" font-size="10" fill="#6A6E73">Alert</text>
+  <text x="320" y="192" font-family="sans-serif" font-size="11" fill="#151515">CertificateExpiring</text>
+
+  <text x="220" y="216" font-family="sans-serif" font-size="10" fill="#6A6E73">Cluster</text>
+  <text x="320" y="216" font-family="sans-serif" font-size="11" fill="#151515">dev-01.redhat-internal.com</text>
+
+  <line x1="220" y1="228" x2="620" y2="228" stroke="#EBEBEB" stroke-width="1"/>
+
+  <text x="220" y="248" font-family="sans-serif" font-size="10" fill="#6A6E73">Signal</text>
+  <text x="320" y="248" font-family="sans-serif" font-size="11" fill="#151515">demo-portal/Certificate/demo-app-cert</text>
+
+  <rect x="216" y="258" width="416" height="22" rx="3" fill="#FFFBEB"/>
+  <text x="220" y="274" font-family="sans-serif" font-size="10" font-weight="500" fill="#D97706">RCA Target</text>
+  <text x="320" y="274" font-family="sans-serif" font-size="11" font-weight="500" fill="#92400E">demo-portal/ClusterIssuer/demo-selfsigned-ca</text>
+</svg>

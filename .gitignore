@@ -8,9 +8,12 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+.pnpm-store
 dist
 dist-ssr
+dist-dynamic
 *.local
+.turbo
 
 # Environment
 .env
@@ -29,3 +32,10 @@ dist-ssr
 
 # Recording frames
 assets/recording/
+
+*storybook.log
+storybook-static
+test-results/
+playwright-report/
+e2e/visual.spec.ts-snapshots/
+coverage/

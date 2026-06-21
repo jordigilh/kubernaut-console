@@ -108,6 +108,17 @@ spec:
           volumeMounts:
             - name: nginx-tmp
               mountPath: /tmp
+            - name: nginx-config
+              mountPath: /opt/app-root/etc/nginx.d/kubernaut-http.conf
+              subPath: http.conf
+              readOnly: true
+            - name: nginx-config
+              mountPath: /opt/app-root/etc/nginx.default.d/kubernaut-server.conf
+              subPath: server.conf
+              readOnly: true
       volumes:
         - name: nginx-tmp
           emptyDir: {}
+        - name: nginx-config
+          configMap:
+            name: {{ include "kubernaut-console.fullname" . }}-nginx

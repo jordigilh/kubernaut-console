@@ -1,0 +1,11 @@
+{{- if .Values.enablePlugin }}
+apiVersion: console.operator.openshift.io/v1
+kind: Console
+metadata:
+  name: cluster
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  plugins:
+    - {{ include "kubernaut-console-plugin.name" . }}
+{{- end }}
