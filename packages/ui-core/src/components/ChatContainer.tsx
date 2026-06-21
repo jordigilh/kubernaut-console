@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState, useCallback, type FormEvent, type KeyboardEvent } from "react";
+import { useContext, useEffect, useRef, useState, useCallback, useMemo, type FormEvent, type KeyboardEvent } from "react";
 import { useChat, type ChatMessage, type ApprovalRequest } from "../hooks/useChat";
 import { useRRStatus } from "../hooks/useRRStatus";
-import { useUser } from "../hooks/useUser";
-import { callMcpTool } from "../lib/mcp-client";
+import { callMcpTool, type McpClientOptions } from "../lib/mcp-client";
 import { emitAuditEvent } from "../lib/audit";
 import { isPastDecisionPhase, isWorkflowResolved, markWorkflowResolved } from "../lib/session-state";
 import { isInvestigationEngaged } from "../lib/query-intent";
 import { maxChatPhase } from "../lib/phase-rank";
+import { AuthContext } from "../providers/auth";
+import { ConfigContext } from "../providers/config";
 import { UserBubble } from "./UserBubble";
 import { AgentBubble } from "./AgentBubble";
 import { InvestigationContext } from "./InvestigationContext";
@@ -49,7 +50,13 @@ export function ChatContainer() {
     ?? (statusMetadata?.resource as string | undefined);
   const cluster = (statusMetadata?.cluster as string | undefined);
   const recoverySignal = messages.findLast(m => m.role === "agent" && m.recoverySignal)?.recoverySignal ?? null;
-  const user = useUser();
+  const authCtx = useContext(AuthContext);
+  const configCtx = useContext(ConfigContext);
+  const user = authCtx?.user ?? { name: "", email: "", initials: "??" };
+  const mcpOptions: McpClientOptions = useMemo(() => ({
+    baseUrl: configCtx?.backendUrl,
+    getToken: authCtx?.provider ? () => authCtx.provider.getToken() : undefined,
+  }), [configCtx, authCtx]);
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -88,7 +95,7 @@ export function ChatContainer() {
     if (!rarName || approvalFetchedRef.current === rarName) return;
     approvalFetchedRef.current = rarName;
 
-    callMcpTool("kubernaut_get_approval_request", { rar_id: rarName }).then((res) => {
+    callMcpTool("kubernaut_get_approval_request", { rar_id: rarName }, mcpOptions).then((res) => {
       if (res.error) {
         setApprovalDenied(true);
         return;
@@ -136,7 +143,7 @@ export function ChatContainer() {
         }];
       });
     });
-  }, [statusPhase, statusMetadata, setMessages]);
+  }, [statusPhase, statusMetadata, setMessages, mcpOptions]);
 
   useEffect(() => {
     if (statusPhase && PHASE_MAP[statusPhase]) {
@@ -190,7 +197,7 @@ export function ChatContainer() {
       const res = await callMcpTool("kubernaut_select_workflow", {
         rr_id: rrId,
         workflow_id: workflowId,
-      });
+      }, mcpOptions);
       if (res.error) {
         setError(res.error.message);
         return;
@@ -204,7 +211,7 @@ export function ChatContainer() {
       }
       emitAuditEvent({ action: "execute_workflow", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { workflowId } });
     },
-    [rrId, workflowActionTaken, setCurrentPhase, setError, user.name, user.email],
+    [rrId, workflowActionTaken, setCurrentPhase, setError, user.name, user.email, mcpOptions],
   );
 
   const handleApprove = useCallback(
@@ -213,7 +220,7 @@ export function ChatContainer() {
         rar_name: rarName,
         decision: "Approved",
         reason,
-      });
+      }, mcpOptions);
       if (res.error) {
         setError(res.error.message);
         return;
@@ -225,7 +232,7 @@ export function ChatContainer() {
       ));
       emitAuditEvent({ action: "approve", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { rarName, reason } });
     },
-    [setMessages, setError, rrId, user.name, user.email],
+    [setMessages, setError, rrId, user.name, user.email, mcpOptions],
   );
 
   const handleDecline = useCallback(
@@ -234,7 +241,7 @@ export function ChatContainer() {
         rar_name: rarName,
         decision: "Rejected",
         reason,
-      });
+      }, mcpOptions);
       if (res.error) {
         setError(res.error.message);
         return;
@@ -247,7 +254,7 @@ export function ChatContainer() {
       setCurrentPhase("failed");
       emitAuditEvent({ action: "decline", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { rarName, reason } });
     },
-    [setMessages, setCurrentPhase, setError, rrId, user.name, user.email],
+    [setMessages, setCurrentPhase, setError, rrId, user.name, user.email, mcpOptions],
   );
 
   const handleDismiss = useCallback(
@@ -263,7 +270,7 @@ export function ChatContainer() {
       const res = await callMcpTool("kubernaut_complete_no_action", {
         rr_id: rrId,
         reason: "Dismissed by operator: no action needed",
-      });
+      }, mcpOptions);
       if (res.error) {
         setError(res.error.message);
         return;
@@ -278,7 +285,7 @@ export function ChatContainer() {
       setCurrentPhase("complete");
       emitAuditEvent({ action: "dismiss", timestamp: new Date().toISOString(), user: user.name || user.email, rrId });
     },
-    [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, user.name, user.email],
+    [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, user.name, user.email, mcpOptions],
   );
 
   const handleEscalate = useCallback(async (reason: string) => {
@@ -294,7 +301,7 @@ export function ChatContainer() {
       rr_id: rrId,
       reason: "Escalated by operator",
       escalation_reason: reason,
-    });
+    }, mcpOptions);
     if (res.error) {
       setError(res.error.message);
       return;
@@ -308,7 +315,7 @@ export function ChatContainer() {
     }]);
     setCurrentPhase("complete");
     emitAuditEvent({ action: "escalate", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { escalation_reason: reason } });
-  }, [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, user.name, user.email]);
+  }, [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, user.name, user.email, mcpOptions]);
 
   const handleClearHistory = useCallback(() => {
     if (messages.length === 0) {
@@ -344,6 +351,12 @@ export function ChatContainer() {
         )}
         {effectiveRrId && statusConnection === "not_found" && (
           <span style={{ fontSize: "0.75rem", color: "#fecaca" }} role="status">Status unavailable</span>
+        )}
+        {connectionStatus === "reconnecting" && (
+          <span style={{ fontSize: "0.75rem", color: "#fef08a", animation: "kn-pulse 2s infinite" }} role="status">Chat reconnecting...</span>
+        )}
+        {connectionStatus === "lost" && (
+          <span style={{ fontSize: "0.75rem", color: "#fecaca" }} role="status">Chat connection lost</span>
         )}
         <button
           type="button"
@@ -411,6 +424,8 @@ export function ChatContainer() {
       {/* Live status announcements (screen reader only) */}
       <div aria-live="polite" aria-atomic="true" className="kn-sr-only">
         {isStreaming && "Agent is responding"}
+        {connectionStatus === "reconnecting" && "Chat stream reconnecting"}
+        {connectionStatus === "lost" && "Chat connection lost"}
         {effectiveRrId && statusConnection === "reconnecting" && "Status stream reconnecting"}
         {effectiveRrId && statusConnection === "error" && "Status stream lost"}
         {effectiveRrId && statusConnection === "not_found" && "Status unavailable"}

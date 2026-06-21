@@ -43,24 +43,28 @@ function makeMockConfig(overrides?: Partial<KubernautConfig>): KubernautConfig {
 }
 
 describe("KubernautChat", () => {
-  it("UT-CONSOLE-KC-001: renders ChatContainer when given valid props", () => {
+  it("UT-CONSOLE-KC-001: renders ChatContainer when given valid props", async () => {
     render(
       <KubernautChat
         authProvider={makeMockAuthProvider()}
         config={makeMockConfig()}
       />,
     );
-    expect(screen.getByTestId("chat-container")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-container")).toBeInTheDocument();
+    });
   });
 
-  it("UT-CONSOLE-KC-002: provides config context with backendUrl to children", () => {
+  it("UT-CONSOLE-KC-002: provides config context with backendUrl to children", async () => {
     render(
       <KubernautChat
         authProvider={makeMockAuthProvider()}
         config={makeMockConfig({ backendUrl: "https://my-backend.test/api" })}
       />,
     );
-    expect(screen.getByTestId("ctx-backend-url")).toHaveTextContent("https://my-backend.test/api");
+    await waitFor(() => {
+      expect(screen.getByTestId("ctx-backend-url")).toHaveTextContent("https://my-backend.test/api");
+    });
   });
 
   it("UT-CONSOLE-KC-003: provides auth context with user after provider resolves", async () => {
@@ -91,20 +95,22 @@ describe("KubernautChat", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("ctx-error")).toHaveTextContent("token expired");
+      expect(screen.getByRole("alert")).toBeInTheDocument();
     });
-    expect(screen.getByTestId("ctx-loading")).toHaveTextContent("false");
-    expect(screen.getByTestId("ctx-user")).toHaveTextContent("none");
+    expect(screen.getByText("Authentication Error")).toBeInTheDocument();
+    expect(screen.getByText("token expired")).toBeInTheDocument();
   });
 
-  it("UT-CONSOLE-KC-005: auth context exposes the authProvider instance", () => {
+  it("UT-CONSOLE-KC-005: auth context exposes the authProvider instance", async () => {
     render(
       <KubernautChat
         authProvider={makeMockAuthProvider()}
         config={makeMockConfig()}
       />,
     );
-    expect(screen.getByTestId("ctx-has-provider")).toHaveTextContent("yes");
+    await waitFor(() => {
+      expect(screen.getByTestId("ctx-has-provider")).toHaveTextContent("yes");
+    });
   });
 
   it("UT-CONSOLE-KC-006: isLoading is true while getUser is pending", () => {
@@ -119,11 +125,11 @@ describe("KubernautChat", () => {
       />,
     );
 
-    expect(screen.getByTestId("ctx-loading")).toHaveTextContent("true");
-    expect(screen.getByTestId("ctx-user")).toHaveTextContent("none");
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.getByText("Authenticating...")).toBeInTheDocument();
   });
 
-  it("UT-CONSOLE-KC-007: config context propagates custom fetchFn", () => {
+  it("UT-CONSOLE-KC-007: config context propagates custom fetchFn", async () => {
     const customFetch = vi.fn().mockResolvedValue(new Response("ok"));
 
     render(
@@ -133,10 +139,12 @@ describe("KubernautChat", () => {
       />,
     );
 
-    expect(screen.getByTestId("ctx-has-fetch")).toHaveTextContent("yes");
+    await waitFor(() => {
+      expect(screen.getByTestId("ctx-has-fetch")).toHaveTextContent("yes");
+    });
   });
 
-  it("UT-CONSOLE-KC-008: config context has no fetchFn when not provided", () => {
+  it("UT-CONSOLE-KC-008: config context has no fetchFn when not provided", async () => {
     render(
       <KubernautChat
         authProvider={makeMockAuthProvider()}
@@ -144,6 +152,8 @@ describe("KubernautChat", () => {
       />,
     );
 
-    expect(screen.getByTestId("ctx-has-fetch")).toHaveTextContent("no");
+    await waitFor(() => {
+      expect(screen.getByTestId("ctx-has-fetch")).toHaveTextContent("no");
+    });
   });
 });

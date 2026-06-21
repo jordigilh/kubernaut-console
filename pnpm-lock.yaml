@@ -11,6 +11,7 @@ overrides:
   '@types/react-dom': ^19.2.0
   dompurify: '>=3.4.11'
   js-cookie: '>=3.0.6'
+  undici: '>=7.28.0'
 
 importers:
 
@@ -9970,10 +9971,6 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
-  undici@7.24.7:
-    resolution: {integrity: sha512-H/nlJ/h0ggGC+uRL3ovD+G0i4bqhvsDOpbDv7At5eFLlj2b41L8QliGbnl2H7SnDiYhENphh1tQFJZf+MyfLsQ==}
-    engines: {node: '>=20.18.1'}
-
   undici@7.28.0:
     resolution: {integrity: sha512-cRZYrTDwWznlnRiPjggAGxZXanty6M8RV1ff8Wm4LWXBp7/IG8v5DnOm74DtUBp9OONpK75YlPnIjQqX0dBDtA==}
     engines: {node: '>=20.18.1'}
@@ -12991,7 +12988,7 @@ snapshots:
       isomorphic-ws: 5.0.0(ws@8.21.0)
       node-schedule: 2.1.1
       typescript: 6.0.3
-      undici: 7.24.7
+      undici: 7.28.0
       ws: 8.21.0
     transitivePeerDependencies:
       - bufferutil
@@ -22674,8 +22671,6 @@ snapshots:
       which-boxed-primitive: 1.1.1
 
   undici-types@7.18.2: {}
-
-  undici@7.24.7: {}
 
   undici@7.28.0: {}
 
