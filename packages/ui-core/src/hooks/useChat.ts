@@ -742,9 +742,15 @@ export function useChat() {
       return;
     }
 
+    let token: string | undefined;
+    try {
+      token = authCtx?.provider ? await authCtx.provider.getToken() : undefined;
+    } catch { /* proceed without token */ }
+
     await streamA2A(request, {
       baseUrl: configCtx?.backendUrl,
       fetchFn: configCtx?.fetchFn,
+      token,
       onEvent: handleEvent,
       onError: (err) => {
         setError(friendlyError(err.message));
@@ -767,7 +773,7 @@ export function useChat() {
       },
       signal: controller.signal,
     });
-  }, []);
+  }, [authCtx, configCtx]);
 
   const cancelStream = useCallback(() => {
     abortRef.current?.abort();
