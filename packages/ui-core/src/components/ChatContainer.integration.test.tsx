@@ -1359,4 +1359,125 @@ describe("ChatContainer Integration", () => {
 
     fetchSpy.mockRestore();
   });
+
+  it("resets phase when a new rr_id arrives after a failed investigation", async () => {
+    // Simulate first investigation that ends in failure
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      const { onEvent, onComplete } = opts;
+      const taskId = "task-fail-1";
+      const contextId = "ctx-fail-1";
+
+      onEvent?.({
+        kind: "status-update",
+        taskId,
+        contextId,
+        status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Investigating..." }] } },
+        metadata: { rr_id: "rr-first-001", phase: "Investigating" },
+      });
+
+      onEvent?.({
+        kind: "status-update",
+        taskId,
+        contextId,
+        status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Failed" }] } },
+        metadata: { rr_id: "rr-first-001", phase: "Failed" },
+      });
+
+      onComplete?.();
+    });
+
+    const { container } = render(<ChatContainer />);
+    const input = container.querySelector("textarea")!;
+
+    // Send first message -> triggers failed investigation
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate alert X" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+    });
+
+    // Phase should now show "Failed"
+    await waitFor(() => {
+      const indicator = screen.getByTestId("phase-indicator");
+      expect(indicator.textContent).toContain("Failed");
+    });
+
+    // Advance time to bypass 500ms rate limit
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+
+    // Simulate second investigation with a NEW rr_id
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      const { onEvent, onComplete } = opts;
+      const taskId = "task-recover-2";
+      const contextId = "ctx-recover-2";
+
+      onEvent?.({
+        kind: "status-update",
+        taskId,
+        contextId,
+        status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Investigating new alert..." }] } },
+        metadata: { rr_id: "rr-second-002", phase: "Investigating" },
+      });
+
+      onEvent?.({
+        kind: "artifact-update",
+        taskId,
+        contextId,
+        artifact: {
+          artifactId: "inv-summary-recover",
+          metadata: { schema: "investigation_summary" },
+          parts: [{
+            kind: "data",
+            data: {
+              session_id: "sess-recover",
+              rr_id: "rr-second-002",
+              signal_name: "HighMemoryUsage",
+              summary: "Memory leak in worker process.",
+              rca: {
+                severity: "high",
+                confidence: 0.88,
+                causal_chain: ["High memory usage detected"],
+                target: "Pod/worker-abc123",
+              },
+              options: [
+                { workflow_id: "restart_pod", name: "Restart Pod", description: "Restart the worker pod", risk: "low", recommended: true },
+                { workflow_id: "scale_up", name: "Scale Up", description: "Add replicas", risk: "medium", recommended: false },
+              ],
+            },
+          }],
+        },
+      });
+
+      onEvent?.({
+        kind: "status-update",
+        taskId,
+        contextId,
+        status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Decision time" }] } },
+        metadata: { rr_id: "rr-second-002", phase: "AwaitingApproval" },
+      });
+
+      onComplete?.();
+    });
+
+    // Send second message -> triggers new investigation
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate alert Y" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+    });
+
+    // Phase should reset and workflow buttons should be enabled
+    await waitFor(() => {
+      const buttons = screen.getAllByRole("button");
+      const workflowBtn = buttons.find(b => b.textContent?.includes("restart_pod") || b.textContent?.includes("scale_up"));
+      expect(workflowBtn).toBeDefined();
+      expect(workflowBtn).not.toBeDisabled();
+    });
+  });
 });
