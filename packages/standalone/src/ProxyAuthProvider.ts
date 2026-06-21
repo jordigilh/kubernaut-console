@@ -1,5 +1,7 @@
 import type { KubernautAuthProvider, KubernautUser } from "@kubernaut/ui-core";
 
+const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
+
 /**
  * Auth provider for oauth2-proxy mode. Token acquisition is a no-op since
  * the reverse proxy injects auth headers. User info is fetched from the
@@ -11,6 +13,10 @@ export class ProxyAuthProvider implements KubernautAuthProvider {
   }
 
   async getUser(): Promise<KubernautUser> {
+    if (USE_MOCK) {
+      return { name: "Dev User", email: "dev@localhost", initials: "DU" };
+    }
+
     const res = await fetch("/oauth2/userinfo");
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) {

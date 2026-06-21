@@ -106,7 +106,7 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
           signal: controller.signal,
           idleTimeoutMs: 300_000,
           baseUrl: configCtx?.backendUrl,
-          fetchFn: configCtx?.fetchFn,
+          fetchFn: configCtx?.fetchFn as typeof fetch | undefined,
           token,
         });
       };
