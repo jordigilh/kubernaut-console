@@ -1,4 +1,4 @@
-# Kubernaut Demo Console
+# Kubernaut Console
 
 [![CI](https://github.com/jordigilh/kubernaut-demo-console/actions/workflows/ci.yml/badge.svg)](https://github.com/jordigilh/kubernaut-demo-console/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
