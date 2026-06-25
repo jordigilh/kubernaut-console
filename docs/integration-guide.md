@@ -333,8 +333,9 @@ Approve or decline a remediation approval request.
   "params": {
     "name": "kubernaut_approve",
     "arguments": {
-      "rr_id": "rr-47ec5289",
-      "decision": "approved"
+      "rar_name": "kubernaut-system/rar-rr-47ec5289",
+      "decision": "Approved",
+      "reason": "Reviewed and approved by operator"
     }
   }
 }
@@ -342,8 +343,9 @@ Approve or decline a remediation approval request.
 
 | Argument | Type | Values | Description |
 |----------|------|--------|-------------|
-| `rr_id` | string | — | Remediation Request ID |
-| `decision` | string | `"approved"` \| `"declined"` | User decision |
+| `rar_name` | string | — | RAR name (`namespace/name` from status metadata) |
+| `decision` | string | `"Approved"` \| `"Rejected"` | User decision |
+| `reason` | string | — | Human-readable justification |
 
 #### kubernaut_complete_no_action
 
