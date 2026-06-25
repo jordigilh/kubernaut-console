@@ -5,7 +5,7 @@ This document covers local development setup, mock mode, testing strategy, and c
 ## Prerequisites
 
 - Node.js 22+ (LTS)
-- npm 10+
+- pnpm 11+ (`corepack enable && corepack prepare pnpm@11 --activate`)
 - Git
 - (Optional) kubectl + Kind cluster for integration testing
 
@@ -17,13 +17,13 @@ git clone https://github.com/jordigilh/kubernaut-demo-console.git
 cd kubernaut-demo-console
 
 # Install dependencies
-npm install
+pnpm install
 
 # Install pre-commit hooks (sensitive data detection)
 ./scripts/setup-githooks.sh
 
 # Start development server
-npm run dev
+pnpm dev
 ```
 
 The dev server starts at `http://localhost:5173` with hot module replacement.
@@ -47,17 +47,17 @@ Requires a running API Frontend. Port-forward from a Kind cluster:
 kubectl port-forward -n kubernaut-system svc/apifrontend-service 8443:8443
 ```
 
-Then `npm run dev` — the Vite proxy routes `/a2a/`, `/mcp`, and `/.well-known/` to `localhost:8443`.
+Then `pnpm dev` — the Vite proxy routes `/a2a/`, `/mcp`, and `/.well-known/` to `localhost:8443`.
 
 ### Mock Mode
 
 For frontend-only development without a backend:
 
 ```bash
-VITE_MOCK_A2A=true npm run dev
+VITE_MOCK_A2A=true pnpm dev
 ```
 
-This uses `src/lib/a2a-mock.ts` which simulates:
+This uses `packages/ui-core/src/lib/a2a-mock.ts` which simulates:
 - SSE streaming with realistic delays
 - Investigation summary artifacts
 - Execution progress steps
@@ -69,12 +69,24 @@ Mock mode is useful for UI development, styling, and component testing.
 
 | Script | Command | Description |
 |--------|---------|-------------|
-| `dev` | `npm run dev` | Start Vite dev server with HMR |
-| `build` | `npm run build` | TypeScript check + production build |
-| `preview` | `npm run preview` | Preview production build locally |
-| `test` | `npm test` | Run all tests (Vitest) |
-| `test:watch` | `npm run test:watch` | Run tests in watch mode |
-| `lint` | `npm run lint` | ESLint check |
+| `dev` | `pnpm dev` | Start Vite dev server with HMR |
+| `build` | `pnpm build` | TypeScript check + production build (all packages) |
+| `test` | `pnpm test` | Run all tests via Turbo (Vitest) |
+| `lint` | `pnpm lint` | ESLint check |
+| `storybook` | `pnpm storybook` | Start Storybook dev server on port 6006 |
+| `test:visual` | `pnpm test:visual` | Run Playwright visual regression tests |
+
+## Project Structure
+
+This is a pnpm monorepo managed by Turborepo:
+
+```
+packages/
+  ui-core/       — Shared UI component library (@kubernaut/ui-core)
+  standalone/    — Standalone SPA wrapper (@kubernaut/standalone)
+  plugin-backstage/ — Backstage/RHDH frontend plugin
+  plugin-ocm/    — OCP/OCM dynamic console plugin
+```
 
 ## Testing
 
@@ -83,23 +95,27 @@ Mock mode is useful for UI development, styling, and component testing.
 - **Vitest** — Test runner (Jest-compatible API)
 - **Testing Library** — Component rendering and user interaction
 - **jsdom** — DOM environment for unit tests
+- **Playwright** — E2E and visual regression tests
 
 ### Test Structure
 
 ```
-src/
+packages/ui-core/src/
   components/
-    ChatContainer.integration.test.tsx  (IT tests)
-    WorkflowCards.test.tsx              (UT tests)
-    ApprovalCard.test.tsx               (UT tests)
+    ChatContainer.integration.test.tsx      (IT tests)
+    ChatContainer.status-stream.test.tsx     (IT tests — dual-channel status)
+    WorkflowCards.test.tsx                   (UT tests)
+    ApprovalCard.test.tsx                    (UT tests)
     ...
   hooks/
-    useChat.test.ts                     (UT tests)
-    useChat.integration.test.ts         (IT tests)
+    useChat.test.ts                         (UT tests)
+    useChat.integration.test.ts             (IT tests)
+    useRRStatus.test.ts                     (UT tests)
   lib/
-    a2a-client.test.ts                  (UT tests)
-    mcp-client.test.ts                  (UT tests)
-    audit.test.ts                       (UT tests)
+    a2a-client.test.ts                      (UT tests)
+    a2a-status-client.test.ts               (UT tests)
+    mcp-client.test.ts                      (UT tests)
+    audit.test.ts                           (UT tests)
 ```
 
 ### Test ID Convention
@@ -114,25 +130,25 @@ Tests are identified by scenario IDs:
 Examples:
 - `UT-CONSOLE-CHAT-016` — Unit test for phase parsing in useChat
 - `IT-CONSOLE-STATUS-META-001` — Integration test for metadata extraction
-- `IT-CONSOLE-JOURNEY-001` — End-to-end journey test
+- `IT-CONSOLE-BANNER-007` — Integration test for phase ratchet bypass
 
 ### Running Tests
 
 ```bash
-# Run all tests
-npm test
+# Run all tests (via Turbo — runs tests in ui-core and all packages)
+pnpm test
 
-# Run specific test file
-npx vitest run src/hooks/useChat.test.ts
+# Run a specific test file
+pnpm --filter @kubernaut/ui-core exec vitest run src/hooks/useChat.test.ts
 
 # Run tests matching a pattern
-npx vitest run --reporter=verbose -t "UT-CONSOLE-CHAT"
+pnpm --filter @kubernaut/ui-core exec vitest run --reporter=verbose -t "UT-CONSOLE-CHAT"
 
 # Watch mode (re-runs on file changes)
-npm run test:watch
+pnpm --filter @kubernaut/ui-core exec vitest --watch
 
-# Run with coverage (not configured in CI yet)
-npx vitest run --coverage
+# Run with coverage
+pnpm --filter @kubernaut/ui-core exec vitest run --coverage
 ```
 
 ### Test Coverage Areas
@@ -140,8 +156,10 @@ npx vitest run --coverage
 | Area | Coverage | Tests |
 |------|----------|-------|
 | A2A streaming client | Retry, abort, SSE parsing | `a2a-client.test.ts` |
+| A2A status subscription | Dual-channel phase delivery, reconnection | `a2a-status-client.test.ts` |
 | Chat state machine | Phase transitions, metadata, artifacts | `useChat.test.ts` |
 | Status metadata extraction | RR context, phase mapping | `useChat.integration.test.ts` |
+| Banner status stream | Dual-channel separation, ratchet bypass | `ChatContainer.status-stream.test.tsx` |
 | Approval flow | MCP calls, card state | `ApprovalCard.test.tsx` |
 | Workflow cards | Escalation, dismiss, display | `WorkflowCards.test.tsx` |
 | Markdown rendering | XSS prevention, GFM | `MarkdownContent.test.tsx` |
@@ -170,56 +188,48 @@ npx vitest run --coverage
 - `useCallback` for event handlers passed as props
 - `useRef` for mutable values that don't trigger re-renders
 
-### CSS / Tailwind
+### CSS
 
-- Tailwind CSS v4 (no `tailwind.config.js` — uses CSS-native config)
-- Design tokens defined in `src/index.css`
-- No inline styles unless overriding browser defaults
+- PatternFly 6 components for `ui-core` (the shared library)
+- Tailwind CSS v4 in `standalone` package only (CSS-native config, no `tailwind.config.js`)
+- Custom design tokens in `packages/ui-core/src/styles/kubernaut-chat.css`
 - Component-scoped styling via className props
 
 ### ESLint
 
 ESLint with:
-- `eslint-plugin-react-hooks` (Rules of Hooks, purity checks)
+- `eslint-plugin-react-hooks` (Rules of Hooks, exhaustive deps)
 - `eslint-plugin-react-refresh` (HMR compatibility)
 - `typescript-eslint` (type-aware linting)
-
-The React compiler lint rules enforce:
-- No impure function calls during render (`Date.now()`, `Math.random()`)
-- No ref access during render (only in effects/handlers)
-- Stable hook dependencies
 
 ## Build and Deployment
 
 ### Local Build
 
 ```bash
-npm run build
+pnpm build
 ```
 
-Outputs to `dist/` — a static SPA ready to serve via any HTTP server.
+Outputs to `packages/standalone/dist/` — a static SPA ready to serve via any HTTP server.
 
 ### Container Build
 
 ```bash
-docker build -t kubernaut-console:dev .
+docker build -f packages/standalone/Containerfile -t kubernaut-console:dev .
 ```
 
 Multi-stage build:
-1. `ubi9/nodejs-22` — `npm ci && npm run build`
+1. `ubi9/nodejs-22-minimal:1` — `pnpm install --frozen-lockfile && pnpm build`
 2. `ubi9/nginx-126` — serves `dist/` with `deploy/nginx.conf`
 
 ### CI Pipeline
 
-The CI workflow (`.github/workflows/ci.yaml`) runs on every PR:
+The CI workflow (`.github/workflows/ci.yml`) runs on every PR:
 
 | Job | Steps |
 |-----|-------|
-| `lint` | ESLint |
-| `test` | Vitest (all 221 tests) |
-| `security` | npm audit + Trivy scan |
-| `build` | TypeScript + Vite build |
-| `helm-lint` | Helm lint on chart/ |
+| `build-and-test` | `pnpm build` + `pnpm test` |
+| `security-scan` | Trivy filesystem scan |
 
 ### Release Pipeline
 
