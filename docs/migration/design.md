@@ -1,8 +1,8 @@
 # Design Document: Multi-Platform Plugin Architecture
 
-> **ADR Reference**: [ADR-004](../adr/004-multi-platform-plugin-architecture.md)
-> **Status**: Draft
-> **Last Updated**: 2026-06-16
+> **ADR Reference**: [ADR-007](../adr/007-multi-platform-plugin-architecture.md)
+> **Status**: Implemented
+> **Last Updated**: 2026-06-23
 
 ## 1. Overview
 

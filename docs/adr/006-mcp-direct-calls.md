@@ -1,4 +1,4 @@
-# ADR-003: MCP Direct Calls for Deterministic Actions
+# ADR-006: MCP Direct Calls for Deterministic Actions
 
 ## Status
 

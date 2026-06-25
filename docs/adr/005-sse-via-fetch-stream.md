@@ -1,4 +1,4 @@
-# ADR-002: SSE via Fetch + ReadableStream
+# ADR-005: SSE via Fetch + ReadableStream
 
 ## Status
 

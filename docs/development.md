@@ -257,3 +257,6 @@ See [docs/adr/](adr/) for documented architecture decisions including:
 - ADR-002: A2A over SSE (vs WebSocket)
 - ADR-003: Phase-based status banner (vs step indicators)
 - ADR-004: Static SPA with reverse proxy (vs server-rendered)
+- ADR-005: SSE via Fetch + ReadableStream
+- ADR-006: MCP direct calls for deterministic actions
+- ADR-007: Multi-platform plugin architecture
