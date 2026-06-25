@@ -243,7 +243,7 @@ describe("ChatContainer — Banner Status Stream Separation", () => {
       // Simulate: workflow selected (phase advances to Executing/remediation),
       // then CRD reports AwaitingApproval — this is the exact bug scenario from #23
       opts.onPhaseChange("Executing", {});
-      opts.onPhaseChange("AwaitingApproval", { approval_request_name: "rar-test-001" });
+      opts.onPhaseChange("AwaitingApproval", { approval_request_name: "kubernaut-system/rar-test-001" });
     });
 
     render(<ChatContainer />);
@@ -273,7 +273,7 @@ describe("ChatContainer — Banner Status Stream Separation", () => {
 
     mockSubscribeStatus.mockImplementation(async (_rrId, opts) => {
       // Status stream reports AwaitingApproval even though local phase is already "remediation"
-      opts.onPhaseChange("AwaitingApproval", { approval_request_name: "rar-test-002" });
+      opts.onPhaseChange("AwaitingApproval", { approval_request_name: "kubernaut-system/rar-test-002" });
     });
 
     render(<ChatContainer />);
@@ -315,7 +315,7 @@ describe("ChatContainer — Banner Status Stream Separation", () => {
     });
 
     mockSubscribeStatus.mockImplementation(async (_rrId, opts) => {
-      opts.onPhaseChange("AwaitingApproval", { approval_request_name: "rar-test-scroll" });
+      opts.onPhaseChange("AwaitingApproval", { approval_request_name: "kubernaut-system/rar-test-scroll" });
     });
 
     render(<ChatContainer />);
@@ -332,7 +332,7 @@ describe("ChatContainer — Banner Status Stream Separation", () => {
     await waitFor(() => {
       expect(mockCallMcpTool).toHaveBeenCalledWith(
         "kubernaut_get_approval_request",
-        expect.objectContaining({ rar_id: "rar-test-scroll" }),
+        expect.objectContaining({ rar_id: "kubernaut-system/rar-test-scroll" }),
         expect.anything(),
       );
     });
