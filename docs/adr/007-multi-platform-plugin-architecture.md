@@ -1,4 +1,4 @@
-# ADR-004: Multi-Platform Plugin Architecture
+# ADR-007: Multi-Platform Plugin Architecture
 
 ## Status
 

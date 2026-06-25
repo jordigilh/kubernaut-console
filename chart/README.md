@@ -14,11 +14,11 @@ Deploys the Kubernaut Demo Console with OAuth2 Proxy authentication and Nginx re
 ## Installation
 
 ```bash
-# Create OIDC secret
+# Create OIDC secret (cookie-secret must be exactly 16, 24, or 32 bytes)
 kubectl create secret generic kubernaut-console-oidc \
   --from-literal=client-id=kubernaut-console \
   --from-literal=client-secret=<secret> \
-  --from-literal=cookie-secret=$(openssl rand -base64 32) \
+  --from-literal=cookie-secret=$(openssl rand -hex 16) \
   -n kubernaut-system
 
 # Install
@@ -32,16 +32,16 @@ helm install kubernaut-console ./chart \
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `replicaCount` | int | `1` | Number of replicas |
-| `image.repository` | string | `ghcr.io/jordigilh/kubernaut-demo-console` | Image repository |
-| `image.tag` | string | chart appVersion | Image tag |
-| `image.digest` | string | `""` | Digest (overrides tag) |
-| `image.pullPolicy` | string | `IfNotPresent` | Pull policy |
+| `image.repository` | string | `ghcr.io/jordigilh/kubernaut-console` | Image repository |
+| `image.tag` | string | `latest` | Image tag |
+| `image.digest` | string | `""` | Digest (overrides tag when set) |
+| `image.pullPolicy` | string | `Always` | Pull policy |
 | `apiFrontend.url` | string | `http://apifrontend.kubernaut-system.svc:8443` | Backend URL |
 | `auth.provider` | string | `oidc` | OAuth2 provider |
-| `auth.issuerUrl` | string | (required) | OIDC issuer URL |
-| `auth.clientId` | string | `kubernaut-console` | OIDC client ID |
+| `auth.issuerUrl` | string | `""` (required) | OIDC issuer URL |
+| `auth.clientId` | string | `""` (required) | OIDC client ID |
 | `auth.skipTlsVerify` | bool | `false` | Skip TLS verify (dev only) |
-| `auth.existingSecret` | string | `kubernaut-console-oidc` | Secret name |
+| `auth.existingSecret` | string | `""` (required) | Secret name with OIDC credentials |
 | `service.type` | string | `ClusterIP` | Service type |
 | `service.port` | int | `4180` | Service port |
 | `route.enabled` | bool | `true` | Create OpenShift Route |

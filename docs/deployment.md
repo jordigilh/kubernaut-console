@@ -33,7 +33,7 @@ kubectl create secret generic kubernaut-console-oidc \
   --namespace kubernaut-system \
   --from-literal=client-id=kubernaut-console \
   --from-literal=client-secret=<YOUR_CLIENT_SECRET> \
-  --from-literal=cookie-secret=$(openssl rand -base64 32)
+  --from-literal=cookie-secret=$(openssl rand -hex 16)
 
 # Install the chart
 helm install kubernaut-console ./chart \
@@ -49,8 +49,8 @@ Key values in `chart/values.yaml`:
 
 | Value | Default | Description |
 |-------|---------|-------------|
-| `image.repository` | `quay.io/kubernaut-ai/demo-console` | Container image |
-| `image.tag` | `0.5.5` | Image version |
+| `image.repository` | `ghcr.io/jordigilh/kubernaut-console` | Container image |
+| `image.tag` | `latest` | Image version |
 | `apiFrontend.url` | `http://apifrontend.kubernaut-system.svc:8443` | API Frontend service URL |
 | `auth.issuerUrl` | — | OIDC issuer URL |
 | `auth.clientId` | `kubernaut-console` | OIDC client ID |
@@ -93,14 +93,14 @@ For local demos using Kind (Kubernetes in Docker).
 
 ```bash
 # 1. Build the Console SPA
-npm ci && npm run build
+pnpm install --frozen-lockfile && pnpm build
 
 # 2. Apply Kind manifests
 kubectl apply -f deploy/kind/oauth2-proxy.yaml
 
 # 3. Copy static files into the running nginx container
 CONSOLE_POD=$(kubectl get pod -n kubernaut-system -l app.kubernetes.io/name=kubernaut-console -o jsonpath='{.items[0].metadata.name}')
-kubectl cp dist/. kubernaut-system/$CONSOLE_POD:/opt/app-root/src/ -c console-nginx
+kubectl cp packages/standalone/dist/. kubernaut-system/$CONSOLE_POD:/opt/app-root/src/ -c nginx
 
 # 4. Access the console
 open http://localhost:30418
@@ -182,11 +182,11 @@ keepalive_timeout 3600s;
 ### Build
 
 ```bash
-docker build -t kubernaut-console:latest .
+docker build -f packages/standalone/Containerfile -t kubernaut-console:latest .
 ```
 
-The multi-stage Dockerfile uses:
-- **Build stage**: `registry.access.redhat.com/ubi9/nodejs-22` (npm ci + vite build)
+The multi-stage Containerfile uses:
+- **Build stage**: `registry.access.redhat.com/ubi9/nodejs-22-minimal:1` (pnpm install + pnpm build)
 - **Runtime stage**: `registry.access.redhat.com/ubi9/nginx-126` (serves static files)
 
 ### Registry

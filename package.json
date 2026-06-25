@@ -28,7 +28,6 @@
     "@storybook/addon-a11y": "^10.4.6",
     "@storybook/react-vite": "^10.4.6",
     "@storybook/test": "^8.6.15",
-    "@tailwindcss/vite": "^4.3.1",
     "@vitejs/plugin-react": "^6.0.2",
     "eslint": "^10.5.0",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -37,7 +36,6 @@
     "http-server": "^14.1.1",
     "playwright": "^1.61.0",
     "storybook": "^10.4.6",
-    "tailwindcss": "^4.3.1",
     "turbo": "^2.9.18",
     "typescript-eslint": "^8.61.1",
     "wait-on": "^9.0.10"

@@ -76,7 +76,7 @@ sequenceDiagram
     participant AF as API Frontend
 
     User->>ApprovalCard: Click "Approve"
-    ApprovalCard->>mcpClient: callMcpTool("kubernaut_approve", {rr_id, decision})
+    ApprovalCard->>mcpClient: callMcpTool("kubernaut_approve", {rar_name, decision})
     mcpClient->>AF: POST /mcp (JSON-RPC tools/call)
     AF-->>mcpClient: {result: {status: "accepted"}}
     mcpClient-->>ApprovalCard: Success

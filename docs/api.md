@@ -158,6 +158,24 @@ Approve or decline a Remediation Approval Request.
 }
 ```
 
+#### `kubernaut_get_approval_request`
+
+Fetch details of a Remediation Approval Request. Called by the console when the status stream reports `AwaitingApproval`.
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "kubernaut_get_approval_request",
+    "arguments": {
+      "rar_id": "kubernaut-system/rar-rr-abc123"
+    }
+  }
+}
+```
+
+The `rar_id` accepts `namespace/name` format (as provided by the `approval_request_name` field in status metadata).
+
 #### `kubernaut_select_workflow`
 
 Select a remediation workflow for execution.
@@ -213,6 +231,109 @@ data: {"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"done"}
 ```
 
 The console parses both plain JSON and SSE-wrapped responses.
+
+## Status Subscription (`/a2a/status`)
+
+An independent SSE stream for real-time Remediation Request status updates. Unlike the main A2A chat stream, this endpoint delivers phase transitions from the Kubernetes CRD directly, unmediated by the LLM agent.
+
+### Subscribing
+
+```
+POST /a2a/status
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": "status-1",
+  "method": "status/subscribe",
+  "params": { "rr_id": "rr-abc123" }
+}
+```
+
+Response: SSE stream of JSON-RPC notifications.
+
+### Server-Sent Events
+
+#### `status/update`
+
+Emitted on every RR phase transition:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "status/update",
+  "params": {
+    "phase": "Executing",
+    "metadata": {
+      "workflow_id": "git-revert-v2",
+      "approval_request_name": "kubernaut-system/rar-rr-abc123"
+    },
+    "final": false
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `phase` | `RRPhase` | Current phase (see below) |
+| `metadata` | object | Phase-specific context (optional fields) |
+| `final` | boolean | `true` on terminal phases |
+
+**RR Phases** (in lifecycle order):
+`Pending` → `Processing` → `Analyzing` → `Investigating` → `AwaitingApproval` → `Executing` → `Verifying` → `Completed`
+
+Terminal phases: `Completed`, `Failed`, `TimedOut`, `Cancelled`, `Skipped`
+
+**Common metadata fields:**
+
+| Field | Phases | Description |
+|-------|--------|-------------|
+| `approval_request_name` | `AwaitingApproval` | `namespace/name` of the RAR to approve |
+| `workflow_id` | `Executing` | Selected workflow identifier |
+| `ea_phase` | `Verifying` | Sub-phase (`Stabilizing`, `Assessing`) |
+| `stabilization_deadline` | `Verifying` | ISO 8601 deadline for stabilization window |
+| `outcome` | `Completed` | Resolution outcome (`Remediated`, etc.) |
+
+#### `status/closing`
+
+Server-initiated graceful shutdown:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "status/closing",
+  "params": {
+    "reason": "server shutdown",
+    "reconnect": true
+  }
+}
+```
+
+When `reconnect` is `true`, clients should reconnect with exponential backoff.
+
+#### Error (in response envelope)
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "status-1",
+  "error": {
+    "code": -32001,
+    "message": "RR not found: rr-abc123"
+  }
+}
+```
+
+Error code `-32001` indicates the RR does not exist or has been garbage-collected.
+
+### Dual-Channel Architecture
+
+The console receives status updates from two independent channels:
+
+1. **A2A chat stream** (`/a2a/{task-id}`) — phase updates embedded in LLM-mediated status events
+2. **Status subscription** (`/a2a/status`) — direct CRD watch, lower latency, survives LLM agent restarts
+
+The `useRRStatus` hook subscribes to channel 2 and provides `statusPhase` and `statusMetadata` independently of the chat stream. The UI reconciles both channels using a phase ratchet (`maxChatPhase`), with an exception for `AwaitingApproval` which forces a regression to `decision` phase to show the approval UI.
 
 ## Agent Discovery
 
