@@ -14,14 +14,13 @@ apiFrontend:
 # OIDC / OAuth2 Proxy configuration
 auth:
   provider: oidc
-  issuerUrl: "https://keycloak-keycloak.apps.dev.redhat-internal.com/realms/kagenti"
-  clientId: "kubernaut-console"
-  # Skip TLS verification for dev environments with self-signed certs
-  skipTlsVerify: true
+  issuerUrl: ""
+  clientId: ""
+  skipTlsVerify: false
   # Reference to a pre-existing Secret containing OIDC credentials
   # The Secret must have keys: client-id, client-secret, cookie-secret
-  existingSecret: "kubernaut-console-oidc" # pre-commit:allow-sensitive (Secret name, not a value)
-  redirectUrl: "https://kubernaut-console-kubernaut-system.apps.dev.redhat-internal.com/oauth2/callback"
+  existingSecret: "" # pre-commit:allow-sensitive (Secret name, not a value)
+  redirectUrl: ""
 
 # Ingress / exposure
 service:
