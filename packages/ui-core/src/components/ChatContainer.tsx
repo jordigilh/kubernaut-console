@@ -142,13 +142,19 @@ export function ChatContainer() {
           approvalRequest: approvalData,
         }];
       });
+      setCurrentPhase("decision");
+      userScrolledUpRef.current = false;
     });
-  }, [statusPhase, statusMetadata, setMessages, mcpOptions]);
+  }, [statusPhase, statusMetadata, setMessages, setCurrentPhase, mcpOptions]);
 
   useEffect(() => {
     if (statusPhase && PHASE_MAP[statusPhase]) {
       const mapped = PHASE_MAP[statusPhase];
-      setCurrentPhase((prev) => maxChatPhase(prev, mapped) ?? mapped);
+      if (statusPhase === "AwaitingApproval") {
+        setCurrentPhase("decision");
+      } else {
+        setCurrentPhase((prev) => maxChatPhase(prev, mapped) ?? mapped);
+      }
     }
   }, [statusPhase, setCurrentPhase]);
 
