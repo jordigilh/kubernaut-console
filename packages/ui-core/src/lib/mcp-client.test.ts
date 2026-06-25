@@ -166,4 +166,55 @@ describe("callMcpTool", () => {
 
     vi.useRealTimers();
   });
+
+  // SI-10: Tool-level error (result.isError = true) must be detected
+  it("UT-CONSOLE-MCP-009 [SI-10]: returns error when result.isError is true", async () => {
+    const toolErrorResult = {
+      isError: true,
+      content: [{ type: "text", text: "RR timed out" }],
+    };
+    vi.mocked(globalThis.fetch)
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse(toolErrorResult));
+
+    const result = await callMcpTool("kubernaut_complete_no_action", { rr_id: "rr-timed-out", reason: "dismiss" });
+
+    expect(result.error).toEqual({ code: -32000, message: "RR timed out" });
+    expect(result.result).toBeUndefined();
+  });
+
+  // SI-10: Error text extracted from multiple content entries
+  it("UT-CONSOLE-MCP-010 [SI-10]: extracts error text from result.content array", async () => {
+    const toolErrorResult = {
+      isError: true,
+      content: [
+        { type: "text", text: "err1" },
+        { type: "text", text: "err2" },
+      ],
+    };
+    vi.mocked(globalThis.fetch)
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse(toolErrorResult));
+
+    const result = await callMcpTool("kubernaut_complete_no_action", { rr_id: "rr-timed-out", reason: "dismiss" });
+
+    expect(result.error).toEqual({ code: -32000, message: "err1; err2" });
+    expect(result.result).toBeUndefined();
+  });
+
+  // SI-10: result without isError is still treated as success
+  it("UT-CONSOLE-MCP-011 [SI-10]: returns success when result.isError is absent", async () => {
+    const successResult = { content: [{ type: "text", text: "success" }] };
+    vi.mocked(globalThis.fetch)
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse(successResult));
+
+    const result = await callMcpTool("kubernaut_complete_no_action", { rr_id: "rr-ok", reason: "dismiss" });
+
+    expect(result.result).toEqual(successResult);
+    expect(result.error).toBeUndefined();
+  });
 });

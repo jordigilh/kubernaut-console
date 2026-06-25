@@ -94,6 +94,12 @@ async function sendMcpRequest(
     return { error: body.error };
   }
 
+  if (body.result && typeof body.result === "object" && (body.result as Record<string, unknown>).isError) {
+    const content = (body.result as { content?: Array<{ text?: string }> }).content;
+    const msg = content?.map(c => c.text).filter(Boolean).join("; ") || "Tool call failed";
+    return { error: { code: -32000, message: msg } };
+  }
+
   return { result: body.result };
 }
 

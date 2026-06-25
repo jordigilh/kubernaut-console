@@ -9,6 +9,8 @@
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { ChatContainer } from "./ChatContainer";
 import { streamA2A } from "../lib/a2a-client";
+import { subscribeRRStatus } from "../lib/a2a-status-client";
+import type { StatusSubscribeOptions } from "../lib/a2a-status-client";
 import { _resetSession } from "../lib/mcp-client";
 
 vi.mock("../lib/a2a-client", () => ({
@@ -23,6 +25,7 @@ vi.mock("../lib/a2a-status-client", () => ({
 }));
 
 const mockStreamA2A = vi.mocked(streamA2A);
+const mockSubscribeStatus = vi.mocked(subscribeRRStatus);
 
 beforeAll(() => {
   Element.prototype.scrollTo = vi.fn();
@@ -34,6 +37,8 @@ describe("ChatContainer Integration", () => {
     _resetSession();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mockStreamA2A.mockReset();
+    mockSubscribeStatus.mockReset();
+    mockSubscribeStatus.mockImplementation(async () => {});
   });
 
   afterEach(() => {
@@ -1209,6 +1214,117 @@ describe("ChatContainer Integration", () => {
       expect(screen.getByText("Rollback")).toBeInTheDocument();
     });
     expect(screen.queryByText("No remediation workflows found")).not.toBeInTheDocument();
+  });
+
+  // AC-6: Dismiss on timed-out RR shows error message (result.isError = true)
+  it("IT-CONSOLE-MCP-005 [AC-6]: dismiss on timed-out RR shows error message, does not inject success message", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "inv-1",
+          parts: [{ kind: "data", data: { session_id: "s1", rr_id: "rr-timed-out-005", signal_name: "TestAlert", rca: { summary: "Test" }, options: [{ workflow_id: "wf-1", name: "Test WF", description: "desc", recommended: true }] } }],
+          metadata: { type: "investigation_summary" },
+        },
+      });
+      opts.onComplete?.();
+    });
+
+    // MCP returns tool-level error (isError: true) — RR is timed out
+    fetchSpy.mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        result: {
+          isError: true,
+          content: [{ type: "text", text: "Cannot complete RR: status is TimedOut" }],
+        },
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(600);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /no action needed/i })).toBeInTheDocument();
+    });
+
+    const dismissBtn = screen.getByRole("button", { name: /no action needed/i });
+    await act(async () => {
+      fireEvent.click(dismissBtn);
+    });
+
+    // Error message from MCP tool-level error is displayed
+    await waitFor(() => {
+      expect(screen.getByText(/Cannot complete RR: status is TimedOut/)).toBeInTheDocument();
+    });
+
+    // Success message ("Investigation dismissed") is NOT injected
+    expect(screen.queryByText(/Investigation dismissed/)).not.toBeInTheDocument();
+
+    fetchSpy.mockRestore();
+  });
+
+  // AC-6: Buttons disabled when isTerminal is true from status stream (onNotFound path)
+  it("IT-CONSOLE-MCP-006 [AC-6]: buttons are disabled when isTerminal is true from status stream", async () => {
+    // Mock status stream: onNotFound sets isTerminal=true without delivering a phase,
+    // so isPastDecisionPhase(bannerPhase) stays false — only isTerminal can disable.
+    mockSubscribeStatus.mockImplementation(async (
+      _rrId: string,
+      opts: StatusSubscribeOptions,
+    ) => {
+      opts.onNotFound?.();
+    });
+
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "inv-1",
+          parts: [{ kind: "data", data: { session_id: "s1", rr_id: "rr-terminal-006", signal_name: "TestAlert", rca: { summary: "Test" }, options: [{ workflow_id: "wf-1", name: "Test WF", description: "desc", recommended: true }] } }],
+          metadata: { type: "investigation_summary" },
+        },
+      });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(600);
+    });
+
+    // Workflow card renders with dismiss/escalate buttons
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /no action needed/i })).toBeInTheDocument();
+    });
+
+    // The dismiss button should be disabled because isTerminal = true → workflowActionTaken = true
+    const dismissBtn = screen.getByRole("button", { name: /no action needed/i });
+    expect(dismissBtn).toBeDisabled();
   });
 
   // AC-6: Dismiss calls kubernaut_complete_no_action via MCP (no escalation_reason)
