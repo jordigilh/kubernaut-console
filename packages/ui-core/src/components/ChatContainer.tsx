@@ -26,7 +26,7 @@ export function ChatContainer() {
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
   const investigationEngaged = isInvestigationEngaged(messages);
   const effectiveRrId = investigationEngaged ? rrId : undefined;
-  const { statusPhase, statusConnection, statusMetadata } = useRRStatus(effectiveRrId);
+  const { statusPhase, statusConnection, statusMetadata, isTerminal } = useRRStatus(effectiveRrId);
   const lastAgentPhase = messages.findLast(m => m.role === "agent" && m.phase)?.phase;
   const chatPhase = currentPhase ?? lastAgentPhase;
   const statusMapped = statusPhase ? PHASE_MAP[statusPhase] : undefined;
@@ -35,7 +35,7 @@ export function ChatContainer() {
   const bannerPhase = !investigationEngaged
     ? undefined
     : ((!statusPhase && !workflowResolved && rawBannerPhase === "decision") ? "investigation" : rawBannerPhase);
-  const workflowActionTaken = workflowResolved || isPastDecisionPhase(bannerPhase);
+  const workflowActionTaken = workflowResolved || isPastDecisionPhase(bannerPhase) || isTerminal;
   const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName
     ?? lastRca?.signalName
     ?? (statusMetadata?.alert_name as string | undefined)
