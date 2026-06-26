@@ -153,6 +153,7 @@ export type ConnectionStatus = "idle" | "connected" | "reconnecting" | "lost";
 
 const STORAGE_KEY = "kubernaut-console-messages"; // pre-commit:allow-sensitive (storage key name)
 const CONTEXT_KEY = "kubernaut-console-context"; // pre-commit:allow-sensitive (storage key name)
+const PENDING_CONTEXT_KEY = "kubernaut-pending-context"; // pre-commit:allow-sensitive (storage key name)
 
 function loadMessages(): ChatMessage[] {
   try {
@@ -198,6 +199,28 @@ function saveContextId(id: string) {
   }
 }
 
+function loadPendingContext(): string[] {
+  try {
+    const raw = sessionStorage.getItem(PENDING_CONTEXT_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+function savePendingContext(entries: string[]) {
+  try {
+    if (entries.length === 0) {
+      sessionStorage.removeItem(PENDING_CONTEXT_KEY);
+    } else {
+      sessionStorage.setItem(PENDING_CONTEXT_KEY, JSON.stringify(entries));
+    }
+  } catch {
+    // Storage unavailable
+  }
+}
+
 function friendlyError(raw: string): string {
   if (/fetch|network|ERR_CONNECTION/i.test(raw)) return "Unable to reach the server. Check your connection and try again.";
   if (/HTTP 5\d\d/i.test(raw)) return "The server encountered an error. Please try again in a moment.";
@@ -237,6 +260,7 @@ export function useChat() {
   const messageIdRef = useRef(0);
   const lastSendRef = useRef(0);
   const terminalReceivedRef = useRef(false);
+  const pendingContextRef = useRef<string[]>(loadPendingContext());
   const [investigationStartTime, setInvestigationStartTime] = useState<number | undefined>(undefined);
   const [currentPhase, setCurrentPhase] = useState<ChatMessage["phase"]>(() => loadPersistedPhase());
 
@@ -254,6 +278,17 @@ export function useChat() {
     return () => {
       abortRef.current?.abort();
     };
+  }, []);
+
+  const resetContext = useCallback(() => {
+    const freshId = crypto.randomUUID();
+    contextIdRef.current = freshId;
+    saveContextId(freshId);
+  }, []);
+
+  const addPendingContext = useCallback((text: string) => {
+    pendingContextRef.current = [...pendingContextRef.current, text];
+    savePendingContext(pendingContextRef.current);
   }, []);
 
   const nextId = () => `msg-${++messageIdRef.current}`;
@@ -297,7 +332,15 @@ export function useChat() {
     setMessages((prev) => [...prev, agentMsg]);
     setIsStreaming(true);
 
-    const request = buildStreamRequest(text, contextIdRef.current);
+    let effectiveText = text;
+    if (pendingContextRef.current.length > 0 && !options?.silent) {
+      const ctx = pendingContextRef.current.join('\n');
+      effectiveText = `${ctx}\n\n${text}`;
+      pendingContextRef.current = [];
+      savePendingContext([]);
+    }
+
+    const request = buildStreamRequest(effectiveText, contextIdRef.current);
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -825,10 +868,12 @@ export function useChat() {
     setInvestigationStartTime(undefined);
     activeRrIdRef.current = undefined;
     contextIdRef.current = undefined;
+    pendingContextRef.current = [];
     sessionStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(CONTEXT_KEY);
+    sessionStorage.removeItem(PENDING_CONTEXT_KEY);
     clearSessionState();
   }, []);
 
-  return { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase };
+  return { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext };
 }

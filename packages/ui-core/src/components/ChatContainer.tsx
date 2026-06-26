@@ -6,6 +6,7 @@ import { emitAuditEvent } from "../lib/audit";
 import { isPastDecisionPhase, isWorkflowResolved, markWorkflowResolved } from "../lib/session-state";
 import { isInvestigationEngaged } from "../lib/query-intent";
 import { maxChatPhase } from "../lib/phase-rank";
+import { buildDeferredContext } from "../lib/context-builder";
 import { AuthContext } from "../providers/auth";
 import { ConfigContext } from "../providers/config";
 import { UserBubble } from "./UserBubble";
@@ -21,7 +22,7 @@ const PHASE_MAP: Record<string, ChatMessage["phase"]> = {
 };
 
 export function ChatContainer() {
-  const { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase } = useChat();
+  const { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext } = useChat();
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
   const investigationEngaged = isInvestigationEngaged(messages);
@@ -157,6 +158,20 @@ export function ChatContainer() {
       }
     }
   }, [statusPhase, setCurrentPhase]);
+
+  const sessionResetRef = useRef(false);
+  useEffect(() => {
+    if (isTerminal && effectiveRrId && !sessionResetRef.current) {
+      sessionResetRef.current = true;
+      const meta = statusMetadata ?? {};
+      addPendingContext(buildDeferredContext(effectiveRrId, statusPhase ?? "unknown", {
+        target: (meta.kind && meta.target) ? `${meta.kind}/${meta.target}` : (meta.target as string | undefined),
+        resource: meta.resource as string | undefined,
+        alert_name: (meta.alert_name ?? meta.signal_name) as string | undefined,
+      }));
+      resetContext();
+    }
+  }, [isTerminal, effectiveRrId, statusPhase, statusMetadata, addPendingContext, resetContext]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
