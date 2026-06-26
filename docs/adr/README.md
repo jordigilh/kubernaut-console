@@ -11,3 +11,4 @@ This directory contains Architecture Decision Records (ADRs) for Kubernaut Conso
 | [005](005-sse-via-fetch-stream.md) | SSE via Fetch + ReadableStream | Accepted | 2026-06-08 |
 | [006](006-mcp-direct-calls.md) | MCP direct calls for deterministic actions | Accepted | 2026-06-12 |
 | [007](007-multi-platform-plugin-architecture.md) | Multi-platform plugin architecture | Accepted | 2026-06-19 |
+| [008](008-session-awareness-after-mcp.md) | Session awareness after MCP actions | Accepted | 2026-06-25 |
