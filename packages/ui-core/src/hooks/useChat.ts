@@ -9,6 +9,29 @@ import { maxChatPhase } from "../lib/phase-rank";
 
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
+/**
+ * Build a Kind/Name resource display string, guarding against double-prefixing.
+ * If `target` already contains "/" it is assumed to be Kind/Name and returned as-is.
+ */
+export function formatResourceDisplay(kind: string | undefined, target: string): string {
+  if (target.includes("/") || !kind) return target;
+  return `${kind}/${target}`;
+}
+
+/**
+ * Extract namespace from an RCA payload using only explicit server-provided fields.
+ * The parenthesized format ("target (namespace)") is supported for backward compat.
+ */
+export function parseRcaNamespace(
+  target: string,
+  explicitNamespace: string | undefined,
+  rcaNamespace: string | undefined,
+): string | undefined {
+  const parenMatch = target.match(/\(([^)]+)\)/);
+  const parenNs = parenMatch ? parenMatch[1] : undefined;
+  return explicitNamespace || rcaNamespace || parenNs || undefined;
+}
+
 export interface ThinkingEntry {
   id: string;
   type: "reasoning" | "status" | "investigation" | "preflight" | "tool_call";
@@ -317,11 +340,11 @@ export function useChat() {
           }
 
           if (payload.rca) {
-            const targetStr = payload.rca.target || "";
-            const parenMatch = targetStr.match(/\(([^)]+)\)/);
-            const parenNs = parenMatch ? parenMatch[1] : undefined;
-            const slashNs = !parenNs && targetStr.includes("/") ? targetStr.slice(0, targetStr.indexOf("/")) : undefined;
-            const parsedNamespace = payload.namespace || payload.rca.namespace || parenNs || slashNs || undefined;
+            const parsedNamespace = parseRcaNamespace(
+              payload.rca.target || "",
+              payload.namespace,
+              payload.rca.namespace,
+            );
 
             updates.rca = {
               severity: payload.rca.severity,
@@ -453,10 +476,11 @@ export function useChat() {
         const rrUpdate: Partial<ChatMessage> = { rrId: event.metadata.rr_id };
         if (event.metadata.alert_name) rrUpdate.alertName = event.metadata.alert_name as string;
         if (event.metadata.namespace) rrUpdate.namespace = event.metadata.namespace as string;
-        if (event.metadata.kind && event.metadata.target) {
-          rrUpdate.resource = `${event.metadata.kind}/${event.metadata.target}`;
-        } else if (event.metadata.target) {
-          rrUpdate.resource = event.metadata.target as string;
+        if (event.metadata.target) {
+          rrUpdate.resource = formatResourceDisplay(
+            event.metadata.kind as string | undefined,
+            event.metadata.target as string,
+          );
         }
         if (event.metadata.phase) {
           const phaseMap: Record<string, ChatMessage["phase"]> = {
@@ -590,11 +614,11 @@ export function useChat() {
           updates.thinking = [...thinkingRef.current];
 
           if (parsed.rca) {
-            const targetStr2 = parsed.rca.target || "";
-            const parenMatch2 = targetStr2.match(/\(([^)]+)\)/);
-            const parenNs2 = parenMatch2 ? parenMatch2[1] : undefined;
-            const slashNs2 = !parenNs2 && targetStr2.includes("/") ? targetStr2.slice(0, targetStr2.indexOf("/")) : undefined;
-            const parsedNamespace = parsed.namespace || parsed.rca.namespace || parenNs2 || slashNs2 || undefined;
+            const parsedNamespace = parseRcaNamespace(
+              parsed.rca.target || "",
+              parsed.namespace,
+              parsed.rca.namespace,
+            );
             updates.rca = {
               severity: parsed.rca.severity,
               confidence: parsed.rca.confidence,

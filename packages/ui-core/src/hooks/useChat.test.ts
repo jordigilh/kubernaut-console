@@ -713,7 +713,7 @@ describe("useChat", () => {
                   rca: {
                     severity: "high",
                     confidence: 0.92,
-                    target: "deployment/worker",
+                    target: "Deployment/worker",
                     causal_chain: ["OOM kill", "memory limit too low"],
                     rca_summary: "The worker is OOM-killing.",
                     tool_calls_count: 8,
@@ -758,7 +758,7 @@ describe("useChat", () => {
       expect(agentMsg?.rca).toBeDefined();
       expect(agentMsg?.rca?.severity).toBe("high");
       expect(agentMsg?.rca?.confidence).toBe(0.92);
-      expect(agentMsg?.rca?.target).toBe("deployment/worker");
+      expect(agentMsg?.rca?.target).toBe("Deployment/worker");
       expect(agentMsg?.rca?.causalChain).toEqual(["OOM kill", "memory limit too low"]);
       expect(agentMsg?.rca?.toolCallsCount).toBe(8);
       expect(agentMsg?.rca?.llmTurns).toBe(3);
@@ -1167,7 +1167,7 @@ describe("useChat", () => {
       });
     });
 
-    it("UT-CONSOLE-CHAT-039: parses namespace from rca.target in investigation_summary artifact", async () => {
+    it("UT-CONSOLE-CHAT-039 [SC-7]: derives namespace from explicit rca.namespace field, not from target string", async () => {
       vi.useRealTimers();
       const { streamA2A: streamFn } = await import("../lib/a2a-client");
       const mockedStream = vi.mocked(streamFn);
@@ -1185,11 +1185,13 @@ describe("useChat", () => {
                 session_id: "sess-ns",
                 rr_id: "rr-abc123",
                 signal_name: "KubePodCrashLooping",
+                namespace: "demo-webui",
                 summary: "Pod crash",
                 rca: {
                   severity: "critical",
                   confidence: 0.9,
-                  target: "demo-webui/web-frontend",
+                  target: "Deployment/web-frontend",
+                  namespace: "demo-webui",
                   causal_chain: ["crash"],
                   tool_calls_count: 4,
                   llm_turns: 2,
@@ -1213,6 +1215,201 @@ describe("useChat", () => {
         const agentMsg = result.current.messages.find(m => m.role === "agent");
         expect(agentMsg?.rca?.namespace).toBe("demo-webui");
         expect(agentMsg?.rca?.signalName).toBe("KubePodCrashLooping");
+      });
+    });
+
+    it("UT-CONSOLE-CHAT-039b [SC-7]: Kind/Name target with no namespace yields undefined namespace (Kind is not namespace)", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "inv-no-ns",
+            parts: [{
+              kind: "data",
+              data: {
+                session_id: "sess-039b",
+                rr_id: "rr-039b",
+                summary: "OOM on frontend",
+                rca: {
+                  severity: "high",
+                  confidence: 0.85,
+                  target: "Deployment/web-frontend",
+                  causal_chain: ["OOM"],
+                  tool_calls_count: 3,
+                  llm_turns: 2,
+                },
+                options: [],
+              },
+              mediaType: "application/json",
+            }],
+            metadata: { schema: "investigation_summary" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.rca).toBeDefined();
+        expect(agentMsg?.rca?.target).toBe("Deployment/web-frontend");
+        expect(agentMsg?.rca?.namespace).toBeUndefined();
+      });
+    });
+
+    it("UT-CONSOLE-CHAT-039c [SC-7, AU-3]: explicit rca.namespace is trusted and propagated", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "inv-explicit-ns",
+            parts: [{
+              kind: "data",
+              data: {
+                session_id: "sess-039c",
+                rr_id: "rr-039c",
+                summary: "Crash in demo-webui",
+                rca: {
+                  severity: "critical",
+                  confidence: 0.9,
+                  target: "Deployment/web-frontend",
+                  namespace: "demo-webui",
+                  causal_chain: ["crash"],
+                  tool_calls_count: 5,
+                  llm_turns: 3,
+                },
+                options: [],
+              },
+              mediaType: "application/json",
+            }],
+            metadata: { schema: "investigation_summary" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.rca?.namespace).toBe("demo-webui");
+      });
+    });
+
+    it("UT-CONSOLE-CHAT-039d [SC-7]: decision-type RCA with Kind/Name target and no namespace yields undefined namespace", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "input-required",
+            message: {
+              role: "agent",
+              parts: [{
+                kind: "text",
+                text: JSON.stringify({
+                  session_id: "sess-039d",
+                  summary: "DB issue found",
+                  rca: {
+                    severity: "high",
+                    confidence: 0.88,
+                    causal_chain: ["connection pool exhaustion"],
+                    target: "StatefulSet/db",
+                    tool_calls_count: 6,
+                    llm_turns: 4,
+                  },
+                  options: [{ workflow_id: "restart-v1", name: "Restart", description: "Restart pods", recommended: true }],
+                }),
+              }],
+            },
+          },
+          metadata: { type: "decision" },
+          final: true,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.rca).toBeDefined();
+        expect(agentMsg?.rca?.target).toBe("StatefulSet/db");
+        expect(agentMsg?.rca?.namespace).toBeUndefined();
+      });
+    });
+
+    it("UT-CONSOLE-CHAT-039e [SC-7, AU-3]: decision-type RCA with explicit namespace is trusted", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "input-required",
+            message: {
+              role: "agent",
+              parts: [{
+                kind: "text",
+                text: JSON.stringify({
+                  session_id: "sess-039e",
+                  namespace: "prod",
+                  summary: "DB issue in prod",
+                  rca: {
+                    severity: "high",
+                    confidence: 0.88,
+                    causal_chain: ["connection pool exhaustion"],
+                    target: "StatefulSet/db",
+                    namespace: "prod",
+                    tool_calls_count: 6,
+                    llm_turns: 4,
+                  },
+                  options: [{ workflow_id: "restart-v1", name: "Restart", description: "Restart pods", recommended: true }],
+                }),
+              }],
+            },
+          },
+          metadata: { type: "decision" },
+          final: true,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.rca?.namespace).toBe("prod");
       });
     });
 

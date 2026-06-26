@@ -221,8 +221,7 @@ describe("IT: Status event metadata extracts RR context for early banner populat
           rr_id: "rr-meta-001",
           alert_name: "HighLatency",
           namespace: "production",
-          kind: "Deployment",
-          target: "api-frontend",
+          target: "Deployment/api-frontend",
           phase: "Investigating",
         },
       });
@@ -336,7 +335,7 @@ describe("IT: Status event metadata extracts RR context for early banner populat
         taskId: "t1",
         contextId: "ctx-meta-4",
         status: { state: "working", message: { role: "agent", parts: [] } },
-        metadata: { type: "keepalive", rr_id: "rr-meta-004", target: "my-pod-xyz" },
+        metadata: { type: "keepalive", rr_id: "rr-meta-004", target: "Pod/my-pod-xyz" },
       });
       opts.onComplete?.();
     });
@@ -349,7 +348,61 @@ describe("IT: Status event metadata extracts RR context for early banner populat
     });
 
     const agentMsg = result.current.messages.find(m => m.role === "agent")!;
-    expect(agentMsg.resource).toBe("my-pod-xyz");
+    expect(agentMsg.resource).toBe("Pod/my-pod-xyz");
+  });
+
+  it("IT-CONSOLE-STATUS-META-005 [SI-4, AU-3]: Kind/Name target without separate kind field produces correct resource display", async () => {
+    vi.useRealTimers();
+    const { streamA2A: streamFn } = await import("../lib/a2a-client");
+    const mockedStream = vi.mocked(streamFn);
+
+    mockedStream.mockImplementation(async (_req, opts) => {
+      opts.onEvent({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-meta-5",
+        status: { state: "working", message: { role: "agent", parts: [] } },
+        metadata: { type: "keepalive", rr_id: "rr-meta-005", target: "Deployment/api" },
+      });
+      opts.onComplete?.();
+    });
+
+    const { result } = renderHook(() => useChat());
+    await act(async () => { await result.current.sendMessage("test"); });
+
+    await waitFor(() => {
+      expect(result.current.isStreaming).toBe(false);
+    });
+
+    const agentMsg = result.current.messages.find(m => m.role === "agent")!;
+    expect(agentMsg.resource).toBe("Deployment/api");
+  });
+
+  it("IT-CONSOLE-STATUS-META-006 [SI-4, AU-3]: both kind and Kind/Name target does not double-prefix resource", async () => {
+    vi.useRealTimers();
+    const { streamA2A: streamFn } = await import("../lib/a2a-client");
+    const mockedStream = vi.mocked(streamFn);
+
+    mockedStream.mockImplementation(async (_req, opts) => {
+      opts.onEvent({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-meta-6",
+        status: { state: "working", message: { role: "agent", parts: [] } },
+        metadata: { type: "keepalive", rr_id: "rr-meta-006", kind: "Deployment", target: "Deployment/api" },
+      });
+      opts.onComplete?.();
+    });
+
+    const { result } = renderHook(() => useChat());
+    await act(async () => { await result.current.sendMessage("test"); });
+
+    await waitFor(() => {
+      expect(result.current.isStreaming).toBe(false);
+    });
+
+    const agentMsg = result.current.messages.find(m => m.role === "agent")!;
+    expect(agentMsg.resource).toBe("Deployment/api");
   });
 });
 
