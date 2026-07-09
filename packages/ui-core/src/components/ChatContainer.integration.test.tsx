@@ -358,6 +358,63 @@ describe("ChatContainer Integration", () => {
   });
 
   /**
+   * IT-CONSOLE-VERIFY-WIRING-001: VerificationTimer wiring completeness
+   * FedRAMP Controls: IR-4 (Incident Handling — remediation verification tracking), AU-2 (Audit Events)
+   *
+   * Per the Pyramid Invariant: VerificationTimer.tsx and useChat.ts's
+   * stabilization_window parsing each previously had UT-only coverage
+   * (rendered/asserted in isolation) — nothing proved AgentBubble actually
+   * renders VerificationTimer when a real "Verifying" execution_progress
+   * artifact flows through the full production dispatch path. This closes
+   * that wiring gap.
+   */
+  it("IT-CONSOLE-VERIFY-WIRING-001 [IR-4, AU-2]: Verifying execution_progress artifact renders VerificationTimer through the full dispatch path", async () => {
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "mock-task-verify-1",
+        contextId: "mock-ctx-verify-1",
+        artifact: {
+          artifactId: "progress-verify-1",
+          parts: [{
+            kind: "data",
+            data: {
+              type: "execution_progress",
+              schema_version: "1.0",
+              rr_name: "rr-verify-001",
+              current_phase: "Verifying",
+              started_at: "2026-06-11T10:00:00Z",
+            },
+            mediaType: "application/json",
+          }],
+          metadata: { type: "execution_progress", stabilization_window: "60s" },
+        },
+        lastChunk: true,
+        append: false,
+      });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "Execute git-revert-v2" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("verification-timer")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Verifying stability")).toBeInTheDocument();
+  });
+
+  /**
    * B2: Error/Reconnect IT
    * FedRAMP Control: SI-17 (Fail-Safe Procedures)
    */

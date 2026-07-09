@@ -104,6 +104,7 @@ packages/ui-core/src/
   components/
     ChatContainer.integration.test.tsx      (IT tests)
     ChatContainer.status-stream.test.tsx     (IT tests — dual-channel status)
+    KubernautChat.integration.test.tsx      (IT tests — provider/auth wiring)
     WorkflowCards.test.tsx                   (UT tests)
     ApprovalCard.test.tsx                    (UT tests)
     ...
@@ -131,6 +132,40 @@ Examples:
 - `UT-CONSOLE-CHAT-016` — Unit test for phase parsing in useChat
 - `IT-CONSOLE-STATUS-META-001` — Integration test for metadata extraction
 - `IT-CONSOLE-BANNER-007` — Integration test for phase ratchet bypass
+
+### Pyramid Invariant
+
+Every unit of business logic or component wiring point must carry **both**
+a UT and an IT — one without the other is an incomplete implementation:
+
+- **UT proves logic**: given these inputs, this function/hook/component
+  produces this output, in isolation (external APIs mocked: A2A streaming,
+  MCP endpoint, `fetch`, `sendBeacon`).
+- **IT proves wiring**: the real, un-mocked component tree actually
+  connects those pieces together in production — e.g. an SSE event of a
+  given `metadata.type` really does reach the DOM through
+  `ChatContainer -> useChat -> AgentBubble -> {ThinkingPanel, RCACard,
+  VerificationTimer, ...}`, or a real `authProvider`/`config` passed to
+  `KubernautChat` really does reach the outbound `streamA2A` /
+  `subscribeRRStatus` calls.
+
+A component with only UT coverage is **prototyped, not implemented** — its
+logic has never been proven to actually run when wired into the app. A
+component exercised only incidentally by an IT test (with no isolated UT
+of its logic/edge cases) is under-specified. When adding a new metadata
+type, conditional render branch, or provider-context consumer, add or
+extend both tiers in the same change:
+
+| Wiring point | UT | IT |
+|---|---|---|
+| `reasoning_content` SSE metadata -> visually distinct thinking entry | `useChat.test.ts`, `ThinkingPanel.test.tsx` | `ChatContainer.integration.test.tsx` (`IT-CONSOLE-REASONING-001`) |
+| `stabilization_window` metadata -> `VerificationTimer` render | `useChat.test.ts`, `VerificationTimer.test.tsx` | `ChatContainer.integration.test.tsx` (`IT-CONSOLE-VERIFY-WIRING-001`) |
+| `authProvider`/`config` -> outbound request credentials | `KubernautChat.test.tsx`, `providers/auth.test.ts`, `providers/config.test.ts` | `KubernautChat.integration.test.tsx` (`IT-CONSOLE-PROVIDER-001/002`) |
+
+Playwright E2E specs (`e2e/`) sit above both tiers and prove full operator
+journeys (investigation -> decision -> execution -> verification) against
+a real browser and mocked HTTP/SSE transport — they are not a substitute
+for IT wiring coverage of individual components.
 
 ### Running Tests
 
@@ -166,6 +201,8 @@ pnpm --filter @kubernaut/ui-core exec vitest run --coverage
 | Audit events | Payload shape, delivery | `audit.test.ts` |
 | MCP client | JSON-RPC, error handling | `mcp-client.test.ts` |
 | Captured LLM reasoning visibility | reasoning_content wiring, visual differentiation | `useChat.test.ts`, `ThinkingPanel.test.tsx`, `ChatContainer.integration.test.tsx` |
+| Verification timer wiring | stabilization_window -> VerificationTimer render | `useChat.test.ts`, `VerificationTimer.test.tsx`, `ChatContainer.integration.test.tsx` |
+| Provider/auth wiring | authProvider token + config backendUrl/fetchFn reach transport | `KubernautChat.test.tsx`, `KubernautChat.integration.test.tsx` |
 
 ### Mock Strategy
 
