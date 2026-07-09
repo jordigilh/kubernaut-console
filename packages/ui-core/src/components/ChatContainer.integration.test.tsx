@@ -220,6 +220,71 @@ describe("ChatContainer Integration", () => {
   });
 
   /**
+   * IT-CONSOLE-REASONING-001: reasoning_content wiring completeness
+   * FedRAMP Controls: AU-2/AU-3 (Audit Events), IR-4 (Incident Handling)
+   *
+   * BR-AI-086 / #1634, #1635: captured LLM reasoning content must reach the
+   * operator through the full production dispatch path (ChatContainer ->
+   * useChat -> AgentBubble -> ThinkingPanel), visually distinguished from
+   * plain orchestration narration. Per the Pyramid Invariant, UT coverage of
+   * useChat.ts and ThinkingPanel.tsx in isolation is not sufficient — this
+   * proves the wiring point between those two units is actually connected.
+   */
+  it("IT-CONSOLE-REASONING-001 [AU-2/AU-3, IR-4]: reasoning_content streams through the full dispatch path and renders with the 'Reasoning' label", async () => {
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      const { onEvent, onComplete } = opts;
+      const taskId = "mock-task-reasoning-1";
+      const contextId = "mock-ctx-reasoning-1";
+
+      onEvent?.({
+        kind: "status-update",
+        taskId,
+        contextId,
+        status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Checking pod status..." }] } },
+        metadata: { type: "reasoning" },
+      });
+
+      onEvent?.({
+        kind: "status-update",
+        taskId,
+        contextId,
+        status: {
+          state: "working",
+          message: { role: "agent", parts: [{ kind: "text", text: "Memory usage climbed steadily before the OOMKill, consistent with a slow leak." }] },
+        },
+        metadata: { type: "reasoning_content" },
+      });
+
+      onComplete?.();
+    });
+
+    render(<ChatContainer />);
+
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "Why did the pod restart?" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Checking pod status...")).toBeInTheDocument();
+    });
+
+    // Genuine captured reasoning reaches the DOM visually distinguished from narration
+    const reasoningText = screen.getByText("Memory usage climbed steadily before the OOMKill, consistent with a slow leak.");
+    expect(screen.getByText("Reasoning")).toBeInTheDocument();
+    expect(reasoningText.closest(".kn-reasoning-content")).not.toBeNull();
+
+    // Plain narration is NOT wrapped in the reasoning_content styling class
+    const narrationText = screen.getByText("Checking pod status...");
+    expect(narrationText.closest(".kn-reasoning-content")).toBeNull();
+  });
+
+  /**
    * IT-CONSOLE-JOURNEY-006: ExecutionProgress renders after workflow execution
    * FedRAMP Control: IR-4 (Incident Handling - remediation tracking)
    */
@@ -290,6 +355,63 @@ describe("ChatContainer Integration", () => {
     await waitFor(() => {
       expect(screen.getByTestId("phase-indicator")).toBeInTheDocument();
     });
+  });
+
+  /**
+   * IT-CONSOLE-VERIFY-WIRING-001: VerificationTimer wiring completeness
+   * FedRAMP Controls: IR-4 (Incident Handling — remediation verification tracking), AU-2 (Audit Events)
+   *
+   * Per the Pyramid Invariant: VerificationTimer.tsx and useChat.ts's
+   * stabilization_window parsing each previously had UT-only coverage
+   * (rendered/asserted in isolation) — nothing proved AgentBubble actually
+   * renders VerificationTimer when a real "Verifying" execution_progress
+   * artifact flows through the full production dispatch path. This closes
+   * that wiring gap.
+   */
+  it("IT-CONSOLE-VERIFY-WIRING-001 [IR-4, AU-2]: Verifying execution_progress artifact renders VerificationTimer through the full dispatch path", async () => {
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "mock-task-verify-1",
+        contextId: "mock-ctx-verify-1",
+        artifact: {
+          artifactId: "progress-verify-1",
+          parts: [{
+            kind: "data",
+            data: {
+              type: "execution_progress",
+              schema_version: "1.0",
+              rr_name: "rr-verify-001",
+              current_phase: "Verifying",
+              started_at: "2026-06-11T10:00:00Z",
+            },
+            mediaType: "application/json",
+          }],
+          metadata: { type: "execution_progress", stabilization_window: "60s" },
+        },
+        lastChunk: true,
+        append: false,
+      });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "Execute git-revert-v2" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("verification-timer")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Verifying stability")).toBeInTheDocument();
   });
 
   /**

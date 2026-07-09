@@ -34,7 +34,7 @@ export function parseRcaNamespace(
 
 export interface ThinkingEntry {
   id: string;
-  type: "reasoning" | "status" | "investigation" | "preflight" | "tool_call";
+  type: "reasoning" | "reasoning_content" | "status" | "investigation" | "preflight" | "tool_call";
   text: string;
 }
 
@@ -739,6 +739,7 @@ export function useChat() {
 
       if (
         metaType === "reasoning" ||
+        metaType === "reasoning_content" ||
         metaType === "status" ||
         metaType === "investigation" ||
         metaType === "preflight" ||

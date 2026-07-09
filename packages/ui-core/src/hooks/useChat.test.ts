@@ -389,6 +389,105 @@ describe("useChat", () => {
     });
   });
 
+  // AU-2/AU-3: Audit Events / Content of Audit Records — BR-AI-086's captured
+  // LLM reasoning must be visible to the operator (not silently dropped) so
+  // the live investigation view carries the same evidentiary content already
+  // guaranteed in the audit trail. IR-4: Incident Handling — operators need
+  // this content during, not only after, an active investigation.
+  describe("AU-2/AU-3, IR-4: Captured LLM reasoning content visibility (BR-AI-086, #1634/#1635)", () => {
+    it("UT-CONSOLE-CHAT-046: parses reasoning_content thinking entries with type 'reasoning_content'", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "Memory usage climbed steadily before the OOMKill, consistent with a slow leak." }] },
+          },
+          metadata: { type: "reasoning_content" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.thinking).toHaveLength(1);
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent")!;
+      expect(agentMsg.thinking![0].type).toBe("reasoning_content");
+      expect(agentMsg.thinking![0].text).toBe("Memory usage climbed steadily before the OOMKill, consistent with a slow leak.");
+    });
+
+    // SI-4: Information System Monitoring — #1637/kubernaut-console#33: AF now
+    // relays live KA events for pooled kubernaut_message follow-up turns, not
+    // just the initial investigation. Regression guard against any implicit
+    // Console-side assumption that monitoring/visibility stops after turn 1.
+    it("UT-CONSOLE-CHAT-047 [SI-4]: reasoning_content streams correctly on a follow-up turn, not just the first", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementationOnce(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "Initial investigation reasoning." }] },
+          },
+          metadata: { type: "reasoning_content" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("investigate"); });
+
+      await waitFor(() => {
+        const firstAgentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(firstAgentMsg?.thinking).toHaveLength(1);
+      });
+
+      await new Promise((r) => setTimeout(r, 600));
+
+      mockedStream.mockImplementationOnce(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "Follow-up turn reasoning after operator asked a clarifying question." }] },
+          },
+          metadata: { type: "reasoning_content" },
+        });
+        opts.onComplete?.();
+      });
+
+      await act(async () => { await result.current.sendMessage("what about the other pod?"); });
+
+      await waitFor(() => {
+        const agentMessages = result.current.messages.filter(m => m.role === "agent");
+        expect(agentMessages).toHaveLength(2);
+        expect(agentMessages[1]?.thinking).toHaveLength(1);
+      });
+
+      const agentMessages = result.current.messages.filter(m => m.role === "agent");
+      expect(agentMessages[1].thinking![0].type).toBe("reasoning_content");
+      expect(agentMessages[1].thinking![0].text).toBe("Follow-up turn reasoning after operator asked a clarifying question.");
+    });
+  });
+
   // SI-17: Fail-Safe Procedures — error handling
   describe("SI-17: Error handling and connection resilience", () => {
     it("UT-CONSOLE-CHAT-012: onError sets error state with message", async () => {

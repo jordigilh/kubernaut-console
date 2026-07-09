@@ -91,7 +91,11 @@ export function ThinkingPanel({ entries, isActive, startTime, label }: Props) {
               {entry.type === "tool_call" ? (
                 <code style={{ fontFamily: "monospace", color: "var(--kn-text-dim)" }}>{entry.text}</code>
               ) : (
-                <div className="kn-markdown" style={{ fontSize: "0.6875rem" }}>
+                <div
+                  className={entry.type === "reasoning_content" ? "kn-markdown kn-reasoning-content" : "kn-markdown"}
+                  style={{ fontSize: "0.6875rem" }}
+                >
+                  {entry.type === "reasoning_content" && <span className="kn-reasoning-content-label">Reasoning</span>}
                   <MarkdownContent text={entry.text} />
                 </div>
               )}
