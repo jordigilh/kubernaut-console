@@ -90,4 +90,36 @@ describe("ThinkingPanel", () => {
     await fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
+
+  // AU-2/AU-3: Audit Events / Content of Audit Records — BR-AI-086 / #1634,
+  // #1635: genuine captured LLM reasoning must be visually distinguishable
+  // from orchestration narration ("reasoning" type) so operators can
+  // correctly attribute evidentiary weight during incident review. IR-4:
+  // Incident Handling — misreading narration as the model's actual
+  // deliberation (or vice versa) would compromise root-cause analysis.
+  describe("AU-2/AU-3, IR-4: reasoning_content visual differentiation from orchestration narration (BR-AI-086, #1634/#1635)", () => {
+    const entriesWithReasoningContent: ThinkingEntry[] = [
+      { id: "t1", type: "reasoning", text: "Checking pod status..." },
+      { id: "t2", type: "reasoning_content", text: "Memory usage climbed steadily before the OOMKill, consistent with a slow leak." },
+    ];
+
+    it("UT-CONSOLE-THINK-014: renders reasoning_content entries with a distinct 'Reasoning' label", () => {
+      render(<ThinkingPanel entries={entriesWithReasoningContent} isActive={false} startTime={Date.now()} />);
+      expect(screen.getByText("Memory usage climbed steadily before the OOMKill, consistent with a slow leak.")).toBeInTheDocument();
+      expect(screen.getByText("Reasoning")).toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-THINK-015: does not render the 'Reasoning' label for plain orchestration narration", () => {
+      const onlyNarration: ThinkingEntry[] = [{ id: "t1", type: "reasoning", text: "Checking pod status..." }];
+      render(<ThinkingPanel entries={onlyNarration} isActive={false} startTime={Date.now()} />);
+      expect(screen.getByText("Checking pod status...")).toBeInTheDocument();
+      expect(screen.queryByText("Reasoning")).not.toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-THINK-016: applies the kn-reasoning-content class to distinguish styling from narration", () => {
+      render(<ThinkingPanel entries={entriesWithReasoningContent} isActive={false} startTime={Date.now()} />);
+      const reasoningContentText = screen.getByText("Memory usage climbed steadily before the OOMKill, consistent with a slow leak.");
+      expect(reasoningContentText.closest(".kn-reasoning-content")).not.toBeNull();
+    });
+  });
 });

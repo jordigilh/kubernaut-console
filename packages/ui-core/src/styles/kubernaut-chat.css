@@ -603,6 +603,24 @@
   line-height: 1.6;
 }
 
+/* Captured LLM reasoning (BR-AI-086, #1634/#1635) — visually distinct from
+   plain orchestration narration so operators can tell provider-native
+   deliberation apart from progress text within the same panel. */
+.kn-reasoning-content {
+  border-left: 2px solid var(--kn-teal-400);
+  padding-left: 0.5rem;
+}
+
+.kn-reasoning-content-label {
+  display: block;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--kn-teal-600);
+  margin-bottom: 0.125rem;
+}
+
 /* Markdown content within agent bubble */
 .kn-markdown h1 { font-size: 1.125rem; font-weight: 700; color: var(--kn-teal-700); margin-bottom: 0.5rem; }
 .kn-markdown h2 { font-size: 1rem; font-weight: 600; color: var(--kn-teal-700); margin-bottom: 0.375rem; }

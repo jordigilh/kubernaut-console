@@ -165,6 +165,7 @@ pnpm --filter @kubernaut/ui-core exec vitest run --coverage
 | Markdown rendering | XSS prevention, GFM | `MarkdownContent.test.tsx` |
 | Audit events | Payload shape, delivery | `audit.test.ts` |
 | MCP client | JSON-RPC, error handling | `mcp-client.test.ts` |
+| Captured LLM reasoning visibility | reasoning_content wiring, visual differentiation | `useChat.test.ts`, `ThinkingPanel.test.tsx`, `ChatContainer.integration.test.tsx` |
 
 ### Mock Strategy
 
