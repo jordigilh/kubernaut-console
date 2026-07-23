@@ -389,6 +389,234 @@ describe("useChat", () => {
     });
   });
 
+  // AU-3, SI-4: Fleet cluster_id propagation into the investigation context
+  // banner (kubernaut-console#35, upstream kubernaut#1409/#1653). Verified
+  // against 4 independent backend wire paths — see docs/tests/35/TEST_PLAN.md
+  // (TP-CONSOLE-35) for the full provenance trace of each path.
+  describe("AU-3, SI-4: cluster_id propagation into context banner (#35, upstream #1409/#1653)", () => {
+    it("UT-CONSOLE-CHAT-048: parses cluster_id from status-update rr_id metadata", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Starting" }] } },
+          metadata: { type: "rr_update", rr_id: "rr-cluster-048", cluster_id: "cluster-east-1" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.clusterId).toBe("cluster-east-1");
+      });
+    });
+
+    it("UT-CONSOLE-CHAT-049: parses cluster_id from investigation_summary artifact into RCAData and ChatMessage", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "inv-cluster-049",
+            parts: [{
+              kind: "data",
+              data: {
+                session_id: "sess-049",
+                rr_id: "rr-049",
+                signal_name: "KubePodCrashLooping",
+                cluster_id: "cluster-fleet-a",
+                summary: "OOMKill detected",
+                rca: {
+                  severity: "critical",
+                  confidence: 0.9,
+                  target: "Deployment/web-frontend",
+                  causal_chain: ["OOM"],
+                  tool_calls_count: 5,
+                  llm_turns: 3,
+                },
+                options: [],
+              },
+              mediaType: "application/json",
+            }],
+            metadata: { schema: "investigation_summary" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.clusterId).toBe("cluster-fleet-a");
+        expect(agentMsg?.rca?.clusterId).toBe("cluster-fleet-a");
+      });
+    });
+
+    it("UT-CONSOLE-CHAT-050: parses cluster_id from execution_progress artifact", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "progress-050",
+            parts: [{
+              kind: "data",
+              data: {
+                type: "execution_progress",
+                schema_version: "1.0",
+                rr_name: "rr-050",
+                current_phase: "Executing",
+                started_at: "2026-06-11T10:00:00Z",
+                cluster_id: "cluster-fleet-a",
+              },
+              mediaType: "application/json",
+            }],
+            metadata: { type: "execution_progress" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.clusterId).toBe("cluster-fleet-a");
+      });
+    });
+
+    // SI-10: proves the fix targets the status-update ENVELOPE metadata
+    // (mergeRRContext), not the parsed JSON text body — cluster_id never
+    // appears in the FunctionResponse-sourced JSON body for this event type,
+    // only in the envelope (see TP-CONSOLE-35 section 2, path 4).
+    it("UT-CONSOLE-CHAT-051 [SI-10]: parses cluster_id from decision status-update envelope metadata, not the JSON body", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "input-required",
+            message: {
+              role: "agent",
+              parts: [{
+                kind: "text",
+                text: JSON.stringify({
+                  session_id: "sess-051",
+                  summary: "ConfigMap app-config contains an invalid directive.",
+                  rca: {
+                    severity: "critical",
+                    confidence: 0.95,
+                    causal_chain: ["Bad commit"],
+                    target: "ConfigMap/app-config",
+                    tool_calls_count: 10,
+                    llm_turns: 5,
+                  },
+                  options: [],
+                  // cluster_id intentionally absent from the JSON body — it
+                  // only ever reaches this event via envelope metadata.
+                }),
+              }],
+            },
+          },
+          metadata: { type: "decision", cluster_id: "cluster-b" },
+          final: true,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.clusterId).toBe("cluster-b");
+      });
+    });
+
+    // SI-10: local-hub RRs omit cluster_id entirely at the source (ADR-065) —
+    // Console must not synthesize a false empty-string value.
+    it("UT-CONSOLE-CHAT-052 [SI-10]: clusterId stays undefined when cluster_id is absent (local-hub RR, no false empty-string attribution)", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "inv-no-cluster-052",
+            parts: [{
+              kind: "data",
+              data: {
+                session_id: "sess-052",
+                rr_id: "rr-052",
+                summary: "OOM on frontend",
+                rca: {
+                  severity: "high",
+                  confidence: 0.85,
+                  target: "Deployment/web-frontend",
+                  causal_chain: ["OOM"],
+                  tool_calls_count: 3,
+                  llm_turns: 2,
+                },
+                options: [],
+              },
+              mediaType: "application/json",
+            }],
+            metadata: { schema: "investigation_summary" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.rca).toBeDefined();
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent")!;
+      expect(agentMsg.clusterId).toBeUndefined();
+      expect(agentMsg.rca?.clusterId).toBeUndefined();
+    });
+  });
+
   // AU-2/AU-3: Audit Events / Content of Audit Records — BR-AI-086's captured
   // LLM reasoning must be visible to the operator (not silently dropped) so
   // the live investigation view carries the same evidentiary content already

@@ -33,6 +33,7 @@ export interface InvestigationSummary {
   rr_id?: string;
   signal_name?: string;
   namespace?: string;
+  cluster_id?: string;
   summary: string;
   rca: InvestigationSummaryRCA;
   options?: InvestigationSummaryOption[];
