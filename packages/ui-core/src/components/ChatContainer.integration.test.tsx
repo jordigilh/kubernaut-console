@@ -728,6 +728,93 @@ describe("ChatContainer Integration", () => {
     });
   });
 
+  // AU-3, SI-4: Fleet cluster_id propagation into context banner (#35,
+  // upstream #1409/#1653) — proves end-to-end wiring from SSE artifact
+  // payload through useChat to the rendered InvestigationContext banner.
+  it("IT-CONSOLE-CTX-002: investigation_summary artifact carrying cluster_id populates context banner with Cluster field", async () => {
+    mockStreamA2A.mockImplementation(async (_req, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "inv-summary-cluster-it",
+          parts: [{
+            kind: "data",
+            data: {
+              session_id: "sess-it-002",
+              rr_id: "rr-cluster-it-002",
+              signal_name: "KubePodCrashLooping",
+              cluster_id: "cluster-fleet-east",
+              summary: "ConfigMap invalid directive",
+              rca: {
+                severity: "critical",
+                confidence: 0.95,
+                target: "demo-webui/app-config",
+                causal_chain: ["Bad config"],
+                tool_calls_count: 5,
+                llm_turns: 3,
+              },
+              options: [],
+            },
+            mediaType: "application/json",
+          }],
+          metadata: { schema: "investigation_summary" },
+        },
+        lastChunk: true,
+        append: false,
+      });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      const ctxBanner = screen.getByTestId("investigation-context");
+      expect(ctxBanner).toHaveTextContent("Cluster");
+      expect(ctxBanner).toHaveTextContent("cluster-fleet-east");
+    });
+  });
+
+  it("IT-CONSOLE-CTX-003: status-update carrying cluster_id before any artifact arrives is picked up by context banner", async () => {
+    mockStreamA2A.mockImplementation(async (_req, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Starting" }] } },
+        metadata: { type: "rr_update", rr_id: "rr-cluster-it-003", cluster_id: "cluster-fleet-west" },
+      });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      const ctxBanner = screen.getByTestId("investigation-context");
+      expect(ctxBanner).toHaveTextContent("Cluster");
+      expect(ctxBanner).toHaveTextContent("cluster-fleet-west");
+    });
+  });
+
   // CLS Prevention: Banner always rendered (zero layout shift)
   it("IT-CONSOLE-BANNER-ALWAYS-001: investigation context banner is always rendered even before investigation starts", async () => {
     mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {

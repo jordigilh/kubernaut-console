@@ -49,7 +49,9 @@ export function ChatContainer() {
     ?? lastRca?.target
     ?? (statusMetadata?.target as string | undefined)
     ?? (statusMetadata?.resource as string | undefined);
-  const cluster = (statusMetadata?.cluster as string | undefined);
+  const cluster = messages.findLast(m => m.role === "agent" && m.clusterId)?.clusterId
+    ?? lastRca?.clusterId
+    ?? (statusMetadata?.cluster_id as string | undefined);
   const recoverySignal = messages.findLast(m => m.role === "agent" && m.recoverySignal)?.recoverySignal ?? null;
   const authCtx = useContext(AuthContext);
   const configCtx = useContext(ConfigContext);

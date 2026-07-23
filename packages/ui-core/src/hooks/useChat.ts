@@ -49,6 +49,7 @@ export interface RCAData {
   rrId?: string;
   signalName?: string;
   namespace?: string;
+  clusterId?: string;
 }
 
 export interface WorkflowOption {
@@ -144,6 +145,7 @@ export interface ChatMessage {
   alertName?: string;
   namespace?: string;
   resource?: string;
+  clusterId?: string;
   recoverySignal?: "problem_resolved" | "alignment_check_failed";
   alignmentVerdict?: AlignmentVerdict;
   targetDivergence?: TargetDivergence;
@@ -400,6 +402,7 @@ export function useChat() {
               rrId: payload.rr_id,
               signalName: payload.signal_name,
               namespace: parsedNamespace,
+              clusterId: payload.cluster_id,
             };
           }
 
@@ -414,6 +417,9 @@ export function useChat() {
           }
           if (payload.rca?.target) {
             updates.resource = payload.rca.target;
+          }
+          if (payload.cluster_id) {
+            updates.clusterId = payload.cluster_id;
           }
 
           if (Array.isArray(payload.options)) {
@@ -450,6 +456,7 @@ export function useChat() {
             rr_name?: string;
             started_at?: string;
             completed_at?: string;
+            cluster_id?: string;
           };
 
           const artifactPhase = payload.current_phase;
@@ -468,6 +475,9 @@ export function useChat() {
 
           if (payload.rr_name) {
             updates.rrId = payload.rr_name;
+          }
+          if (payload.cluster_id) {
+            updates.clusterId = payload.cluster_id;
           }
 
           const swRaw = event.artifact.metadata?.stabilization_window;
@@ -519,6 +529,7 @@ export function useChat() {
         const rrUpdate: Partial<ChatMessage> = { rrId: event.metadata.rr_id };
         if (event.metadata.alert_name) rrUpdate.alertName = event.metadata.alert_name as string;
         if (event.metadata.namespace) rrUpdate.namespace = event.metadata.namespace as string;
+        if (event.metadata.cluster_id) rrUpdate.clusterId = event.metadata.cluster_id as string;
         if (event.metadata.target) {
           rrUpdate.resource = formatResourceDisplay(
             event.metadata.kind as string | undefined,
@@ -655,6 +666,12 @@ export function useChat() {
           const updates: Partial<ChatMessage> = { phase: "decision", text: "", thinkingLabel: undefined };
           setCurrentPhase((prev) => maxChatPhase(prev, "decision") ?? "decision");
           updates.thinking = [...thinkingRef.current];
+
+          // cluster_id is only ever present on the envelope metadata for this
+          // event type, never in the parsed JSON text body — see TP-CONSOLE-35.
+          if (event.metadata?.cluster_id) {
+            updates.clusterId = event.metadata.cluster_id as string;
+          }
 
           if (parsed.rca) {
             const parsedNamespace = parseRcaNamespace(
