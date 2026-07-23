@@ -285,6 +285,50 @@ describe("ChatContainer Integration", () => {
   });
 
   /**
+   * IT-CONSOLE-REASONING-002: redaction-aware placeholder wiring completeness
+   * FedRAMP Controls: AU-3 (Audit Content), IR-4 (Incident Handling)
+   *
+   * kubernaut-console#32 / upstream kubernaut#1716 (contract signed off):
+   * a redacted turn reuses the same reasoning_content SSE channel with
+   * metadata.redacted=true and always-empty text. Per the Pyramid Invariant,
+   * UT coverage of useChat.ts and ThinkingPanel.tsx in isolation is not
+   * sufficient — this proves the redacted signal actually reaches the DOM
+   * through the full production dispatch path.
+   */
+  it("IT-CONSOLE-REASONING-002 [AU-3, IR-4]: redacted reasoning_content streams through the full dispatch path and renders the placeholder", async () => {
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      const { onEvent, onComplete } = opts;
+
+      onEvent?.({
+        kind: "status-update",
+        taskId: "mock-task-redacted-1",
+        contextId: "mock-ctx-redacted-1",
+        status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "" }] } },
+        metadata: { type: "reasoning_content", redacted: true },
+      });
+
+      onComplete?.();
+    });
+
+    render(<ChatContainer />);
+
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "Why did the pod restart?" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      const thinkingBody = screen.getByTestId("thinking-body");
+      expect(thinkingBody).toHaveTextContent("Reasoning hidden by provider");
+    });
+  });
+
+  /**
    * IT-CONSOLE-JOURNEY-006: ExecutionProgress renders after workflow execution
    * FedRAMP Control: IR-4 (Incident Handling - remediation tracking)
    */

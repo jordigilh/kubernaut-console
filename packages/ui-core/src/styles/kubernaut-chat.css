@@ -621,6 +621,14 @@
   margin-bottom: 0.125rem;
 }
 
+/* kubernaut-console#32: placeholder for a provider-redacted reasoning turn
+   (metadata.redacted=true, always-empty text) — signals that reasoning
+   occurred without implying content was silently dropped. */
+.kn-reasoning-redacted-placeholder {
+  font-style: italic;
+  color: var(--kn-text-dim);
+}
+
 /* Markdown content within agent bubble */
 .kn-markdown h1 { font-size: 1.125rem; font-weight: 700; color: var(--kn-teal-700); margin-bottom: 0.5rem; }
 .kn-markdown h2 { font-size: 1rem; font-weight: 600; color: var(--kn-teal-700); margin-bottom: 0.375rem; }

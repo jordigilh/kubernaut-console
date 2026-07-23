@@ -714,6 +714,88 @@ describe("useChat", () => {
       expect(agentMessages[1].thinking![0].type).toBe("reasoning_content");
       expect(agentMessages[1].thinking![0].text).toBe("Follow-up turn reasoning after operator asked a clarifying question.");
     });
+
+    // AU-3, IR-4, SI-10: redaction-aware placeholder (kubernaut-console#32,
+    // upstream kubernaut#1716). Contract signed off on #1716: a redacted turn
+    // reuses this same reasoning_content channel with metadata.redacted=true
+    // and always-empty text — a boolean-only "reasoning occurred, provider
+    // withheld it" signal, never opaque/replay content on the wire.
+    it("UT-CONSOLE-CHAT-053 [SI-10]: pushes a redacted ThinkingEntry despite empty text", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "" }] },
+          },
+          metadata: { type: "reasoning_content", redacted: true },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.thinking).toHaveLength(1);
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent")!;
+      expect(agentMsg.thinking![0].type).toBe("reasoning_content");
+      expect(agentMsg.thinking![0].redacted).toBe(true);
+      expect(agentMsg.thinking![0].text).toBe("");
+    });
+
+    it("UT-CONSOLE-CHAT-054 [SI-10]: a redacted turn creates a separate entry, never merged into a preceding reasoning_content entry", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "Visible reasoning before the redacted turn." }] },
+          },
+          metadata: { type: "reasoning_content" },
+        });
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: "" }] },
+          },
+          metadata: { type: "reasoning_content", redacted: true },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.thinking).toHaveLength(2);
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent")!;
+      expect(agentMsg.thinking![0].redacted).toBeUndefined();
+      expect(agentMsg.thinking![0].text).toBe("Visible reasoning before the redacted turn.");
+      expect(agentMsg.thinking![1].redacted).toBe(true);
+      expect(agentMsg.thinking![1].text).toBe("");
+    });
   });
 
   // SI-17: Fail-Safe Procedures — error handling
