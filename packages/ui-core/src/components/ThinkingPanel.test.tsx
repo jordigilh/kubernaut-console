@@ -122,4 +122,27 @@ describe("ThinkingPanel", () => {
       expect(reasoningContentText.closest(".kn-reasoning-content")).not.toBeNull();
     });
   });
+
+  // AU-3, IR-4, SI-10: redaction-aware placeholder (kubernaut-console#32,
+  // upstream kubernaut#1716) — a boolean-only "reasoning occurred, provider
+  // withheld it" signal renders as an explicit placeholder rather than a
+  // silent gap that would read as a bug.
+  describe("AU-3, IR-4, SI-10: redaction-aware placeholder for withheld reasoning (#32, upstream #1716)", () => {
+    it("UT-CONSOLE-THINK-017: renders the 'Reasoning hidden by provider' placeholder for a redacted entry", () => {
+      const redactedEntries: ThinkingEntry[] = [
+        { id: "t1", type: "reasoning_content", text: "", redacted: true },
+      ];
+      render(<ThinkingPanel entries={redactedEntries} isActive={false} startTime={Date.now()} />);
+      expect(screen.getByText("Reasoning hidden by provider")).toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-THINK-018: does not render the placeholder for a normal (non-redacted) reasoning_content entry", () => {
+      const normalEntries: ThinkingEntry[] = [
+        { id: "t1", type: "reasoning_content", text: "Memory usage climbed steadily." },
+      ];
+      render(<ThinkingPanel entries={normalEntries} isActive={false} startTime={Date.now()} />);
+      expect(screen.queryByText("Reasoning hidden by provider")).not.toBeInTheDocument();
+      expect(screen.getByText("Memory usage climbed steadily.")).toBeInTheDocument();
+    });
+  });
 });

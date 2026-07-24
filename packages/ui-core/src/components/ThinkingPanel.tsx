@@ -90,6 +90,11 @@ export function ThinkingPanel({ entries, isActive, startTime, label }: Props) {
             <div key={entry.id} className="kn-fade-in" style={{ padding: "0.125rem 0" }}>
               {entry.type === "tool_call" ? (
                 <code style={{ fontFamily: "monospace", color: "var(--kn-text-dim)" }}>{entry.text}</code>
+              ) : entry.redacted ? (
+                <div className="kn-markdown kn-reasoning-content" style={{ fontSize: "0.6875rem" }}>
+                  <span className="kn-reasoning-content-label">Reasoning</span>
+                  <span className="kn-reasoning-redacted-placeholder">Reasoning hidden by provider</span>
+                </div>
               ) : (
                 <div
                   className={entry.type === "reasoning_content" ? "kn-markdown kn-reasoning-content" : "kn-markdown"}

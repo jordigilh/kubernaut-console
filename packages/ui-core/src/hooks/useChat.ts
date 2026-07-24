@@ -36,6 +36,7 @@ export interface ThinkingEntry {
   id: string;
   type: "reasoning" | "reasoning_content" | "status" | "investigation" | "preflight" | "tool_call";
   text: string;
+  redacted?: boolean;
 }
 
 export interface RCAData {
@@ -762,6 +763,19 @@ export function useChat() {
         metaType === "preflight" ||
         metaType === "tool_call"
       ) {
+        // kubernaut-console#32 / upstream kubernaut#1716: a provider-redacted
+        // reasoning turn always carries empty text — it must still surface as
+        // its own distinct entry (never silently dropped, never merged into
+        // a preceding entry) so the operator sees that reasoning occurred.
+        if (metaType === "reasoning_content" && event.metadata?.redacted === true) {
+          thinkingRef.current = [
+            ...thinkingRef.current,
+            { id: `t-${Date.now()}`, type: "reasoning_content", text: "", redacted: true },
+          ];
+          update({ thinking: [...thinkingRef.current] });
+          return;
+        }
+
         const text = (event.status.message?.parts ?? [])
           .filter((p) => p.kind === "text")
           .map((p) => p.text)
