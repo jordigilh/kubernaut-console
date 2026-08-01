@@ -39,3 +39,6 @@ test-results/
 playwright-report/
 e2e/visual.spec.ts-snapshots/
 coverage/
+
+# Module Federation build diagnostics (machine/timestamp-specific, regenerated every build)
+.mf/
