@@ -12,3 +12,4 @@ This directory contains Architecture Decision Records (ADRs) for Kubernaut Conso
 | [006](006-mcp-direct-calls.md) | MCP direct calls for deterministic actions | Accepted | 2026-06-12 |
 | [007](007-multi-platform-plugin-architecture.md) | Multi-platform plugin architecture | Accepted | 2026-06-19 |
 | [008](008-session-awareness-after-mcp.md) | Session awareness after MCP actions | Accepted | 2026-06-25 |
+| [009](009-live-e2e-real-cluster-strategy.md) | Real-cluster (live) E2E test strategy | Proposed | 2026-07-31 |
