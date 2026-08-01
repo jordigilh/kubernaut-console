@@ -2,13 +2,17 @@ import { test, expect } from "@playwright/test";
 import {
   openConsole,
   sendChatMessage,
-  waitForInvestigationSummary,
+  waitForInvestigationSummaryOrKnownRace,
   waitForPhaseLabel,
   approveIfRequested,
   REAL_INVESTIGATION_TIMEOUT_MS,
   REAL_EXECUTION_TIMEOUT_MS,
   REAL_VERIFICATION_TIMEOUT_MS,
+  OOMKILL_TARGET,
 } from "./helpers";
+
+const INVESTIGATE_MESSAGE =
+  `The ${OOMKILL_TARGET.name} ${OOMKILL_TARGET.kind} in ${OOMKILL_TARGET.namespace} is OOMKilled and CrashLoopBackOff, please investigate.`;
 
 /**
  * ADR-009's flagship scenario: "a real signal ingested, a real
@@ -36,19 +40,31 @@ import {
  * deploy to shrink its footprint (ADR-009 §5) — this file's Given/When/Then
  * never touches Gateway, directly or indirectly.
  *
- * No Tekton: crashloop-config-fix-v1's ExecutionEngine is "job"
- * (test/services/mock-llm/scenarios/scenario_crashloop.go) — this
+ * No Tekton: oomkill-increase-memory-v1's ExecutionEngine is "job"
+ * (test/services/mock-llm/scenarios/scenario_oomkilled.go) — this
  * scenario is itself proof-by-construction of ADR-009 §5's "no Tekton"
  * decision, not just an assumption of it.
+ *
+ * Target (revised 2026-08-02): drives against kubernaut-system/memory-eater,
+ * a real, always-on OOMKilled Deployment from kubernaut's own fullpipeline
+ * bootstrap (see helpers.ts's OOMKILL_TARGET), rather than a fabricated
+ * target that doesn't exist in the cluster.
+ *
+ * Current status: this test is blocked on kubernaut#1818 — see
+ * waitForInvestigationSummaryOrKnownRace's doc comment in helpers.ts. The
+ * console's single free-form investigate message is its real, only
+ * investigation entry point; there is no multi-turn text protocol in the
+ * actual product to work around this with; a real fix requires AF/KA to
+ * stop orphaning the RCA session.
  */
 test.describe("Full remediation lifecycle — real cluster, real browser", () => {
   test("investigate → decision → (approval) → execution → verification → complete", async ({ page }) => {
     await openConsole(page);
 
-    await sendChatMessage(page, "The worker Deployment in staging is stuck in CrashLoopBackOff, please investigate.");
+    await sendChatMessage(page, INVESTIGATE_MESSAGE);
 
     await test.step("real KubernautAgent investigation completes", async () => {
-      await waitForInvestigationSummary(page);
+      await waitForInvestigationSummaryOrKnownRace(page);
       await expect(page.locator(".kn-phase-label")).toHaveText("Awaiting Approval", {
         timeout: REAL_INVESTIGATION_TIMEOUT_MS,
       }).catch(() => {
@@ -83,8 +99,8 @@ test.describe("Full remediation lifecycle — real cluster, real browser", () =>
     });
 
     await openConsole(page);
-    await sendChatMessage(page, "The worker Deployment in staging is stuck in CrashLoopBackOff, please investigate.");
-    await waitForInvestigationSummary(page);
+    await sendChatMessage(page, INVESTIGATE_MESSAGE);
+    await waitForInvestigationSummaryOrKnownRace(page);
 
     const criticalErrors = errors.filter(
       (e) => !e.includes("favicon") && !e.includes("net::ERR") && !e.includes("Failed to load resource"),

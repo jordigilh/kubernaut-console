@@ -2,15 +2,34 @@ import { test, expect } from "@playwright/test";
 import {
   openConsole,
   sendChatMessage,
-  waitForInvestigationSummary,
+  waitForInvestigationSummaryOrKnownRace,
   isApprovalRequested,
   REAL_EXECUTION_TIMEOUT_MS,
+  OOMKILL_TARGET,
 } from "./helpers";
+
+const INVESTIGATE_MESSAGE =
+  `The ${OOMKILL_TARGET.name} ${OOMKILL_TARGET.kind} in ${OOMKILL_TARGET.namespace} is OOMKilled and CrashLoopBackOff, please investigate.`;
 
 /**
  * MCP tool calls (docs/integration-guide.md's kubernaut_approve /
  * kubernaut_complete_no_action) against the real AF, real Dex-issued JWT,
  * real per-persona SAR authorization.
+ *
+ * Scope note (2026-08-02): AF has its own `/mcp` endpoint
+ * (pkg/apifrontend/handler/mcp.go) with its own Authorizer and Bridge to
+ * KA — architecturally distinct from KA's `/api/v1/mcp` (port :8088),
+ * which is what every existing upstream MCP E2E test
+ * (test/e2e/fullpipeline/05_mcp_interactive_lifecycle_test.go) exercises,
+ * always via a K8s ServiceAccount token, never a Dex-issued persona JWT.
+ * This suite is the only place either repo tests AF's own MCP surface with
+ * the auth model a real interactive client (the console, per
+ * docs/integration-guide.md) actually uses — deep protocol/session-lifecycle
+ * correctness (takeover contention, disconnect recovery, etc.) is upstream's
+ * job and is already covered there; this suite stays narrowly scoped to "does
+ * our production UI correctly drive AF's real MCP endpoint for the actions
+ * our UI exposes." Filed the coverage gap itself upstream as
+ * jordigilh/kubernaut#1827 rather than building it out here.
  *
  * Open question this suite exists partly to answer (found 2026-08-01
  * verifying against jordigilh/kubernaut@origin/main while drafting this
@@ -24,13 +43,20 @@ import {
  * "dismiss" test below asserts the currently-documented, currently-shipped
  * console behavior and will fail loudly (403 surfaced as a friendly error
  * message, per useChat.ts's friendlyError()) if that gap is real, rather
- * than silently skipping it.
+ * than silently skipping it. Flagged as an example in jordigilh/kubernaut#1827.
+ *
+ * Current status: every test below is blocked on kubernaut#1818 — the
+ * beforeEach's single investigate message (the console's real, only
+ * investigation entry point) reliably fails to produce a renderable
+ * investigation_summary against this cluster, so none of the decision UI
+ * (Approve/Decline/Dismiss/Execute) ever appears. See
+ * waitForInvestigationSummaryOrKnownRace's doc comment in helpers.ts.
  */
 test.describe("Approval gate — real MCP calls", () => {
   test.beforeEach(async ({ page }) => {
     await openConsole(page);
-    await sendChatMessage(page, "The worker Deployment in staging is stuck in CrashLoopBackOff, please investigate.");
-    await waitForInvestigationSummary(page);
+    await sendChatMessage(page, INVESTIGATE_MESSAGE);
+    await waitForInvestigationSummaryOrKnownRace(page);
   });
 
   test("approve path: real kubernaut_approve transitions RR to Executing", async ({ page }) => {

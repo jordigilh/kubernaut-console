@@ -62,6 +62,40 @@ Override any of these if your cluster's ports/credentials differ from the
 | `approval-gate.spec.ts` | Real `kubernaut_approve` / `kubernaut_complete_no_action` MCP calls, real per-persona SAR authorization |
 | `full-remediation-lifecycle.spec.ts` | End-to-end: real investigation → decision → (approval) → real Job execution → real verification → complete |
 
+## Current status: blocked on kubernaut#1818
+
+The suite's first run against a real cluster (2026-08-02) found that AF
+returns a malformed `investigation_summary` (a bare `TextPart` instead of
+the documented `DataPart`) for the console's single free-form investigate
+message — its real, only investigation entry point. This traces to
+[kubernaut#1818](https://github.com/jordigilh/kubernaut/issues/1818): KA's
+near-instant mock-llm response reliably races AF's interactive-session
+upgrade, orphaning the real RCA behind a placeholder session. **This is an
+AF/KA defect, not a console bug** — the console correctly declines to
+render the malformed fallback as a valid investigation. Every test that
+calls `waitForInvestigationSummaryOrKnownRace` is expected to fail with a
+message naming #1818 until it's fixed upstream; see ADR-009 §9 for the full
+writeup, including why a multi-turn scripted-text workaround (mirroring
+kubernaut's own Go E2E test) was tried and rejected — the console's real UI
+has no such protocol (decisions are direct MCP calls from button clicks,
+never chat text), so that would have masked the bug behind an unrealistic
+test shape instead of catching it.
+
+## Scope: what this suite covers vs. upstream's job
+
+`approval-gate.spec.ts`'s real-MCP-call tests hit **AF's own** `/mcp`
+endpoint (`pkg/apifrontend/handler/mcp.go`, Dex-JWT + persona `Authorizer`)
+— architecturally distinct from KA's `/api/v1/mcp` (port `:8088`,
+ServiceAccount-token auth), which is what every existing upstream MCP E2E
+test exercises. Tracing this found AF's own MCP surface — the one
+`docs/integration-guide.md` documents for clients like this console — has
+no upstream E2E coverage at all. Filed as
+[kubernaut#1827](https://github.com/jordigilh/kubernaut/issues/1827) rather
+than building deep protocol/authorization coverage out here: verifying AF's
+own MCP dispatch/authorization/bridge-to-KA correctness is upstream's job.
+This suite stays narrowly scoped to proving the console's own production UI
+code correctly drives that real endpoint for the actions it exposes.
+
 ## Known open question this suite is designed to surface, not pre-solve
 
 `charts/kubernaut/values.yaml`'s `sre` persona ACL (the Dex test user this
@@ -69,6 +103,7 @@ suite authenticates as) lists `kubernaut_approve`/`kubernaut_complete` but
 not `kubernaut_complete_no_action` — the exact tool the console's
 Dismiss/Escalate buttons call. `approval-gate.spec.ts`'s dismiss test
 asserts the real MCP response directly and fails with a clear message if
-that's a real authorization gap, rather than skip or guess. Verified
-against `jordigilh/kubernaut@origin/main` on 2026-08-01; re-check if this
-has since been fixed upstream.
+that's a real authorization gap, rather than skip or guess (currently
+unreachable until #1818 is fixed — see above). Verified against
+`jordigilh/kubernaut@origin/main` on 2026-08-01; re-check if this has since
+been fixed upstream.
