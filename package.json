@@ -16,7 +16,8 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build -o storybook-static",
     "test:visual": "npx playwright test e2e/visual.spec.ts",
-    "test:visual:update": "npx playwright test e2e/visual.spec.ts --update-snapshots"
+    "test:visual:update": "npx playwright test e2e/visual.spec.ts --update-snapshots",
+    "test:e2e:live": "npx playwright test --config=playwright.live.config.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
