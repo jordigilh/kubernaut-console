@@ -862,18 +862,28 @@ export function useChat() {
     setConnectionStatus("idle");
   }, []);
 
+  // "New conversation" must guarantee a genuinely new backend session, not
+  // just a visually-empty local one. Leaving contextIdRef merely undefined
+  // (the old behavior) sends the next message with an empty contextId, which
+  // AF's SessionInterceptor (BR-SESS-020) silently reattaches to whatever
+  // session is still "active" for this user identity (rolling ~10min idle
+  // window / 2h max TTL) -- so a user could click "New conversation" and
+  // unknowingly resume an old investigation's backend context. resetContext()
+  // (already used for the terminal-completion case, SC-7) generates and
+  // sends an explicit non-empty contextId, which the interceptor never
+  // overrides -- so reusing it here closes that gap for the explicit-reset
+  // path too.
   const clearHistory = useCallback(() => {
     setMessages([]);
     setCurrentPhase(undefined);
     setInvestigationStartTime(undefined);
     activeRrIdRef.current = undefined;
-    contextIdRef.current = undefined;
     pendingContextRef.current = [];
     sessionStorage.removeItem(STORAGE_KEY);
-    sessionStorage.removeItem(CONTEXT_KEY);
     sessionStorage.removeItem(PENDING_CONTEXT_KEY);
     clearSessionState();
-  }, []);
+    resetContext();
+  }, [resetContext]);
 
   return { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext };
 }

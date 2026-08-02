@@ -108,7 +108,7 @@ describe("useChat", () => {
       expect(result.current.messages[0].text).toBe("restored message");
     });
 
-    it("UT-CONSOLE-CHAT-005: clearHistory removes conversation context and A2A session binding", async () => {
+    it("UT-CONSOLE-CHAT-005: clearHistory removes conversation history and rebinds to a fresh A2A session", async () => {
       vi.useRealTimers();
       sessionStorage.setItem("kubernaut-console-messages", JSON.stringify([{ id: "1", role: "user", text: "x", timestamp: 1 }]));
       sessionStorage.setItem("kubernaut-console-context", "ctx-123");
@@ -120,7 +120,15 @@ describe("useChat", () => {
       });
 
       expect(result.current.messages).toHaveLength(0);
-      expect(sessionStorage.getItem("kubernaut-console-context")).toBeNull();
+      // "New conversation" must guarantee a genuinely new backend session
+      // (see clearHistory's doc comment) -- so the context key is replaced
+      // with a fresh UUID, not merely removed, closing a gap where AF's
+      // SessionInterceptor could otherwise silently reattach the "new"
+      // conversation to a still-active prior session server-side.
+      const newContext = sessionStorage.getItem("kubernaut-console-context");
+      expect(newContext).not.toBeNull();
+      expect(newContext).not.toBe("ctx-123");
+      expect(newContext).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
     });
   });
 
