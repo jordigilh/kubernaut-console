@@ -50,12 +50,13 @@ const INVESTIGATE_MESSAGE =
  * bootstrap (see helpers.ts's OOMKILL_TARGET), rather than a fabricated
  * target that doesn't exist in the cluster.
  *
- * Current status: this test is blocked on kubernaut#1818 — see
+ * Current status: this test is blocked on kubernaut#1853 (a mock-llm
+ * test-fixture gap, not an AF/KA production defect) — see
  * waitForInvestigationSummaryOrKnownRace's doc comment in helpers.ts. The
  * console's single free-form investigate message is its real, only
  * investigation entry point; there is no multi-turn text protocol in the
- * actual product to work around this with; a real fix requires AF/KA to
- * stop orphaning the RCA session.
+ * actual product to work around this with; a real fix requires the
+ * `fullpipeline` mock-llm fixture to support this message shape.
  */
 test.describe("Full remediation lifecycle — real cluster, real browser", () => {
   test("investigate → decision → (approval) → execution → verification → complete", async ({ page }) => {

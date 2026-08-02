@@ -32,13 +32,16 @@ import {
  * Current status: this suite's single chat message is the console's real,
  * only investigation entry point (there is no multi-turn text protocol in
  * the actual product — see helpers.ts's `waitForInvestigationSummaryOrKnownRace`),
- * and it reliably hits kubernaut#1818 against this cluster: KA's fast
- * investigation completion races AF's interactive-session upgrade, so AF
- * falls back to an RCA-less placeholder and emits a malformed TextPart
- * instead of the documented investigation_summary DataPart. Every test
- * below that calls `waitForInvestigationSummaryOrKnownRace` is expected to
- * fail with a #1818-attributed error until that's fixed upstream — this is
- * a real backend defect the suite correctly surfaces, not a console bug.
+ * and it reliably hits kubernaut#1853 against this cluster — a mock-llm
+ * test-fixture gap (its keyword scenarios only recognize the exact
+ * multi-turn phrase sequence upstream's own Go tests use across separate
+ * messages, so a single combined-intent message like this one skips
+ * `kubernaut_remediate` and calls `kubernaut_investigate` with an
+ * unresolved `$from_tool` template), not an AF/KA production defect. Every
+ * test below that calls `waitForInvestigationSummaryOrKnownRace` is
+ * expected to fail with a #1853-attributed error until that's fixed
+ * upstream — this is a real test-infra gap the suite correctly surfaces,
+ * not a console bug.
  */
 const INVESTIGATE_MESSAGE =
   `The ${OOMKILL_TARGET.name} ${OOMKILL_TARGET.kind} in ${OOMKILL_TARGET.namespace} is OOMKilled and CrashLoopBackOff, please investigate.`;
@@ -62,7 +65,7 @@ test.describe("Contract compliance — integration-guide.md checklist", () => {
     // presence is itself proof the contract's `type` field is populated.
     // Unlike the tests below, this only needs the stream to carry *some*
     // status content, not a well-formed investigation_summary — so it is
-    // not blocked by kubernaut#1818.
+    // not blocked by kubernaut#1853.
     await expect(page.getByTestId("thinking-body")).toBeVisible({ timeout: REAL_INVESTIGATION_TIMEOUT_MS });
   });
 

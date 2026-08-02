@@ -45,12 +45,13 @@ const INVESTIGATE_MESSAGE =
  * message, per useChat.ts's friendlyError()) if that gap is real, rather
  * than silently skipping it. Flagged as an example in jordigilh/kubernaut#1827.
  *
- * Current status: every test below is blocked on kubernaut#1818 — the
+ * Current status: every test below is blocked on kubernaut#1853 (a
+ * mock-llm test-fixture gap, not an AF/KA production defect — see
+ * waitForInvestigationSummaryOrKnownRace's doc comment in helpers.ts) — the
  * beforeEach's single investigate message (the console's real, only
  * investigation entry point) reliably fails to produce a renderable
  * investigation_summary against this cluster, so none of the decision UI
- * (Approve/Decline/Dismiss/Execute) ever appears. See
- * waitForInvestigationSummaryOrKnownRace's doc comment in helpers.ts.
+ * (Approve/Decline/Dismiss/Execute) ever appears.
  */
 test.describe("Approval gate — real MCP calls", () => {
   test.beforeEach(async ({ page }) => {

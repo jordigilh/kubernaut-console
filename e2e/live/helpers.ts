@@ -73,7 +73,7 @@ export async function approveIfRequested(page: Page): Promise<void> {
  * discover, not from our chat text — so this suite's chat message describes
  * this real condition rather than a fabricated one, for both honesty and
  * the best chance of a deterministic scripted-scenario match once
- * kubernaut#1818 (below) no longer intervenes.
+ * kubernaut#1853 (below) no longer intervenes.
  */
 export const OOMKILL_TARGET = {
   kind: "Deployment",
@@ -86,30 +86,46 @@ export const OOMKILL_ALTERNATIVE_WORKFLOW = "generic-restart-v1";
 
 /**
  * Same wait as `waitForInvestigationSummary`, but fails with a message
- * naming kubernaut#1818 instead of a bare "element not found" timeout when
+ * naming kubernaut#1853 instead of a bare "element not found" timeout when
  * it doesn't show up.
  *
- * Found 2026-08-02 running this suite against a real preserved cluster: a
- * single free-form investigate message — the console's actual, only, and
- * intended usage pattern (there is no console UI concept of a scripted
- * multi-turn "create/discover/select" text protocol; approve/decline/
- * dismiss/execute are direct MCP tool calls from button clicks, never chat
- * text — see ChatContainer.tsx's handleApprove/handleExecuteWorkflow)
- * routes through AA's autonomous submit path (RequestBuilder never sets
- * Interactive for a fresh chat-driven request). If KA's investigation
- * completes before AF's interactive upgrade attaches — which it reliably
- * does against mock-llm's near-instant responses — KA orphans the real RCA
- * behind an RCA-less placeholder session, and AF emits that as a bare
- * TextPart instead of the documented investigation_summary DataPart. This
- * is a real AF/KA defect (kubernaut#1818), not a console contract
- * violation: the console correctly declines to render the malformed
- * payload as a valid investigation.
+ * History: originally attributed to kubernaut#1818 (orphaned RCA on an
+ * autonomous/interactive session race). #1818 was fixed and merged
+ * upstream (jordigilh/kubernaut#1844, 2026-08-02) — re-validated directly:
+ * built arm64 images from the fix commit, ran
+ * `test/e2e/fullpipeline/15_af_a2a_interactive_streaming_test.go`
+ * (`--label-filter=issue-1189`) against a fresh cluster, 4/4 passed
+ * including the exact #1818 regression case. This suite still failed
+ * identically afterward, which traced to a **different, still-open**
+ * defect: kubernaut#1853.
+ *
+ * #1853's mechanism: a single free-form investigate message — the
+ * console's actual, only, and intended usage pattern (there is no console
+ * UI concept of a scripted multi-turn "create/discover/select" text
+ * protocol; approve/decline/dismiss/execute are direct MCP tool calls from
+ * button clicks, never chat text — see ChatContainer.tsx's
+ * handleApprove/handleExecuteWorkflow) — contains the keyword
+ * "investigate" but not "remediation", so the `fullpipeline` E2E harness's
+ * mock-llm fixture (`test/infrastructure/shared_e2e.go`'s afKeywordYAML)
+ * matches its `af_investigate` scenario directly, skipping
+ * `kubernaut_remediate` entirely. That scenario's `rr_id` argument is a
+ * `$from_tool:kubernaut_remediate:rr_id` template with no prior
+ * `kubernaut_remediate` response to resolve from, so AF calls
+ * `kubernaut_investigate` with the literal, unresolved placeholder string,
+ * which fails K8s name validation and falls back to a text-only reply
+ * after 3 retries — the malformed TextPart this helper's timeout catches.
+ * Confirmed via `kubectl logs deploy/apifrontend`: no `kubernaut_remediate`
+ * tool call is ever attempted for this request. This is a **mock-llm
+ * test-fixture scripting gap**, not an AF/KA production defect — a real
+ * LLM would presumably sequence remediate-then-investigate on its own; the
+ * scripted double can only replay its author's exact expected phrase
+ * sequence.
  *
  * This is not a rare flake here — it reproduced on effectively every run
  * against this cluster. Tests using this helper are effectively blocked
- * until #1818 lands upstream; do not "fix" that by inventing a synthetic
+ * until #1853 lands upstream; do not "fix" that by inventing a synthetic
  * multi-turn text protocol the console doesn't actually implement, which
- * would silently mask this real defect instead of catching it.
+ * would silently mask this real gap instead of catching it.
  */
 export async function waitForInvestigationSummaryOrKnownRace(page: Page): Promise<void> {
   try {
@@ -117,9 +133,10 @@ export async function waitForInvestigationSummaryOrKnownRace(page: Page): Promis
   } catch (err) {
     throw new Error(
       "investigation_summary never rendered (no severity-accent). This is most likely " +
-        "kubernaut#1818 (orphaned RCA on fast autonomous completion racing AF's interactive " +
-        "upgrade), not a console-side bug — see this function's doc comment for the full " +
-        "mechanism and e2e/live/README.md for current status.",
+        "kubernaut#1853 (fullpipeline mock-llm fixture has no scenario for a single " +
+        "combined-intent message, so kubernaut_investigate gets called with an unresolved " +
+        "$from_tool template), not a console-side bug — see this function's doc comment for " +
+        "the full mechanism and e2e/live/README.md for current status.",
       { cause: err },
     );
   }

@@ -62,24 +62,44 @@ Override any of these if your cluster's ports/credentials differ from the
 | `approval-gate.spec.ts` | Real `kubernaut_approve` / `kubernaut_complete_no_action` MCP calls, real per-persona SAR authorization |
 | `full-remediation-lifecycle.spec.ts` | End-to-end: real investigation → decision → (approval) → real Job execution → real verification → complete |
 
-## Current status: blocked on kubernaut#1818
+## Current status: blocked on kubernaut#1853
 
 The suite's first run against a real cluster (2026-08-02) found that AF
 returns a malformed `investigation_summary` (a bare `TextPart` instead of
 the documented `DataPart`) for the console's single free-form investigate
-message — its real, only investigation entry point. This traces to
-[kubernaut#1818](https://github.com/jordigilh/kubernaut/issues/1818): KA's
-near-instant mock-llm response reliably races AF's interactive-session
-upgrade, orphaning the real RCA behind a placeholder session. **This is an
-AF/KA defect, not a console bug** — the console correctly declines to
+message — its real, only investigation entry point. This was originally
+attributed to [kubernaut#1818](https://github.com/jordigilh/kubernaut/issues/1818)
+(orphaned RCA on an autonomous/interactive session race).
+
+**#1818 is now fixed and merged upstream**
+([jordigilh/kubernaut#1844](https://github.com/jordigilh/kubernaut/pull/1844)) —
+re-validated directly the same day: built arm64 images from the fix
+commit, ran `test/e2e/fullpipeline/15_af_a2a_interactive_streaming_test.go`
+against a fresh cluster, 4/4 passed including the exact #1818 regression
+case. **This suite still failed identically afterward.** Tracing it
+further (AF pod logs + a direct curl repro against the fixed cluster)
+found a second, distinct, still-open defect:
+[kubernaut#1853](https://github.com/jordigilh/kubernaut/issues/1853).
+
+#1853 is a **mock-llm test-fixture scripting gap**, not an AF/KA
+production defect: the `fullpipeline` E2E harness's mock-llm scenarios
+(`test/infrastructure/shared_e2e.go`) only recognize the exact multi-turn
+phrase sequence upstream's own Go tests use across *separate* messages.
+The console's single message contains "investigate" but not "remediation",
+so mock-llm jumps straight to its `af_investigate` scenario — skipping
+`kubernaut_remediate` entirely — whose `rr_id` argument is a
+`$from_tool:kubernaut_remediate:rr_id` template with nothing to resolve
+from. AF calls `kubernaut_investigate` with that literal unresolved
+placeholder, fails K8s name validation, and falls back to a text-only
+reply. **This is not a console bug** — the console correctly declines to
 render the malformed fallback as a valid investigation. Every test that
 calls `waitForInvestigationSummaryOrKnownRace` is expected to fail with a
-message naming #1818 until it's fixed upstream; see ADR-009 §9 for the full
-writeup, including why a multi-turn scripted-text workaround (mirroring
-kubernaut's own Go E2E test) was tried and rejected — the console's real UI
-has no such protocol (decisions are direct MCP calls from button clicks,
-never chat text), so that would have masked the bug behind an unrealistic
-test shape instead of catching it.
+message naming #1853 until it's fixed upstream; see ADR-009 §9 for the
+full writeup, including why a multi-turn scripted-text workaround
+(mirroring kubernaut's own Go E2E test) was tried and rejected — the
+console's real UI has no such protocol (decisions are direct MCP calls
+from button clicks, never chat text), so that would have masked the
+underlying gap behind an unrealistic test shape instead of catching it.
 
 ## Scope: what this suite covers vs. upstream's job
 
@@ -104,6 +124,6 @@ not `kubernaut_complete_no_action` — the exact tool the console's
 Dismiss/Escalate buttons call. `approval-gate.spec.ts`'s dismiss test
 asserts the real MCP response directly and fails with a clear message if
 that's a real authorization gap, rather than skip or guess (currently
-unreachable until #1818 is fixed — see above). Verified against
+unreachable until #1853 is fixed — see above). Verified against
 `jordigilh/kubernaut@origin/main` on 2026-08-01; re-check if this has since
 been fixed upstream.
