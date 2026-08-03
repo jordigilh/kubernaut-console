@@ -2,7 +2,6 @@ import { useContext, useEffect, useRef, useState, useCallback, useMemo, type For
 import { useChat, type ChatMessage, type ApprovalRequest } from "../hooks/useChat";
 import { useRRStatus } from "../hooks/useRRStatus";
 import { callMcpTool, type McpClientOptions } from "../lib/mcp-client";
-import { emitAuditEvent } from "../lib/audit";
 import { isPastDecisionPhase, isWorkflowResolved, markWorkflowResolved } from "../lib/session-state";
 import { isInvestigationEngaged } from "../lib/query-intent";
 import { maxChatPhase } from "../lib/phase-rank";
@@ -232,9 +231,8 @@ export function ChatContainer() {
         const mapped = PHASE_MAP[resBody.phase];
         setCurrentPhase((prev) => maxChatPhase(prev, mapped) ?? mapped);
       }
-      emitAuditEvent({ action: "execute_workflow", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { workflowId } });
     },
-    [rrId, workflowActionTaken, setCurrentPhase, setError, user.name, user.email, mcpOptions],
+    [rrId, workflowActionTaken, setCurrentPhase, setError, mcpOptions],
   );
 
   const handleApprove = useCallback(
@@ -253,7 +251,6 @@ export function ChatContainer() {
           ? { ...msg, approvalResolution: { name: rarName, decision: "Approved" as const, decidedBy: user.name || user.email } }
           : msg,
       ));
-      emitAuditEvent({ action: "approve", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { rarName, reason } });
     },
     [setMessages, setError, rrId, user.name, user.email, mcpOptions],
   );
@@ -275,7 +272,6 @@ export function ChatContainer() {
           : msg,
       ));
       setCurrentPhase("failed");
-      emitAuditEvent({ action: "decline", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { rarName, reason } });
     },
     [setMessages, setCurrentPhase, setError, rrId, user.name, user.email, mcpOptions],
   );
@@ -306,9 +302,8 @@ export function ChatContainer() {
         timestamp: Date.now(),
       }]);
       setCurrentPhase("complete");
-      emitAuditEvent({ action: "dismiss", timestamp: new Date().toISOString(), user: user.name || user.email, rrId });
     },
-    [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, user.name, user.email, mcpOptions],
+    [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions],
   );
 
   const handleEscalate = useCallback(async (reason: string) => {
@@ -337,8 +332,7 @@ export function ChatContainer() {
       timestamp: Date.now(),
     }]);
     setCurrentPhase("complete");
-    emitAuditEvent({ action: "escalate", timestamp: new Date().toISOString(), user: user.name || user.email, rrId, detail: { escalation_reason: reason } });
-  }, [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, user.name, user.email, mcpOptions]);
+  }, [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions]);
 
   const handleClearHistory = useCallback(() => {
     if (messages.length === 0) {
@@ -353,8 +347,7 @@ export function ChatContainer() {
     setClearConfirmOpen(false);
     clearHistory();
     setError(null);
-    emitAuditEvent({ action: "clear_history", timestamp: new Date().toISOString(), user: user.name || user.email, rrId });
-  }, [clearHistory, setError, user.name, user.email, rrId]);
+  }, [clearHistory, setError]);
 
   return (
     <div className="kn-chat">

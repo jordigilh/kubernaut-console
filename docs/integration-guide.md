@@ -391,30 +391,28 @@ Error:
 
 ---
 
-## Audit Telemetry
+## Audit Trail
 
-The console emits audit events via `POST /a2a/telemetry/audit` (fire-and-forget):
+The console does not emit its own audit telemetry. Every user decision that has
+security/compliance relevance (approve, decline, escalate, dismiss) already
+flows through a real MCP tool call (`kubernaut_approve`,
+`kubernaut_complete_no_action`, `kubernaut_select_workflow`) — a compatible
+backend is expected to record its own authoritative, server-side audit trail
+from those calls (see AF's own `EventUserDecision`/`EventToolExecuted`
+catalog for a reference implementation), keyed off the authenticated
+identity on the request rather than a client-asserted one.
 
-```json
-{
-  "action": "approve",
-  "timestamp": "2026-06-14T10:30:00.000Z",
-  "user": "john.doe@example.com",
-  "rrId": "rr-47ec5289",
-  "detail": { "decision": "approved" }
-}
-```
-
-| Action | Trigger |
-|--------|---------|
-| `approve` | User approves RAR |
-| `decline` | User declines RAR |
-| `escalate` | User escalates with reason |
-| `dismiss` | User clicks "No action needed" |
-| `execute_workflow` | User triggers workflow execution |
-| `clear_history` | User clears chat session |
-
-The backend MAY log or forward these events. The console does not depend on a response.
+An earlier revision of this guide additionally specified a client-side
+`POST /a2a/telemetry/audit` beacon (`emitAuditEvent()`) fired after those same
+MCP calls. It was removed (2026-08-02) once a live-cluster E2E run against a
+real AF surfaced that AF never implemented this endpoint (a real 404), and
+closer inspection showed it was redundant for every MCP-backed action anyway
+— the console's own `emitAuditEvent()` call sites all followed a
+`callMcpTool()` for the same action, duplicating a fact the backend's own
+audit emitter already captures with better provenance. The only action it
+covered with no other server-side trace was `clear_history`, a purely local
+UI state reset with no security-relevant effect, judged not worth a
+dedicated endpoint on its own.
 
 ---
 
@@ -440,7 +438,7 @@ To integrate with Kubernaut Console, your backend must:
 2. **Stream** SSE events (`status-update`, `artifact-update`) in the format above
 3. **Include** RR context metadata on all status events after RR creation
 4. **Serve** MCP tool calls at `/mcp` (at minimum: `kubernaut_approve`, `kubernaut_complete_no_action`)
-5. **Accept** audit telemetry at `/a2a/telemetry/audit` (fire-and-forget, 204 response)
+5. **Record** its own server-side audit trail from those MCP calls (see [Audit Trail](#audit-trail)) — the console does not send a separate audit signal
 
 ### Minimal Implementation Checklist
 
@@ -451,4 +449,4 @@ To integrate with Kubernaut Console, your backend must:
 - [ ] `execution_progress` artifact with phase transitions
 - [ ] MCP endpoint at `/mcp` with `kubernaut_approve`
 - [ ] MCP endpoint with `kubernaut_complete_no_action`
-- [ ] Audit telemetry sink at `/a2a/telemetry/audit`
+- [ ] Server-side audit trail recorded from MCP tool calls
