@@ -4,12 +4,72 @@ import {
   sendChatMessage,
   waitForInvestigationSummaryOrKnownRace,
   isApprovalRequested,
+  isApprovalDenied,
+  clickExecuteWorkflow,
   REAL_EXECUTION_TIMEOUT_MS,
-  OOMKILL_TARGET,
+  oomkillTarget,
+  oomkillInvestigateMessage,
+  parseMcpResponseBody,
 } from "./helpers";
 
-const INVESTIGATE_MESSAGE =
-  `The ${OOMKILL_TARGET.name} ${OOMKILL_TARGET.kind} in ${OOMKILL_TARGET.namespace} is OOMKilled and CrashLoopBackOff, please investigate.`;
+/**
+ * Distinguishes the two reasons `isApprovalRequested()` can read false after
+ * `clickExecuteWorkflow()`: (a) this run's policy auto-approved — nothing to
+ * test, a legitimate skip — vs (b) RO *did* require approval and created a
+ * real RAR, but the console's `kubernaut_get_approval_request` fetch was
+ * denied (the `sre` persona RBAC gap — jordigilh/kubernaut-operator#278,
+ * jordigilh/kubernaut#1869). Skipping silently in case (b) would hide a real,
+ * tracked upstream bug behind a misleading "auto-approved" message.
+ */
+async function assertApprovalGateReachable(page: import("@playwright/test").Page): Promise<boolean> {
+  const requested = await isApprovalRequested(page, 30_000);
+  if (requested) return true;
+  if (await isApprovalDenied(page, 2_000)) {
+    throw new Error(
+      "RemediationOrchestrator required approval and created a real RAR, but the console's " +
+        "kubernaut_get_approval_request call was denied for the sre persona — this is the known, " +
+        "already-filed RBAC gap (jordigilh/kubernaut-operator#278 for v1.5/the operator, " +
+        "jordigilh/kubernaut#1869 for v1.6/the Helm chart), not a console bug: ChatContainer.tsx's " +
+        "graceful-degradation card (`.kn-approval-denied`) rendered exactly as designed. Re-run once " +
+        "either issue lands `kubernaut_get_approval_request` on the sre persona's ACL.",
+    );
+  }
+  return false;
+}
+
+// One dedicated target per test (see helpers.ts's `oomkillTarget` doc
+// comment) — the "approve" test actually executes a real remediation
+// workflow against its target, so sharing one across approve/decline/dismiss
+// would leave later tests investigating a resource whose state a prior test
+// already mutated, on top of the session/dedup collision risk.
+//
+// approve/decline's namespaces are additionally labeled
+// `kubernaut.ai/environment: production` (kubectl label namespace
+// console-e2e-approval[-2] kubernaut.ai/environment=production) — this
+// cluster's deployed OPA policy (aianalysis-policies ConfigMap,
+// package aianalysis.approval) only sets `require_approval` when
+// `input.environment == "production"`; input.environment itself is sourced
+// straight from `namespace.labels["kubernaut.ai/environment"]"]`
+// (signalprocessing-policy ConfigMap). Without this label, confidence and
+// namespace name alone are irrelevant to this deployed policy variant — it
+// has no confidence-threshold branch at all, unlike the richer
+// pkg/aianalysis/testdata fixture used by upstream's own unit tests. Labeling
+// the fixture namespace, not editing the deployed policy, keeps this
+// surgical: only these two namespaces gain an approval gate, every other
+// test in this suite keeps auto-approving. dismiss's namespace is
+// deliberately left unlabeled since it never reaches workflow selection.
+const TARGETS: Record<string, ReturnType<typeof oomkillTarget>> = {
+  approve: oomkillTarget("console-e2e-approval"),
+  decline: oomkillTarget("console-e2e-approval-2"),
+  dismiss: oomkillTarget("console-e2e-approval-3"),
+};
+
+function targetForTest(title: string) {
+  if (title.startsWith("approve path")) return TARGETS.approve;
+  if (title.startsWith("decline path")) return TARGETS.decline;
+  if (title.startsWith("dismiss path")) return TARGETS.dismiss;
+  throw new Error(`No dedicated E2E target mapped for test title: "${title}" — add one to TARGETS above.`);
+}
 
 /**
  * MCP tool calls (docs/integration-guide.md's kubernaut_approve /
@@ -31,44 +91,58 @@ const INVESTIGATE_MESSAGE =
  * our UI exposes." Filed the coverage gap itself upstream as
  * jordigilh/kubernaut#1827 rather than building it out here.
  *
- * Open question this suite exists partly to answer (found 2026-08-01
- * verifying against jordigilh/kubernaut@origin/main while drafting this
- * file): charts/kubernaut/values.yaml's `rbac.personas.sre` list —
- * the persona our test Dex user (sre@kubernaut.ai) authenticates as —
- * includes kubernaut_approve and kubernaut_complete, but does NOT list
- * kubernaut_complete_no_action, the exact tool ChatContainer.tsx calls for
- * Dismiss/Escalate. Whether that is a stale persona-ACL gap or dismiss/
- * escalate is intentionally restricted to a different persona is exactly
- * the kind of contract-drift this ADR-009 suite is meant to surface — the
- * "dismiss" test below asserts the currently-documented, currently-shipped
- * console behavior and will fail loudly (403 surfaced as a friendly error
- * message, per useChat.ts's friendlyError()) if that gap is real, rather
- * than silently skipping it. Flagged as an example in jordigilh/kubernaut#1827.
+ * Confirmed RBAC gap (2026-08-02, via live reproduction on this cluster —
+ * not just a values.yaml read): charts/kubernaut/values.yaml's (and the
+ * operator's internal/resources/rbac.go's) `rbac.personas.sre` /
+ * `tool-sre` list — the persona our test Dex user (sre@kubernaut.ai)
+ * authenticates as — has kubernaut_approve and kubernaut_complete, but is
+ * missing both kubernaut_complete_no_action (the tool ChatContainer.tsx
+ * calls for Dismiss/Escalate — see "dismiss path" below) and
+ * kubernaut_get_approval_request (the tool ChatContainer.tsx calls to fetch
+ * full RAR details once `/a2a/status` reports `AwaitingApproval` — see
+ * "approve path"/"decline path" below and `assertApprovalGateReachable`).
+ * Filed upstream as jordigilh/kubernaut-operator#278 (v1.5, the operator —
+ * the only supported production deployment path for 1.5) and
+ * jordigilh/kubernaut#1869 (v1.6, the Helm chart, which only becomes a
+ * supported production option in 1.6); both supersede the "don't yet know if
+ * intentional" framing in jordigilh/kubernaut#1827 with a confirmed
+ * reproduction. The console's own handling of both gaps is intentionally
+ * graceful (a friendly denied message, not a silent hang or crash) — these
+ * tests assert that shipped behavior and fail loudly with the issue numbers
+ * above if the underlying ACL gap is still open, rather than silently
+ * skipping it.
  *
- * Current status: every test below is blocked on kubernaut#1853 (a
- * mock-llm test-fixture gap, not an AF/KA production defect — see
- * waitForInvestigationSummaryOrKnownRace's doc comment in helpers.ts) — the
- * beforeEach's single investigate message (the console's real, only
- * investigation entry point) reliably fails to produce a renderable
- * investigation_summary against this cluster, so none of the decision UI
- * (Approve/Decline/Dismiss/Execute) ever appears.
+ * Current status (2026-08-02): kubernaut#1853 (mock-llm test-fixture gap —
+ * see waitForInvestigationSummaryOrKnownRace's doc comment in helpers.ts) is
+ * worked around on this cluster via a hand-patched mock-llm-scenarios
+ * ConfigMap, so the beforeEach's investigate message reliably produces a
+ * renderable investigation_summary again.
  */
 test.describe("Approval gate — real MCP calls", () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page }, testInfo) => {
     await openConsole(page);
-    await sendChatMessage(page, INVESTIGATE_MESSAGE);
+    await sendChatMessage(page, oomkillInvestigateMessage(targetForTest(testInfo.title)));
     await waitForInvestigationSummaryOrKnownRace(page);
   });
 
   test("approve path: real kubernaut_approve transitions RR to Executing", async ({ page }) => {
-    test.skip(!(await isApprovalRequested(page)), "This run's policy auto-approved — no approval gate to exercise.");
+    // See TARGETS' doc comment: this triggers the real kubernaut_select_workflow
+    // call, which is what actually makes RO evaluate ApprovalRequired and
+    // (given this target's production label) create the RAR in the first
+    // place. Confirmed empirically (2026-08-02): RO's reconcile loop takes
+    // ~15s after the MCP call to create the RAR (kubectl timestamps: MCP call
+    // completed :36.189Z, RAR created :20:50Z) before AF's watch surfaces the
+    // approval_request SSE event to console — the default 5s isApprovalRequested
+    // timeout reads false here purely from checking too early, not from policy.
+    await clickExecuteWorkflow(page);
+    test.skip(!(await assertApprovalGateReachable(page)), "This run's policy auto-approved — no approval gate to exercise.");
 
     const mcpToolCall = page.waitForResponse(
       (res) => res.url().endsWith("/mcp") && res.request().postData()?.includes("kubernaut_approve") === true,
     );
     await page.getByRole("button", { name: "Approve" }).click();
     const mcpRes = await mcpToolCall;
-    const mcpBody = await mcpRes.json();
+    const mcpBody = await parseMcpResponseBody(await mcpRes.text());
     expect(mcpBody.error, `kubernaut_approve should succeed for the sre persona: ${JSON.stringify(mcpBody.error)}`).toBeUndefined();
 
     await expect(page.locator(".kn-phase-label")).toHaveText(/Executing|Verifying|Complete/, {
@@ -77,7 +151,9 @@ test.describe("Approval gate — real MCP calls", () => {
   });
 
   test("decline path: real kubernaut_approve(Rejected) reaches a terminal state", async ({ page }) => {
-    test.skip(!(await isApprovalRequested(page)), "This run's policy auto-approved — no approval gate to exercise.");
+    // See approve path's comment: RO's RAR creation is ~15s async after this click.
+    await clickExecuteWorkflow(page);
+    test.skip(!(await assertApprovalGateReachable(page)), "This run's policy auto-approved — no approval gate to exercise.");
 
     await page.getByRole("button", { name: "Decline" }).click();
     await expect(page.getByText(/Declined by|Rejected/i)).toBeVisible({ timeout: 15_000 });
@@ -97,7 +173,7 @@ test.describe("Approval gate — real MCP calls", () => {
     );
     await dismissButton.click();
     const mcpRes = await mcpToolCall;
-    const mcpBody = await mcpRes.json();
+    const mcpBody = await parseMcpResponseBody(await mcpRes.text());
 
     if (mcpBody.error) {
       // Documents the failure mode precisely rather than a bare assertion

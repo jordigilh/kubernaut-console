@@ -4,7 +4,8 @@ import {
   sendChatMessage,
   waitForInvestigationSummaryOrKnownRace,
   REAL_INVESTIGATION_TIMEOUT_MS,
-  OOMKILL_TARGET,
+  oomkillTarget,
+  oomkillInvestigateMessage,
   OOMKILL_WORKFLOW,
   OOMKILL_ALTERNATIVE_WORKFLOW,
 } from "./helpers";
@@ -18,33 +19,31 @@ import {
  * a fabricated payload; this suite asserts the *real* payload actually
  * matches the contract those fabrications assume.
  *
- * Trigger scenario: kubernaut-system/memory-eater, a Deployment kept
- * permanently OOMKilled by kubernaut's own `fullpipeline` bootstrap (see
- * helpers.ts's `OOMKILL_TARGET`) — a real, always-on broken resource, not a
- * fixture this suite has to create. mock-llm's `oomkilledScenario`
- * (test/services/mock-llm/scenarios/scenario_oomkilled.go) returns a
- * deterministic, high-confidence (0.95) investigation recommending
+ * Trigger scenario: a dedicated, per-test `memory-eater` Deployment kept
+ * permanently OOMKilled/CrashLoopBackOff in its own `console-e2e-contract[-N]`
+ * namespace (see helpers.ts's `oomkillTarget` for why each test gets its own
+ * target instead of sharing kubernaut-system/memory-eater). mock-llm's
+ * `oomkilledScenario` (test/services/mock-llm/scenarios/scenario_oomkilled.go)
+ * returns a deterministic, high-confidence (0.95) investigation recommending
  * `oomkill-increase-memory-v1` over the `generic-restart-v1` alternative.
  * Verified against jordigilh/kubernaut@origin/main on 2026-08-02 — if
  * upstream's scenario config changes, update the expected values below,
  * not the assertions' shape.
  *
- * Current status: this suite's single chat message is the console's real,
- * only investigation entry point (there is no multi-turn text protocol in
- * the actual product — see helpers.ts's `waitForInvestigationSummaryOrKnownRace`),
- * and it reliably hits kubernaut#1853 against this cluster — a mock-llm
- * test-fixture gap (its keyword scenarios only recognize the exact
- * multi-turn phrase sequence upstream's own Go tests use across separate
- * messages, so a single combined-intent message like this one skips
- * `kubernaut_remediate` and calls `kubernaut_investigate` with an
- * unresolved `$from_tool` template), not an AF/KA production defect. Every
- * test below that calls `waitForInvestigationSummaryOrKnownRace` is
- * expected to fail with a #1853-attributed error until that's fixed
- * upstream — this is a real test-infra gap the suite correctly surfaces,
- * not a console bug.
+ * Current status (2026-08-02): kubernaut#1853's real upstream fix
+ * (jordigilh/kubernaut#1859, N-deep NextToolCall chaining in mock-llm) is
+ * deployed on this cluster and the ConfigMap-based scenario workaround was
+ * rewritten to use the native chain instead of the old two-scenario/
+ * repeat_tool_call hack that was the likely source of an earlier
+ * cross-session cross-talk failure on this exact test (see ADR-009 §13).
+ * See helpers.ts's `waitForInvestigationSummaryOrKnownRace` for the full
+ * history.
  */
-const INVESTIGATE_MESSAGE =
-  `The ${OOMKILL_TARGET.name} ${OOMKILL_TARGET.kind} in ${OOMKILL_TARGET.namespace} is OOMKilled and CrashLoopBackOff, please investigate.`;
+const TARGETS = {
+  sse: oomkillTarget("console-e2e-contract"),
+  rrContext: oomkillTarget("console-e2e-contract-2"),
+  summary: oomkillTarget("console-e2e-contract-3"),
+};
 
 test.describe("Contract compliance — integration-guide.md checklist", () => {
   test.beforeEach(async ({ page }) => {
@@ -56,7 +55,7 @@ test.describe("Contract compliance — integration-guide.md checklist", () => {
       (res) => res.url().includes("/a2a/") && res.status() === 200,
       { timeout: REAL_INVESTIGATION_TIMEOUT_MS },
     );
-    await sendChatMessage(page, INVESTIGATE_MESSAGE);
+    await sendChatMessage(page, oomkillInvestigateMessage(TARGETS.sse));
     const res = await sseResponse;
     expect(res.headers()["content-type"]).toContain("text/event-stream");
 
@@ -70,46 +69,48 @@ test.describe("Contract compliance — integration-guide.md checklist", () => {
   });
 
   test("[checklist] RR context metadata on status events populates the investigation banner", async ({ page }) => {
-    await sendChatMessage(page, INVESTIGATE_MESSAGE);
+    await sendChatMessage(page, oomkillInvestigateMessage(TARGETS.rrContext));
     await waitForInvestigationSummaryOrKnownRace(page);
 
     const context = page.getByTestId("investigation-context");
     await expect(context).toBeVisible();
-    // rr_id is opaque/generated per-run; namespace/resource are the fixed,
-    // always-on real target this suite always drives against.
-    await expect(context.getByLabel(/^Namespace:/i)).toContainText(OOMKILL_TARGET.namespace);
-    await expect(context.getByLabel(/^Resource:/i)).toContainText(`${OOMKILL_TARGET.kind}/${OOMKILL_TARGET.name}`);
+    // rr_id is opaque/generated per-run; namespace/resource are this test's
+    // own dedicated, always-on real target (see TARGETS above).
+    await expect(context.getByLabel(/^Namespace:/i)).toContainText(TARGETS.rrContext.namespace);
+    await expect(context.getByLabel(/^Resource:/i)).toContainText(`${TARGETS.rrContext.kind}/${TARGETS.rrContext.name}`);
   });
 
   test("[checklist] investigation_summary artifact carries RCA + real workflow options", async ({ page }) => {
-    await sendChatMessage(page, INVESTIGATE_MESSAGE);
+    await sendChatMessage(page, oomkillInvestigateMessage(TARGETS.summary));
     await waitForInvestigationSummaryOrKnownRace(page);
 
-    // oomkilledConfig() in kubernaut's mock-llm: Confidence: 0.95.
-    await expect(page.getByText(/95%/)).toBeVisible();
+    // oomkilledConfig() in kubernaut's mock-llm: Confidence: 0.95. RCACard.tsx
+    // renders the raw decimal ("Confidence: 0.95"), never a formatted percentage.
+    await expect(page.getByText(/Confidence: 0\.95/)).toBeVisible();
     await expect(page.getByTestId("causal-chain")).toBeVisible();
 
     // Recommended + one ruled-out alternative, both real, registered
-    // workflow catalog entries (not console-invented fixtures).
-    await expect(page.getByTestId(/^workflow-card-/).first()).toBeVisible();
-    await expect(page.getByText(OOMKILL_WORKFLOW)).toBeVisible();
-    await expect(page.getByText(OOMKILL_ALTERNATIVE_WORKFLOW)).toBeVisible();
+    // workflow catalog entries (not console-invented fixtures). Scoped to
+    // the workflow-card testid rather than a bare page.getByText: the
+    // causal-chain list above already renders the same workflow name in
+    // its own "<name> (confidence: NN%)" bullet, so an unscoped text
+    // locator matches twice and trips Playwright's strict mode.
+    const workflowCards = page.getByTestId(/^workflow-card-/);
+    await expect(workflowCards.first()).toBeVisible();
+    await expect(workflowCards.getByText(OOMKILL_WORKFLOW)).toBeVisible();
+    await expect(workflowCards.getByText(OOMKILL_ALTERNATIVE_WORKFLOW)).toBeVisible();
   });
 
-  test("[checklist] audit telemetry sink at /a2a/telemetry/audit accepts real user actions", async ({ page }) => {
-    const auditRequest = page.waitForRequest(
-      (req) => req.url().includes("/a2a/telemetry/audit") && req.method() === "POST",
-      { timeout: REAL_INVESTIGATION_TIMEOUT_MS },
-    );
-    await sendChatMessage(page, INVESTIGATE_MESSAGE);
-    await waitForInvestigationSummaryOrKnownRace(page);
-
-    // Any of approve/decline/dismiss/escalate/execute_workflow fires an
-    // audit POST — clearing history is the one available unconditionally,
-    // regardless of which decision path this run took.
-    await page.locator("button[aria-label='New conversation']").click();
-    const req = await auditRequest;
-    const res = await req.response();
-    expect(res?.status()).toBe(204);
-  });
+  // No audit telemetry test: the console used to emit a client-side
+  // /a2a/telemetry/audit beacon (emitAuditEvent(), removed 2026-08-02).
+  // Running this suite against a real AF surfaced that the endpoint was
+  // never implemented upstream (a real 404) — and closer inspection showed
+  // the beacon was redundant for every MCP-backed decision anyway: approve/
+  // decline/escalate/dismiss/execute_workflow already go through a real,
+  // authenticated MCP call (kubernaut_approve, kubernaut_select_workflow,
+  // etc.) that a compatible backend's own audit emitter should capture with
+  // better provenance than a client-asserted beacon (see AF's
+  // EventUserDecision/EventToolExecuted catalog for a reference). See
+  // docs/integration-guide.md's "Audit Trail" section for the current
+  // (server-side-only) contract.
 });

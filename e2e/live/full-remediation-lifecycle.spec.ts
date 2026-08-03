@@ -8,11 +8,25 @@ import {
   REAL_INVESTIGATION_TIMEOUT_MS,
   REAL_EXECUTION_TIMEOUT_MS,
   REAL_VERIFICATION_TIMEOUT_MS,
-  OOMKILL_TARGET,
+  oomkillTarget,
+  oomkillInvestigateMessage,
 } from "./helpers";
 
-const INVESTIGATE_MESSAGE =
-  `The ${OOMKILL_TARGET.name} ${OOMKILL_TARGET.kind} in ${OOMKILL_TARGET.namespace} is OOMKilled and CrashLoopBackOff, please investigate.`;
+// One dedicated target per test — see helpers.ts's `oomkillTarget` doc
+// comment (this file's first test also executes a real remediation
+// workflow, mutating its target's state).
+const TARGETS = {
+  // -3, not the original: -1/-2 both accumulated 3+ consecutive
+  // IneffectiveChain hits (issue #214's routing safety net) from repeated
+  // manual re-runs against the same fixed starting spec during today's
+  // #1853 validation — RO's DataStorage-backed hash-chain check correctly
+  // blocked further automatic remediation on those targets. Confirmed via
+  // direct action_history.audit_events query (2026-08-02): the same
+  // pre_remediation_spec_hash recurred 3x for console-e2e-lifecycle. Not a
+  // product bug — see ADR-009 §13.
+  fullLifecycle: oomkillTarget("console-e2e-lifecycle-3"),
+  noConsoleErrors: oomkillTarget("console-e2e-lifecycle-2"),
+};
 
 /**
  * ADR-009's flagship scenario: "a real signal ingested, a real
@@ -45,24 +59,26 @@ const INVESTIGATE_MESSAGE =
  * scenario is itself proof-by-construction of ADR-009 §5's "no Tekton"
  * decision, not just an assumption of it.
  *
- * Target (revised 2026-08-02): drives against kubernaut-system/memory-eater,
- * a real, always-on OOMKilled Deployment from kubernaut's own fullpipeline
- * bootstrap (see helpers.ts's OOMKILL_TARGET), rather than a fabricated
- * target that doesn't exist in the cluster.
+ * Target (revised 2026-08-02): drives against a dedicated, per-test
+ * `memory-eater` Deployment (the same image/args as kubernaut's own
+ * fullpipeline bootstrap uses for kubernaut-system/memory-eater) in its own
+ * `console-e2e-lifecycle[-N]` namespace — see helpers.ts's `oomkillTarget`
+ * for why each test gets its own target — rather than a fabricated target
+ * that doesn't exist in the cluster.
  *
- * Current status: this test is blocked on kubernaut#1853 (a mock-llm
- * test-fixture gap, not an AF/KA production defect) — see
- * waitForInvestigationSummaryOrKnownRace's doc comment in helpers.ts. The
- * console's single free-form investigate message is its real, only
- * investigation entry point; there is no multi-turn text protocol in the
- * actual product to work around this with; a real fix requires the
- * `fullpipeline` mock-llm fixture to support this message shape.
+ * Current status (2026-08-02): kubernaut#1853's *real* upstream fix
+ * (jordigilh/kubernaut#1859, N-deep NextToolCall chaining) is deployed on
+ * this cluster (mock-llm rebuilt from kubernaut main @ a8b9edd4) and the
+ * ConfigMap-based scenario workaround was rewritten to use the native
+ * chain instead of the old two-scenario/repeat_tool_call hack — see
+ * waitForInvestigationSummaryOrKnownRace's doc comment in helpers.ts and
+ * ADR-009 §13.
  */
 test.describe("Full remediation lifecycle — real cluster, real browser", () => {
   test("investigate → decision → (approval) → execution → verification → complete", async ({ page }) => {
     await openConsole(page);
 
-    await sendChatMessage(page, INVESTIGATE_MESSAGE);
+    await sendChatMessage(page, oomkillInvestigateMessage(TARGETS.fullLifecycle));
 
     await test.step("real KubernautAgent investigation completes", async () => {
       await waitForInvestigationSummaryOrKnownRace(page);
@@ -75,10 +91,25 @@ test.describe("Full remediation lifecycle — real cluster, real browser", () =>
     });
 
     await test.step("recommended workflow is selected (approved if gated)", async () => {
+      // Workflow cards render from the same real decision payload as the RCA
+      // (kubernaut_present_decision bundles both) but the round-trip through
+      // a real kubernaut_discover_workflows call first makes this slower
+      // than a fixed 5s guess — wait on the actual decision UI, not a timer.
+      await expect(page.getByTestId(/^workflow-card-/).first()).toBeVisible({
+        timeout: REAL_INVESTIGATION_TIMEOUT_MS,
+      });
       await approveIfRequested(page);
       const executeButton = page.getByRole("button", { name: /^Execute /i });
       if (await executeButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
         await executeButton.click();
+        // WorkflowCards.tsx requires a second, explicit confirm click within
+        // a 10s countdown window ("Execute now (Ns remaining)") — it does
+        // auto-fire once the countdown reaches zero, but clicking confirms
+        // deterministically without a 10s passive wait.
+        const confirmButton = page.getByRole("button", { name: /^Execute now/i });
+        if (await confirmButton.isVisible({ timeout: 3_000 }).catch(() => false)) {
+          await confirmButton.click();
+        }
       }
     });
 
@@ -100,7 +131,7 @@ test.describe("Full remediation lifecycle — real cluster, real browser", () =>
     });
 
     await openConsole(page);
-    await sendChatMessage(page, INVESTIGATE_MESSAGE);
+    await sendChatMessage(page, oomkillInvestigateMessage(TARGETS.noConsoleErrors));
     await waitForInvestigationSummaryOrKnownRace(page);
 
     const criticalErrors = errors.filter(
