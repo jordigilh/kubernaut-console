@@ -273,7 +273,20 @@ export function WorkflowCards({ options, onExecute, onDismiss, onEscalate, recov
           aria-label={`${opt.name} — ruled out${opt.ruledOutReason ? `: ${opt.ruledOutReason}` : ""}`}
           style={{ marginTop: "var(--pf-t--global--spacer--sm)", border: "1px solid var(--pf-t--global--border--color--default)" }}
         >
-          <CardHeader>
+          <CardHeader
+            selectableActions={{
+              // Card renders its own onClick handler for the visible click
+              // target already (above) — this hidden input exists only to
+              // satisfy PF6's requirement that isSelectable Cards expose an
+              // accessible name for the selection state (CardHeader.js logs
+              // a console.error otherwise), not to add a second visible
+              // control.
+              isHidden: true,
+              selectableActionAriaLabel: `${opt.name} — ruled out${opt.ruledOutReason ? `: ${opt.ruledOutReason}` : ""}`,
+              onChange: () => handleRuledOutClick(opt.workflowId),
+              isChecked: confirmingId === opt.workflowId,
+            }}
+          >
             <CardTitle>
               <Flex spaceItems={{ default: "spaceItemsSm" }} alignItems={{ default: "alignItemsCenter" }}>
                 <FlexItem><TimesCircleIcon color="var(--pf-t--global--color--status--danger--default)" data-testid="ruled-out-icon" /></FlexItem>
