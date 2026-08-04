@@ -36,6 +36,14 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
   );
   const hasWorkflows = message.workflowOptions && message.workflowOptions.length > 0;
   const showEscapeHatches = hasRCAData && !hasWorkflows;
+  // #1922/kubernaut-console#50: a backend RCA-shaped payload without a causal
+  // chain or tool-call count (e.g. KA's session_active dedup fallback) must
+  // still surface *something* to the user. hasRCAData intentionally hides the
+  // full RCACard for this shape (2026-07-31 fix, avoids a placeholder-only
+  // findings card), but that must not mean rendering nothing at all — fall
+  // back to plain text so the user sees why nothing else appeared.
+  const rcaFallbackText = hasRCA && !hasRCAData ? (message.rca!.summary?.trim() || message.text.trim()) : "";
+  const hasRCAFallbackText = rcaFallbackText.length > 0;
   const hasApproval = !!message.approvalRequest;
   const hasAlignmentVerdict = !!message.alignmentVerdict;
 
@@ -46,6 +54,12 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
           <div className="kn-agent-bubble">
             <MarkdownContent text={message.text.trimEnd()} />
             {message.isStreaming && <StreamingCursor />}
+          </div>
+        )}
+
+        {!hasWorkflows && hasRCAFallbackText && (
+          <div className="kn-agent-bubble" data-testid="rca-fallback-text">
+            <MarkdownContent text={rcaFallbackText} />
           </div>
         )}
 
