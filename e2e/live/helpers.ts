@@ -4,8 +4,14 @@ import { type Page, expect } from "@playwright/test";
  * Real-cluster timing is not mocked-suite instant: KubernautAgent performs
  * real tool calls (kubectl reads, workflow discovery) through a real AF
  * before mock-llm's scripted response even starts streaming back.
+ *
+ * Overridable via LIVE_E2E_INVESTIGATION_TIMEOUT_MS: playwright.live-v15.config.ts
+ * (real, unscripted claude-sonnet-5 against release/v1.5, no mock-llm) sets this
+ * much higher — observed 5+ min for a single real investigation during the
+ * 2026-08-03 preflight spike, vs. mock-llm's scripted sub-90s responses on the
+ * Kind/fullpipeline suite this default was originally tuned for.
  */
-export const REAL_INVESTIGATION_TIMEOUT_MS = 90_000;
+export const REAL_INVESTIGATION_TIMEOUT_MS = Number(process.env.LIVE_E2E_INVESTIGATION_TIMEOUT_MS) || 90_000;
 export const REAL_EXECUTION_TIMEOUT_MS = 60_000;
 export const REAL_VERIFICATION_TIMEOUT_MS = 60_000;
 
