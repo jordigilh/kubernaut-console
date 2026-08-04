@@ -99,6 +99,45 @@ describe("AgentBubble", () => {
     expect(screen.queryByRole("group", { name: /security findings/i })).not.toBeInTheDocument();
   });
 
+  it("UT-CONSOLE-BUBBLE-009: renders rca.summary as plain text instead of nothing when rca exists but lacks causalChain/toolCallsCount (regression: kubernaut-console#50)", () => {
+    const msg: ChatMessage = {
+      id: "1", role: "agent", text: "", timestamp: Date.now(),
+      rca: {
+        severity: "critical",
+        confidence: 0.6,
+        causalChain: [],
+        target: "Deployment/memory-eater",
+        toolCallsCount: 0,
+        llmTurns: 0,
+        summary: "Severity assessed from resource metadata (investigation in progress by console-e2e-test)",
+      },
+    };
+    render(<AgentBubble message={msg} />);
+    expect(screen.getByText(/Severity assessed from resource metadata/)).toBeInTheDocument();
+    // Must NOT render the full RCACard (severity-accent) -- that guard exists
+    // for a good reason (no premature placeholder-only findings card) and
+    // must be preserved; this is purely a "don't render nothing" fallback.
+    expect(screen.queryByTestId("severity-accent")).not.toBeInTheDocument();
+  });
+
+  it("UT-CONSOLE-BUBBLE-010: falls back to message.text when rca has no summary and lacks causalChain/toolCallsCount", () => {
+    const msg: ChatMessage = {
+      id: "1", role: "agent", text: "An investigation is already in progress for this target.", timestamp: Date.now(),
+      rca: {
+        severity: "high",
+        confidence: 0.5,
+        causalChain: [],
+        target: "Deployment/memory-eater",
+        toolCallsCount: 0,
+        llmTurns: 0,
+        summary: "",
+      },
+    };
+    render(<AgentBubble message={msg} />);
+    expect(screen.getByText("An investigation is already in progress for this target.")).toBeInTheDocument();
+    expect(screen.queryByTestId("severity-accent")).not.toBeInTheDocument();
+  });
+
   // AU-12: Content of Audit Records — presentation ordering: CTA > thinking > RCA > workflows
   it("UT-CONSOLE-BUBBLE-006: renders components in correct order: CTA > thinking > RCA > workflows", () => {
     const msg: ChatMessage = {
