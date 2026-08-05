@@ -3,45 +3,31 @@ import {
   openConsole,
   sendChatMessage,
   waitForInvestigationSummaryOrKnownRace,
-  isApprovalRequested,
-  isApprovalDenied,
   clickExecuteWorkflow,
+  assertApprovalGateReachable,
   REAL_EXECUTION_TIMEOUT_MS,
   oomkillTarget,
   oomkillInvestigateMessage,
+  crashloopTarget,
+  crashloopInvestigateMessage,
+  fixtureNamespace,
   parseMcpResponseBody,
 } from "./helpers";
-
-/**
- * Distinguishes the two reasons `isApprovalRequested()` can read false after
- * `clickExecuteWorkflow()`: (a) this run's policy auto-approved — nothing to
- * test, a legitimate skip — vs (b) RO *did* require approval and created a
- * real RAR, but the console's `kubernaut_get_approval_request` fetch was
- * denied (the `sre` persona RBAC gap — jordigilh/kubernaut-operator#278,
- * jordigilh/kubernaut#1869). Skipping silently in case (b) would hide a real,
- * tracked upstream bug behind a misleading "auto-approved" message.
- */
-async function assertApprovalGateReachable(page: import("@playwright/test").Page): Promise<boolean> {
-  const requested = await isApprovalRequested(page, 30_000);
-  if (requested) return true;
-  if (await isApprovalDenied(page, 2_000)) {
-    throw new Error(
-      "RemediationOrchestrator required approval and created a real RAR, but the console's " +
-        "kubernaut_get_approval_request call was denied for the sre persona — this is the known, " +
-        "already-filed RBAC gap (jordigilh/kubernaut-operator#278 for v1.5/the operator, " +
-        "jordigilh/kubernaut#1869 for v1.6/the Helm chart), not a console bug: ChatContainer.tsx's " +
-        "graceful-degradation card (`.kn-approval-denied`) rendered exactly as designed. Re-run once " +
-        "either issue lands `kubernaut_get_approval_request` on the sre persona's ACL.",
-    );
-  }
-  return false;
-}
 
 // One dedicated target per test (see helpers.ts's `oomkillTarget` doc
 // comment) — the "approve" test actually executes a real remediation
 // workflow against its target, so sharing one across approve/decline/dismiss
 // would leave later tests investigating a resource whose state a prior test
 // already mutated, on top of the session/dedup collision risk.
+//
+// approve/decline use `crashloopTarget` (kubernaut-console#54), not
+// `oomkillTarget`: both tests need the LLM to reliably discover and select a
+// real workflow before an approval gate is even reachable, which real-LLM
+// runs against the synthetic memory-eater fixture do not guarantee (see
+// crashloopTarget's doc comment in helpers.ts). dismiss never reaches
+// workflow selection at all (see its test below), so the workflow-discovery
+// determinism crashloopTarget buys doesn't matter for it — kept on
+// `oomkillTarget` to minimize unrelated fixture churn.
 //
 // approve/decline's namespaces are additionally labeled
 // `kubernaut.ai/environment: production` (kubectl label namespace
@@ -58,10 +44,14 @@ async function assertApprovalGateReachable(page: import("@playwright/test").Page
 // surgical: only these two namespaces gain an approval gate, every other
 // test in this suite keeps auto-approving. dismiss's namespace is
 // deliberately left unlabeled since it never reaches workflow selection.
-const TARGETS: Record<string, ReturnType<typeof oomkillTarget>> = {
-  approve: oomkillTarget("console-e2e-approval"),
-  decline: oomkillTarget("console-e2e-approval-2"),
-  dismiss: oomkillTarget("console-e2e-approval-3"),
+// fixtureNamespace() appends LIVE_E2E_NS_SUFFIX (set by
+// scripts/setup-fixtures.sh) so repeated fixture-provisioning runs don't
+// trip RemediationOrchestrator's own circuit breakers on a stale, previously
+// remediated namespace — see fixtureNamespace's doc comment in helpers.ts.
+const TARGETS: Record<string, { kind: string; namespace: string; name: string }> = {
+  approve: crashloopTarget(fixtureNamespace("console-e2e-approval")),
+  decline: crashloopTarget(fixtureNamespace("console-e2e-approval-2")),
+  dismiss: oomkillTarget(fixtureNamespace("console-e2e-approval-3")),
 };
 
 function targetForTest(title: string) {
@@ -69,6 +59,13 @@ function targetForTest(title: string) {
   if (title.startsWith("decline path")) return TARGETS.decline;
   if (title.startsWith("dismiss path")) return TARGETS.dismiss;
   throw new Error(`No dedicated E2E target mapped for test title: "${title}" — add one to TARGETS above.`);
+}
+
+function investigateMessageForTest(title: string): string {
+  const target = targetForTest(title);
+  // dismiss is the only test still on the synthetic memory-eater fixture —
+  // see TARGETS' doc comment above.
+  return target.name === "memory-eater" ? oomkillInvestigateMessage(target) : crashloopInvestigateMessage(target);
 }
 
 /**
@@ -121,7 +118,7 @@ function targetForTest(title: string) {
 test.describe("Approval gate — real MCP calls", () => {
   test.beforeEach(async ({ page }, testInfo) => {
     await openConsole(page);
-    await sendChatMessage(page, oomkillInvestigateMessage(targetForTest(testInfo.title)));
+    await sendChatMessage(page, investigateMessageForTest(testInfo.title));
     await waitForInvestigationSummaryOrKnownRace(page);
   });
 

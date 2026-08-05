@@ -5,6 +5,7 @@ import {
   waitForInvestigationSummaryOrKnownRace,
   oomkillTarget,
   oomkillInvestigateMessage,
+  fixtureNamespace,
 } from "./helpers";
 
 /**
@@ -65,8 +66,10 @@ const TARGETS = {
   // per helpers.ts's oomkillTarget doc comment: sharing a target already
   // under investigation elsewhere risks KA's per-target session_active dedup
   // masking the very escalation this test exists to catch.
-  firstInvestigation: oomkillTarget("console-e2e-consent-gate"),
-  secondNamespace: "console-e2e-consent-gate-2",
+  // fixtureNamespace() appends LIVE_E2E_NS_SUFFIX (scripts/setup-fixtures.sh)
+  // — see its doc comment in helpers.ts.
+  firstInvestigation: oomkillTarget(fixtureNamespace("console-e2e-consent-gate")),
+  secondNamespace: fixtureNamespace("console-e2e-consent-gate-2"),
 };
 
 const REMEDIATION_ID_FIELD = '[aria-label^="Remediation ID:"]';

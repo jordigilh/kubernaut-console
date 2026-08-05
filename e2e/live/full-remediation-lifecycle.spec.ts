@@ -4,12 +4,16 @@ import {
   sendChatMessage,
   waitForInvestigationSummaryOrKnownRace,
   waitForPhaseLabel,
-  approveIfRequested,
+  clickExecuteWorkflow,
+  assertApprovalGateReachable,
   REAL_INVESTIGATION_TIMEOUT_MS,
   REAL_EXECUTION_TIMEOUT_MS,
   REAL_VERIFICATION_TIMEOUT_MS,
   oomkillTarget,
   oomkillInvestigateMessage,
+  crashloopTarget,
+  crashloopInvestigateMessage,
+  fixtureNamespace,
 } from "./helpers";
 
 // One dedicated target per test — see helpers.ts's `oomkillTarget` doc
@@ -24,8 +28,39 @@ const TARGETS = {
   // direct action_history.audit_events query (2026-08-02): the same
   // pre_remediation_spec_hash recurred 3x for console-e2e-lifecycle. Not a
   // product bug — see ADR-009 §13.
-  fullLifecycle: oomkillTarget("console-e2e-lifecycle-3"),
-  noConsoleErrors: oomkillTarget("console-e2e-lifecycle-2"),
+  //
+  // Uses `crashloopTarget`, not `oomkillTarget` (kubernaut-console#54): this
+  // test's first step requires the LLM to reliably discover and select a
+  // real workflow, which real-LLM runs against the synthetic memory-eater
+  // fixture do not guarantee (see crashloopTarget's doc comment in
+  // helpers.ts). Unlike memory-eater's indefinite OOM loop, a *successful*
+  // rollback here permanently heals the target — the fault
+  // (`oc patch deployment worker -n console-e2e-lifecycle-3 ...`, see
+  // crashloopTarget's doc comment) must be re-injected before each re-run of
+  // this specific test.
+  //
+  // Namespace is labeled `kubernaut.ai/environment=production` (like
+  // approve/decline's targets): `crashloop-rollback-v1` and every sibling
+  // rollback workflow in the catalog is registered with
+  // `labels.environment: ["production"]` (no wildcard — confirmed via direct
+  // `remediation_workflow_catalog` query, 2026-08-05), so workflow discovery
+  // returns zero candidates without it. This also means this test now
+  // deterministically hits the same known RBAC gap as approve/decline
+  // (`kubernaut_get_approval_request` denied for the `sre` persona —
+  // jordigilh/kubernaut-operator#278, jordigilh/kubernaut#1869) instead of
+  // reaching Verifying/Complete — see `assertApprovalGateReachable`'s doc
+  // comment. Accepted tradeoff (vs. a non-production namespace, where no
+  // registered workflow matches at all): a deterministic, already-attributed
+  // failure is strictly better than the prior memory-eater-driven flakiness.
+  // Expected to go green end-to-end once either RBAC issue lands.
+  //
+  // fixtureNamespace() appends LIVE_E2E_NS_SUFFIX (scripts/setup-fixtures.sh)
+  // so re-running this exact scenario doesn't reaccumulate the IneffectiveChain/
+  // ConsecutiveFailures hits described above — see fixtureNamespace's doc
+  // comment in helpers.ts. This supersedes the old workaround of bumping the
+  // namespace's numeric suffix (-1 -> -2 -> -3) by hand each time it fouled.
+  fullLifecycle: crashloopTarget(fixtureNamespace("console-e2e-lifecycle-3")),
+  noConsoleErrors: oomkillTarget(fixtureNamespace("console-e2e-lifecycle-2")),
 };
 
 /**
@@ -59,12 +94,13 @@ const TARGETS = {
  * scenario is itself proof-by-construction of ADR-009 §5's "no Tekton"
  * decision, not just an assumption of it.
  *
- * Target (revised 2026-08-02): drives against a dedicated, per-test
- * `memory-eater` Deployment (the same image/args as kubernaut's own
- * fullpipeline bootstrap uses for kubernaut-system/memory-eater) in its own
- * `console-e2e-lifecycle[-N]` namespace — see helpers.ts's `oomkillTarget`
- * for why each test gets its own target — rather than a fabricated target
- * that doesn't exist in the cluster.
+ * Target (revised 2026-08-05, kubernaut-console#54): the "full flow" test
+ * drives against a dedicated `crashloopTarget` (a real `worker` Deployment
+ * mirroring kubernaut-demo-scenarios' `crashloop` scenario) in its own
+ * `console-e2e-lifecycle-3` namespace; "no console errors" still uses
+ * `oomkillTarget`'s `memory-eater` since it only needs *some* investigation
+ * to start. See helpers.ts's `oomkillTarget`/`crashloopTarget` doc comments
+ * for why each test gets its own dedicated target.
  *
  * Current status (2026-08-02): kubernaut#1853's *real* upstream fix
  * (jordigilh/kubernaut#1859, N-deep NextToolCall chaining) is deployed on
@@ -78,7 +114,7 @@ test.describe("Full remediation lifecycle — real cluster, real browser", () =>
   test("investigate → decision → (approval) → execution → verification → complete", async ({ page }) => {
     await openConsole(page);
 
-    await sendChatMessage(page, oomkillInvestigateMessage(TARGETS.fullLifecycle));
+    await sendChatMessage(page, crashloopInvestigateMessage(TARGETS.fullLifecycle));
 
     await test.step("real KubernautAgent investigation completes", async () => {
       await waitForInvestigationSummaryOrKnownRace(page);
@@ -90,26 +126,23 @@ test.describe("Full remediation lifecycle — real cluster, real browser", () =>
       });
     });
 
-    await test.step("recommended workflow is selected (approved if gated)", async () => {
-      // Workflow cards render from the same real decision payload as the RCA
-      // (kubernaut_present_decision bundles both) but the round-trip through
-      // a real kubernaut_discover_workflows call first makes this slower
-      // than a fixed 5s guess — wait on the actual decision UI, not a timer.
-      await expect(page.getByTestId(/^workflow-card-/).first()).toBeVisible({
-        timeout: REAL_INVESTIGATION_TIMEOUT_MS,
-      });
-      await approveIfRequested(page);
-      const executeButton = page.getByRole("button", { name: /^Execute /i });
-      if (await executeButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
-        await executeButton.click();
-        // WorkflowCards.tsx requires a second, explicit confirm click within
-        // a 10s countdown window ("Execute now (Ns remaining)") — it does
-        // auto-fire once the countdown reaches zero, but clicking confirms
-        // deterministically without a 10s passive wait.
-        const confirmButton = page.getByRole("button", { name: /^Execute now/i });
-        if (await confirmButton.isVisible({ timeout: 3_000 }).catch(() => false)) {
-          await confirmButton.click();
-        }
+    await test.step("recommended workflow is selected, approval required (production namespace)", async () => {
+      // clickExecuteWorkflow waits for the workflow card (same real decision
+      // payload as the RCA — kubernaut_present_decision bundles both) then
+      // drives the real kubernaut_select_workflow call, which is what makes
+      // RO evaluate ApprovalRequired and create the RAR in the first place.
+      await clickExecuteWorkflow(page);
+      // This target's production label (required for workflow-catalog
+      // matching — see TARGETS' doc comment) means the OPA policy always
+      // requires approval here. assertApprovalGateReachable throws with the
+      // known RBAC gap's issue numbers if the console was denied the RAR
+      // details (jordigilh/kubernaut-operator#278, jordigilh/kubernaut#1869)
+      // — expected to fail here until either lands; only a genuinely
+      // unexpected auto-approve (requested === false) or a real Approve
+      // button falls through to execution below.
+      const requested = await assertApprovalGateReachable(page);
+      if (requested) {
+        await page.getByRole("button", { name: "Approve" }).click();
       }
     });
 
@@ -135,7 +168,17 @@ test.describe("Full remediation lifecycle — real cluster, real browser", () =>
     await waitForInvestigationSummaryOrKnownRace(page);
 
     const criticalErrors = errors.filter(
-      (e) => !e.includes("favicon") && !e.includes("net::ERR") && !e.includes("Failed to load resource"),
+      (e) =>
+        !e.includes("favicon") &&
+        !e.includes("net::ERR") &&
+        !e.includes("Failed to load resource") &&
+        // kubernaut-console#56: playwright.live-v15.config.ts's extraHTTPHeaders
+        // attaches the Keycloak Bearer token to *every* request, including
+        // third-party font fetches whose CORS preflight rejects unexpected
+        // headers. Harmless test-harness artifact (the font still loads via
+        // the browser's fallback) — not a real console network defect.
+        !e.includes("fonts.gstatic.com") &&
+        !e.includes("Access-Control-Allow-Headers"),
     );
     expect(criticalErrors).toHaveLength(0);
   });

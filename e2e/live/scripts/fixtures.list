@@ -1,0 +1,20 @@
+# Single source of truth for e2e/live's per-test fixture namespaces, shared
+# by setup-fixtures.sh and teardown-fixtures.sh so the two can never drift.
+#
+# Format: <base-namespace>|<fixture-type>
+#   fixture-type is one of: crashloop, memory-eater
+#
+# Base names must match the string literals wrapped in fixtureNamespace(...)
+# in the corresponding *.spec.ts file (see helpers.ts's fixtureNamespace doc
+# comment) — grep the spec files for `fixtureNamespace("` to cross-check.
+console-e2e-approval|crashloop
+console-e2e-approval-2|crashloop
+console-e2e-approval-3|memory-eater
+console-e2e-contract|memory-eater
+console-e2e-contract-2|memory-eater
+console-e2e-contract-3|crashloop
+console-e2e-lifecycle-2|memory-eater
+console-e2e-lifecycle-3|crashloop
+console-e2e-consent-gate|memory-eater
+console-e2e-consent-gate-2|none
+console-e2e-full-remediation-3|memory-eater

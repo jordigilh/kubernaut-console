@@ -1,5 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { openConsole, sendChatMessage, waitForInvestigationSummaryOrKnownRace, oomkillTarget, oomkillInvestigateMessage } from "./helpers";
+import {
+  openConsole,
+  sendChatMessage,
+  waitForInvestigationSummaryOrKnownRace,
+  oomkillTarget,
+  oomkillInvestigateMessage,
+  fixtureNamespace,
+} from "./helpers";
 
 /**
  * Regression coverage for kubernaut#1915 (FIXED, PR #1920, deployed &
@@ -82,7 +89,9 @@ import { openConsole, sendChatMessage, waitForInvestigationSummaryOrKnownRace, o
  * test-fixture defect, not evidence against the fix).
  */
 
-const TARGET = oomkillTarget("console-e2e-full-remediation-3");
+// fixtureNamespace() appends LIVE_E2E_NS_SUFFIX (scripts/setup-fixtures.sh) —
+// see its doc comment in helpers.ts.
+const TARGET = oomkillTarget(fixtureNamespace("console-e2e-full-remediation-3"));
 
 test.describe("Full-remediation default — workflow auto-discovery regressions", () => {
   test("a plain 'investigate' request (no explicit 'and fix') still auto-discovers matching workflows (regression: kubernaut#1915)", async ({ page }) => {

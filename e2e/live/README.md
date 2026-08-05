@@ -7,6 +7,12 @@ Redis. See [ADR-009](../../docs/adr/009-live-e2e-real-cluster-strategy.md)
 and [issue #39](https://github.com/jordigilh/kubernaut-console/issues/39)
 for the full design and status.
 
+> **Looking for the `release/v1.5` / shared OpenShift dev cluster suite**
+> (`playwright.live-v15.config.ts`, real unscripted Sonnet 5/4.6, no
+> mock-llm)? See [`README-v15-openshift.md`](./README-v15-openshift.md)
+> instead — this file covers the local, disposable Kind `fullpipeline`
+> cluster only.
+
 This is **not** part of `playwright.config.ts` / `.github/workflows/e2e.yml`
 (the mocked suite, `VITE_MOCK_A2A=true`). It runs against
 `playwright.live.config.ts`, nightly + `workflow_dispatch`, once the CI

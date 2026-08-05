@@ -6,8 +6,11 @@ import {
   REAL_INVESTIGATION_TIMEOUT_MS,
   oomkillTarget,
   oomkillInvestigateMessage,
-  OOMKILL_WORKFLOW,
-  OOMKILL_ALTERNATIVE_WORKFLOW,
+  crashloopTarget,
+  crashloopInvestigateMessage,
+  CRASHLOOP_WORKFLOW,
+  CRASHLOOP_ALTERNATIVE_WORKFLOWS,
+  fixtureNamespace,
 } from "./helpers";
 
 /**
@@ -19,30 +22,34 @@ import {
  * a fabricated payload; this suite asserts the *real* payload actually
  * matches the contract those fabrications assume.
  *
- * Trigger scenario: a dedicated, per-test `memory-eater` Deployment kept
- * permanently OOMKilled/CrashLoopBackOff in its own `console-e2e-contract[-N]`
- * namespace (see helpers.ts's `oomkillTarget` for why each test gets its own
- * target instead of sharing kubernaut-system/memory-eater). mock-llm's
- * `oomkilledScenario` (test/services/mock-llm/scenarios/scenario_oomkilled.go)
- * returns a deterministic, high-confidence (0.95) investigation recommending
- * `oomkill-increase-memory-v1` over the `generic-restart-v1` alternative.
- * Verified against jordigilh/kubernaut@origin/main on 2026-08-02 — if
- * upstream's scenario config changes, update the expected values below,
- * not the assertions' shape.
+ * Trigger scenario: `sse`/`rrContext` use a dedicated, per-test
+ * `memory-eater` Deployment kept permanently OOMKilled/CrashLoopBackOff in
+ * its own `console-e2e-contract[-N]` namespace (see helpers.ts's
+ * `oomkillTarget` for why each test gets its own target instead of sharing
+ * kubernaut-system/memory-eater) — those two tests only need *some*
+ * investigation to start, not a specific RCA/workflow shape.
  *
- * Current status (2026-08-02): kubernaut#1853's real upstream fix
- * (jordigilh/kubernaut#1859, N-deep NextToolCall chaining in mock-llm) is
- * deployed on this cluster and the ConfigMap-based scenario workaround was
- * rewritten to use the native chain instead of the old two-scenario/
- * repeat_tool_call hack that was the likely source of an earlier
- * cross-session cross-talk failure on this exact test (see ADR-009 §13).
- * See helpers.ts's `waitForInvestigationSummaryOrKnownRace` for the full
- * history.
+ * `summary` instead uses `crashloopTarget` (kubernaut-console#54): this test
+ * asserts on the *actual* RCA/workflow-selection content, which a real LLM
+ * against the synthetic memory-eater fixture answers non-deterministically
+ * (sometimes declining to recommend any workflow at all). See
+ * `crashloopTarget`'s doc comment in helpers.ts for why this real,
+ * `kubernaut-demo-scenarios`-derived scenario is deterministic instead.
+ *
+ * Historical note: this suite originally ran against `fullpipeline`'s
+ * mock-llm (scripted `oomkilledScenario`, confidence pinned to exactly
+ * 0.95) — since replaced by a real, unscripted LLM against `release/v1.5`
+ * (playwright.live-v15.config.ts), so assertions below check shape/
+ * real-catalog-membership rather than mock-llm's exact scripted values.
  */
+// fixtureNamespace() appends LIVE_E2E_NS_SUFFIX (set by
+// scripts/setup-fixtures.sh) — see its doc comment in helpers.ts for why a
+// fixed namespace name fights RemediationOrchestrator's own circuit breakers
+// across repeated runs.
 const TARGETS = {
-  sse: oomkillTarget("console-e2e-contract"),
-  rrContext: oomkillTarget("console-e2e-contract-2"),
-  summary: oomkillTarget("console-e2e-contract-3"),
+  sse: oomkillTarget(fixtureNamespace("console-e2e-contract")),
+  rrContext: oomkillTarget(fixtureNamespace("console-e2e-contract-2")),
+  summary: crashloopTarget(fixtureNamespace("console-e2e-contract-3")),
 };
 
 test.describe("Contract compliance — integration-guide.md checklist", () => {
@@ -81,24 +88,55 @@ test.describe("Contract compliance — integration-guide.md checklist", () => {
   });
 
   test("[checklist] investigation_summary artifact carries RCA + real workflow options", async ({ page }) => {
-    await sendChatMessage(page, oomkillInvestigateMessage(TARGETS.summary));
+    await sendChatMessage(page, crashloopInvestigateMessage(TARGETS.summary));
     await waitForInvestigationSummaryOrKnownRace(page);
 
-    // oomkilledConfig() in kubernaut's mock-llm: Confidence: 0.95. RCACard.tsx
-    // renders the raw decimal ("Confidence: 0.95"), never a formatted percentage.
-    await expect(page.getByText(/Confidence: 0\.95/)).toBeVisible();
+    // A real LLM's exact confidence value is not pinned (observed 0.75-0.97
+    // for this identical scenario across runs — see kubernaut#1935/#1939) —
+    // assert the shape (RCACard.tsx renders the raw decimal, e.g.
+    // "Confidence: 0.92", never a formatted percentage) rather than a value.
+    await expect(page.getByText(/Confidence: 0\.\d+/)).toBeVisible();
     await expect(page.getByTestId("causal-chain")).toBeVisible();
 
-    // Recommended + one ruled-out alternative, both real, registered
-    // workflow catalog entries (not console-invented fixtures). Scoped to
-    // the workflow-card testid rather than a bare page.getByText: the
-    // causal-chain list above already renders the same workflow name in
-    // its own "<name> (confidence: NN%)" bullet, so an unscoped text
-    // locator matches twice and trips Playwright's strict mode.
+    // Recommended workflow is deterministic (crashloop-rollback-v1 is the
+    // only catalog entry purpose-built for this exact fault shape — see
+    // CRASHLOOP_WORKFLOW's doc comment); the cited alternative is not, so
+    // accept either real catalog alternative. Scoped to the workflow-card
+    // testid rather than a bare page.getByText: the causal-chain list above
+    // already renders the same workflow name in its own
+    // "<name> (confidence: NN%)" bullet, so an unscoped text locator matches
+    // twice and trips Playwright's strict mode.
+    //
+    // The recommended card is specifically `.first()` (WorkflowCards.tsx
+    // renders `recommended` before the ruled-out `alternatives.map(...)`):
+    // a ruled-out alternative's own rationale text can legitimately mention
+    // "crashloop-rollback-v1" by name (e.g. "less specific than
+    // crashloop-rollback-v1"), so the unscoped `workflowCards.getByText(...)`
+    // resolves to 2 elements and trips strict mode (confirmed live,
+    // 2026-08-05). Same reasoning for `.first()` on the alternatives check —
+    // we only need to confirm *some* real alternative rendered, not count
+    // every mention.
     const workflowCards = page.getByTestId(/^workflow-card-/);
     await expect(workflowCards.first()).toBeVisible();
-    await expect(workflowCards.getByText(OOMKILL_WORKFLOW)).toBeVisible();
-    await expect(workflowCards.getByText(OOMKILL_ALTERNATIVE_WORKFLOW)).toBeVisible();
+    await expect(workflowCards.first().getByText(CRASHLOOP_WORKFLOW)).toBeVisible();
+    await expect(
+      workflowCards.getByText(new RegExp(CRASHLOOP_ALTERNATIVE_WORKFLOWS.join("|"))).first(),
+    ).toBeVisible();
+
+    // Cleanup (kubernaut-console#54, found live 2026-08-05): this test only
+    // asserts on the artifact shape, so it never clicks Execute — left as-is,
+    // the investigation stays decision-pending indefinitely on this shared
+    // `console-e2e-contract-3` target. KA's interactive-session dedup
+    // (session/manager.go, ~10min inactivity TTL, independent of the
+    // RR/AIAnalysis CRs' own terminal phase) then makes the *next* run of
+    // this same test reconnect to the stale pending session and get the
+    // lightweight session_active/early_rca fallback instead of a fresh
+    // investigation — confirmed live by re-running this test twice in a row.
+    // "No action needed" (kubernaut_complete_no_action) is available
+    // regardless of whether a workflow was found, and cleanly terminates the
+    // session so the next run starts fresh instead of relying on the passive
+    // TTL to expire.
+    await page.getByRole("button", { name: "No action needed" }).click();
   });
 
   // No audit telemetry test: the console used to emit a client-side

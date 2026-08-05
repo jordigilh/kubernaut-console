@@ -14,11 +14,15 @@ import { defineConfig, devices } from "@playwright/test";
 // oauth2-proxy (--skip-jwt-bearer-tokens=true) is actually deployed here,
 // unlike the local Kind cluster which has no oauth2-proxy at all.
 //
-// Prerequisites (see e2e/live/README.md "release/v1.5 (OpenShift)" section):
+// Prerequisites: see e2e/live/README-v15-openshift.md for the full setup
+// (fixture provisioning, credential handling — always $HOME-based, never in
+// this repo — and known RO circuit-breaker/KA session-TTL gotchas). Summary:
 //   1. KUBECONFIG pointed at the shared OpenShift dev cluster.
-//   2. LIVE_E2E_KEYCLOAK_CLIENT_SECRET / LIVE_E2E_KEYCLOAK_PASSWORD env vars
-//      set from the console-e2e-keycloak-creds Secret in kubernaut-system.
-//   3. LIVE_E2E_CONSOLE_URL pointed at the deployed console route (defaults
+//   2. `source e2e/live/scripts/fetch-creds.sh` (LIVE_E2E_KEYCLOAK_CLIENT_SECRET
+//      / LIVE_E2E_KEYCLOAK_PASSWORD, cached under $HOME, never hardcoded).
+//   3. `e2e/live/scripts/setup-fixtures.sh && source ~/.config/kubernaut-console-e2e/fixtures.env`
+//      to provision this run's randomly-suffixed fixture namespaces.
+//   4. LIVE_E2E_CONSOLE_URL pointed at the deployed console route (defaults
 //      to this cluster's known route below).
 const token = execFileSync("node", ["e2e/live/scripts/keycloak-token.mjs"], {
   encoding: "utf-8",
