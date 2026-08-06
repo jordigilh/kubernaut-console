@@ -2,6 +2,15 @@ import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
 test.describe("Accessibility (WCAG 2.1 AA)", () => {
+  // console#48: see e2e/standalone.spec.ts for why /a2a/access must be
+  // stubbed at the network layer for this mocked-backend (VITE_MOCK_A2A=true)
+  // suite.
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/a2a/access", async (route) => {
+      await route.fulfill({ status: 200 });
+    });
+  });
+
   test("welcome state has no critical accessibility violations", async ({
     page,
   }) => {

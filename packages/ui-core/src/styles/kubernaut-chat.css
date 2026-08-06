@@ -466,7 +466,10 @@
 .kn-welcome-mode dt {
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--kn-teal-600);
+  /* kn-teal-600/700 both fall short of the 4.5:1 AA text ratio against
+     kn-teal-50 at this size/weight (3.36:1 / 4.34:1) -- teal-800 clears it
+     (7.05:1). */
+  color: var(--kn-teal-800);
   font-family: var(--kn-font-body);
 }
 
