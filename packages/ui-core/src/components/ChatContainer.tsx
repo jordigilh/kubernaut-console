@@ -153,6 +153,15 @@ export function ChatContainer() {
       setMessages((prev) => {
         const alreadyHasApproval = prev.some((m) => m.approvalRequest?.name === approvalData.name);
         if (alreadyHasApproval) return prev;
+        // role is always "agent": the A2A stream is the sole contract for
+        // rendering anything in the chat, and only AF (on the agent's behalf)
+        // drives an RR into AwaitingApproval and tells the console to render
+        // an approval card here -- there is currently no separate path for a
+        // "user-initiated" approval (e.g. a `kubectl apply` against an RAR
+        // directly) to reach this component other than by going through the
+        // same RemediationOrchestrator -> AF -> A2A stream pipeline. Whether
+        // agent-initiated and user-initiated approvals should be modeled as
+        // distinct roles/components is tracked upstream in kubernaut#1962.
         return [...prev, {
           id: `approval-${rarName}`,
           role: "agent" as const,
@@ -164,7 +173,7 @@ export function ChatContainer() {
       setCurrentPhase("decision");
       userScrolledUpRef.current = false;
     });
-  }, [statusPhase, statusMetadata, setMessages, setCurrentPhase, mcpOptions]);
+  }, [statusPhase, statusMetadata, setMessages, setCurrentPhase, setError, mcpOptions]);
 
   useEffect(() => {
     if (statusPhase && PHASE_MAP[statusPhase]) {
@@ -223,6 +232,16 @@ export function ChatContainer() {
     [sendMessage],
   );
 
+  // The handlers below no longer call a local emitAuditEvent(). That helper
+  // only ever wrote to console.log (gated behind
+  // import.meta.env.VITE_AUDIT_LOGS, itself unset in any real deployment) --
+  // it was never wired to a real audit sink, so it produced no actual
+  // security/compliance trail. That trail is produced upstream by AF, which
+  // observes every kubernaut_* tool call it services and forwards them to KA
+  // for durable event logging -- the console re-deriving/duplicating it
+  // client-side was both redundant and misleading (a no-op masquerading as
+  // an audit log). Removing the dead client-side logging is part of pushing
+  // all auditing responsibility to AF/KA where it can actually be persisted.
   const handleExecuteWorkflow = useCallback(
     async (workflowId: string) => {
       if (!rrId) {
@@ -269,7 +288,7 @@ export function ChatContainer() {
           : msg,
       ));
     },
-    [setMessages, setError, rrId, user.name, user.email, mcpOptions],
+    [setMessages, setError, user.name, user.email, mcpOptions],
   );
 
   const handleDecline = useCallback(
@@ -290,7 +309,7 @@ export function ChatContainer() {
       ));
       setCurrentPhase("failed");
     },
-    [setMessages, setCurrentPhase, setError, rrId, user.name, user.email, mcpOptions],
+    [setMessages, setCurrentPhase, setError, user.name, user.email, mcpOptions],
   );
 
   const handleDismiss = useCallback(
