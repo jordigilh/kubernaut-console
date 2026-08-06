@@ -346,4 +346,66 @@ describe("ChatContainer — Banner Status Stream Separation", () => {
     const lastScrollCall = scrollToMock.mock.calls[scrollToMock.mock.calls.length - 1];
     expect(lastScrollCall[0]).toHaveProperty("behavior", "smooth");
   });
+
+  it("IT-CONSOLE-BANNER-010: permission-denied error on approval fetch shows the access-denied card [console#57]", async () => {
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      emitRRFromChatStream(opts);
+    });
+
+    mockCallMcpTool.mockResolvedValue({
+      error: { code: -32000, message: "permission denied: role lacks access to kubernaut_get_approval_request" },
+    });
+
+    mockSubscribeStatus.mockImplementation(async (_rrId, opts) => {
+      opts.onPhaseChange("AwaitingApproval", { approval_request_name: "kubernaut-system/rar-test-denied" });
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "test" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/don't have permission to view/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("IT-CONSOLE-BANNER-011: bad-request error on approval fetch shows a generic error, not the access-denied card [console#57]", async () => {
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      emitRRFromChatStream(opts);
+    });
+
+    mockCallMcpTool.mockResolvedValue({
+      error: { code: -32000, message: "invalid resource_id format \"rar-test-bad\": expected namespace/name" },
+    });
+
+    mockSubscribeStatus.mockImplementation(async (_rrId, opts) => {
+      opts.onPhaseChange("AwaitingApproval", { approval_request_name: "rar-test-bad" });
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "test" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/invalid resource_id format/i);
+    });
+    expect(screen.queryByText(/don't have permission to view/i)).not.toBeInTheDocument();
+  });
 });
