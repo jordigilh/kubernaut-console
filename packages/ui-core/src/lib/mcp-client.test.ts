@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { callMcpTool, _resetSession } from "./mcp-client";
+import { callMcpTool, isPermissionDeniedError, _resetSession } from "./mcp-client";
 
 function mockSuccessResponse(result: unknown = { content: [{ type: "text", text: "ok" }] }) {
   return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result }), {
@@ -216,5 +216,22 @@ describe("callMcpTool", () => {
 
     expect(result.result).toEqual(successResult);
     expect(result.error).toBeUndefined();
+  });
+});
+
+describe("isPermissionDeniedError", () => {
+  // console#57: distinguish AF's RBAC-denial prefix from other tool-call
+  // failures (validation errors, timeouts, etc.) that share the same
+  // generic isError/-32000 wire shape.
+  it("UT-CONSOLE-MCP-012 [console#57]: returns true for AF's permission-denied prefix", () => {
+    expect(isPermissionDeniedError({ code: -32000, message: "permission denied: role lacks access to kubernaut_get_approval_request" })).toBe(true);
+  });
+
+  it("UT-CONSOLE-MCP-013 [console#57]: returns false for a validation/bad-request error", () => {
+    expect(isPermissionDeniedError({ code: -32000, message: "invalid resource_id format \"rar-x\": expected namespace/name" })).toBe(false);
+  });
+
+  it("UT-CONSOLE-MCP-014 [console#57]: returns false when error is undefined", () => {
+    expect(isPermissionDeniedError(undefined)).toBe(false);
   });
 });
