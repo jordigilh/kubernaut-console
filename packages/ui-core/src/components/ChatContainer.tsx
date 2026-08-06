@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState, useCallback, useMemo, type FormEvent, type KeyboardEvent } from "react";
 import { useChat, type ChatMessage, type ApprovalRequest } from "../hooks/useChat";
 import { useRRStatus } from "../hooks/useRRStatus";
-import { callMcpTool, type McpClientOptions } from "../lib/mcp-client";
+import { callMcpTool, isPermissionDeniedError, type McpClientOptions } from "../lib/mcp-client";
 import { emitAuditEvent } from "../lib/audit";
 import { isPastDecisionPhase, isWorkflowResolved, markWorkflowResolved } from "../lib/session-state";
 import { isInvestigationEngaged } from "../lib/query-intent";
@@ -100,7 +100,15 @@ export function ChatContainer() {
 
     callMcpTool("kubernaut_get_approval_request", { rar_id: rarName }, mcpOptions).then((res) => {
       if (res.error) {
-        setApprovalDenied(true);
+        // #57: a permission gap and a backend bad-request/validation error both
+        // arrive as the same generic isError shape — branch on AF's stable
+        // "permission denied" prefix so a backend bug doesn't get mistaken for
+        // (and reported as) an access-control problem.
+        if (isPermissionDeniedError(res.error)) {
+          setApprovalDenied(true);
+        } else {
+          setError(res.error.message);
+        }
         return;
       }
       const rawResult = res.result as { content?: Array<{ type: string; text: string }> } | Record<string, unknown>;

@@ -3,6 +3,17 @@ export interface McpResult {
   error?: { code: number; message: string };
 }
 
+// AF's checkRBAC (pkg/apifrontend/handler/mcp_bridge.go) prefixes every
+// RBAC/authorization denial with this exact string — the only wire-level
+// signal that distinguishes "not allowed" from other tool-call failures
+// (validation errors, timeouts, etc.), which all share the same generic
+// isError/-32000 shape. See kubernaut-console#57.
+const PERMISSION_DENIED_PREFIX = "permission denied";
+
+export function isPermissionDeniedError(error: McpResult["error"] | undefined): boolean {
+  return error?.message?.startsWith(PERMISSION_DENIED_PREFIX) ?? false;
+}
+
 export interface McpClientOptions {
   baseUrl?: string;
   getToken?: () => Promise<string>;
