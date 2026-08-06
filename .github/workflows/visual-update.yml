@@ -54,7 +54,7 @@ jobs:
         run: npx playwright test e2e/visual.spec.ts --update-snapshots
 
       - name: Login to Quay.io
-        run: echo "${{ secrets.QUAY_PASSWORD }}" | oras login quay.io --username "${{ secrets.QUAY_USERNAME }}" --password-stdin
+        run: echo "${{ secrets.QUAY_CICD_PASSWORD }}" | oras login quay.io --username "${{ secrets.QUAY_CICD_USERNAME }}" --password-stdin
 
       - name: Push baselines
         run: |
