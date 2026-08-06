@@ -449,6 +449,33 @@
   max-width: 24rem;
 }
 
+.kn-welcome-modes {
+  width: 100%;
+  max-width: 24rem;
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--kn-teal-50);
+  text-align: left;
+}
+
+.kn-welcome-mode + .kn-welcome-mode {
+  margin-top: 0.5rem;
+}
+
+.kn-welcome-mode dt {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--kn-teal-600);
+  font-family: var(--kn-font-body);
+}
+
+.kn-welcome-mode dd {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
 .kn-welcome-suggestions {
   width: 100%;
   max-width: 24rem;
