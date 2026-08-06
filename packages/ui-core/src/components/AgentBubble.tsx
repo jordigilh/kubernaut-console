@@ -20,13 +20,15 @@ interface Props {
   userName?: string;
   recoverySignal?: "problem_resolved" | "alignment_check_failed" | null;
   workflowActionTaken?: boolean;
+  /** console#53: forwarded to ThinkingPanel to gate the raw-thinking content stream. Defaults to true. */
+  showRawThinking?: boolean;
 }
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow, onApprove, onDecline, onDismiss, onEscalate, userName, recoverySignal, workflowActionTaken }: Props) {
+export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow, onApprove, onDecline, onDismiss, onEscalate, userName, recoverySignal, workflowActionTaken, showRawThinking = true }: Props) {
   const hasContent = message.text.trim().length > 0;
   const hasThinking = message.thinking && message.thinking.length > 0;
   const hasRCA = !!message.rca;
@@ -73,6 +75,7 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
             isActive={message.isStreaming ?? false}
             startTime={investigationStartTime}
             label={message.thinkingLabel}
+            showRawThinking={showRawThinking}
           />
         )}
 

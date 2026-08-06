@@ -145,4 +145,46 @@ describe("ThinkingPanel", () => {
       expect(screen.getByText("Memory usage climbed steadily.")).toBeInTheDocument();
     });
   });
+
+  // console#53: user-facing setting to suppress the raw extended-thinking
+  // content stream while keeping tool-call/status/narration visible.
+  describe("console#53: showRawThinking setting", () => {
+    const mixedEntries: ThinkingEntry[] = [
+      { id: "t1", type: "reasoning", text: "Checking pod status..." },
+      { id: "t2", type: "reasoning_content", text: "Memory usage climbed steadily before the OOMKill." },
+      { id: "t3", type: "tool_call", text: "kubectl_previous_logs Pod/web-frontend" },
+    ];
+
+    it("UT-CONSOLE-THINK-019 [console#53]: defaults to showing reasoning_content when the prop is omitted", () => {
+      render(<ThinkingPanel entries={mixedEntries} isActive={false} startTime={Date.now()} />);
+      expect(screen.getByText("Memory usage climbed steadily before the OOMKill.")).toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-THINK-020 [console#53]: showRawThinking=false hides reasoning_content entries but keeps narration and tool calls", () => {
+      render(<ThinkingPanel entries={mixedEntries} isActive={false} startTime={Date.now()} showRawThinking={false} />);
+      expect(screen.queryByText("Memory usage climbed steadily before the OOMKill.")).not.toBeInTheDocument();
+      expect(screen.getByText("Checking pod status...")).toBeInTheDocument();
+      expect(screen.getByText("kubectl_previous_logs Pod/web-frontend")).toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-THINK-021 [console#53]: showRawThinking=false also hides the redacted-reasoning placeholder", () => {
+      const withRedacted: ThinkingEntry[] = [
+        { id: "t1", type: "reasoning", text: "Checking pod status..." },
+        { id: "t2", type: "reasoning_content", text: "", redacted: true },
+      ];
+      render(<ThinkingPanel entries={withRedacted} isActive={false} startTime={Date.now()} showRawThinking={false} />);
+      expect(screen.queryByText("Reasoning hidden by provider")).not.toBeInTheDocument();
+      expect(screen.getByText("Checking pod status...")).toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-THINK-022 [console#53]: showRawThinking=true renders reasoning_content explicitly", () => {
+      render(<ThinkingPanel entries={mixedEntries} isActive={false} startTime={Date.now()} showRawThinking={true} />);
+      expect(screen.getByText("Memory usage climbed steadily before the OOMKill.")).toBeInTheDocument();
+    });
+
+    it("UT-CONSOLE-THINK-023 [console#53]: step count in the collapsed label still reflects the full entry count when raw thinking is hidden", () => {
+      render(<ThinkingPanel entries={mixedEntries} isActive={false} startTime={Date.now()} showRawThinking={false} />);
+      expect(screen.getByText(/3 steps/)).toBeInTheDocument();
+    });
+  });
 });
