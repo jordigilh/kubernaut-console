@@ -269,4 +269,36 @@ describe("KubernautChat", () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
   });
+
+  // console#48: standalone/accessibility E2E and local `pnpm dev` run
+  // against a mocked A2A backend with no real GET /a2a/access to answer --
+  // the gate must not fail-closed those consumers. USE_MOCK is a
+  // module-scoped constant read from import.meta.env at import time, so
+  // stub the env and re-import fresh rather than toggling a live binding.
+  describe("console#48: VITE_MOCK_A2A bypasses the access-check gate", () => {
+    beforeEach(() => {
+      vi.stubEnv("VITE_MOCK_A2A", "true");
+      vi.resetModules();
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("UT-CONSOLE-KC-015 [console#48]: renders ChatContainer without calling the access check when VITE_MOCK_A2A=true", async () => {
+      const fetchMock = vi.fn();
+      globalThis.fetch = fetchMock;
+
+      const { KubernautChat: MockModeKubernautChat } = await import("./KubernautChat");
+
+      render(
+        <MockModeKubernautChat authProvider={makeMockAuthProvider()} config={makeMockConfig()} />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("chat-container")).toBeInTheDocument();
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
 });

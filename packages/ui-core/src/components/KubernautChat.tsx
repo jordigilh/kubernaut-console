@@ -19,6 +19,13 @@ export interface KubernautChatProps {
 // free, since they all mount through this single integration point.
 type Phase = "loading" | "auth-error" | "access-denied" | "access-error" | "ready";
 
+// console#48: in mock-A2A mode (standalone/accessibility E2E, local `pnpm dev`)
+// there is no real AF backend to answer GET /a2a/access, so the fail-closed
+// check would otherwise always resolve to "access-error" and block every
+// consumer of the mocked backend. Mirrors the existing VITE_MOCK_A2A bypass
+// in ProxyAuthProvider.getUser() / useChat.ts / useRRStatus.ts.
+const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
+
 export function KubernautChat({ authProvider, config }: KubernautChatProps) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [user, setUser] = useState<KubernautUser | null>(null);
@@ -40,6 +47,11 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
       }
       if (cancelled) return;
       setUser(resolvedUser);
+
+      if (USE_MOCK) {
+        setPhase("ready");
+        return;
+      }
 
       const access = await checkConsoleAccess({
         baseUrl: config.backendUrl,
