@@ -4,9 +4,13 @@ import {
   sendChatMessage,
   waitForInvestigationSummaryOrKnownRace,
   REAL_INVESTIGATION_TIMEOUT_MS,
-  OOMKILL_TARGET,
-  OOMKILL_WORKFLOW,
-  OOMKILL_ALTERNATIVE_WORKFLOW,
+  oomkillTarget,
+  oomkillInvestigateMessage,
+  crashloopTarget,
+  crashloopInvestigateMessage,
+  CRASHLOOP_WORKFLOW,
+  CRASHLOOP_ALTERNATIVE_WORKFLOWS,
+  fixtureNamespace,
 } from "./helpers";
 
 /**
@@ -18,30 +22,35 @@ import {
  * a fabricated payload; this suite asserts the *real* payload actually
  * matches the contract those fabrications assume.
  *
- * Trigger scenario: kubernaut-system/memory-eater, a Deployment kept
- * permanently OOMKilled by kubernaut's own `fullpipeline` bootstrap (see
- * helpers.ts's `OOMKILL_TARGET`) — a real, always-on broken resource, not a
- * fixture this suite has to create. mock-llm's `oomkilledScenario`
- * (test/services/mock-llm/scenarios/scenario_oomkilled.go) returns a
- * deterministic, high-confidence (0.95) investigation recommending
- * `oomkill-increase-memory-v1` over the `generic-restart-v1` alternative.
- * Verified against jordigilh/kubernaut@origin/main on 2026-08-02 — if
- * upstream's scenario config changes, update the expected values below,
- * not the assertions' shape.
+ * Trigger scenario: `sse`/`rrContext` use a dedicated, per-test
+ * `memory-eater` Deployment kept permanently OOMKilled/CrashLoopBackOff in
+ * its own `console-e2e-contract[-N]` namespace (see helpers.ts's
+ * `oomkillTarget` for why each test gets its own target instead of sharing
+ * kubernaut-system/memory-eater) — those two tests only need *some*
+ * investigation to start, not a specific RCA/workflow shape.
  *
- * Current status: this suite's single chat message is the console's real,
- * only investigation entry point (there is no multi-turn text protocol in
- * the actual product — see helpers.ts's `waitForInvestigationSummaryOrKnownRace`),
- * and it reliably hits kubernaut#1818 against this cluster: KA's fast
- * investigation completion races AF's interactive-session upgrade, so AF
- * falls back to an RCA-less placeholder and emits a malformed TextPart
- * instead of the documented investigation_summary DataPart. Every test
- * below that calls `waitForInvestigationSummaryOrKnownRace` is expected to
- * fail with a #1818-attributed error until that's fixed upstream — this is
- * a real backend defect the suite correctly surfaces, not a console bug.
+ * `summary` instead uses `crashloopTarget` (kubernaut-console#54): this test
+ * asserts on the *actual* RCA/workflow-selection content, which a real LLM
+ * against the synthetic memory-eater fixture answers non-deterministically
+ * (sometimes declining to recommend any workflow at all). See
+ * `crashloopTarget`'s doc comment in helpers.ts for why this real,
+ * `kubernaut-demo-scenarios`-derived scenario is deterministic instead.
+ *
+ * Historical note: this suite originally ran against `fullpipeline`'s
+ * mock-llm (scripted `oomkilledScenario`, confidence pinned to exactly
+ * 0.95) — since replaced by a real, unscripted LLM against `release/v1.5`
+ * (playwright.live-v15.config.ts), so assertions below check shape/
+ * real-catalog-membership rather than mock-llm's exact scripted values.
  */
-const INVESTIGATE_MESSAGE =
-  `The ${OOMKILL_TARGET.name} ${OOMKILL_TARGET.kind} in ${OOMKILL_TARGET.namespace} is OOMKilled and CrashLoopBackOff, please investigate.`;
+// fixtureNamespace() appends LIVE_E2E_NS_SUFFIX (set by
+// scripts/setup-fixtures.sh) — see its doc comment in helpers.ts for why a
+// fixed namespace name fights RemediationOrchestrator's own circuit breakers
+// across repeated runs.
+const TARGETS = {
+  sse: oomkillTarget(fixtureNamespace("console-e2e-contract")),
+  rrContext: oomkillTarget(fixtureNamespace("console-e2e-contract-2")),
+  summary: crashloopTarget(fixtureNamespace("console-e2e-contract-3")),
+};
 
 test.describe("Contract compliance — integration-guide.md checklist", () => {
   test.beforeEach(async ({ page }) => {
@@ -53,7 +62,7 @@ test.describe("Contract compliance — integration-guide.md checklist", () => {
       (res) => res.url().includes("/a2a/") && res.status() === 200,
       { timeout: REAL_INVESTIGATION_TIMEOUT_MS },
     );
-    await sendChatMessage(page, INVESTIGATE_MESSAGE);
+    await sendChatMessage(page, oomkillInvestigateMessage(TARGETS.sse));
     const res = await sseResponse;
     expect(res.headers()["content-type"]).toContain("text/event-stream");
 
@@ -62,51 +71,84 @@ test.describe("Contract compliance — integration-guide.md checklist", () => {
     // presence is itself proof the contract's `type` field is populated.
     // Unlike the tests below, this only needs the stream to carry *some*
     // status content, not a well-formed investigation_summary — so it is
-    // not blocked by kubernaut#1818.
+    // not blocked by kubernaut#1853.
     await expect(page.getByTestId("thinking-body")).toBeVisible({ timeout: REAL_INVESTIGATION_TIMEOUT_MS });
   });
 
   test("[checklist] RR context metadata on status events populates the investigation banner", async ({ page }) => {
-    await sendChatMessage(page, INVESTIGATE_MESSAGE);
+    await sendChatMessage(page, oomkillInvestigateMessage(TARGETS.rrContext));
     await waitForInvestigationSummaryOrKnownRace(page);
 
     const context = page.getByTestId("investigation-context");
     await expect(context).toBeVisible();
-    // rr_id is opaque/generated per-run; namespace/resource are the fixed,
-    // always-on real target this suite always drives against.
-    await expect(context.getByLabel(/^Namespace:/i)).toContainText(OOMKILL_TARGET.namespace);
-    await expect(context.getByLabel(/^Resource:/i)).toContainText(`${OOMKILL_TARGET.kind}/${OOMKILL_TARGET.name}`);
+    // rr_id is opaque/generated per-run; namespace/resource are this test's
+    // own dedicated, always-on real target (see TARGETS above).
+    await expect(context.getByLabel(/^Namespace:/i)).toContainText(TARGETS.rrContext.namespace);
+    await expect(context.getByLabel(/^Resource:/i)).toContainText(`${TARGETS.rrContext.kind}/${TARGETS.rrContext.name}`);
   });
 
   test("[checklist] investigation_summary artifact carries RCA + real workflow options", async ({ page }) => {
-    await sendChatMessage(page, INVESTIGATE_MESSAGE);
+    await sendChatMessage(page, crashloopInvestigateMessage(TARGETS.summary));
     await waitForInvestigationSummaryOrKnownRace(page);
 
-    // oomkilledConfig() in kubernaut's mock-llm: Confidence: 0.95.
-    await expect(page.getByText(/95%/)).toBeVisible();
+    // A real LLM's exact confidence value is not pinned (observed 0.75-0.97
+    // for this identical scenario across runs — see kubernaut#1935/#1939) —
+    // assert the shape (RCACard.tsx renders the raw decimal, e.g.
+    // "Confidence: 0.92", never a formatted percentage) rather than a value.
+    await expect(page.getByText(/Confidence: 0\.\d+/)).toBeVisible();
     await expect(page.getByTestId("causal-chain")).toBeVisible();
 
-    // Recommended + one ruled-out alternative, both real, registered
-    // workflow catalog entries (not console-invented fixtures).
-    await expect(page.getByTestId(/^workflow-card-/).first()).toBeVisible();
-    await expect(page.getByText(OOMKILL_WORKFLOW)).toBeVisible();
-    await expect(page.getByText(OOMKILL_ALTERNATIVE_WORKFLOW)).toBeVisible();
+    // Recommended workflow is deterministic (crashloop-rollback-v1 is the
+    // only catalog entry purpose-built for this exact fault shape — see
+    // CRASHLOOP_WORKFLOW's doc comment); the cited alternative is not, so
+    // accept either real catalog alternative. Scoped to the workflow-card
+    // testid rather than a bare page.getByText: the causal-chain list above
+    // already renders the same workflow name in its own
+    // "<name> (confidence: NN%)" bullet, so an unscoped text locator matches
+    // twice and trips Playwright's strict mode.
+    //
+    // The recommended card is specifically `.first()` (WorkflowCards.tsx
+    // renders `recommended` before the ruled-out `alternatives.map(...)`):
+    // a ruled-out alternative's own rationale text can legitimately mention
+    // "crashloop-rollback-v1" by name (e.g. "less specific than
+    // crashloop-rollback-v1"), so the unscoped `workflowCards.getByText(...)`
+    // resolves to 2 elements and trips strict mode (confirmed live,
+    // 2026-08-05). Same reasoning for `.first()` on the alternatives check —
+    // we only need to confirm *some* real alternative rendered, not count
+    // every mention.
+    const workflowCards = page.getByTestId(/^workflow-card-/);
+    await expect(workflowCards.first()).toBeVisible();
+    await expect(workflowCards.first().getByText(CRASHLOOP_WORKFLOW)).toBeVisible();
+    await expect(
+      workflowCards.getByText(new RegExp(CRASHLOOP_ALTERNATIVE_WORKFLOWS.join("|"))).first(),
+    ).toBeVisible();
+
+    // Cleanup (kubernaut-console#54, found live 2026-08-05): this test only
+    // asserts on the artifact shape, so it never clicks Execute — left as-is,
+    // the investigation stays decision-pending indefinitely on this shared
+    // `console-e2e-contract-3` target. KA's interactive-session dedup
+    // (session/manager.go, ~10min inactivity TTL, independent of the
+    // RR/AIAnalysis CRs' own terminal phase) then makes the *next* run of
+    // this same test reconnect to the stale pending session and get the
+    // lightweight session_active/early_rca fallback instead of a fresh
+    // investigation — confirmed live by re-running this test twice in a row.
+    // "No action needed" (kubernaut_complete_no_action) is available
+    // regardless of whether a workflow was found, and cleanly terminates the
+    // session so the next run starts fresh instead of relying on the passive
+    // TTL to expire.
+    await page.getByRole("button", { name: "No action needed" }).click();
   });
 
-  test("[checklist] audit telemetry sink at /a2a/telemetry/audit accepts real user actions", async ({ page }) => {
-    const auditRequest = page.waitForRequest(
-      (req) => req.url().includes("/a2a/telemetry/audit") && req.method() === "POST",
-      { timeout: REAL_INVESTIGATION_TIMEOUT_MS },
-    );
-    await sendChatMessage(page, INVESTIGATE_MESSAGE);
-    await waitForInvestigationSummaryOrKnownRace(page);
-
-    // Any of approve/decline/dismiss/escalate/execute_workflow fires an
-    // audit POST — clearing history is the one available unconditionally,
-    // regardless of which decision path this run took.
-    await page.locator("button[aria-label='New conversation']").click();
-    const req = await auditRequest;
-    const res = await req.response();
-    expect(res?.status()).toBe(204);
-  });
+  // No audit telemetry test: the console used to emit a client-side
+  // /a2a/telemetry/audit beacon (emitAuditEvent(), removed 2026-08-02).
+  // Running this suite against a real AF surfaced that the endpoint was
+  // never implemented upstream (a real 404) — and closer inspection showed
+  // the beacon was redundant for every MCP-backed decision anyway: approve/
+  // decline/escalate/dismiss/execute_workflow already go through a real,
+  // authenticated MCP call (kubernaut_approve, kubernaut_select_workflow,
+  // etc.) that a compatible backend's own audit emitter should capture with
+  // better provenance than a client-asserted beacon (see AF's
+  // EventUserDecision/EventToolExecuted catalog for a reference). See
+  // docs/integration-guide.md's "Audit Trail" section for the current
+  // (server-side-only) contract.
 });

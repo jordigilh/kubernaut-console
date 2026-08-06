@@ -4,15 +4,73 @@ import { type Page, expect } from "@playwright/test";
  * Real-cluster timing is not mocked-suite instant: KubernautAgent performs
  * real tool calls (kubectl reads, workflow discovery) through a real AF
  * before mock-llm's scripted response even starts streaming back.
+ *
+ * Overridable via LIVE_E2E_INVESTIGATION_TIMEOUT_MS: playwright.live-v15.config.ts
+ * (real, unscripted claude-sonnet-5 against release/v1.5, no mock-llm) sets this
+ * much higher — observed 5+ min for a single real investigation during the
+ * 2026-08-03 preflight spike, vs. mock-llm's scripted sub-90s responses on the
+ * Kind/fullpipeline suite this default was originally tuned for.
  */
-export const REAL_INVESTIGATION_TIMEOUT_MS = 90_000;
+export const REAL_INVESTIGATION_TIMEOUT_MS = Number(process.env.LIVE_E2E_INVESTIGATION_TIMEOUT_MS) || 90_000;
 export const REAL_EXECUTION_TIMEOUT_MS = 60_000;
 export const REAL_VERIFICATION_TIMEOUT_MS = 60_000;
 
+/**
+ * Seeds a fresh, unique `contextId` into sessionStorage before any page
+ * script runs (via `addInitScript`, guaranteed to execute ahead of the
+ * app's own JS), then navigates.
+ *
+ * Why: a brand-new Playwright test's *first* message naturally has no
+ * locally-stored contextId — the console's own `resetContext()` product fix
+ * (kubernaut-console#43) only covers the "New conversation" button, not this
+ * case. AF's `SessionInterceptor` (BR-SESS-020) reattaches any message with
+ * an empty contextId to that identity's already-active session if one
+ * exists within its rolling idle window — confirmed via `kubectl logs
+ * deploy/apifrontend` reusing the *same* session_id across unrelated tests
+ * spanning 13+ minutes and multiple targets once that session degraded into
+ * a stuck text-only-reply loop. Without this, every test after the first
+ * inherits whatever broken state the shared identity's session is already
+ * in, independent of the per-target isolation `oomkillTarget` provides.
+ */
 export async function openConsole(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    sessionStorage.setItem("kubernaut-console-context", crypto.randomUUID());
+  });
   await page.goto("/");
   await page.waitForLoadState("networkidle");
   await expect(page.locator(".kn-chat")).toBeVisible();
+}
+
+/**
+ * AF's `/mcp` endpoint is the official MCP Go SDK's Streamable HTTP handler
+ * (`mcp.NewStreamableHTTPHandler`, pkg/apifrontend/handler/mcp.go), which
+ * legitimately replies `event: message\ndata: {...}` (SSE-framed) rather
+ * than bare JSON — this is spec-compliant MCP transport behavior, not a
+ * bug. The console's own production client already accounts for this (see
+ * `parseSSEResponse` in packages/ui-core/src/lib/mcp-client.ts); tests
+ * intercepting a raw `/mcp` `Response` must unwrap it the same way instead
+ * of calling `.json()` directly, which throws on the `event: message` line.
+ *
+ * Also mirrors mcp-client.ts's `result.isError` handling: per the MCP spec,
+ * a tool call can succeed at the JSON-RPC envelope level (no top-level
+ * `error`) while still failing *as a tool call*, signaled by
+ * `result.isError: true` with the actual message in `result.content`. An
+ * RBAC denial (e.g. the sre persona's ACL gap on
+ * kubernaut_complete_no_action) surfaces exactly this way — checking only
+ * the envelope's `error` field misses it entirely.
+ */
+export async function parseMcpResponseBody(text: string): Promise<{ error?: { code: number; message: string }; result?: unknown }> {
+  const dataLine = text.split("\n").find((line) => line.trim().startsWith("data:"));
+  const jsonStr = dataLine ? dataLine.trim().slice(5).trim() : text;
+  const body = JSON.parse(jsonStr) as { error?: { code: number; message: string }; result?: unknown };
+
+  if (body.result && typeof body.result === "object" && (body.result as Record<string, unknown>).isError) {
+    const content = (body.result as { content?: Array<{ text?: string }> }).content;
+    const message = content?.map((c) => c.text).filter(Boolean).join("; ") || "Tool call failed";
+    return { error: { code: -32000, message } };
+  }
+
+  return body;
 }
 
 export async function sendChatMessage(page: Page, text: string): Promise<void> {
@@ -58,58 +116,295 @@ export async function approveIfRequested(page: Page): Promise<void> {
 }
 
 /**
- * The suite's investigation target: kubernaut-system/memory-eater, a
- * Deployment kept permanently OOMKilled/CrashLoopBackOff by kubernaut's own
- * `fullpipeline` bootstrap (test/e2e/fullpipeline's SynchronizedBeforeSuite)
- * for its own AF E2E tests to investigate. Verified alive against
- * `jordigilh/kubernaut@origin/main` on 2026-08-02: the pod's real
- * `lastState.terminated` is `OOMKilled` (exit 137), with a real kubelet
- * `BackOff` event — a genuine, always-there broken resource, not a fixture
- * this suite has to create itself (this suite has no kubectl access by
- * design — see ADR-009 §5's "pure console-driven, no privileged setup").
+ * True once ChatContainer.tsx's `.kn-approval-denied` fallback card is
+ * rendered — i.e. AF's `/a2a/status` correctly reported `AwaitingApproval`
+ * with an `approval_request_name`, the console correctly tried to fetch its
+ * details via `kubernaut_get_approval_request`, but the call was denied.
+ * This is the client-observable symptom of the `sre` persona's RBAC gap
+ * (see jordigilh/kubernaut-operator#278 and jordigilh/kubernaut#1869) — the
+ * console's own handling is already correct (graceful degradation instead of
+ * a silent hang), so seeing this card confirms the gap is server-side, not
+ * a console bug.
+ */
+export async function isApprovalDenied(page: Page, timeout = 5_000): Promise<boolean> {
+  try {
+    await expect(page.locator(".kn-approval-denied")).toBeVisible({ timeout });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Distinguishes the two reasons `isApprovalRequested()` can read false after
+ * `clickExecuteWorkflow()`: (a) this run's policy auto-approved — nothing to
+ * test, a legitimate skip — vs (b) RO *did* require approval and created a
+ * real RAR, but the console's `kubernaut_get_approval_request` fetch was
+ * denied (the `sre` persona RBAC gap — jordigilh/kubernaut-operator#278,
+ * jordigilh/kubernaut#1869). Skipping silently in case (b) would hide a real,
+ * tracked upstream bug behind a misleading "auto-approved" message. Shared by
+ * approval-gate.spec.ts and full-remediation-lifecycle.spec.ts (kubernaut-console#54):
+ * any `crashloopTarget` in a `kubernaut.ai/environment=production` namespace
+ * reaches this same gate, since the OPA policy requires approval
+ * unconditionally for production regardless of which test triggered it.
+ */
+export async function assertApprovalGateReachable(page: Page): Promise<boolean> {
+  const requested = await isApprovalRequested(page, 30_000);
+  if (requested) return true;
+  if (await isApprovalDenied(page, 2_000)) {
+    throw new Error(
+      "RemediationOrchestrator required approval and created a real RAR, but the console's " +
+        "kubernaut_get_approval_request call was denied for the sre persona — this is the known, " +
+        "already-filed RBAC gap (jordigilh/kubernaut-operator#278 for v1.5/the operator, " +
+        "jordigilh/kubernaut#1869 for v1.6/the Helm chart), not a console bug: ChatContainer.tsx's " +
+        "graceful-degradation card (`.kn-approval-denied`) rendered exactly as designed. Re-run once " +
+        "either issue lands `kubernaut_get_approval_request` on the sre persona's ACL.",
+    );
+  }
+  return false;
+}
+
+/**
+ * Clicks the recommended workflow's "Execute" (+ "Execute now" confirm)
+ * button, i.e. triggers the real `kubernaut_select_workflow` MCP call.
+ *
+ * Load-bearing ordering fact (confirmed 2026-08-02 by reading
+ * RemediationOrchestrator's AnalyzingHandler.Handle upstream): RO only
+ * evaluates `AIAnalysis.Status.ApprovalRequired` and creates the RAR (the
+ * thing that makes an Approve/Decline gate exist at all) once
+ * `AIAnalysis.Status.Phase == "Completed"` — for an interactive/console
+ * session that phase transition only happens once a workflow is actually
+ * selected, i.e. once this function's click lands. Checking
+ * `isApprovalRequested()` any earlier (e.g. immediately after the decision
+ * renders, before ever calling this) will *always* read false regardless of
+ * policy/environment config, because AIAnalysis is still sitting in
+ * "Investigating" phase and RO hasn't run the approval check yet — this
+ * isn't gated by confidence or namespace labels at that point, it simply
+ * hasn't been evaluated yet. Call this first, then check
+ * `isApprovalRequested()`/`approveIfRequested()` afterward.
+ */
+export async function clickExecuteWorkflow(page: Page): Promise<void> {
+  await expect(page.getByTestId(/^workflow-card-/).first()).toBeVisible({
+    timeout: REAL_INVESTIGATION_TIMEOUT_MS,
+  });
+  const executeButton = page.getByRole("button", { name: /^Execute /i });
+  await executeButton.click();
+  // WorkflowCards.tsx requires a second, explicit confirm click within a
+  // 10s countdown window ("Execute now (Ns remaining)") — it auto-fires
+  // once the countdown reaches zero, but clicking confirms deterministically
+  // without a passive 10s wait.
+  const confirmButton = page.getByRole("button", { name: /^Execute now/i });
+  if (await confirmButton.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await confirmButton.click();
+  }
+}
+
+/**
+ * Per-test investigation targets: dedicated `memory-eater` Deployments (the
+ * same image/args kubernaut's own `fullpipeline` bootstrap uses for
+ * `kubernaut-system/memory-eater`), one per **individual test**, each in its
+ * own `console-e2e-<file>[-N]` namespace — not the single shared
+ * `kubernaut-system/memory-eater` fixture this suite originally targeted.
+ *
+ * Why: this suite's tests run sequentially against the same real AF/KA, as
+ * the same Dex identity, driving real investigations. Two independent
+ * collision sources were found sharing one target across tests (2026-08-02):
+ *   1. AF's `SessionInterceptor` (BR-SESS-020) reattaches a message with an
+ *      empty `contextId` to that identity's already-active session within
+ *      its rolling ~10min idle window.
+ *   2. KubernautAgent's own per-target `session_active` dedup returns a
+ *      lightweight "early_rca" instead of a full investigation if a prior
+ *      investigation against the *same* `namespace/kind/name` is still
+ *      active — independent of AF's session logic.
+ * Giving every test its own target resource identity sidesteps (2)
+ * regardless of (1), which is enough in practice (see kubernaut-console#43
+ * for the console-side half of this — the "New conversation" button's own
+ * session-reset gap, fixed separately).
+ *
+ * These namespaces/Deployments are manually applied to the preserved cluster
+ * (see e2e/live/README.md) — a deliberate, documented exception to ADR-009
+ * §5's "pure console-driven, no privileged setup" for the single shared
+ * `kubernaut-system/memory-eater` fixture; that principle still holds for
+ * everything this suite's *tests* themselves do (no test calls kubectl).
+ * Follow-up: give this bootstrap a permanent, reproducible home (either
+ * upstream's `fullpipeline` setup or a console CI post-bootstrap step)
+ * before this suite runs unattended in CI.
  *
  * mock-llm's `oomkilledScenario` keys off `ctx.SignalName`, which
  * KubernautAgent populates from the *real* K8s event reason its tool calls
  * discover, not from our chat text — so this suite's chat message describes
  * this real condition rather than a fabricated one, for both honesty and
  * the best chance of a deterministic scripted-scenario match once
- * kubernaut#1818 (below) no longer intervenes.
+ * kubernaut#1853 (below) no longer intervenes.
  */
-export const OOMKILL_TARGET = {
-  kind: "Deployment",
-  namespace: "kubernaut-system",
-  name: "memory-eater",
-} as const;
+export function oomkillTarget(namespace: string) {
+  return { kind: "Deployment", namespace, name: "memory-eater" } as const;
+}
+
+/**
+ * Appends the current run's random namespace suffix (generated by
+ * `e2e/live/scripts/setup-fixtures.sh`, exported as `LIVE_E2E_NS_SUFFIX`) to
+ * a base fixture name, e.g. `"console-e2e-approval"` ->
+ * `"console-e2e-approval-a1b2c3"`. Falls back to the bare literal when unset
+ * — e.g. a one-off local run against namespaces provisioned by hand — so
+ * every existing hardcoded namespace name in this suite keeps working
+ * without the script.
+ *
+ * Why (2026-08-05): RemediationOrchestrator's own safety mechanisms make a
+ * *fixed* namespace name actively hostile to repeated test/fixture
+ * development runs, independent of KubernautAgent's session_active dedup
+ * (which `oomkillTarget`'s per-test-namespace scheme above already solves):
+ *   - `ConsecutiveFailures` (BR-ORCH-042): 3 consecutive Failed/Blocked RRs
+ *     for the same signal-target fingerprint block *all* new RRs on it for
+ *     1h (`consecutiveFailureCooldown`).
+ *   - `RecentlyRemediated` (DD-WE-001): blocks re-running the *same*
+ *     workflow on the same target within 5m of a prior success
+ *     (`recentlyRemediatedCooldown`).
+ *   - `IneffectiveChain` (issue #214, BR-ORCH-042.5): 3 consecutive
+ *     ineffective remediations (hash-chain match) within a 4h lookback
+ *     escalates to manual review instead of retrying
+ *     (`ineffectiveChainThreshold` / `ineffectiveTimeWindow`).
+ * All three key off the target resource identity, not the test file/name,
+ * so a fixed `console-e2e-approval` namespace that's been remediated (or
+ * failed to remediate) a few times earlier the same day silently produces
+ * `Blocked`/escalated RRs on the *next* run — a false "regression" that's
+ * actually RO correctly doing its job. A fresh per-run namespace sidesteps
+ * this the same way per-test namespaces sidestep KA's dedup. Preserves the
+ * scenario's identity (still literally "console-e2e-approval", just with a
+ * disambiguating suffix) per the fixture's actual purpose, rather than
+ * inventing an unrelated name.
+ */
+export function fixtureNamespace(base: string): string {
+  const suffix = process.env.LIVE_E2E_NS_SUFFIX;
+  return suffix ? `${base}-${suffix}` : base;
+}
+
+export function oomkillInvestigateMessage(target: { kind: string; namespace: string; name: string }): string {
+  return `The ${target.name} ${target.kind} in ${target.namespace} is OOMKilled and CrashLoopBackOff, please investigate.`;
+}
 
 export const OOMKILL_WORKFLOW = "oomkill-increase-memory-v1";
 export const OOMKILL_ALTERNATIVE_WORKFLOW = "generic-restart-v1";
 
 /**
+ * Real-LLM-realistic alternative to `oomkillTarget` (kubernaut-console#54):
+ * a real model (unlike mock-llm's scripted responses) can tell the
+ * difference between a genuine incident and a synthetic "grow memory
+ * forever" fixture with no plausible root cause — and on `memory-eater`, a
+ * real Sonnet 5/4.6 investigation sometimes concludes there's nothing
+ * actionable to recommend, or escalates instead of selecting a workflow
+ * (see kubernaut-console#54 for both models' transcripts). This target
+ * mirrors `kubernaut-demo-scenarios/scenarios/crashloop` instead: a `worker`
+ * Deployment whose pod-template command was patched to a deliberate
+ * `exit 1`, i.e. an actual bad-release/bad-config-change shape a real model
+ * recognizes and reliably diagnoses. Confirmed deterministic across three
+ * independent real-LLM runs — kubernaut-demo-scenarios' own golden
+ * transcript (Sonnet 4.6, `golden-transcripts/crashloop-kubepodcrashlooping.json`)
+ * plus two live Sonnet 5 runs this session (before and after kubernaut#1935's
+ * confidence-propagation fix) — all three selected `crashloop-rollback-v1`
+ * over the two catalog alternatives.
+ *
+ * Fixture bootstrap (manually applied to the preserved cluster, same
+ * documented "no test calls kubectl" exception as `oomkillTarget` — see
+ * e2e/live/README.md):
+ *
+ *   # ConfigMap + Deployment (2 healthy replicas) — see
+ *   # kubernaut-demo-scenarios/scenarios/crashloop/manifests/{configmap,deployment}.yaml,
+ *   # applied here with `metadata.namespace` retargeted per test.
+ *   oc apply -f <worker-config ConfigMap + worker Deployment, per-namespace>
+ *
+ *   # Then inject the fault (kubernaut-demo-scenarios/scenarios/crashloop/inject-bad-release.sh,
+ *   # namespace substituted):
+ *   oc patch deployment worker -n <namespace> --type=json \
+ *     -p '[{"op":"add","path":"/spec/template/spec/containers/0/command",
+ *          "value":["sh","-c","echo fatal: bad release 1.1.0 -- aborting && exit 1"]}]'
+ *
+ * No new PrometheusRule needed: the existing `console-e2e-alerts` rule (see
+ * `oomkillTarget`'s bootstrap) already matches `namespace=~"console-e2e-.*"`
+ * generically, independent of which Deployment/pod is crashlooping.
+ *
+ * Unlike `memory-eater`'s indefinite OOM loop, a *successful* real
+ * remediation (rollback) permanently heals this target — it will not
+ * re-fault on its own. Any test that actually executes the recommended
+ * workflow (rather than only observing the RCA/decision, as
+ * contract-compliance's read-only assertions do) must have the fault
+ * re-injected (the `oc patch` above) before each run.
+ */
+export function crashloopTarget(namespace: string) {
+  return { kind: "Deployment", namespace, name: "worker" } as const;
+}
+
+export function crashloopInvestigateMessage(target: { kind: string; namespace: string; name: string }): string {
+  return `The ${target.name} ${target.kind} in ${target.namespace} is in CrashLoopBackOff after a bad release, please investigate.`;
+}
+
+// crashloop-rollback-v1 is the only catalog workflow purpose-built for this
+// exact shape (CrashLoopBackOff from a pod-spec/command override on a
+// Deployment, not OOMKilled) — see its `whenToUse`/`whenNotToUse` in
+// list_workflows' response, captured verbatim in the golden transcript.
+// rollback-deployment-v1 and crashloop-rollback-risk-v1 are both valid,
+// real, lower-confidence alternatives the model may cite; which one it picks
+// as "the" alternative is not itself deterministic, so assertions should
+// accept either rather than pinning one.
+export const CRASHLOOP_WORKFLOW = "crashloop-rollback-v1";
+export const CRASHLOOP_ALTERNATIVE_WORKFLOWS = ["rollback-deployment-v1", "crashloop-rollback-risk-v1"] as const;
+
+/**
  * Same wait as `waitForInvestigationSummary`, but fails with a message
- * naming kubernaut#1818 instead of a bare "element not found" timeout when
+ * naming kubernaut#1853 instead of a bare "element not found" timeout when
  * it doesn't show up.
  *
- * Found 2026-08-02 running this suite against a real preserved cluster: a
- * single free-form investigate message — the console's actual, only, and
- * intended usage pattern (there is no console UI concept of a scripted
- * multi-turn "create/discover/select" text protocol; approve/decline/
- * dismiss/execute are direct MCP tool calls from button clicks, never chat
- * text — see ChatContainer.tsx's handleApprove/handleExecuteWorkflow)
- * routes through AA's autonomous submit path (RequestBuilder never sets
- * Interactive for a fresh chat-driven request). If KA's investigation
- * completes before AF's interactive upgrade attaches — which it reliably
- * does against mock-llm's near-instant responses — KA orphans the real RCA
- * behind an RCA-less placeholder session, and AF emits that as a bare
- * TextPart instead of the documented investigation_summary DataPart. This
- * is a real AF/KA defect (kubernaut#1818), not a console contract
- * violation: the console correctly declines to render the malformed
- * payload as a valid investigation.
+ * History: originally attributed to kubernaut#1818 (orphaned RCA on an
+ * autonomous/interactive session race). #1818 was fixed and merged
+ * upstream (jordigilh/kubernaut#1844, 2026-08-02) — re-validated directly:
+ * built arm64 images from the fix commit, ran
+ * `test/e2e/fullpipeline/15_af_a2a_interactive_streaming_test.go`
+ * (`--label-filter=issue-1189`) against a fresh cluster, 4/4 passed
+ * including the exact #1818 regression case. This suite still failed
+ * identically afterward, which traced to a **different, still-open**
+ * defect: kubernaut#1853.
  *
- * This is not a rare flake here — it reproduced on effectively every run
- * against this cluster. Tests using this helper are effectively blocked
- * until #1818 lands upstream; do not "fix" that by inventing a synthetic
- * multi-turn text protocol the console doesn't actually implement, which
- * would silently mask this real defect instead of catching it.
+ * #1853's mechanism: a single free-form investigate message — the
+ * console's actual, only, and intended usage pattern (there is no console
+ * UI concept of a scripted multi-turn "create/discover/select" text
+ * protocol; approve/decline/dismiss/execute are direct MCP tool calls from
+ * button clicks, never chat text — see ChatContainer.tsx's
+ * handleApprove/handleExecuteWorkflow) — contains the keyword
+ * "investigate" but not "remediation", so the `fullpipeline` E2E harness's
+ * mock-llm fixture (`test/infrastructure/shared_e2e.go`'s afKeywordYAML)
+ * matches its `af_investigate` scenario directly, skipping
+ * `kubernaut_remediate` entirely. That scenario's `rr_id` argument is a
+ * `$from_tool:kubernaut_remediate:rr_id` template with no prior
+ * `kubernaut_remediate` response to resolve from, so AF calls
+ * `kubernaut_investigate` with the literal, unresolved placeholder string,
+ * which fails K8s name validation and falls back to a text-only reply
+ * after 3 retries — the malformed TextPart this helper's timeout catches.
+ * Confirmed via `kubectl logs deploy/apifrontend`: no `kubernaut_remediate`
+ * tool call is ever attempted for this request. This is a **mock-llm
+ * test-fixture scripting gap**, not an AF/KA production defect — a real
+ * LLM would presumably sequence remediate-then-investigate on its own; the
+ * scripted double can only replay its author's exact expected phrase
+ * sequence.
+ *
+ * Update (2026-08-02): #1853's real fix landed upstream as
+ * jordigilh/kubernaut#1859 (N-deep `NextToolCall` chaining +
+ * `fallback_arguments` in mock-llm — `test/services/mock-llm/handlers/
+ * chain.go`'s `flattenToolCallChain`/`nextChainCallByCount`, resolved
+ * per-request via `ctx.CountToolResults()`, i.e. inherently stateless/
+ * per-conversation, no cross-session state). This cluster's mock-llm was
+ * rebuilt from kubernaut `main` @ `a8b9edd4` (which includes #1859) and the
+ * hand-patched `mock-llm-scenarios` ConfigMap was rewritten to use a single
+ * native 3-deep chain (`investigate -> discover_workflows ->
+ * present_decision`) per target, replacing the old two-scenario workaround
+ * (a capped-at-1 `next_tool_call` here plus a separate, broadly-keyword-
+ * matched `af_present_decision_after_discovery` scenario relying on AF's
+ * reinvocation-loop retry) — see ADR-009 §13 for the full investigation,
+ * including a live `action_history.audit_events` query that points to that
+ * old design as the likely source of an observed cross-session cross-talk
+ * failure. Do not "fix" a recurrence of this by inventing a synthetic
+ * multi-turn text protocol the console doesn't actually implement — the
+ * real fix belongs in the mock-llm scenario config, not the test or the
+ * product.
  */
 export async function waitForInvestigationSummaryOrKnownRace(page: Page): Promise<void> {
   try {
@@ -117,9 +412,10 @@ export async function waitForInvestigationSummaryOrKnownRace(page: Page): Promis
   } catch (err) {
     throw new Error(
       "investigation_summary never rendered (no severity-accent). This is most likely " +
-        "kubernaut#1818 (orphaned RCA on fast autonomous completion racing AF's interactive " +
-        "upgrade), not a console-side bug — see this function's doc comment for the full " +
-        "mechanism and e2e/live/README.md for current status.",
+        "kubernaut#1853 (fullpipeline mock-llm fixture has no scenario for a single " +
+        "combined-intent message, so kubernaut_investigate gets called with an unresolved " +
+        "$from_tool template), not a console-side bug — see this function's doc comment for " +
+        "the full mechanism and e2e/live/README.md for current status.",
       { cause: err },
     );
   }
