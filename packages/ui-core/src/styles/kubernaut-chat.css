@@ -449,6 +449,36 @@
   max-width: 24rem;
 }
 
+.kn-welcome-modes {
+  width: 100%;
+  max-width: 24rem;
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--kn-teal-50);
+  text-align: left;
+}
+
+.kn-welcome-mode + .kn-welcome-mode {
+  margin-top: 0.5rem;
+}
+
+.kn-welcome-mode dt {
+  font-size: 0.75rem;
+  font-weight: 600;
+  /* kn-teal-600/700 both fall short of the 4.5:1 AA text ratio against
+     kn-teal-50 at this size/weight (3.36:1 / 4.34:1) -- teal-800 clears it
+     (7.05:1). */
+  color: var(--kn-teal-800);
+  font-family: var(--kn-font-body);
+}
+
+.kn-welcome-mode dd {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
 .kn-welcome-suggestions {
   width: 100%;
   max-width: 24rem;

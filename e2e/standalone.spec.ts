@@ -1,6 +1,21 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Standalone Mode E2E", () => {
+  // console#48: KubernautChat gates rendering behind GET /a2a/access. This
+  // suite runs against a fully mocked A2A backend (VITE_MOCK_A2A=true) with
+  // no real AF process to answer it -- vite's dev-server proxy would
+  // otherwise ECONNREFUSED on every page load and the fail-closed gate
+  // would block the chat shell for every test in this file. Stub it here at
+  // the network layer rather than relying on the VITE_MOCK_A2A build-time
+  // constant, since ui-core ships as a pre-built dist consumed by the
+  // standalone app and its import.meta.env checks are baked in at ui-core's
+  // own (unflagged) `pnpm build` time in CI.
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/a2a/access", async (route) => {
+      await route.fulfill({ status: 200 });
+    });
+  });
+
   test("loads the application and shows welcome state", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");

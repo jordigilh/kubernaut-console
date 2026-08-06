@@ -7,6 +7,14 @@ interface Props {
   isActive: boolean;
   startTime?: number;
   label?: string;
+  /**
+   * #53: when false, suppresses the raw extended-thinking content stream
+   * (entries of type "reasoning_content", including its redacted-placeholder
+   * form) while still showing tool-call/status/narration entries. Defaults
+   * to true -- a silently blank panel during a multi-minute investigation is
+   * worse UX than showing raw thinking, so it stays on until a user opts out.
+   */
+  showRawThinking?: boolean;
 }
 
 function formatElapsed(startTime: number): string {
@@ -17,7 +25,8 @@ function formatElapsed(startTime: number): string {
   return `${seconds}s`;
 }
 
-export function ThinkingPanel({ entries, isActive, startTime, label }: Props) {
+export function ThinkingPanel({ entries, isActive, startTime, label, showRawThinking = true }: Props) {
+  const visibleEntries = showRawThinking ? entries : entries.filter((entry) => entry.type !== "reasoning_content");
   const [collapsed, setCollapsed] = useState(false);
   const [elapsed, setElapsed] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -86,7 +95,7 @@ export function ThinkingPanel({ entries, isActive, startTime, label }: Props) {
           data-testid="thinking-body"
           className="kn-thinking-body kn-scrollbar-thin"
         >
-          {entries.map((entry) => (
+          {visibleEntries.map((entry) => (
             <div key={entry.id} className="kn-fade-in" style={{ padding: "0.125rem 0" }}>
               {entry.type === "tool_call" ? (
                 <code style={{ fontFamily: "monospace", color: "var(--kn-text-dim)" }}>{entry.text}</code>

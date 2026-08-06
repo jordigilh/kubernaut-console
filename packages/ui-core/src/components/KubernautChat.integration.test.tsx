@@ -52,6 +52,8 @@ function makeAuthProvider(token: string): KubernautAuthProvider {
 }
 
 describe("KubernautChat Integration", () => {
+  const originalFetch = globalThis.fetch;
+
   beforeEach(() => {
     sessionStorage.clear();
     _resetSession();
@@ -59,10 +61,15 @@ describe("KubernautChat Integration", () => {
     mockStreamA2A.mockReset();
     mockSubscribeStatus.mockReset();
     mockSubscribeStatus.mockImplementation(async () => {});
+    // console#48: KubernautChat now gates rendering behind GET /a2a/access;
+    // stub it to "allowed" so these tests keep exercising the real
+    // downstream provider wiring (streamA2A/subscribeRRStatus), not the gate.
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    globalThis.fetch = originalFetch;
   });
 
   /**

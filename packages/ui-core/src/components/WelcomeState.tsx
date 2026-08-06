@@ -8,6 +8,15 @@ const suggestions = [
   "Show me recent incidents in the cluster",
 ];
 
+// #47: the AF agent supports three distinct interaction modes selected by
+// phrasing, with materially different behavior -- none of this was
+// previously surfaced to the user (see DD-AF-011 for the mode taxonomy).
+const modeHints: Array<{ phrase: string; description: string }> = [
+  { phrase: "Investigate X", description: "root-causes the issue, then suggests fixes to choose from" },
+  { phrase: "Just investigate X", description: "root-causes only \u2014 no fix suggestions unless you ask" },
+  { phrase: "Fix X", description: "investigates and remediates automatically, no further back-and-forth" },
+];
+
 export function WelcomeState({ onSuggest }: Props) {
   return (
     <div className="kn-welcome kn-fade-in">
@@ -26,6 +35,14 @@ export function WelcomeState({ onSuggest }: Props) {
       <p>
         I can investigate Kubernetes incidents, diagnose root causes, and execute remediation workflows.
       </p>
+      <dl className="kn-welcome-modes" aria-label="How to phrase your request">
+        {modeHints.map(({ phrase, description }) => (
+          <div key={phrase} className="kn-welcome-mode">
+            <dt>"{phrase}"</dt>
+            <dd>{description}</dd>
+          </div>
+        ))}
+      </dl>
       <div className="kn-welcome-suggestions" role="group" aria-label="Suggested prompts">
         {suggestions.map((text) => (
           <button

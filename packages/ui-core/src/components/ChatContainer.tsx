@@ -3,6 +3,7 @@ import { useChat, type ChatMessage, type ApprovalRequest } from "../hooks/useCha
 import { useRRStatus } from "../hooks/useRRStatus";
 import { callMcpTool, isPermissionDeniedError, type McpClientOptions } from "../lib/mcp-client";
 import { isPastDecisionPhase, isWorkflowResolved, markWorkflowResolved } from "../lib/session-state";
+import { getShowRawThinking, setShowRawThinking } from "../lib/preferences";
 import { isInvestigationEngaged } from "../lib/query-intent";
 import { maxChatPhase } from "../lib/phase-rank";
 import { buildDeferredContext } from "../lib/context-builder";
@@ -66,6 +67,14 @@ export function ChatContainer() {
   const programmaticScrollRef = useRef(false);
 
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [showRawThinking, setShowRawThinkingState] = useState(getShowRawThinking);
+  const handleToggleRawThinking = () => {
+    setShowRawThinkingState((prev) => {
+      const next = !prev;
+      setShowRawThinking(next);
+      return next;
+    });
+  };
 
   const handleScroll = () => {
     if (programmaticScrollRef.current) return;
@@ -144,6 +153,15 @@ export function ChatContainer() {
       setMessages((prev) => {
         const alreadyHasApproval = prev.some((m) => m.approvalRequest?.name === approvalData.name);
         if (alreadyHasApproval) return prev;
+        // role is always "agent": the A2A stream is the sole contract for
+        // rendering anything in the chat, and only AF (on the agent's behalf)
+        // drives an RR into AwaitingApproval and tells the console to render
+        // an approval card here -- there is currently no separate path for a
+        // "user-initiated" approval (e.g. a `kubectl apply` against an RAR
+        // directly) to reach this component other than by going through the
+        // same RemediationOrchestrator -> AF -> A2A stream pipeline. Whether
+        // agent-initiated and user-initiated approvals should be modeled as
+        // distinct roles/components is tracked upstream in kubernaut#1962.
         return [...prev, {
           id: `approval-${rarName}`,
           role: "agent" as const,
@@ -155,7 +173,7 @@ export function ChatContainer() {
       setCurrentPhase("decision");
       userScrolledUpRef.current = false;
     });
-  }, [statusPhase, statusMetadata, setMessages, setCurrentPhase, mcpOptions]);
+  }, [statusPhase, statusMetadata, setMessages, setCurrentPhase, setError, mcpOptions]);
 
   useEffect(() => {
     if (statusPhase && PHASE_MAP[statusPhase]) {
@@ -214,6 +232,16 @@ export function ChatContainer() {
     [sendMessage],
   );
 
+  // The handlers below no longer call a local emitAuditEvent(). That helper
+  // only ever wrote to console.log (gated behind
+  // import.meta.env.VITE_AUDIT_LOGS, itself unset in any real deployment) --
+  // it was never wired to a real audit sink, so it produced no actual
+  // security/compliance trail. That trail is produced upstream by AF, which
+  // observes every kubernaut_* tool call it services and forwards them to KA
+  // for durable event logging -- the console re-deriving/duplicating it
+  // client-side was both redundant and misleading (a no-op masquerading as
+  // an audit log). Removing the dead client-side logging is part of pushing
+  // all auditing responsibility to AF/KA where it can actually be persisted.
   const handleExecuteWorkflow = useCallback(
     async (workflowId: string) => {
       if (!rrId) {
@@ -260,7 +288,7 @@ export function ChatContainer() {
           : msg,
       ));
     },
-    [setMessages, setError, rrId, user.name, user.email, mcpOptions],
+    [setMessages, setError, user.name, user.email, mcpOptions],
   );
 
   const handleDecline = useCallback(
@@ -281,7 +309,7 @@ export function ChatContainer() {
       ));
       setCurrentPhase("failed");
     },
-    [setMessages, setCurrentPhase, setError, rrId, user.name, user.email, mcpOptions],
+    [setMessages, setCurrentPhase, setError, user.name, user.email, mcpOptions],
   );
 
   const handleDismiss = useCallback(
@@ -384,6 +412,25 @@ export function ChatContainer() {
         )}
         <button
           type="button"
+          onClick={handleToggleRawThinking}
+          className="kn-header-btn"
+          aria-pressed={showRawThinking}
+          aria-label={showRawThinking ? "Hide raw thinking" : "Show raw thinking"}
+          title={showRawThinking ? "Hide raw thinking" : "Show raw thinking"}
+        >
+          {showRawThinking ? (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style={{ width: 20, height: 20 }}>
+              <path d="M10 3.5c-4.14 0-7.5 3.5-8.5 6.5 1 3 4.36 6.5 8.5 6.5s7.5-3.5 8.5-6.5c-1-3-4.36-6.5-8.5-6.5zM10 14a4 4 0 110-8 4 4 0 010 8z" />
+              <path d="M10 8a2 2 0 100 4 2 2 0 000-4z" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style={{ width: 20, height: 20 }}>
+              <path d="M3.28 2.22a.75.75 0 00-1.06 1.06l14.5 14.5a.75.75 0 101.06-1.06l-1.62-1.62c1.7-1.32 2.97-3.06 3.62-4.6-1-3-4.36-6.5-8.5-6.5-1.36 0-2.62.35-3.73.94L3.28 2.22zM10 5.5c.6 0 1.18.08 1.73.23l-1.6 1.6a2 2 0 00-2.4 2.4l-2.06 2.06A5.98 5.98 0 015.72 8.7C6.86 6.7 8.3 5.5 10 5.5zm0 9c-4.14 0-7.5-3.5-8.5-6.5.4-1.2 1.13-2.4 2.1-3.44l1.47 1.47A5.98 5.98 0 004.2 9.63c1 2 3.36 4.37 5.8 4.37.62 0 1.22-.09 1.79-.27l1.24 1.24c-.9.35-1.9.53-3.03.53z" />
+            </svg>
+          )}
+        </button>
+        <button
+          type="button"
           onClick={handleClearHistory}
           className="kn-header-btn"
           aria-label="New conversation"
@@ -439,6 +486,7 @@ export function ChatContainer() {
                 userName={user.name || user.email}
                 recoverySignal={recoverySignal}
                 workflowActionTaken={workflowActionTaken}
+                showRawThinking={showRawThinking}
               />
             ),
           )
