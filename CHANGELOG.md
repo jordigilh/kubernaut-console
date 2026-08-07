@@ -55,6 +55,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add verification_step to StatusUpdateEvent type union
 - Fix MCP promise type mismatch
 
+## [1.5.6] - 2026-08-06
+
+### Fixed
+- Distinguish permission-denied from bad-request errors in the approval card (#58)
+- `AgentBubble` rendered nothing on RCA-shaped fallback payloads instead of showing a fallback message (#51)
+- "New conversation" now guarantees a fresh backend session instead of potentially reusing a stale one (#45)
+- Show an error message when an MCP tool call fails on a timed-out RR instead of hanging silently (#28)
+- Align resource display with upstream Kind/Name format (#27)
+- Force phase to `decision` on `AwaitingApproval` and auto-scroll to the approval card (#25)
+- GA readiness audit cleanup: docs, CI, chart, and dependency fixes (#26)
+
 ## [0.5.12] - 2026-06-15
 
 ### Added
