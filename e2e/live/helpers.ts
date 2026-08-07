@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { type Page, expect } from "@playwright/test";
 
 /**
@@ -201,11 +202,27 @@ export async function clickExecuteWorkflow(page: Page, expectedWorkflowName: str
   const firstWorkflowCard = page.getByTestId(/^workflow-card-/).first();
   const noMatchingWorkflowsEscapeHatch = page.getByRole("button", { name: "No action needed" });
 
-  await expect(firstWorkflowCard.or(noMatchingWorkflowsEscapeHatch)).toBeVisible({
+  // Found 2026-08-07 (first real-workflow run after the workflow catalog was
+  // reseeded — every prior run had hit no_matching_workflows due to an empty
+  // catalog, so this path was never exercised): WorkflowCards renders "No
+  // action needed"/"Escalate to team" unconditionally whenever a workflow
+  // decision is offered at all (AgentBubble wires onDismiss/onEscalate into
+  // the *same* WorkflowCards instance used for a real recommended-workflow
+  // decision, not only the no-match escape-hatch-only branch) -- a human can
+  // dismiss/escalate a legitimate recommendation too, not just an empty one.
+  // So firstWorkflowCard and noMatchingWorkflowsEscapeHatch can both be
+  // visible simultaneously once a real workflow is found, which made the
+  // original `firstWorkflowCard.or(noMatchingWorkflowsEscapeHatch)` union
+  // resolve to 2 elements and fail Playwright's strict-mode toBeVisible().
+  // `.first()` on the *union* (DOM order) fixes the wait; the actual
+  // no_matching_workflows verdict must be decided from firstWorkflowCard's
+  // absence, not from the escape hatch's presence.
+  await expect(firstWorkflowCard.or(noMatchingWorkflowsEscapeHatch).first()).toBeVisible({
     timeout: REAL_INVESTIGATION_TIMEOUT_MS,
   });
 
-  if (await noMatchingWorkflowsEscapeHatch.isVisible().catch(() => false)) {
+  const workflowCardVisible = await firstWorkflowCard.isVisible().catch(() => false);
+  if (!workflowCardVisible && (await noMatchingWorkflowsEscapeHatch.isVisible().catch(() => false))) {
     throw new Error(
       `Investigation concluded no_matching_workflows, but the documented expectation for this fixture ` +
         `(kubernaut-demo-scenarios' own scenario README/golden transcript) is "${expectedWorkflowName}". ` +
@@ -451,5 +468,153 @@ export async function waitForInvestigationSummaryOrKnownRace(page: Page): Promis
         "the full mechanism and e2e/live/README.md for current status.",
       { cause: err },
     );
+  }
+}
+
+// ── Backend-state (not just UI) outcome validation ──────────────────────────
+//
+// Found (2026-08-07): this suite's real-execution tests (approval-gate.spec.ts's
+// "approve path", full-remediation-lifecycle.spec.ts) only ever asserted a UI
+// phase-label regex — some as loose as /Executing|Verifying|Complete/, or
+// /Complete|Failed/ — which can pass even if the workflow never actually
+// executed against the cluster, or genuinely failed to fix the target.
+// kubernaut-demo-scenarios' own scenarios/*/validate.sh takes a stricter
+// approach: it treats the real RemediationRequest/WorkflowExecution CRDs and
+// live cluster state (rollout history, pod status) as ground truth rather
+// than trusting a UI's rendering of that same state. The helpers below
+// reproduce that same ground-truth check from the browser-driven side, using
+// the exact field paths validation-helper.sh uses (`_find_rr_name`,
+// `get_rr_phase`, `get_rr_outcome`, `get_wfe_phase`) — confirmed by reading
+// that script directly rather than guessed. `oc` is already a hard
+// prerequisite of this whole suite (see scripts/setup-fixtures.sh).
+const PLATFORM_NS = "kubernaut-system";
+
+function execOc(args: string[]): string {
+  return execFileSync("oc", args, { encoding: "utf-8" });
+}
+
+interface RemediationRequestSummary {
+  name: string;
+  phase: string;
+  outcome: string;
+}
+
+/**
+ * Mirrors validation-helper.sh's `_find_rr_name` priority order: prefer a
+ * Completed+Remediated RR, then any Completed RR, then the oldest active
+ * one — so a stale RR from an earlier retry against the same reused fixture
+ * namespace (see fixtureNamespace's doc comment) doesn't shadow the current
+ * run's real outcome.
+ */
+export function getRemediationRequestForTarget(namespace: string): RemediationRequestSummary | null {
+  const raw = execOc([
+    "get",
+    "remediationrequests",
+    "-n",
+    PLATFORM_NS,
+    "-o",
+    'jsonpath={range .items[*]}{.metadata.name}{"\\t"}{.spec.signalLabels.namespace}{"\\t"}{.status.overallPhase}{"\\t"}{.status.outcome}{"\\n"}{end}',
+  ]);
+  const rows = raw
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [name, ns, phase, outcome] = line.split("\t");
+      return { name, ns, phase: phase ?? "", outcome: outcome ?? "" };
+    })
+    .filter((r) => r.ns === namespace);
+
+  if (rows.length === 0) return null;
+
+  const completedRemediated = rows.find((r) => r.phase === "Completed" && r.outcome === "Remediated");
+  const anyCompleted = rows.find((r) => r.phase === "Completed");
+  const chosen = completedRemediated ?? anyCompleted ?? rows[0];
+  return { name: chosen.name, phase: chosen.phase, outcome: chosen.outcome };
+}
+
+export function getWorkflowExecutionPhase(rrName: string): string | null {
+  try {
+    const phase = execOc(["get", "workflowexecutions", `we-${rrName}`, "-n", PLATFORM_NS, "-o", "jsonpath={.status.phase}"]);
+    return phase || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Counts revisions in `kubectl rollout history` — a new one means a real rollback/patch actually landed. */
+export function getDeploymentRolloutRevisionCount(namespace: string, deploymentName: string): number {
+  try {
+    const out = execOc(["rollout", "history", `deployment/${deploymentName}`, "-n", namespace]);
+    return out
+      .split("\n")
+      .filter((line) => /^\d+/.test(line.trim())).length;
+  } catch {
+    return 0;
+  }
+}
+
+export function getPodHealthCounts(namespace: string): { healthy: number; crashing: number } {
+  interface PodStatus {
+    status?: {
+      phase?: string;
+      containerStatuses?: Array<{ state?: { waiting?: { reason?: string } } }>;
+    };
+  }
+  const raw = execOc(["get", "pods", "-n", namespace, "-o", "json"]);
+  const { items } = JSON.parse(raw) as { items: PodStatus[] };
+  let healthy = 0;
+  let crashing = 0;
+  for (const pod of items) {
+    const waitingReasons = (pod.status?.containerStatuses ?? []).map((c) => c.state?.waiting?.reason).filter(Boolean);
+    if (waitingReasons.includes("CrashLoopBackOff")) crashing++;
+    else if (pod.status?.phase === "Running") healthy++;
+  }
+  return { healthy, crashing };
+}
+
+/**
+ * Asserts the crashloop fixture was genuinely remediated on the real
+ * cluster — not merely that the console UI rendered a terminal-looking
+ * phase label. Mirrors kubernaut-demo-scenarios' scenarios/crashloop/validate.sh
+ * assertions: RR phase=Completed/outcome=Remediated, WorkflowExecution
+ * phase=Completed, deployment gained a new rollout revision (the rollback
+ * actually executed, not just got selected), and no pod is left in
+ * CrashLoopBackOff. Call this *in addition to* — not instead of — the UI's
+ * own terminal-phase assertion, since this suite's whole point (ADR-009) is
+ * that the UI correctly reflects real backend/cluster state, not merely that
+ * the backend eventually got there on its own.
+ */
+export function assertCrashloopWasRemediated(namespace: string, deploymentName = "worker"): void {
+  const rr = getRemediationRequestForTarget(namespace);
+  if (!rr) {
+    throw new Error(`No RemediationRequest found with spec.signalLabels.namespace=${namespace} in ${PLATFORM_NS}.`);
+  }
+  if (rr.phase !== "Completed" || rr.outcome !== "Remediated") {
+    throw new Error(
+      `RemediationRequest ${rr.name} did not reach a successful terminal state: phase="${rr.phase}", outcome="${rr.outcome}" ` +
+        `(expected phase="Completed", outcome="Remediated" — same assertion as kubernaut-demo-scenarios' validate.sh).`,
+    );
+  }
+
+  const wfePhase = getWorkflowExecutionPhase(rr.name);
+  if (wfePhase !== "Completed") {
+    throw new Error(`WorkflowExecution we-${rr.name} did not complete: phase="${wfePhase ?? "<not found>"}".`);
+  }
+
+  const revisions = getDeploymentRolloutRevisionCount(namespace, deploymentName);
+  if (revisions <= 1) {
+    throw new Error(
+      `deployment/${deploymentName} in ${namespace} has only ${revisions} rollout revision(s) — a real rollback ` +
+        "should have created a new one. The workflow may have been selected/approved but never actually " +
+        "executed against the live cluster.",
+    );
+  }
+
+  const { healthy, crashing } = getPodHealthCounts(namespace);
+  if (crashing > 0) {
+    throw new Error(`${crashing} pod(s) in ${namespace} are still in CrashLoopBackOff — the remediation did not fix the underlying issue.`);
+  }
+  if (healthy === 0) {
+    throw new Error(`No healthy Running pod found in ${namespace} after remediation.`);
   }
 }

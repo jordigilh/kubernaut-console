@@ -36,7 +36,25 @@ export function ChatContainer() {
   const bannerPhase = !investigationEngaged
     ? undefined
     : ((!statusPhase && !workflowResolved && rawBannerPhase === "decision") ? "investigation" : rawBannerPhase);
-  const workflowActionTaken = workflowResolved || isPastDecisionPhase(bannerPhase) || isTerminal;
+  // Found 2026-08-07 (live cluster): when workflow discovery concludes
+  // no_matching_workflows, RemediationOrchestrator has nothing left to
+  // execute and marks the RR terminal (status.overallPhase=Completed)
+  // immediately -- there is no "AwaitingApproval"/executing phase to wait
+  // through, unlike a real workflow selection. bannerPhase (driven by the
+  // real RR status stream via isTerminal/useRRStatus) therefore jumps
+  // straight from "decision" to "complete" before the operator has had any
+  // chance to click "No action needed"/"Escalate to team" -- gating those
+  // two buttons on backend terminality (isPastDecisionPhase(bannerPhase) ||
+  // isTerminal) made them permanently disabled/dead on arrival for this
+  // outcome. That backend-terminality gate is only meaningful when a real
+  // workflow was actually offered (there the RR legitimately stays
+  // non-terminal until the operator acts), so it must not apply to the
+  // no-options escape-hatch decision -- only the operator's own recorded
+  // resolution (workflowResolved, set by markWorkflowResolved once one of
+  // these calls actually succeeds) should gate it.
+  const lastDecisionMessage = messages.findLast((m) => m.role === "agent" && m.phase === "decision");
+  const hasWorkflowOptions = (lastDecisionMessage?.workflowOptions?.length ?? 0) > 0;
+  const workflowActionTaken = workflowResolved || (hasWorkflowOptions && (isPastDecisionPhase(bannerPhase) || isTerminal));
   const alertName = messages.findLast(m => m.role === "agent" && m.alertName)?.alertName
     ?? lastRca?.signalName
     ?? (statusMetadata?.alert_name as string | undefined)

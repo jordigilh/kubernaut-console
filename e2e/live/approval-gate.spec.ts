@@ -13,6 +13,9 @@ import {
   CRASHLOOP_WORKFLOW,
   fixtureNamespace,
   parseMcpResponseBody,
+  assertCrashloopWasRemediated,
+  getDeploymentRolloutRevisionCount,
+  REAL_VERIFICATION_TIMEOUT_MS,
 } from "./helpers";
 
 // One dedicated target per test (see helpers.ts's `oomkillTarget` doc
@@ -123,7 +126,7 @@ test.describe("Approval gate — real MCP calls", () => {
     await waitForInvestigationSummaryOrKnownRace(page);
   });
 
-  test("approve path: real kubernaut_approve transitions RR to Executing", async ({ page }) => {
+  test("approve path: real kubernaut_approve executes and completes the remediation", async ({ page }) => {
     // See TARGETS' doc comment: this triggers the real kubernaut_select_workflow
     // call, which is what actually makes RO evaluate ApprovalRequired and
     // (given this target's production label) create the RAR in the first
@@ -146,6 +149,19 @@ test.describe("Approval gate — real MCP calls", () => {
     await expect(page.locator(".kn-phase-label")).toHaveText(/Executing|Verifying|Complete/, {
       timeout: REAL_EXECUTION_TIMEOUT_MS,
     });
+
+    // Previously stopped here — reaching "Executing" alone was treated as a
+    // full test pass, even if the workflow subsequently failed or never
+    // reached a terminal state. Continue through to a genuine successful
+    // terminal phase and verify the real backend/cluster state (RR/WFE CRDs,
+    // rollout history, pod health) — not just the UI's rendering of it — the
+    // same ground truth kubernaut-demo-scenarios' validate.sh checks. See
+    // assertCrashloopWasRemediated's doc comment (kubernaut-console#64
+    // follow-up: "are the test outcomes validated?").
+    await expect(page.locator(".kn-phase-label")).toHaveText("Complete", {
+      timeout: REAL_VERIFICATION_TIMEOUT_MS,
+    });
+    assertCrashloopWasRemediated(TARGETS.approve.namespace);
   });
 
   test("decline path: real kubernaut_approve(Rejected) reaches a terminal state", async ({ page }) => {
@@ -155,6 +171,17 @@ test.describe("Approval gate — real MCP calls", () => {
 
     await page.getByRole("button", { name: "Decline" }).click();
     await expect(page.getByText(/Declined by|Rejected/i)).toBeVisible({ timeout: 15_000 });
+
+    // A decline that the UI reports correctly but the backend executes
+    // anyway would be a serious safety regression a UI-text-only assertion
+    // can't catch — verify the real deployment actually stayed untouched
+    // (still on its single, pre-existing revision) rather than trusting the
+    // "Declined" message alone.
+    const revisions = getDeploymentRolloutRevisionCount(TARGETS.decline.namespace, TARGETS.decline.name);
+    expect(
+      revisions,
+      `deployment/${TARGETS.decline.name} in ${TARGETS.decline.namespace} should have no new rollout revisions after a decline`,
+    ).toBe(1);
   });
 
   test("dismiss path: real kubernaut_complete_no_action, no workflow executed", async ({ page }) => {
