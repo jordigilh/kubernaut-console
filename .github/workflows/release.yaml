@@ -48,8 +48,14 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.QUAY_CICD_USERNAME }}
-          password: ${{ secrets.QUAY_CICD_PASSWORD }}
+          # QUAY_USERNAME/QUAY_PASSWORD is the robot with Write access on
+          # kubernaut-ai/kubernaut-console (the same robot upstream kubernaut
+          # uses). QUAY_CICD_* is a separate robot scoped to the kubernaut-cicd
+          # org (used below by tag-visual-baselines) and does not have access
+          # to this repo -- PR #60 switched this job to QUAY_CICD_* on a wrong
+          # assumption, which made every push fail with "unauthorized".
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
 
       - name: Build and push
         id: push
