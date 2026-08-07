@@ -10,6 +10,7 @@ import {
   oomkillInvestigateMessage,
   crashloopTarget,
   crashloopInvestigateMessage,
+  CRASHLOOP_WORKFLOW,
   fixtureNamespace,
   parseMcpResponseBody,
 } from "./helpers";
@@ -131,7 +132,7 @@ test.describe("Approval gate — real MCP calls", () => {
     // completed :36.189Z, RAR created :20:50Z) before AF's watch surfaces the
     // approval_request SSE event to console — the default 5s isApprovalRequested
     // timeout reads false here purely from checking too early, not from policy.
-    await clickExecuteWorkflow(page);
+    await clickExecuteWorkflow(page, CRASHLOOP_WORKFLOW);
     test.skip(!(await assertApprovalGateReachable(page)), "This run's policy auto-approved — no approval gate to exercise.");
 
     const mcpToolCall = page.waitForResponse(
@@ -149,7 +150,7 @@ test.describe("Approval gate — real MCP calls", () => {
 
   test("decline path: real kubernaut_approve(Rejected) reaches a terminal state", async ({ page }) => {
     // See approve path's comment: RO's RAR creation is ~15s async after this click.
-    await clickExecuteWorkflow(page);
+    await clickExecuteWorkflow(page, CRASHLOOP_WORKFLOW);
     test.skip(!(await assertApprovalGateReachable(page)), "This run's policy auto-approved — no approval gate to exercise.");
 
     await page.getByRole("button", { name: "Decline" }).click();

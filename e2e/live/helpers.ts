@@ -183,37 +183,45 @@ export async function assertApprovalGateReachable(page: Page): Promise<boolean> 
  * hasn't been evaluated yet. Call this first, then check
  * `isApprovalRequested()`/`approveIfRequested()` afterward.
  *
- * kubernaut-console#64: `crashloopTarget`'s real-LLM workflow selection is
- * not 100% deterministic — a 2026-08-07 run on `claude-sonnet-4-6` broke a
- * previously "confirmed deterministic across three independent real-LLM
- * runs" streak (see that fixture's doc comment) and returned
- * `no_matching_workflows` instead, which the console renders correctly as
- * `WorkflowCards.tsx`'s "No action needed"/"Escalate to team" escape hatch,
- * not a workflow card. Without this race, that outcome silently burns the
- * full `REAL_INVESTIGATION_TIMEOUT_MS` waiting on a workflow card that will
- * never appear before failing with an opaque locator-timeout error. Racing
- * both locators turns that into an immediate, correctly-attributed failure
- * instead — see kubernaut-console#64 for the full decision record on why
- * this fails fast rather than retrying or asserting on the escape hatch.
+ * `expectedWorkflowName` (kubernaut-console#64, revised 2026-08-07): the
+ * caller must state the specific catalog workflow name it expects — sourced
+ * from a `kubernaut-demo-scenarios` scenario's own documentation/golden
+ * transcript, not guessed or left open-ended. This asserts the *recommended*
+ * card's rendered name matches exactly, not merely "some workflow card
+ * appeared." The original version of this fix only handled the
+ * `no_matching_workflows` outcome explicitly (racing it against "any
+ * workflow card") — that's not strict enough: a test that accepts *any*
+ * selected workflow as a pass would silently miss a real workflow-selection
+ * regression (the model picking the wrong catalog entry) just as easily as
+ * it missed `no_matching_workflows` before this fix existed at all. Fixture
+ * non-determinism landing on either the wrong outcome or the wrong workflow
+ * is exactly the kind of thing this needs to catch loudly, not tolerate.
  */
-export async function clickExecuteWorkflow(page: Page): Promise<void> {
-  const workflowCard = page.getByTestId(/^workflow-card-/).first();
+export async function clickExecuteWorkflow(page: Page, expectedWorkflowName: string): Promise<void> {
+  const firstWorkflowCard = page.getByTestId(/^workflow-card-/).first();
   const noMatchingWorkflowsEscapeHatch = page.getByRole("button", { name: "No action needed" });
 
-  await expect(workflowCard.or(noMatchingWorkflowsEscapeHatch)).toBeVisible({
+  await expect(firstWorkflowCard.or(noMatchingWorkflowsEscapeHatch)).toBeVisible({
     timeout: REAL_INVESTIGATION_TIMEOUT_MS,
   });
 
   if (await noMatchingWorkflowsEscapeHatch.isVisible().catch(() => false)) {
     throw new Error(
-      "Investigation concluded no_matching_workflows instead of selecting a workflow — the console " +
-        "correctly rendered the 'No action needed'/'Escalate to team' escape hatch, this is not a " +
-        "console bug. crashloopTarget's real-LLM workflow selection is not 100% deterministic (see " +
-        "kubernaut-console#64 for a documented streak-break data point); re-run this test, and if it " +
-        "recurs with any frequency, see that issue for next steps (e.g. filing the non-determinism " +
-        "itself upstream, or switching to a fixture with a narrower workflow-catalog match).",
+      `Investigation concluded no_matching_workflows, but the documented expectation for this fixture ` +
+        `(kubernaut-demo-scenarios' own scenario README/golden transcript) is "${expectedWorkflowName}". ` +
+        "The console correctly rendered the 'No action needed'/'Escalate to team' escape hatch — this is " +
+        "not a console bug — but it diverges from the known-good expected outcome. See kubernaut-console#64 " +
+        "for this fixture's documented non-determinism data points and next steps.",
     );
   }
+
+  await expect(
+    firstWorkflowCard,
+    `Investigation selected a workflow other than the documented expectation "${expectedWorkflowName}" ` +
+      "(kubernaut-demo-scenarios' scenario README/golden transcript for this fixture) — treat this as a " +
+      "potential real workflow-selection regression, not something to accept because *a* workflow rendered. " +
+      "See kubernaut-console#64.",
+  ).toContainText(expectedWorkflowName);
 
   const executeButton = page.getByRole("button", { name: /^Execute /i });
   await executeButton.click();
@@ -310,9 +318,6 @@ export function fixtureNamespace(base: string): string {
 export function oomkillInvestigateMessage(target: { kind: string; namespace: string; name: string }): string {
   return `The ${target.name} ${target.kind} in ${target.namespace} is OOMKilled and CrashLoopBackOff, please investigate.`;
 }
-
-export const OOMKILL_WORKFLOW = "oomkill-increase-memory-v1";
-export const OOMKILL_ALTERNATIVE_WORKFLOW = "generic-restart-v1";
 
 /**
  * Real-LLM-realistic alternative to `oomkillTarget` (kubernaut-console#54):

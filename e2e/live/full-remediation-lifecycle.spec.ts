@@ -13,6 +13,7 @@ import {
   oomkillInvestigateMessage,
   crashloopTarget,
   crashloopInvestigateMessage,
+  CRASHLOOP_WORKFLOW,
   fixtureNamespace,
 } from "./helpers";
 
@@ -131,7 +132,7 @@ test.describe("Full remediation lifecycle — real cluster, real browser", () =>
       // payload as the RCA — kubernaut_present_decision bundles both) then
       // drives the real kubernaut_select_workflow call, which is what makes
       // RO evaluate ApprovalRequired and create the RAR in the first place.
-      await clickExecuteWorkflow(page);
+      await clickExecuteWorkflow(page, CRASHLOOP_WORKFLOW);
       // This target's production label (required for workflow-catalog
       // matching — see TARGETS' doc comment) means the OPA policy always
       // requires approval here. assertApprovalGateReachable throws with the
