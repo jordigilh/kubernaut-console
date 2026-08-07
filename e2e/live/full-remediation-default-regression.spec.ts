@@ -3,9 +3,9 @@ import {
   openConsole,
   sendChatMessage,
   waitForInvestigationSummaryOrKnownRace,
-  oomkillTarget,
-  oomkillInvestigateMessage,
-  MEMORY_ESCALATION_WORKFLOW,
+  crashloopTarget,
+  crashloopInvestigateMessage,
+  CRASHLOOP_WORKFLOW,
   fixtureNamespace,
 } from "./helpers";
 
@@ -38,15 +38,26 @@ import {
  * only via an explicit opt-out phrase ("just investigate", "investigate
  * only", "don't suggest fixes").
  *
- * This test uses the same `oomkillInvestigateMessage` helper as the
- * consent-gate suite deliberately: that message is phrased as a plain
- * "please investigate" with no "and fix" wording (see helpers.ts), which is
- * exactly the phrasing #1915's bug affected — before the fix, this exact
- * message would RCA successfully but never discover a matching workflow.
+ * This test needs a plain "please investigate" message with no "and fix"
+ * wording — exactly the phrasing #1915's bug affected, since before the fix
+ * this exact message would RCA successfully but never discover a matching
+ * workflow — combined with a deterministic, known-catalog-match target so a
+ * missing workflow card can only mean the mode-defaulting regressed, not
+ * scenario non-determinism. `crashloopInvestigateMessage` already produces
+ * that exact phrasing (no "fix"/"remediate" keyword), and `crashloopTarget`
+ * is exactly how #1915 was originally live-reproduced (see this comment's
+ * history below) — using them here directly (kubernaut-console#64, revised
+ * 2026-08-07) supersedes this test's original `oomkillTarget`/`memory-eater`
+ * fixture, which was never the scenario the bug was actually found against
+ * and, per `crashloopTarget`'s own doc comment in helpers.ts, is known to
+ * make a real LLM's workflow-selection outcome non-deterministic — exactly
+ * the kind of scenario-accuracy risk this regression test cannot tolerate.
+ *
  * Uses its own dedicated console-e2e-full-remediation-3 namespace/target
- * (not shared with the consent-gate suite's namespaces). Bumped twice during
- * this test's own development, each time to dodge KA's per-target
- * `session_active` dedup masking a real result (see helpers.ts's
+ * (not shared with the consent-gate suite's namespaces, nor with any other
+ * spec file's crashloopTarget namespace). Bumped twice during this test's
+ * original (`memory-eater`-based) development, each time to dodge KA's
+ * per-target `session_active` dedup masking a real result (see helpers.ts's
  * `oomkillTarget` doc comment for the general mechanism):
  *   - `-1` (original `console-e2e-full-remediation`): an earlier failed run
  *     left its RR non-terminal, so a retry against the same target got the
@@ -63,6 +74,9 @@ import {
  *     moved to `-3` to eliminate the shared-fixture collision rather than
  *     chase it further. If this recurs on `-3`, treat it as a real signal
  *     worth its own investigation rather than bumping the suffix again.
+ *     (Switching the underlying fixture from `memory-eater` to `worker`
+ *     changes the dedup key's resource identity anyway, so `-3` was kept
+ *     rather than bumped again for this migration.)
  *
  * Separately, kubernaut#1922 / kubernaut-console#50 (filed 2026-08-04) cover
  * a real, confirmed bug encountered while diagnosing the `-1`/`-2` failures
@@ -72,27 +86,13 @@ import {
  * message) — so a dedup collision away from this test looks identical to a
  * hung investigation. That bug is real and worth fixing regardless of what
  * causes the underlying collision; it just isn't #1915's bug.
- *
- * The real, catalog-registered workflow this target matches is
- * `increase-memory-limits-v1` (kubernaut-system), not the `helpers.ts`
- * `OOMKILL_WORKFLOW` constant's `oomkill-increase-memory-v1` — that constant
- * does not correspond to any workflow actually registered on this cluster;
- * do not rely on it here. `increase-memory-limits-v1` requires (per its
- * `RemediationWorkflow.spec.labels`) `component: apps/v1/Deployment` (✓,
- * memory-eater is a Deployment), `severity: [critical, high]` (✓, the
- * `KubePodCrashLooping` alert this fixture triggers fires `critical`), and
- * `environment: [production, staging]` — the target namespace MUST carry a
- * `kubernaut.ai/environment: production` (or `staging`) label, or KA's
- * `RunWorkflowDiscoveryFromRCA` will log `true_label_count: 0` and correctly
- * resolve to `no_matching_workflows` regardless of whether the #1915 fix is
- * working (confirmed directly via `kubectl logs deploy/kubernaut-agent`
- * during this test's own development — a namespace missing that label is a
- * test-fixture defect, not evidence against the fix).
  */
 
 // fixtureNamespace() appends LIVE_E2E_NS_SUFFIX (scripts/setup-fixtures.sh) —
-// see its doc comment in helpers.ts.
-const TARGET = oomkillTarget(fixtureNamespace("console-e2e-full-remediation-3"));
+// see its doc comment in helpers.ts. scripts/fixtures.list provisions this
+// namespace as a `crashloop`-type fixture (worker Deployment, bad-release
+// fault) to match.
+const TARGET = crashloopTarget(fixtureNamespace("console-e2e-full-remediation-3"));
 
 test.describe("Full-remediation default — workflow auto-discovery regressions", () => {
   test("a plain 'investigate' request (no explicit 'and fix') still auto-discovers matching workflows (regression: kubernaut#1915)", async ({ page }) => {
@@ -101,7 +101,7 @@ test.describe("Full-remediation default — workflow auto-discovery regressions"
     await openConsole(page);
 
     await test.step("send a plain investigate request (no 'and fix'/'remediate' wording)", async () => {
-      await sendChatMessage(page, oomkillInvestigateMessage(TARGET));
+      await sendChatMessage(page, crashloopInvestigateMessage(TARGET));
       await waitForInvestigationSummaryOrKnownRace(page);
     });
 
@@ -109,19 +109,20 @@ test.describe("Full-remediation default — workflow auto-discovery regressions"
       const firstWorkflowCard = page.getByTestId(/^workflow-card-/).first();
       await expect(
         firstWorkflowCard,
-        `a matching workflow (${MEMORY_ESCALATION_WORKFLOW}) should render automatically after RCA ` +
+        `a matching workflow (${CRASHLOOP_WORKFLOW}) should render automatically after RCA ` +
           "for a plain investigate request under full_remediation default mode — if this is not " +
           "visible, kubernaut_discover_workflows was likely never called (regression: kubernaut#1915)",
       ).toBeVisible({ timeout: 30_000 });
-      // Not just "a card rendered" — kubernaut-demo-scenarios' memory-escalation
-      // scenario (README + golden transcript) independently confirms this is
-      // the specific expected selection; see MEMORY_ESCALATION_WORKFLOW's doc
-      // comment in helpers.ts. A different workflow rendering here would be a
-      // real selection regression this test should catch, not silently accept.
+      // Not just "a card rendered" — kubernaut-demo-scenarios' crashloop
+      // scenario (README + golden transcript) documents this as the specific
+      // expected selection, and it's independently confirmed deterministic
+      // across three real-LLM runs (see CRASHLOOP_WORKFLOW's doc comment in
+      // helpers.ts). A different workflow rendering here would be a real
+      // selection regression this test should catch, not silently accept.
       await expect(
         firstWorkflowCard,
-        `Investigation selected a workflow other than the documented expectation "${MEMORY_ESCALATION_WORKFLOW}"`,
-      ).toContainText(MEMORY_ESCALATION_WORKFLOW);
+        `Investigation selected a workflow other than the documented expectation "${CRASHLOOP_WORKFLOW}"`,
+      ).toContainText(CRASHLOOP_WORKFLOW);
 
       const chatText = await page.locator(".kn-chat").innerText();
       expect(
