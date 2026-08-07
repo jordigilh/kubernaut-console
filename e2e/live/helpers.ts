@@ -182,11 +182,39 @@ export async function assertApprovalGateReachable(page: Page): Promise<boolean> 
  * isn't gated by confidence or namespace labels at that point, it simply
  * hasn't been evaluated yet. Call this first, then check
  * `isApprovalRequested()`/`approveIfRequested()` afterward.
+ *
+ * kubernaut-console#64: `crashloopTarget`'s real-LLM workflow selection is
+ * not 100% deterministic — a 2026-08-07 run on `claude-sonnet-4-6` broke a
+ * previously "confirmed deterministic across three independent real-LLM
+ * runs" streak (see that fixture's doc comment) and returned
+ * `no_matching_workflows` instead, which the console renders correctly as
+ * `WorkflowCards.tsx`'s "No action needed"/"Escalate to team" escape hatch,
+ * not a workflow card. Without this race, that outcome silently burns the
+ * full `REAL_INVESTIGATION_TIMEOUT_MS` waiting on a workflow card that will
+ * never appear before failing with an opaque locator-timeout error. Racing
+ * both locators turns that into an immediate, correctly-attributed failure
+ * instead — see kubernaut-console#64 for the full decision record on why
+ * this fails fast rather than retrying or asserting on the escape hatch.
  */
 export async function clickExecuteWorkflow(page: Page): Promise<void> {
-  await expect(page.getByTestId(/^workflow-card-/).first()).toBeVisible({
+  const workflowCard = page.getByTestId(/^workflow-card-/).first();
+  const noMatchingWorkflowsEscapeHatch = page.getByRole("button", { name: "No action needed" });
+
+  await expect(workflowCard.or(noMatchingWorkflowsEscapeHatch)).toBeVisible({
     timeout: REAL_INVESTIGATION_TIMEOUT_MS,
   });
+
+  if (await noMatchingWorkflowsEscapeHatch.isVisible().catch(() => false)) {
+    throw new Error(
+      "Investigation concluded no_matching_workflows instead of selecting a workflow — the console " +
+        "correctly rendered the 'No action needed'/'Escalate to team' escape hatch, this is not a " +
+        "console bug. crashloopTarget's real-LLM workflow selection is not 100% deterministic (see " +
+        "kubernaut-console#64 for a documented streak-break data point); re-run this test, and if it " +
+        "recurs with any frequency, see that issue for next steps (e.g. filing the non-determinism " +
+        "itself upstream, or switching to a fixture with a narrower workflow-catalog match).",
+    );
+  }
+
   const executeButton = page.getByRole("button", { name: /^Execute /i });
   await executeButton.click();
   // WorkflowCards.tsx requires a second, explicit confirm click within a
