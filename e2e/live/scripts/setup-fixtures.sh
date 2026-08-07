@@ -42,13 +42,14 @@ FIXTURES_ENV_FILE="$STATE_DIR/fixtures.env"
 DEMO_SCENARIOS_DIR="${KUBERNAUT_DEMO_SCENARIOS_DIR:-$HOME/go/src/github.com/jordigilh/kubernaut-demo-scenarios}"
 CONFIGMAP_MANIFEST="$DEMO_SCENARIOS_DIR/scenarios/crashloop/manifests/configmap.yaml"
 DEPLOYMENT_MANIFEST="$DEMO_SCENARIOS_DIR/scenarios/crashloop/manifests/deployment.yaml"
+PROMETHEUS_RULE_MANIFEST="$DEMO_SCENARIOS_DIR/scenarios/crashloop/manifests/prometheus-rule.yaml"
 FIXTURES_LIST="$SCRIPT_DIR/fixtures.list"
 
 if ! command -v oc >/dev/null 2>&1; then
   echo "error: 'oc' not found on PATH" >&2
   exit 1
 fi
-if [[ ! -f "$CONFIGMAP_MANIFEST" || ! -f "$DEPLOYMENT_MANIFEST" ]]; then
+if [[ ! -f "$CONFIGMAP_MANIFEST" || ! -f "$DEPLOYMENT_MANIFEST" || ! -f "$PROMETHEUS_RULE_MANIFEST" ]]; then
   echo "error: kubernaut-demo-scenarios crashloop manifests not found under $DEMO_SCENARIOS_DIR" >&2
   echo "       set KUBERNAUT_DEMO_SCENARIOS_DIR if your checkout lives elsewhere" >&2
   exit 1
@@ -59,6 +60,62 @@ echo "Fixture run suffix: $SUFFIX"
 
 mkdir -p "$STATE_DIR"
 chmod 700 "$STATE_DIR"
+
+# Shared, cluster-wide PrometheusRule (openshift-monitoring) that fires
+# KubePodCrashLooping for every console-e2e-* namespace regardless of run
+# suffix. Idempotent/self-healing: re-sources its annotation text from
+# kubernaut-demo-scenarios' own crashloop prometheus-rule.yaml on every run
+# instead of hand-copying it once, so it can never silently drift from the
+# text the golden transcripts were actually captured against.
+#
+# Why this matters (found 2026-08-07 live validation): this rule's `summary`
+# annotation had drifted to a hand-written approximation ("...is in
+# CrashLoopBackOff.") instead of the demo-scenario's actual text ("...is
+# restarting repeatedly (N restarts in 5m)."), which is part of the alert
+# content a real LLM's RCA sees. Two consecutive crashloopTarget runs
+# concluded no_matching_workflows instead of the documented
+# crashloop-rollback-v1 while this drift was live — reverted immediately
+# once caught, but the *drift itself* (a hand-authored rule silently
+# diverging from its source of truth) was the actual defect, independent of
+# whether that specific text difference was the proximate cause. This
+# function is the fix: never hand-author this text again.
+ensure_console_e2e_alerts_rule() {
+  local summary description
+  summary=$(oc create --dry-run=client -f "$PROMETHEUS_RULE_MANIFEST" -o jsonpath='{.spec.groups[0].rules[0].annotations.summary}')
+  description=$(oc create --dry-run=client -f "$PROMETHEUS_RULE_MANIFEST" -o jsonpath='{.spec.groups[0].rules[0].annotations.description}')
+  cat <<EOF | oc apply -f - >/dev/null
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: console-e2e-alerts
+  namespace: openshift-monitoring
+  labels:
+    console-e2e: "true"
+spec:
+  groups:
+  - name: console-e2e
+    rules:
+    - alert: KubePodCrashLooping
+      expr: |
+        max_over_time(
+          kube_pod_container_status_waiting_reason{
+            namespace=~"console-e2e-.*",
+            reason="CrashLoopBackOff"
+          }[2m]
+        ) > 0
+      for: 30s
+      labels:
+        severity: critical
+      annotations:
+        summary: |
+          $summary
+        description: |
+          $description
+EOF
+}
+
+echo "Ensuring console-e2e-alerts PrometheusRule matches kubernaut-demo-scenarios' text..."
+ensure_console_e2e_alerts_rule
 
 create_namespace() {
   local ns="$1" env_label="$2"
