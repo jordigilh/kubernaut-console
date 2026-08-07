@@ -386,6 +386,22 @@ export const CRASHLOOP_WORKFLOW = "crashloop-rollback-v1";
 export const CRASHLOOP_ALTERNATIVE_WORKFLOWS = ["rollback-deployment-v1", "crashloop-rollback-risk-v1"] as const;
 
 /**
+ * The catalog workflow `oomkillTarget`'s synthetic `memory-eater` fixture
+ * matches — confirmed two independent ways: (1) live-cluster inspection
+ * during `full-remediation-default-regression.spec.ts`'s own development
+ * (`kubectl logs deploy/kubernaut-agent`, see that file's doc comment for
+ * the full labeling-requirement breakdown), and (2) `kubernaut-demo-scenarios`'
+ * own `memory-escalation` scenario — a real ContainerOOMKilling scenario,
+ * unlike `memory-eater` — documents the identical selection in both its
+ * README ("Workflow Selected: increase-memory-limits-v1") and golden
+ * transcript (`golden-transcripts/memory-escalation-containeroomkilling.json`,
+ * confidence 0.90-0.92 across captures). NOT the same as `OOMKILL_WORKFLOW`
+ * above, which is a stale/incorrect guess never confirmed against a live
+ * catalog — see that constant's usage site for the cautionary tale.
+ */
+export const MEMORY_ESCALATION_WORKFLOW = "increase-memory-limits-v1";
+
+/**
  * Same wait as `waitForInvestigationSummary`, but fails with a message
  * naming kubernaut#1853 instead of a bare "element not found" timeout when
  * it doesn't show up.

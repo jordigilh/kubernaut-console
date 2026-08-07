@@ -5,6 +5,7 @@ import {
   waitForInvestigationSummaryOrKnownRace,
   oomkillTarget,
   oomkillInvestigateMessage,
+  MEMORY_ESCALATION_WORKFLOW,
   fixtureNamespace,
 } from "./helpers";
 
@@ -105,12 +106,22 @@ test.describe("Full-remediation default — workflow auto-discovery regressions"
     });
 
     await test.step("assert workflow options were auto-discovered and presented without a separate 'fix it' follow-up", async () => {
+      const firstWorkflowCard = page.getByTestId(/^workflow-card-/).first();
       await expect(
-        page.getByTestId(/^workflow-card-/).first(),
-        "a matching workflow (increase-memory-limits-v1) should render automatically after RCA " +
+        firstWorkflowCard,
+        `a matching workflow (${MEMORY_ESCALATION_WORKFLOW}) should render automatically after RCA ` +
           "for a plain investigate request under full_remediation default mode — if this is not " +
           "visible, kubernaut_discover_workflows was likely never called (regression: kubernaut#1915)",
       ).toBeVisible({ timeout: 30_000 });
+      // Not just "a card rendered" — kubernaut-demo-scenarios' memory-escalation
+      // scenario (README + golden transcript) independently confirms this is
+      // the specific expected selection; see MEMORY_ESCALATION_WORKFLOW's doc
+      // comment in helpers.ts. A different workflow rendering here would be a
+      // real selection regression this test should catch, not silently accept.
+      await expect(
+        firstWorkflowCard,
+        `Investigation selected a workflow other than the documented expectation "${MEMORY_ESCALATION_WORKFLOW}"`,
+      ).toContainText(MEMORY_ESCALATION_WORKFLOW);
 
       const chatText = await page.locator(".kn-chat").innerText();
       expect(
