@@ -1580,6 +1580,58 @@ describe("ChatContainer Integration", () => {
     expect(dismissBtn).toBeDisabled();
   });
 
+  // Found 2026-08-07 on a live cluster: no_matching_workflows makes RO mark
+  // the RR terminal (Completed) immediately since there's no workflow left to
+  // execute — unlike IT-CONSOLE-MCP-006 above (a real workflow was offered),
+  // here isTerminal flips true before the operator ever gets to click either
+  // escape hatch. The old workflowActionTaken gate (workflowResolved ||
+  // isPastDecisionPhase || isTerminal, unconditionally) made both buttons
+  // permanently disabled/dead-on-arrival for this outcome — the exact
+  // scenario a live operator hit and reported. Fixed by only counting
+  // backend terminality once a real workflow was actually offered
+  // (hasWorkflowOptions); with none offered, only the operator's own
+  // recorded resolution (workflowResolved) may gate these buttons.
+  it("IT-CONSOLE-MCP-007: 'No action needed'/'Escalate to team' stay enabled when no_matching_workflows makes the RR terminal before any decision", async () => {
+    mockSubscribeStatus.mockImplementation(async (
+      _rrId: string,
+      opts: StatusSubscribeOptions,
+    ) => {
+      opts.onNotFound?.();
+    });
+
+    mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        artifact: {
+          artifactId: "inv-1",
+          parts: [{ kind: "data", data: { session_id: "s1", rr_id: "rr-no-match-007", signal_name: "TestAlert", rca: { summary: "Test", causal_chain: ["Bad release"], tool_calls_count: 5 }, options: [] } }],
+          metadata: { type: "investigation_summary" },
+        },
+      });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(600);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /no action needed/i })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: /no action needed/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /escalate to team/i })).not.toBeDisabled();
+  });
+
   // AC-6: Dismiss calls kubernaut_complete_no_action via MCP (no escalation_reason)
   it("IT-CONSOLE-DISMISS-001: 'No action needed' calls MCP kubernaut_complete_no_action without escalation_reason", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");

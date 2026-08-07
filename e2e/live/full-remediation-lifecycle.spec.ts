@@ -15,6 +15,7 @@ import {
   crashloopInvestigateMessage,
   CRASHLOOP_WORKFLOW,
   fixtureNamespace,
+  assertCrashloopWasRemediated,
 } from "./helpers";
 
 // One dedicated target per test — see helpers.ts's `oomkillTarget` doc
@@ -151,10 +152,18 @@ test.describe("Full remediation lifecycle — real cluster, real browser", () =>
       await waitForPhaseLabel(page, "Verifying", REAL_EXECUTION_TIMEOUT_MS);
     });
 
-    await test.step("real stabilization window completes with a terminal phase", async () => {
-      await expect(page.locator(".kn-phase-label")).toHaveText(/Complete|Failed/, {
+    await test.step("real stabilization window completes with a successful terminal phase", async () => {
+      // Previously accepted /Complete|Failed/ as a pass — that's too loose:
+      // it let a genuine remediation failure through as a "successful" test
+      // run. Require the successful terminal label, and additionally verify
+      // the real backend/cluster state (not just the UI's rendering of it)
+      // actually reflects a completed remediation — see
+      // assertCrashloopWasRemediated's doc comment for why (kubernaut-console#64
+      // follow-up: "are the test outcomes validated?").
+      await expect(page.locator(".kn-phase-label")).toHaveText("Complete", {
         timeout: REAL_VERIFICATION_TIMEOUT_MS,
       });
+      assertCrashloopWasRemediated(TARGETS.fullLifecycle.namespace);
     });
   });
 

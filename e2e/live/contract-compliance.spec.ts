@@ -95,7 +95,15 @@ test.describe("Contract compliance — integration-guide.md checklist", () => {
     // for this identical scenario across runs — see kubernaut#1935/#1939) —
     // assert the shape (RCACard.tsx renders the raw decimal, e.g.
     // "Confidence: 0.92", never a formatted percentage) rather than a value.
-    await expect(page.getByText(/Confidence: 0\.\d+/)).toBeVisible();
+    // Found (2026-08-07): the real LLM's own causal-chain array can itself
+    // contain an entry whose text incidentally reads "Confidence: 0.95,
+    // severity: critical" — an unscoped page.getByText(/Confidence: .../)
+    // then matches both that entry and RCACard's own metadata footer,
+    // tripping Playwright's strict mode. Scope to the metadata footer's
+    // stable testid instead of relying on the causal chain's LLM-authored
+    // (and therefore non-deterministic) text staying disjoint from this
+    // pattern.
+    await expect(page.getByTestId("rca-metadata")).toContainText(/Confidence: 0\.\d+/);
     await expect(page.getByTestId("causal-chain")).toBeVisible();
 
     // Recommended workflow is deterministic (crashloop-rollback-v1 is the

@@ -109,7 +109,7 @@ export function RCACard({ rca }: Props) {
 
         <Divider />
 
-        <Content component={ContentVariants.small}>
+        <Content component={ContentVariants.small} data-testid="rca-metadata">
           {rca.rrId && <>RR: {rca.rrId} | </>}
           Target: {rca.target} | Confidence: {rca.confidence} | {rca.toolCallsCount} tool calls, {rca.llmTurns} LLM turns
         </Content>
