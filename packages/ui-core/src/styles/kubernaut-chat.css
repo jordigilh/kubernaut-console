@@ -457,26 +457,30 @@
   border-radius: 0.5rem;
   background: var(--kn-teal-50);
   text-align: left;
+  list-style: none;
+}
+
+.kn-welcome-mode {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-family: var(--kn-font-body);
 }
 
 .kn-welcome-mode + .kn-welcome-mode {
   margin-top: 0.5rem;
 }
 
-.kn-welcome-mode dt {
-  font-size: 0.75rem;
+.kn-welcome-mode-pattern {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-weight: 600;
   /* kn-teal-600/700 both fall short of the 4.5:1 AA text ratio against
      kn-teal-50 at this size/weight (3.36:1 / 4.34:1) -- teal-800 clears it
-     (7.05:1). */
+     (7.05:1). Same fixed value reused here since .kn-welcome-mode-caption's
+     code examples sit on the page background, not kn-teal-50, but keeping
+     one accessible token avoids a second contrast check for a near-identical
+     use case. */
   color: var(--kn-teal-800);
-  font-family: var(--kn-font-body);
-}
-
-.kn-welcome-mode dd {
-  margin: 0;
-  font-size: 0.75rem;
-  color: #6b7280;
 }
 
 .kn-welcome-mode-caption {
