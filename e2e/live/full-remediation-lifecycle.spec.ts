@@ -46,15 +46,19 @@ const TARGETS = {
   // rollback workflow in the catalog is registered with
   // `labels.environment: ["production"]` (no wildcard — confirmed via direct
   // `remediation_workflow_catalog` query, 2026-08-05), so workflow discovery
-  // returns zero candidates without it. This also means this test now
-  // deterministically hits the same known RBAC gap as approve/decline
-  // (`kubernaut_get_approval_request` denied for the `sre` persona —
-  // jordigilh/kubernaut-operator#278, jordigilh/kubernaut#1869) instead of
-  // reaching Verifying/Complete — see `assertApprovalGateReachable`'s doc
-  // comment. Accepted tradeoff (vs. a non-production namespace, where no
-  // registered workflow matches at all): a deterministic, already-attributed
-  // failure is strictly better than the prior memory-eater-driven flakiness.
-  // Expected to go green end-to-end once either RBAC issue lands.
+  // returns zero candidates without it.
+  //
+  // Update (2026-08-08): the `sre` persona RBAC gap this comment used to cite
+  // (jordigilh/kubernaut-operator#278, jordigilh/kubernaut#1869) is fixed and
+  // confirmed live on the shared dev cluster (kubernaut-console#71) — this
+  // test no longer hits it. The workflow-discovery session-release gap that
+  // was blocking this test next (jordigilh/kubernaut#1995,
+  // jordigilh/kubernaut#2003, jordigilh/kubernaut#2019) is also fixed and
+  // confirmed live (clean fresh-fixture re-run: RR reached
+  // Completed/Remediated, WorkflowExecution Completed, real rollout revision
+  // created). What remained after that were e2e/live-local test bugs, not
+  // upstream issues — see REAL_VERIFICATION_TIMEOUT_MS's and
+  // getRemediationRequestForTarget's doc comments in helpers.ts.
   //
   // fixtureNamespace() appends LIVE_E2E_NS_SUFFIX (scripts/setup-fixtures.sh)
   // so re-running this exact scenario doesn't reaccumulate the IneffectiveChain/
