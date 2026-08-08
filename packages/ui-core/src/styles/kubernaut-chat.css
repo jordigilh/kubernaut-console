@@ -479,6 +479,15 @@
   color: #6b7280;
 }
 
+.kn-welcome-mode-caption {
+  width: 100%;
+  max-width: 24rem;
+  margin: -0.75rem 0 1.25rem;
+  font-size: 0.7rem;
+  color: #6b7280;
+  text-align: left;
+}
+
 .kn-welcome-suggestions {
   width: 100%;
   max-width: 24rem;
