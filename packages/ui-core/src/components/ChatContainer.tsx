@@ -250,6 +250,19 @@ export function ChatContainer() {
     [sendMessage],
   );
 
+  // WelcomeState's "Investigate ..."/"Fix ..." mode hints are templates, not
+  // complete commands -- filling+focusing (not sending) lets the user just
+  // type the target rather than firing off an incomplete request.
+  const handleFillTemplate = useCallback((text: string) => {
+    setInput(text);
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(text.length, text.length);
+    });
+  }, []);
+
   // The handlers below no longer call a local emitAuditEvent(). That helper
   // only ever wrote to console.log (gated behind
   // import.meta.env.VITE_AUDIT_LOGS, itself unset in any real deployment) --
@@ -486,7 +499,7 @@ export function ChatContainer() {
         aria-label="Conversation"
       >
         {messages.length === 0 ? (
-          <WelcomeState onSuggest={handleSuggest} />
+          <WelcomeState onSuggest={handleSuggest} onFillTemplate={handleFillTemplate} />
         ) : (
           messages.map((msg) =>
             msg.role === "user" ? (
