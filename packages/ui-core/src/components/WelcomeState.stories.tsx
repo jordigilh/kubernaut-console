@@ -5,7 +5,7 @@ import { WelcomeState } from "./WelcomeState";
 const meta: Meta<typeof WelcomeState> = {
   component: WelcomeState,
   decorators: [(Story) => <div style={{ maxWidth: 820, padding: 24 }}><Story /></div>],
-  args: { onSuggest: fn() },
+  args: { onSuggest: fn(), onFillTemplate: fn() },
 };
 export default meta;
 
