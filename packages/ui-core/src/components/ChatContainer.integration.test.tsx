@@ -12,6 +12,8 @@ import { streamA2A } from "../lib/a2a-client";
 import { subscribeRRStatus } from "../lib/a2a-status-client";
 import type { StatusSubscribeOptions } from "../lib/a2a-status-client";
 import { _resetSession } from "../lib/mcp-client";
+import { ConfigContext } from "../providers/config";
+import { setShowRawThinking } from "../lib/preferences";
 
 vi.mock("../lib/a2a-client", () => ({
   buildStreamRequest: vi.fn((_text: string) => ({
@@ -1899,6 +1901,59 @@ describe("ChatContainer Integration", () => {
       const workflowBtn = buttons.find(b => b.textContent?.includes("restart_pod") || b.textContent?.includes("scale_up"));
       expect(workflowBtn).toBeDefined();
       expect(workflowBtn).not.toBeDisabled();
+    });
+  });
+
+  // #57 follow-up: a host (e.g. the standalone chart deploy against a
+  // kubernaut v1.5 backend, which never emits reasoning_content events at
+  // all) needs to hide this control entirely, not just leave a dead-looking
+  // button around -- see KubernautConfig.enableRawThinking's doc comment.
+  describe("enableRawThinking config flag", () => {
+    it("IT-CONSOLE-RAWTHINK-001: defaults to enabled when a host doesn't set the flag", () => {
+      render(<ChatContainer />);
+      expect(screen.getByRole("button", { name: /hide raw thinking|show raw thinking/i })).toBeInTheDocument();
+    });
+
+    it("IT-CONSOLE-RAWTHINK-002: hides the toggle entirely when the host sets enableRawThinking=false", () => {
+      render(
+        <ConfigContext.Provider value={{ backendUrl: "", enableRawThinking: false }}>
+          <ChatContainer />
+        </ConfigContext.Provider>,
+      );
+      expect(screen.queryByRole("button", { name: /hide raw thinking|show raw thinking/i })).not.toBeInTheDocument();
+    });
+
+    it("IT-CONSOLE-RAWTHINK-003: enableRawThinking=false overrides an existing 'show' localStorage preference, not just the button's own default", async () => {
+      setShowRawThinking(true);
+
+      mockStreamA2A.mockImplementationOnce(async (_req: unknown, opts: {
+        onEvent?: (event: unknown) => void;
+        onComplete?: () => void;
+      }) => {
+        opts.onEvent?.({
+          kind: "status-update",
+          taskId: "t-rawthink-1",
+          contextId: "ctx-rawthink-1",
+          status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Deliberating about root cause..." }] } },
+          metadata: { type: "reasoning_content" },
+        });
+        opts.onComplete?.();
+      });
+
+      render(
+        <ConfigContext.Provider value={{ backendUrl: "", enableRawThinking: false }}>
+          <ChatContainer />
+        </ConfigContext.Provider>,
+      );
+      const input = screen.getByRole("textbox", { name: /type your message/i });
+      await act(async () => {
+        fireEvent.change(input, { target: { value: "investigate" } });
+        fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByText(/Deliberating about root cause/i)).not.toBeInTheDocument();
+      });
     });
   });
 });

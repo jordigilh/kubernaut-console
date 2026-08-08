@@ -12,8 +12,25 @@ const authProvider = import.meta.env.VITE_LIVE_E2E_TOKEN
   ? new LiveE2EAuthProvider()
   : new ProxyAuthProvider();
 
+// Populated by /runtime-config.js, a same-origin script tag (see index.html)
+// served either by the Helm chart's nginx ConfigMap (templated from
+// values.yaml's `features.enableRawThinking` at `helm install/upgrade` time
+// -- no image rebuild needed, same mechanism the chart already uses for
+// apiFrontend.url) or, for local dev/non-chart deploys, the static fallback
+// in public/runtime-config.js. Deliberately loaded as an external file
+// rather than an inline <script> block: this app's CSP is `script-src
+// 'self'` with no 'unsafe-inline', so an inline script would be blocked.
+declare global {
+  interface Window {
+    __KUBERNAUT_CONFIG__?: { enableRawThinking?: boolean };
+  }
+}
+
 function App() {
-  const config = useMemo(() => ({ backendUrl: "" }), []);
+  const config = useMemo(
+    () => ({ backendUrl: "", enableRawThinking: window.__KUBERNAUT_CONFIG__?.enableRawThinking }),
+    [],
+  );
 
   return (
     <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "var(--kn-surface)", padding: 0 }}>
