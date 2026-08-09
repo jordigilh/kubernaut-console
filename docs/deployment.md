@@ -6,76 +6,35 @@ This document covers all deployment options for Kubernaut Console.
 
 | Method | Use Case | Prerequisites |
 |--------|----------|---------------|
-| **Helm chart** | Production / OpenShift | Kubernetes cluster, OIDC provider |
+| **kubernaut-operator** | Production / OpenShift (recommended) | `Kubernaut` CR, OIDC provider |
+| **kubernaut's Helm chart** | Production, non-operator Helm installs | Kubernetes cluster, OIDC provider |
 | **Kind manifests** | Local development / demos | Kind cluster, Kubernaut deployed |
 | **Vite dev server** | Frontend development | Node.js 22+, AF port-forwarded |
 
 ---
 
-## Helm Chart (Production)
+## Production Deployment
 
-The Helm chart deploys a pod with two containers:
-1. **OAuth2 Proxy** — handles OIDC authentication (port 4180)
-2. **Nginx** — serves the SPA and proxies API requests (port 8080)
+This repo does not ship its own Helm chart. The console is deployed as part
+of the Kubernaut platform via one of two officially-sanctioned paths, both
+of which provision the same shape described below (an OAuth2 Proxy sidecar
+handling OIDC on port 4180, in front of an Nginx container serving the SPA
+and proxying API requests on port 8080) using the same
+`quay.io/kubernaut-ai/kubernaut-console` image this repo builds and
+publishes:
 
-### Prerequisites
+1. **`kubernaut-operator`** (recommended): set `spec.console.enabled: true`
+   (plus `spec.console.auth.*` for OIDC) on the cluster's `Kubernaut` CR. See
+   [kubernaut-operator](https://github.com/jordigilh/kubernaut-operator)'s
+   own docs for the full field reference.
+2. **`kubernaut`'s Helm chart**: set `console.enabled: true` when installing
+   [kubernaut](https://github.com/jordigilh/kubernaut)'s chart directly
+   (`charts/kubernaut/`), for environments that install via plain Helm
+   instead of the operator/OLM.
 
-- Kubernetes 1.28+ or OpenShift 4.14+
-- Kubernaut API Frontend deployed in the cluster
-- OIDC provider (Keycloak, Dex, or compatible)
-- A Kubernetes Secret with OIDC credentials
-
-### Install
-
-```bash
-# Create the OIDC secret
-kubectl create secret generic kubernaut-console-oidc \
-  --namespace kubernaut-system \
-  --from-literal=client-id=kubernaut-console \
-  --from-literal=client-secret=<YOUR_CLIENT_SECRET> \
-  --from-literal=cookie-secret=$(openssl rand -hex 16)
-
-# Install the chart
-helm install kubernaut-console ./chart \
-  --namespace kubernaut-system \
-  --set auth.issuerUrl=https://your-keycloak/realms/kubernaut \
-  --set auth.clientId=kubernaut-console \
-  --set apiFrontend.url=http://apifrontend-service.kubernaut-system.svc:8443
-```
-
-### Configuration
-
-Key values in `chart/values.yaml`:
-
-| Value | Default | Description |
-|-------|---------|-------------|
-| `image.repository` | `ghcr.io/jordigilh/kubernaut-console` | Container image |
-| `image.tag` | `latest` | Image version |
-| `apiFrontend.url` | `http://apifrontend.kubernaut-system.svc:8443` | API Frontend service URL |
-| `auth.issuerUrl` | — | OIDC issuer URL |
-| `auth.clientId` | `kubernaut-console` | OIDC client ID |
-| `auth.existingSecret` | `kubernaut-console-oidc` | Secret name with OIDC creds |
-| `service.type` | `ClusterIP` | Service type |
-| `service.port` | `4180` | Service port |
-| `route.enabled` | `true` | Create OpenShift Route |
-| `route.host` | — | Route hostname (auto-derived if empty) |
-
-### Upgrade
-
-```bash
-helm upgrade kubernaut-console ./chart \
-  --namespace kubernaut-system \
-  --set image.tag=0.5.12
-```
-
-### OpenShift Route
-
-On OpenShift, the chart auto-detects the `route.openshift.io/v1` API and creates a TLS-terminated Route. Configure the hostname:
-
-```bash
-helm install kubernaut-console ./chart \
-  --set route.host=console.apps.my-cluster.example.com
-```
+The sections below (Nginx Configuration, Container Image, Health Checks)
+describe what's baked into this repo's own image and apply regardless of
+which of the two paths above deployed it.
 
 ---
 
@@ -217,7 +176,7 @@ Tags follow semver: `v0.5.12` → image tag `0.5.12`.
 
 ### Runtime
 
-No runtime environment variables are needed — all routing is handled by the nginx configuration baked into the container image. The OAuth2 Proxy is configured via its command-line flags in the Helm chart / Kind manifest.
+No runtime environment variables are needed — all routing is handled by the nginx configuration baked into the container image. The OAuth2 Proxy is configured via its command-line flags in whichever deployment path is used (kubernaut-operator, kubernaut's Helm chart, or the Kind manifest).
 
 ---
 

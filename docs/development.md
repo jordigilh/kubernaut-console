@@ -273,9 +273,14 @@ The CI workflow (`.github/workflows/ci.yml`) runs on every PR:
 
 Tags matching `v*` trigger `.github/workflows/release.yaml`:
 1. Run tests
-2. Build multi-arch container image
-3. Push to `quay.io/kubernaut-ai/demo-console:<version>`
-4. Package Helm chart
+2. Build multi-arch container image, push to `quay.io/kubernaut-ai/kubernaut-console:<version>`
+3. Generate and attest SBOM (SPDX), attest build provenance (SLSA)
+4. Trivy vulnerability scan
+5. Tag visual regression baselines with the release version
+
+This repo does not package or publish its own Helm chart (see
+[Deployment Options](deployment.md#deployment-options)) — the image above is
+consumed by kubernaut-operator and kubernaut's own chart instead.
 
 ## Pre-commit Hooks
 
