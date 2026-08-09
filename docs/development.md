@@ -280,7 +280,11 @@ Tags matching `v*` trigger `.github/workflows/release.yaml`:
    [SECURITY.md](../SECURITY.md#supply-chain-security) for consumer
    verification instructions
 5. Trivy vulnerability scan
-6. Package Helm chart
+6. Tag visual regression baselines with the release version
+
+This repo does not package or publish its own Helm chart (see
+[Deployment Options](deployment.md#deployment-options)) — the image above is
+consumed by kubernaut-operator and kubernaut's own chart instead.
 
 ## Pre-commit Hooks
 

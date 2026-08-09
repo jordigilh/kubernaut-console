@@ -74,28 +74,15 @@ pnpm --filter @kubernaut/ui-core test -- --watch  # Watch mode for ui-core
 
 ## Deployment
 
-### Helm (Recommended)
+This repo does not ship its own Helm chart — the console is deployed as part
+of the Kubernaut platform, either via
+[kubernaut-operator](https://github.com/jordigilh/kubernaut-operator) (set
+`spec.console.enabled: true` on the `Kubernaut` CR — recommended) or
+[kubernaut](https://github.com/jordigilh/kubernaut)'s own Helm chart (set
+`console.enabled: true`). Both use this repo's published
+`quay.io/kubernaut-ai/kubernaut-console` image.
 
-```bash
-# Create OIDC secret
-kubectl create secret generic kubernaut-console-oidc \
-  --from-literal=client-id=kubernaut-console \
-  --from-literal=client-secret=<secret> \
-  --from-literal=cookie-secret=$(openssl rand -base64 32) \
-  -n kubernaut-system
-
-# Install
-helm install kubernaut-console ./chart \
-  --namespace kubernaut-system \
-  --set auth.issuerUrl=https://keycloak.example.com/realms/your-realm
-
-# Upgrade
-helm upgrade kubernaut-console ./chart \
-  --set image.tag=<commit-sha> --set image.digest="" \
-  --reuse-values --wait
-```
-
-See [docs/deployment.md](docs/deployment.md) for full deployment guide and [chart/README.md](chart/README.md) for Helm values reference.
+See [docs/deployment.md](docs/deployment.md) for the full deployment guide.
 
 ### Kind (Local Demo)
 
@@ -119,7 +106,6 @@ packages/
 ├── plugin-backstage/    # Backstage frontend plugin (Module Federation)
 └── plugin-ocm/          # OCP console dynamic plugin (Webpack Federation)
 e2e/                     # Playwright E2E tests (a11y, visual, integration)
-chart/                   # Helm chart
 docs/                    # Documentation
 scripts/                 # Build and CI utilities
 ```

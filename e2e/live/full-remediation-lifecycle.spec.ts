@@ -6,7 +6,6 @@ import {
   waitForPhaseLabel,
   clickExecuteWorkflow,
   assertApprovalGateReachable,
-  REAL_INVESTIGATION_TIMEOUT_MS,
   REAL_EXECUTION_TIMEOUT_MS,
   REAL_VERIFICATION_TIMEOUT_MS,
   oomkillTarget,
@@ -46,15 +45,19 @@ const TARGETS = {
   // rollback workflow in the catalog is registered with
   // `labels.environment: ["production"]` (no wildcard — confirmed via direct
   // `remediation_workflow_catalog` query, 2026-08-05), so workflow discovery
-  // returns zero candidates without it. This also means this test now
-  // deterministically hits the same known RBAC gap as approve/decline
-  // (`kubernaut_get_approval_request` denied for the `sre` persona —
-  // jordigilh/kubernaut-operator#278, jordigilh/kubernaut#1869) instead of
-  // reaching Verifying/Complete — see `assertApprovalGateReachable`'s doc
-  // comment. Accepted tradeoff (vs. a non-production namespace, where no
-  // registered workflow matches at all): a deterministic, already-attributed
-  // failure is strictly better than the prior memory-eater-driven flakiness.
-  // Expected to go green end-to-end once either RBAC issue lands.
+  // returns zero candidates without it.
+  //
+  // Update (2026-08-08): the `sre` persona RBAC gap this comment used to cite
+  // (jordigilh/kubernaut-operator#278, jordigilh/kubernaut#1869) is fixed and
+  // confirmed live on the shared dev cluster (kubernaut-console#71) — this
+  // test no longer hits it. The workflow-discovery session-release gap that
+  // was blocking this test next (jordigilh/kubernaut#1995,
+  // jordigilh/kubernaut#2003, jordigilh/kubernaut#2019) is also fixed and
+  // confirmed live (clean fresh-fixture re-run: RR reached
+  // Completed/Remediated, WorkflowExecution Completed, real rollout revision
+  // created). What remained after that were e2e/live-local test bugs, not
+  // upstream issues — see REAL_VERIFICATION_TIMEOUT_MS's and
+  // getRemediationRequestForTarget's doc comments in helpers.ts.
   //
   // fixtureNamespace() appends LIVE_E2E_NS_SUFFIX (scripts/setup-fixtures.sh)
   // so re-running this exact scenario doesn't reaccumulate the IneffectiveChain/
@@ -120,8 +123,22 @@ test.describe("Full remediation lifecycle — real cluster, real browser", () =>
 
     await test.step("real KubernautAgent investigation completes", async () => {
       await waitForInvestigationSummaryOrKnownRace(page);
+      // Bug found 2026-08-08 (kubernaut-console#73 follow-up): this check is
+      // explicitly optional — its failure is swallowed by `.catch()` below
+      // because "the next step's phase assertion is the real gate either
+      // way" — yet it used to carry the full REAL_INVESTIGATION_TIMEOUT_MS
+      // (300s) budget. A real investigation regularly takes 150-200s+ on its
+      // own (confirmed by trace: 169s in one run), so
+      // investigation-time + this check's own 300s ceiling routinely
+      // exceeded the outer 420s test timeout — killing the test *inside this
+      // swallowed check* before clickExecuteWorkflow ever got a chance to
+      // run. That produced a misleading final symptom (workflow card visible
+      // in the failure screenshot, test still timed out) that was previously
+      // misattributed to a clickExecuteWorkflow locator bug. A short, fixed
+      // budget here preserves the "nice to catch an instant auto-advance"
+      // behavior without being able to starve the rest of the test.
       await expect(page.locator(".kn-phase-label")).toHaveText("Awaiting Approval", {
-        timeout: REAL_INVESTIGATION_TIMEOUT_MS,
+        timeout: 15_000,
       }).catch(() => {
         // Some policies auto-advance straight past the approval phase —
         // the next step's phase assertion is the real gate either way.

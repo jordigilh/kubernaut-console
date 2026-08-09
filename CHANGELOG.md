@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - `ExecutionStep` interface and `executionSteps`/`executionComplete` fields (replaced by phase-based banner)
+- Standalone Helm chart (`chart/`) — redundant with, and had drifted from, kubernaut-operator's and kubernaut's own chart's console deployment (#62). Production deploys use one of those two paths instead; see `docs/deployment.md`.
 
 ### Fixed
 - Investigation timer not clearing on new session start

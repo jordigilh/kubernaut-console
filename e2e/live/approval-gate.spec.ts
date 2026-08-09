@@ -113,6 +113,16 @@ function investigateMessageForTest(title: string): string {
  * above if the underlying ACL gap is still open, rather than silently
  * skipping it.
  *
+ * Both #278 and #1869 are now closed/shipped (v1.5.8-rc1's operator build)
+ * and confirmed live on the shared dev cluster via direct ClusterRole
+ * inspection (2026-08-08, kubernaut-console#71) — `kubernaut_get_approval_request`
+ * and `kubernaut_complete_no_action` are both present on `tool-sre` today. If
+ * these tests fail with the denied-message error below, re-verify live RBAC
+ * state before assuming this specific gap has recurred; as of this writing
+ * the tests that reach this point instead fail/hang on an unrelated upstream
+ * bug (jordigilh/kubernaut#1995, #2003 — KA's workflow-discovery result isn't
+ * reliably delivered back to AF/the console).
+ *
  * Current status (2026-08-02): kubernaut#1853 (mock-llm test-fixture gap —
  * see waitForInvestigationSummaryOrKnownRace's doc comment in helpers.ts) is
  * worked around on this cluster via a hand-patched mock-llm-scenarios
@@ -165,6 +175,17 @@ test.describe("Approval gate — real MCP calls", () => {
   });
 
   test("decline path: real kubernaut_approve(Rejected) reaches a terminal state", async ({ page }) => {
+    // Baseline captured before the decline interaction, not assumed to be 1:
+    // provisioning this fixture (the bad-release patch that creates the very
+    // crashloop condition this test investigates) already produces 2
+    // rollout revisions — the initial deployment plus the injected fault —
+    // before the decline click ever happens. A hardcoded expectation of "1"
+    // fails on every run, fresh fixture or reused, regardless of whether
+    // decline behaved correctly (confirmed empirically 2026-08-08,
+    // kubernaut-console#64 follow-up: a fresh, never-before-tested fixture
+    // still starts at 2 revisions here).
+    const revisionsBefore = getDeploymentRolloutRevisionCount(TARGETS.decline.namespace, TARGETS.decline.name);
+
     // See approve path's comment: RO's RAR creation is ~15s async after this click.
     await clickExecuteWorkflow(page, CRASHLOOP_WORKFLOW);
     test.skip(!(await assertApprovalGateReachable(page)), "This run's policy auto-approved — no approval gate to exercise.");
@@ -175,13 +196,14 @@ test.describe("Approval gate — real MCP calls", () => {
     // A decline that the UI reports correctly but the backend executes
     // anyway would be a serious safety regression a UI-text-only assertion
     // can't catch — verify the real deployment actually stayed untouched
-    // (still on its single, pre-existing revision) rather than trusting the
-    // "Declined" message alone.
-    const revisions = getDeploymentRolloutRevisionCount(TARGETS.decline.namespace, TARGETS.decline.name);
+    // (no *new* rollout revision beyond the pre-existing baseline) rather
+    // than trusting the "Declined" message alone.
+    const revisionsAfter = getDeploymentRolloutRevisionCount(TARGETS.decline.namespace, TARGETS.decline.name);
     expect(
-      revisions,
-      `deployment/${TARGETS.decline.name} in ${TARGETS.decline.namespace} should have no new rollout revisions after a decline`,
-    ).toBe(1);
+      revisionsAfter,
+      `deployment/${TARGETS.decline.name} in ${TARGETS.decline.namespace} should have no new rollout revisions after a decline ` +
+        `(baseline was ${revisionsBefore})`,
+    ).toBe(revisionsBefore);
   });
 
   test("dismiss path: real kubernaut_complete_no_action, no workflow executed", async ({ page }) => {

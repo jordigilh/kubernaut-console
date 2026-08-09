@@ -14,7 +14,17 @@ import { type Page, expect } from "@playwright/test";
  */
 export const REAL_INVESTIGATION_TIMEOUT_MS = Number(process.env.LIVE_E2E_INVESTIGATION_TIMEOUT_MS) || 90_000;
 export const REAL_EXECUTION_TIMEOUT_MS = 60_000;
-export const REAL_VERIFICATION_TIMEOUT_MS = 60_000;
+// 60s was too tight for a real cluster: the post-approve path is
+// kubernaut_approve -> WorkflowExecution (Executing, ~10s) -> Verifying
+// (EffectivenessAssessment stabilization window + assessment, not scripted)
+// -> Completed. Measured end-to-end on the shared dev cluster (2026-08-08,
+// kubernaut-console#64 follow-up "are the test outcomes validated?" repro):
+// kubernaut_approve succeeded at 19:43:58Z, RR reached Completed at
+// 19:46:29Z — 2m31s, well past the old 60s budget, while the backend had
+// already fully succeeded (WorkflowExecution Completed, pods healthy, new
+// rollout revision created). The test was failing on its own timeout, not
+// on a real product hang.
+export const REAL_VERIFICATION_TIMEOUT_MS = 240_000;
 
 /**
  * Seeds a fresh, unique `contextId` into sessionStorage before any page
@@ -141,13 +151,19 @@ export async function isApprovalDenied(page: Page, timeout = 5_000): Promise<boo
  * `clickExecuteWorkflow()`: (a) this run's policy auto-approved — nothing to
  * test, a legitimate skip — vs (b) RO *did* require approval and created a
  * real RAR, but the console's `kubernaut_get_approval_request` fetch was
- * denied (the `sre` persona RBAC gap — jordigilh/kubernaut-operator#278,
- * jordigilh/kubernaut#1869). Skipping silently in case (b) would hide a real,
- * tracked upstream bug behind a misleading "auto-approved" message. Shared by
- * approval-gate.spec.ts and full-remediation-lifecycle.spec.ts (kubernaut-console#54):
- * any `crashloopTarget` in a `kubernaut.ai/environment=production` namespace
+ * denied. Skipping silently in case (b) would hide a real bug behind a
+ * misleading "auto-approved" message. Shared by approval-gate.spec.ts and
+ * full-remediation-lifecycle.spec.ts (kubernaut-console#54): any
+ * `crashloopTarget` in a `kubernaut.ai/environment=production` namespace
  * reaches this same gate, since the OPA policy requires approval
  * unconditionally for production regardless of which test triggered it.
+ *
+ * Historical note (2026-08-08): this used to fire routinely on the `sre`
+ * persona RBAC gap (jordigilh/kubernaut-operator#278, jordigilh/kubernaut#1869
+ * — both now closed/shipped, confirmed live on the shared dev cluster via
+ * direct ClusterRole inspection, kubernaut-console#71). If this throws again,
+ * it's a genuine regression, not the old known gap — don't re-attribute to
+ * #278/#1869 without re-verifying live RBAC state first.
  */
 export async function assertApprovalGateReachable(page: Page): Promise<boolean> {
   const requested = await isApprovalRequested(page, 30_000);
@@ -155,11 +171,11 @@ export async function assertApprovalGateReachable(page: Page): Promise<boolean> 
   if (await isApprovalDenied(page, 2_000)) {
     throw new Error(
       "RemediationOrchestrator required approval and created a real RAR, but the console's " +
-        "kubernaut_get_approval_request call was denied for the sre persona — this is the known, " +
-        "already-filed RBAC gap (jordigilh/kubernaut-operator#278 for v1.5/the operator, " +
-        "jordigilh/kubernaut#1869 for v1.6/the Helm chart), not a console bug: ChatContainer.tsx's " +
-        "graceful-degradation card (`.kn-approval-denied`) rendered exactly as designed. Re-run once " +
-        "either issue lands `kubernaut_get_approval_request` on the sre persona's ACL.",
+        "kubernaut_get_approval_request call was denied for the sre persona. The known RBAC gap " +
+        "(jordigilh/kubernaut-operator#278, jordigilh/kubernaut#1869) is closed and confirmed live " +
+        "on the shared dev cluster as of 2026-08-08 — this is NOT that gap recurring without fresh " +
+        "evidence. Re-verify live RBAC state (`oc get clusterrole kubernaut-system-tool-sre -o " +
+        "jsonpath='{.rules[*].resourceNames}'`) before re-filing against #278/#1869.",
     );
   }
   return false;
@@ -214,12 +230,31 @@ export async function clickExecuteWorkflow(page: Page, expectedWorkflowName: str
   // visible simultaneously once a real workflow is found, which made the
   // original `firstWorkflowCard.or(noMatchingWorkflowsEscapeHatch)` union
   // resolve to 2 elements and fail Playwright's strict-mode toBeVisible().
-  // `.first()` on the *union* (DOM order) fixes the wait; the actual
-  // no_matching_workflows verdict must be decided from firstWorkflowCard's
-  // absence, not from the escape hatch's presence.
-  await expect(firstWorkflowCard.or(noMatchingWorkflowsEscapeHatch).first()).toBeVisible({
-    timeout: REAL_INVESTIGATION_TIMEOUT_MS,
-  });
+  // `.first()` on the *union* (DOM order) fixed the strict-mode violation,
+  // but introduced a *different*, worse bug (kubernaut-console#73,
+  // 2026-08-08): against a real claude-sonnet-5 backend, this combined
+  // `.or(...).first()` locator's own `toBeVisible()` intermittently never
+  // resolved even though its target element was genuinely present and
+  // visible in the DOM well before the timeout — confirmed twice in
+  // independent runs (once for the workflow card, once for the escape hatch
+  // button), each burning the full REAL_INVESTIGATION_TIMEOUT_MS and then
+  // the outer test timeout with `Received: undefined`, despite the final
+  // error-context.md snapshot showing the element rendered correctly minutes
+  // earlier. A live standalone repro against the same backend, polling each
+  // locator's `.count()` independently instead of trusting a single combined
+  // locator's actionability/stability checks, detected the identical
+  // elements reliably — most likely because Sonnet 5's SSE re-render cadence
+  // produces enough DOM churn to keep defeating `.or()`'s re-resolution or
+  // `toBeVisible()`'s frame-to-frame stability check. `expect(...).toPass()`
+  // around plain `.count()` reads sidesteps that entirely: `.count()` is a
+  // point-in-time query with no actionability/stability semantics of its own.
+  await expect(async () => {
+    const [workflowCardCount, noActionCount] = await Promise.all([
+      firstWorkflowCard.count(),
+      noMatchingWorkflowsEscapeHatch.count(),
+    ]);
+    expect(workflowCardCount > 0 || noActionCount > 0).toBe(true);
+  }).toPass({ timeout: REAL_INVESTIGATION_TIMEOUT_MS, intervals: [1_000] });
 
   const workflowCardVisible = await firstWorkflowCard.isVisible().catch(() => false);
   if (!workflowCardVisible && (await noMatchingWorkflowsEscapeHatch.isVisible().catch(() => false))) {
@@ -505,6 +540,19 @@ interface RemediationRequestSummary {
  * one — so a stale RR from an earlier retry against the same reused fixture
  * namespace (see fixtureNamespace's doc comment) doesn't shadow the current
  * run's real outcome.
+ *
+ * Queries spec.targetResource.namespace, not spec.signalLabels.namespace:
+ * this suite's investigations are all chat-driven (kubernaut_investigate_alert,
+ * signalSource: a2a-agent), whose signalLabels only ever carries
+ * {severity_alert_name, severity_source} — never a namespace key. Only
+ * genuine Alertmanager-webhook-triggered RRs (a different signal source this
+ * suite doesn't use) carry the full Prometheus label set, including
+ * namespace, inside signalLabels. spec.targetResource.namespace is present
+ * on every RR regardless of signal source and is the actual source of truth
+ * for what was investigated. Confirmed empirically (2026-08-08,
+ * kubernaut-console#64 follow-up): this query previously always returned
+ * zero rows for this suite's own chat-triggered RRs, silently failing
+ * assertCrashloopWasRemediated's ground-truth check on every run.
  */
 export function getRemediationRequestForTarget(namespace: string): RemediationRequestSummary | null {
   const raw = execOc([
@@ -513,7 +561,7 @@ export function getRemediationRequestForTarget(namespace: string): RemediationRe
     "-n",
     PLATFORM_NS,
     "-o",
-    'jsonpath={range .items[*]}{.metadata.name}{"\\t"}{.spec.signalLabels.namespace}{"\\t"}{.status.overallPhase}{"\\t"}{.status.outcome}{"\\n"}{end}',
+    'jsonpath={range .items[*]}{.metadata.name}{"\\t"}{.spec.targetResource.namespace}{"\\t"}{.status.overallPhase}{"\\t"}{.status.outcome}{"\\n"}{end}',
   ]);
   const rows = raw
     .split("\n")

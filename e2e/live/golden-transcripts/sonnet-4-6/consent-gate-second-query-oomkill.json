@@ -1,0 +1,526 @@
+{
+  "scenario": "consent-gate-second-query-oomkill",
+  "incidentId": "rr-42f5fd56f1ca-dffac117",
+  "model": "claude-sonnet-4-6",
+  "signal": {
+    "signalName": "KubePodCrashLooping",
+    "namespace": "console-e2e-consent-gate-f63921",
+    "resourceKind": "Deployment",
+    "resourceName": "memory-eater",
+    "severity": "critical"
+  },
+  "analysis": {
+    "phase": "Completed",
+    "selectedWorkflow": null,
+    "approvalRequired": false,
+    "needsHumanReview": false,
+    "humanReviewReason": null,
+    "rootCauseAnalysis": {
+      "summary": "Deployment/memory-eater defines a container that intentionally runs an infinite memory-filling loop while capped at a 50Mi memory limit it can never satisfy, causing perpetual OOMKills and CrashLoopBackOff.",
+      "severity": "critical",
+      "causalChain": [
+        "Signal: KubePodCrashLooping \u2014 pod memory-eater-85c4d9667b-xflcd is in CrashLoopBackOff with 10 restarts",
+        "Why? Container exits repeatedly with code 137 (OOMKilled) \u2014 confirmed by containerStatus.lastState.terminated.reason=OOMKilled",
+        "Why? Container continuously allocates memory via infinite dd loop writing 5MB/s to /dev/shm, exceeding the 50Mi memory limit",
+        "Why? Deployment spec.template.spec.containers[memory-eater] defines both the pathological infinite-allocation command AND an insufficient 50Mi memory ceiling that the workload structurally cannot respect",
+        "Root cause: Deployment/memory-eater contains a deliberately misconfigured container spec \u2014 an unbounded memory-consuming loop paired with a 50Mi limit that guarantees perpetual OOMKill and CrashLoopBackOff"
+      ],
+      "dueDiligence": {
+        "targetAccuracy": "The Deployment is the correct and deepest remediable target. The Pod and ReplicaSet (memory-eater-85c4d9667b) are ephemeral controller-owned resources whose specs are derived from the Deployment template \u2014 modifying them directly would be overwritten on the next reconciliation cycle. The misconfiguration (runaway command + 50Mi limit) lives in Deployment/memory-eater spec.template.spec.containers[0]. An automated workflow can modify this Deployment's container spec to either raise the memory limit or replace the command. The Deployment is not merely a signal reporter \u2014 it is the owner of the misconfigured container definition.",
+        "proportionality": "Single Deployment with 1 replica is affected. The fix is highly targeted: modify Deployment/memory-eater's container spec (command and/or memory limit). No other workloads or namespaces are impacted. Remediation scope exactly matches problem scope.",
+        "scopeCompleteness": "Investigated: Deployment spec, ReplicaSet ownership chain, Pod status/conditions, container logs (current and previous), pod events (full event list), node memory utilization via kubectl top nodes. The pod is the only workload in the namespace. No upstream dependencies (ConfigMaps, Secrets, PVCs) are referenced by this Deployment. No downstream services depend on this pod. Full scope covered.",
+        "causalCompleteness": "Traced fully: CrashLoopBackOff \u2192 OOMKilled (exit 137) \u2192 container exceeds 50Mi limit \u2192 unbounded /dev/shm write loop \u2192 Deployment container spec defines both the runaway command and the insufficient limit. Cannot go deeper: the Deployment spec is the configuration artifact that causes this behavior. No deeper infrastructure or platform cause exists \u2014 node memory is healthy.",
+        "evidenceSufficiency": "All claims are backed by tool output: (1) OOMKilled confirmed by containerStatus.lastState.terminated.reason=OOMKilled and exitCode=137; (2) container command confirmed verbatim from Deployment spec; (3) memory limit of 50Mi confirmed from resources.limits.memory; (4) restart count 10 and 115 BackOff events from pod status and events; (5) node memory health confirmed by kubectl_top_nodes showing dev-worker-2 at 16,893Mi with no eviction. No inaccessible data sources \u2014 all tool calls succeeded.",
+        "regressionAwareness": "No prior remediation history available for Deployment/memory-eater \u2014 remediation_history shows empty tier1 and tier2 arrays. This is the first remediation attempt. N/A for regression risk.",
+        "alternativeHypotheses": "1) Node memory pressure: Ruled out \u2014 dev-worker-2 shows 16,893Mi usage with no DiskPressure/MemoryPressure node conditions and no eviction events. OOM is container-scoped, not node-scoped. 2) Image pull failure: Ruled out \u2014 events show 'Container image already present on machine' and container starts successfully before being OOMKilled. 3) Application bug in a legitimate workload with a too-low limit: Ruled out \u2014 the command is explicitly labeled 'Allocating memory to trigger OOMKilled' and uses dd to fill /dev/shm in an infinite loop. This is intentional misconfiguration, not an accidental memory leak. 4) Init container or sidecar issue: Ruled out \u2014 only one container ('memory-eater') exists in the pod spec.",
+        "confidenceCalibration": "Starting at 1.0. Deductions: -0.03 for not being able to verify whether the Deployment was applied intentionally as a test workload (the self-documenting name 'memory-eater' and log message suggest it may be a synthetic test, but the fix is identical regardless). Final confidence: 0.97."
+      },
+      "remediationTarget": {
+        "kind": "Deployment",
+        "name": "memory-eater",
+        "namespace": "console-e2e-consent-gate-f63921"
+      },
+      "contributingFactors": [
+        "Container command is a deliberate infinite loop writing 5MB blocks to /dev/shm with no termination condition: 'dd if=/dev/zero of=/dev/shm/fill$i bs=1M count=5' repeated every second",
+        "Memory limit of 50Mi is structurally insufficient for a workload that grows by 5MB/s without bound",
+        "Memory request (20Mi) is far below the limit (50Mi), reflecting an inconsistent resource budget",
+        "restartPolicy: Always causes Kubernetes to perpetually restart the OOMKilled container, amplifying the crash loop",
+        "Pod has restarted 10 times with 115 BackOff events recorded, confirming sustained crash loop since 2026-08-09T01:32:45Z",
+        "Node dev-worker-2.redhat-internal.com shows 16,893Mi memory usage \u2014 node is not under memory pressure, confirming the OOM is container-scoped not node-scoped"
+      ]
+    }
+  },
+  "remediationRequest": {
+    "outcome": "Processing"
+  },
+  "kaResponse": {
+    "confidence": 0.97,
+    "analysis": "Deployment/memory-eater defines a container that intentionally runs an infinite memory-filling loop while capped at a 50Mi memory limit it can never satisfy, causing perpetual OOMKills and CrashLoopBackOff."
+  },
+  "traceStats": {
+    "totalTokens": 111845,
+    "llmTurns": 11,
+    "totalToolCalls": 13
+  },
+  "toolCalls": [
+    {
+      "tool": "kubectl_get_by_kind_in_namespace",
+      "args": {
+        "kind": "Pod",
+        "namespace": "console-e2e-consent-gate-f63921"
+      },
+      "result": "{\"apiVersion\":\"v1\",\"items\":[{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"annotations\":[REDACTED],{\\\"dest\\\":\\\"[REDACTED]/16\\\",\\\"nextHop\\\":\\\"[REDACTED]\\\"},{\\\"dest\\\":\\\"[REDACTED]/32\\\",\\\"nextHop\\\":\\\"[REDACTED]\\\"},{\\\"dest\\\":\\\"[REDACTED]/16\\\",\\\"nextHop\\\":\\\"[REDACTED]\\\"}],\\\"ip_address\\\":\\\"[REDACTED]/23\\\",\\\"gateway_ip\\\":\\\"[REDACTED]\\\",\\\"role\\\":\\\"primary\\\"}}\",\"k8s.v1.cni.cncf.io/network-status\":\"[{\\n    \\\"name\\\": \\\"ovn-kubernetes\\\",\\n    \\\"interface\\\": \\\"eth0\\\",\\n    \\\"ips\\\": [\\n        \\\"[REDACTED]\\\"\\n    ],\\n    \\\"mac\\\": \\\"0a:58:0a:85:01:6f\\\",\\n    \\\"default\\\": true,\\n    \\\"dns\\\": {}\\n}]\",\"openshift.io/scc\":\"restricted-v2\",\"seccomp.security.alpha.kubernetes.io/pod\":\"runtime/default\"},\"creationTimestamp\":\"2026-08-09T01:32:45Z\",\"generateName\":\"memory-eater-85c4d9667b-\",\"labels\":{\"app\":\"memory-eater\",\"pod-template-hash\":\"85c4d9667b\"},\"managedFields\":[{\"apiVersion\":\"v1\",\"fieldsType\":\"FieldsV1\",\"fieldsV1\":{\"f:metadata\":{\"f:annotations\":{\"f:k8s.ovn.org/pod-networks\":{}}}},\"manager\":\"dev-worker-2.redhat-internal.com\",\"operation\":\"Update\",\"subresource\":\"status\",\"time\":\"2026-08-09T01:32:45Z\"},{\"apiVersion\":\"v1\",\"fieldsType\":\"FieldsV1\",\"fieldsV1\":{\"f:metadata\":{\"f:generateName\":{},\"f:labels\":{\".\":{},\"f:app\":{},\"f:pod-template-hash\":{}},\"f:ownerReferences\":{\".\":{},\"k:{\\\"uid\\\":\\\"58a0ea3c-011c-4afa-999a-f6184e3bfc1d\\\"}\":{}}},\"f:spec\":{\"f:affinity\":{\".\":{},\"f:nodeAffinity\":{\".\":{},\"f:requiredDuringSchedulingIgnoredDuringExecution\":{}}},\"f:containers\":{\"k:{\\\"name\\\":\\\"memory-eater\\\"}\":{\".\":{},\"f:args\":{},\"f:command\":{},\"f:image\":{},\"f:imagePullPolicy\":{},\"f:name\":{},\"f:resources\":{\".\":{},\"f:limits\":{\".\":{},\"f:memory\":{}},\"f:requests\":{\".\":{},\"f:memory\":{}}},\"f:terminationMessagePath\":{},\"f:terminationMessagePolicy\":{}}},\"f:dnsPolicy\":{},\"f:enableServiceLinks\":{},\"f:restartPolicy\":{},\"f:schedulerName\":{},\"f:securityContext\":{},\"f:terminationGracePeriodSeconds\":{}}},\"manager\":\"kube-controller-manager\",\"operation\":\"Update\",\"time\":\"2026-08-09T01:32:45Z\"},{\"apiVersion\":\"v1\",\"fieldsType\":\"FieldsV1\",\"fieldsV1\":{\"f:metadata\":{\"f:annotations\":{\"f:k8s.v1.cni.cncf.io/network-status\":{}}}},\"manager\":\"multus-daemon\",\"operation\":\"Update\",\"subresource\":\"status\",\"time\":\"2026-08-09T01:32:46Z\"},{\"apiVersion\":\"v1\",\"fieldsType\":\"FieldsV1\",\"fieldsV1\":{\"f:status\":{\"f:conditions\":{\"k:{\\\"type\\\":\\\"ContainersReady\\\"}\":{\".\":{},\"f:lastProbeTime\":{},\"f:lastTransitionTime\":{},\"f:message\":{},\"f:reason\":{},\"f:status\":{},\"f:type\":{}},\"k:{\\\"type\\\":\\\"Initialized\\\"}\":{\".\":{},\"f:lastProbeTime\":{},\"f:lastTransitionTime\":{},\"f:status\":{},\"f:type\":{}},\"k:{\\\"type\\\":\\\"PodReadyToStartContainers\\\"}\":{\".\":{},\"f:lastProbeTime\":{},\"f:lastTransitionTime\":{},\"f:status\":{},\"f:type\":{}},\"k:{\\\"type\\\":\\\"Ready\\\"}\":{\".\":{},\"f:lastProbeTime\":{},\"f:lastTransitionTime\":{},\"f:message\":{},\"f:reason\":{},\"f:status\":{},\"f:type\":{}}},\"f:containerStatuses\":{},\"f:hostIP\":{},\"f:hostIPs\":{},\"f:phase\":{},\"f:podIP\":{},\"f:podIPs\":{\".\":{},\"k:{\\\"ip\\\":\\\"[REDACTED]\\\"}\":{\".\":{},\"f:ip\":{}}},\"f:startTime\":{}}},\"manager\":\"kubelet\",\"operation\":\"Update\",\"subresource\":\"status\",\"time\":\"2026-08-09T01:59:07Z\"}],\"name\":\"memory-eater-85c4d9667b-xflcd\",\"namespace\":\"console-e2e-consent-gate-f63921\",\"ownerReferences\":[{\"apiVersion\":\"apps/v1\",\"blockOwnerDeletion\":true,\"controller\":true,\"kind\":\"ReplicaSet\",\"name\":\"memory-eater-85c4d9667b\",\"uid\":\"58a0ea3c-011c-4afa-999a-f6184e3bfc1d\"}],\"resourceVersion\":\"54093841\",\"uid\":\"aa066aa2-5094-4a7b-b165-14aea2991ce6\"},\"spec\":{\"affinity\":{\"nodeAffinity\":{\"requiredDuringSchedulingIgnoredDuringExecution\":{\"nodeSelectorTerms\":[{\"matchExpressions\":[{\"key\":\"kubernetes.io/hostname\",\"operator\":\"NotIn\",\"values\":[\"dev-worker-1.redhat-internal.com\"]}]}]}}},\"containers\":[{\"args\":[\"echo Allocating memory to trigger OOMKilled...; i=0; while true; do dd if=/dev/zero of=/dev/shm/fill$i bs=1M count=5 2\\u003e/dev/null; i=$((i+1)); sleep 1; done\"],\"command\":[\"/bin/sh\",\"-c\"],\"image\":\"registry.access.redhat.com/ubi9/ubi-minimal:latest\",\"imagePullPolicy\":\"IfNotPresent\",\"name\":\"memory-eater\",\"resources\":{\"limits\":{\"memory\":\"50Mi\"},\"requests\":{\"memory\":\"20Mi\"}},\"securityContext\":{\"allowPrivilegeEscalation\":false,\"capabilities\":{\"drop\":[\"ALL\"]},\"runAsNonRoot\":true,\"runAsUser\":1001450000},\"terminationMessagePath\":\"/dev/termination-log\",\"terminationMessagePolicy\":\"File\",\"volumeMounts\":[{\"mountPath\":\"/var/run/secrets/kubernetes.io/serviceaccount\",\"name\":\"kube-api-access-8xbjp\",\"readOnly\":true}]}],\"dnsPolicy\":\"ClusterFirst\",\"enableServiceLinks\":true,\"imagePullSecrets\":[{\"name\":\"default-dockercfg-jzhxq\"}],\"nodeName\":\"dev-worker-2.redhat-internal.com\",\"preemptionPolicy\":\"PreemptLowerPriority\",\"priority\":0,\"restartPolicy\":\"Always\",\"schedulerName\":\"default-scheduler\",\"securityContext\":{\"fsGroup\":1001450000,\"seLinuxOptions\":{\"level\":\"s0:c38,c22\"},\"seccompProfile\":{\"type\":\"RuntimeDefault\"}},\"serviceAccount\":\"default\",\"serviceAccountName\":\"default\",\"terminationGracePeriodSeconds\":30,\"tolerations\":[{\"effect\":\"NoExecute\",\"key\":\"node.kubernetes.io/not-ready\",\"operator\":\"Exists\",\"tolerationSeconds\":300},{\"effect\":\"NoExecute\",\"key\":\"node.kubernetes.io/unreachable\",\"operator\":\"Exists\",\"tolerationSeconds\":300},{\"effect\":\"NoSchedule\",\"key\":\"node.kubernetes.io/memory-pressure\",\"operator\":\"Exists\"}],\"volumes\":[{\"name\":\"kube-api-access-8xbjp\",\"projected\":{\"defaultMode\":420,\"sources\":[{\"serviceAccountToken\":{\"expirationSeconds\":3607,\"path\":\"token\"}},{\"configMap\":{\"items\":[{\"key\":\"ca.crt\",\"path\":\"ca.crt\"}],\"name\":\"kube-root-ca.crt\"}},{\"downwardAPI\":{\"items\":[{\"fieldRef\":{\"apiVersion\":\"v1\",\"fieldPath\":\"metadata.namespace\"},\"path\":\"namespace\"}]}},{\"configMap\":{\"items\":[{\"key\":\"service-ca.crt\",\"path\":\"service-ca.crt\"}],\"name\":\"openshift-service-ca.crt\"}}]}}]},\"status\":{\"conditions\":[{\"lastProbeTime\":null,\"lastTransitionTime\":\"2026-08-09T01:32:46Z\",\"status\":\"True\",\"type\":\"PodReadyToStartContainers\"},{\"lastProbeTime\":null,\"lastTransitionTime\":\"2026-08-09T01:32:45Z\",\"status\":\"True\",\"type\":\"Initialized\"},{\"lastProbeTime\":null,\"lastTransitionTime\":\"2026-08-09T01:32:56Z\",\"message\":\"containers with unready status: [memory-eater]\",\"reason\":\"ContainersNotReady\",\"status\":\"False\",\"type\":\"Ready\"},{\"lastProbeTime\":null,\"lastTransitionTime\":\"2026-08-09T01:32:56Z\",\"message\":\"containers with unready status: [memory-eater]\",\"reason\":\"ContainersNotReady\",\"status\":\"False\",\"type\":\"ContainersReady\"},{\"lastProbeTime\":null,\"lastTransitionTime\":\"2026-08-09T01:32:45Z\",\"status\":\"True\",\"type\":\"PodScheduled\"}],\"containerStatuses\":[{\"containerID\":\"cri-o://a45d012358bcbead30efd6057cc40e08eeb6469dcbca6d72681753710350302b\",\"image\":[REDACTED]@sha256:31648959f2cf4e3fdd14801905e4339fef1d4457763e80094ed30f69562f0a63\",\"lastState\":{\"terminated\":{\"containerID\":\"cri-o://a45d012358bcbead30efd6057cc40e08eeb6469dcbca6d72681753710350302b\",\"exitCode\":137,\"finishedAt\":\"2026-08-09T01:59:06Z\",\"reason\":\"OOMKilled\",\"startedAt\":\"2026-08-09T01:59:06Z\"}},\"name\":\"memory-eater\",\"ready\":false,\"restartCount\":10,\"started\":false,\"state\":{\"waiting\":{\"message\":\"back-off 5m0s restarting failed container=memory-eater pod=memory-eater-85c4d9667b-xflcd_console-e2e-consent-gate-f63921(aa066aa2-5094-4a7b-b165-14aea2991ce6)\",\"reason\":\"CrashLoopBackOff\"}},\"volumeMounts\":[{\"mountPath\":\"/var/run/secrets/kubernetes.io/serviceaccount\",\"name\":\"kube-api-access-8xbjp\",\"readOnly\":true,\"recursiveReadOnly\":\"Disabled\"}]}],\"hostIP\":\"[REDACTED]\",\"hostIPs\":[{\"ip\":\"[REDACTED]\"}],\"phase\":\"Running\",\"podIP\":\"[REDACTED]\",\"podIPs\":[{\"ip\":\"[REDACTED]\"}],\"qosClass\":\"Burstable\",\"startTime\":\"2026-08-09T01:32:45Z\"}}],\"kind\":\"PodList\",\"metadata\":{\"resourceVersion\":\"54094904\"}}"
+    },
+    {
+      "tool": "kubectl_describe",
+      "args": {
+        "kind": "Deployment",
+        "name": "memory-eater",
+        "api_group": "apps",
+        "namespace": "console-e2e-consent-gate-f63921"
+      },
+      "result": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":[REDACTED],\\\"labels\\\":{\\\"app\\\":\\\"memory-eater\\\"},\\\"name\\\":\\\"memory-eater\\\",\\\"namespace\\\":\\\"console-e2e-consent-gate-f63921\\\"},\\\"spec\\\":{\\\"replicas\\\":1,\\\"selector\\\":{\\\"matchLabels\\\":{\\\"app\\\":\\\"memory-eater\\\"}},\\\"template\\\":{\\\"metadata\\\":{\\\"labels\\\":{\\\"app\\\":\\\"memory-eater\\\"}},\\\"spec\\\":{\\\"affinity\\\":{\\\"nodeAffinity\\\":{\\\"requiredDuringSchedulingIgnoredDuringExecution\\\":{\\\"nodeSelectorTerms\\\":[{\\\"matchExpressions\\\":[{\\\"key\\\":\\\"kubernetes.io/hostname\\\",\\\"operator\\\":\\\"NotIn\\\",\\\"values\\\":[\\\"dev-worker-1.redhat-internal.com\\\"]}]}]}}},\\\"containers\\\":[{\\\"args\\\":[\\\"echo Allocating memory to trigger OOMKilled...; i=0; while true; do dd if=/dev/zero of=/dev/shm/fill$i bs=1M count=5 2\\\\u003e/dev/null; i=$((i+1)); sleep 1; done\\\"],\\\"command\\\":[\\\"/bin/sh\\\",\\\"-c\\\"],\\\"image\\\":\\\"registry.access.redhat.com/ubi9/ubi-minimal:latest\\\",\\\"imagePullPolicy\\\":\\\"IfNotPresent\\\",\\\"name\\\":\\\"memory-eater\\\",\\\"resources\\\":{\\\"limits\\\":{\\\"memory\\\":\\\"50Mi\\\"},\\\"requests\\\":{\\\"memory\\\":\\\"20Mi\\\"}}}]}}}}\\n\"},\"creationTimestamp\":\"2026-08-09T01:32:45Z\",\"generation\":1,\"labels\":{\"app\":\"memory-eater\"},\"managedFields\":[{\"apiVersion\":\"apps/v1\",\"fieldsType\":\"FieldsV1\",\"fieldsV1\":{\"f:metadata\":{\"f:annotations\":{\".\":{},\"f:kubectl.kubernetes.io/last-applied-configuration\":{}},\"f:labels\":{\".\":{},\"f:app\":{}}},\"f:spec\":{\"f:progressDeadlineSeconds\":{},\"f:replicas\":{},\"f:revisionHistoryLimit\":{},\"f:selector\":{},\"f:strategy\":{\"f:rollingUpdate\":{\".\":{},\"f:maxSurge\":{},\"f:maxUnavailable\":{}},\"f:type\":{}},\"f:template\":{\"f:metadata\":{\"f:labels\":{\".\":{},\"f:app\":{}}},\"f:spec\":{\"f:affinity\":{\".\":{},\"f:nodeAffinity\":{\".\":{},\"f:requiredDuringSchedulingIgnoredDuringExecution\":{}}},\"f:containers\":{\"k:{\\\"name\\\":\\\"memory-eater\\\"}\":{\".\":{},\"f:args\":{},\"f:command\":{},\"f:image\":{},\"f:imagePullPolicy\":{},\"f:name\":{},\"f:resources\":{\".\":{},\"f:limits\":{\".\":{},\"f:memory\":{}},\"f:requests\":{\".\":{},\"f:memory\":{}}},\"f:terminationMessagePath\":{},\"f:terminationMessagePolicy\":{}}},\"f:dnsPolicy\":{},\"f:restartPolicy\":{},\"f:schedulerName\":{},\"f:securityContext\":{},\"f:terminationGracePeriodSeconds\":{}}}}},\"manager\":\"kubectl-client-side-apply\",\"operation\":\"Update\",\"time\":\"2026-08-09T01:32:45Z\"},{\"apiVersion\":\"apps/v1\",\"fieldsType\":\"FieldsV1\",\"fieldsV1\":{\"f:metadata\":{\"f:annotations\":{\"f:deployment.kubernetes.io/revision\":{}}},\"f:status\":{\"f:conditions\":{\".\":{},\"k:{\\\"type\\\":\\\"Available\\\"}\":{\".\":{},\"f:lastTransitionTime\":{},\"f:lastUpdateTime\":{},\"f:message\":{},\"f:reason\":{},\"f:status\":{},\"f:type\":{}},\"k:{\\\"type\\\":\\\"Progressing\\\"}\":{\".\":{},\"f:lastTransitionTime\":{},\"f:lastUpdateTime\":{},\"f:message\":{},\"f:reason\":{},\"f:status\":{},\"f:type\":{}}},\"f:observedGeneration\":{},\"f:replicas\":{},\"f:unavailableReplicas\":{},\"f:updatedReplicas\":{}}},\"manager\":\"kube-controller-manager\",\"operation\":\"Update\",\"subresource\":\"status\",\"time\":\"2026-08-09T01:32:56Z\"}],\"name\":\"memory-eater\",\"namespace\":\"console-e2e-consent-gate-f63921\",\"resourceVersion\":\"54060382\",\"uid\":\"985c1c7e-f3f5-4632-8e9b-13d99c87ad05\"},\"spec\":{\"progressDeadlineSeconds\":600,\"replicas\":1,\"revisionHistoryLimit\":10,\"selector\":{\"matchLabels\":{\"app\":\"memory-eater\"}},\"strategy\":{\"rollingUpdate\":{\"maxSurge\":\"25%\",\"maxUnavailable\":\"25%\"},\"type\":\"RollingUpdate\"},\"template\":{\"metadata\":{\"creationTimestamp\":null,\"labels\":{\"app\":\"memory-eater\"}},\"spec\":{\"affinity\":{\"nodeAffinity\":{\"requiredDuringSchedulingIgnoredDuringExecution\":{\"nodeSelectorTerms\":[{\"matchExpressions\":[{\"key\":\"kubernetes.io/hostname\",\"operator\":\"NotIn\",\"values\":[\"dev-worker-1.redhat-internal.com\"]}]}]}}},\"containers\":[{\"args\":[\"echo Allocating memory to trigger OOMKilled...; i=0; while true; do dd if=/dev/zero of=/dev/shm/fill$i bs=1M count=5 2\\u003e/dev/null; i=$((i+1)); sleep 1; done\"],\"command\":[\"/bin/sh\",\"-c\"],\"image\":\"registry.access.redhat.com/ubi9/ubi-minimal:latest\",\"imagePullPolicy\":\"IfNotPresent\",\"name\":\"memory-eater\",\"resources\":{\"limits\":{\"memory\":\"50Mi\"},\"requests\":{\"memory\":\"20Mi\"}},\"terminationMessagePath\":\"/dev/termination-log\",\"terminationMessagePolicy\":\"File\"}],\"dnsPolicy\":\"ClusterFirst\",\"restartPolicy\":\"Always\",\"schedulerName\":\"default-scheduler\",\"securityContext\":{},\"terminationGracePeriodSeconds\":30}}},\"status\":{\"conditions\":[{\"lastTransitionTime\":\"2026-08-09T01:32:45Z\",\"lastUpdateTime\":\"2026-08-09T01:32:47Z\",\"message\":\"ReplicaSet \\\"memory-eater-85c4d9667b\\\" has successfully progressed.\",\"reason\":\"NewReplicaSetAvailable\",\"status\":\"True\",\"type\":\"Progressing\"},{\"lastTransitionTime\":\"2026-08-09T01:32:56Z\",\"lastUpdateTime\":\"2026-08-09T01:32:56Z\",\"message\":\"Deployment does not have minimum availability.\",\"reason\":\"MinimumReplicasUnavailable\",\"status\":\"False\",\"type\":\"Available\"}],\"observedGeneration\":1,\"replicas\":1,\"unavailableReplicas\":1,\"updatedReplicas\":1}}"
+    },
+    {
+      "tool": "kubectl_events",
+      "args": {
+        "kind": "Pod",
+        "name": "memory-eater-85c4d9667b-xflcd",
+        "namespace": "console-e2e-consent-gate-f63921"
+      },
+      "result": [
+        {
+          "type": "Normal",
+          "count": 1,
+          "reason": "Scheduled",
+          "source": {
+            "component": "default-scheduler"
+          },
+          "message": "Successfully assigned console-e2e-consent-gate-f63921/memory-eater-85c4d9667b-xflcd to dev-worker-2.redhat-internal.com",
+          "metadata": {
+            "uid": "e8332d14-9b74-45c7-959b-cabc4a920a00",
+            "name": "memory-eater-85c4d9667b-xflcd.18c9ff0ea13397e1",
+            "namespace": "console-e2e-consent-gate-f63921",
+            "managedFields": [
+              {
+                "time": "2026-08-09T01:32:45Z",
+                "manager": "kube-scheduler",
+                "fieldsV1": {
+                  "f:type": {},
+                  "f:count": {},
+                  "f:reason": {},
+                  "f:source": {
+                    "f:component": {}
+                  },
+                  "f:message": {},
+                  "f:lastTimestamp": {},
+                  "f:firstTimestamp": {},
+                  "f:involvedObject": {},
+                  "f:reportingComponent": {}
+                },
+                "operation": "Update",
+                "apiVersion": "v1",
+                "fieldsType": "FieldsV1"
+              }
+            ],
+            "resourceVersion": "54060064",
+            "creationTimestamp": "2026-08-09T01:32:45Z"
+          },
+          "eventTime": null,
+          "lastTimestamp": "2026-08-09T01:32:45Z",
+          "firstTimestamp": "2026-08-09T01:32:45Z",
+          "involvedObject": {
+            "uid": "aa066aa2-5094-4a7b-b165-14aea2991ce6",
+            "kind": "Pod",
+            "name": "memory-eater-85c4d9667b-xflcd",
+            "namespace": "console-e2e-consent-gate-f63921",
+            "apiVersion": "v1",
+            "resourceVersion": "54060058"
+          },
+          "reportingInstance": "",
+          "reportingComponent": "default-scheduler"
+        },
+        {
+          "type": "Normal",
+          "count": 1,
+          "reason": "AddedInterface",
+          "source": {
+            "component": "multus"
+          },
+          "message": "Add eth0 [[REDACTED]/23] from ovn-kubernetes",
+          "metadata": {
+            "uid": "b0cbb9f6-be97-4546-91db-1f00faf47419",
+            "name": "memory-eater-85c4d9667b-xflcd.18c9ff0ecc7e7dc5",
+            "namespace": "console-e2e-consent-gate-f63921",
+            "managedFields": [
+              {
+                "time": "2026-08-09T01:32:46Z",
+                "manager": "multus-daemon",
+                "fieldsV1": {
+                  "f:type": {},
+                  "f:count": {},
+                  "f:reason": {},
+                  "f:source": {
+                    "f:component": {}
+                  },
+                  "f:message": {},
+                  "f:lastTimestamp": {},
+                  "f:firstTimestamp": {},
+                  "f:involvedObject": {},
+                  "f:reportingComponent": {}
+                },
+                "operation": "Update",
+                "apiVersion": "v1",
+                "fieldsType": "FieldsV1"
+              }
+            ],
+            "resourceVersion": "54060088",
+            "creationTimestamp": "2026-08-09T01:32:46Z"
+          },
+          "eventTime": null,
+          "lastTimestamp": "2026-08-09T01:32:46Z",
+          "firstTimestamp": "2026-08-09T01:32:46Z",
+          "involvedObject": {
+            "uid": "aa066aa2-5094-4a7b-b165-14aea2991ce6",
+            "kind": "Pod",
+            "name": "memory-eater-85c4d9667b-xflcd",
+            "namespace": "console-e2e-consent-gate-f63921",
+            "apiVersion": "v1",
+            "resourceVersion": "54060067"
+          },
+          "reportingInstance": "",
+          "reportingComponent": "multus"
+        },
+        {
+          "type": "Normal",
+          "count": 5,
+          "reason": "Pulled",
+          "source": {
+            "host": "dev-worker-2.redhat-internal.com",
+            "component": "kubelet"
+          },
+          "message": "Container image \"registry.access.redhat.com/ubi9/ubi-minimal:latest\" already present on machine",
+          "metadata": {
+            "uid": "f1393109-403d-4447-950e-e01ee11e9560",
+            "name": "memory-eater-85c4d9667b-xflcd.18c9ff0ece96e2ce",
+            "namespace": "console-e2e-consent-gate-f63921",
+            "managedFields": [
+              {
+                "time": "2026-08-09T01:34:12Z",
+                "manager": "kubelet",
+                "fieldsV1": {
+                  "f:type": {},
+                  "f:count": {},
+                  "f:reason": {},
+                  "f:source": {
+                    "f:host": {},
+                    "f:component": {}
+                  },
+                  "f:message": {},
+                  "f:lastTimestamp": {},
+                  "f:firstTimestamp": {},
+                  "f:involvedObject": {},
+                  "f:reportingInstance": {},
+                  "f:reportingComponent": {}
+                },
+                "operation": "Update",
+                "apiVersion": "v1",
+                "fieldsType": "FieldsV1"
+              }
+            ],
+            "resourceVersion": "54062164",
+            "creationTimestamp": "2026-08-09T01:32:46Z"
+          },
+          "eventTime": null,
+          "lastTimestamp": "2026-08-09T01:34:12Z",
+          "firstTimestamp": "2026-08-09T01:32:46Z",
+          "involvedObject": {
+            "uid": "aa066aa2-5094-4a7b-b165-14aea2991ce6",
+            "kind": "Pod",
+            "name": "memory-eater-85c4d9667b-xflcd",
+            "fieldPath": "spec.containers{memory-eater}",
+            "namespace": "console-e2e-consent-gate-f63921",
+            "apiVersion": "v1",
+            "resourceVersion": "54060062"
+          },
+          "reportingInstance": "dev-worker-2.redhat-internal.com",
+          "reportingComponent": "kubelet"
+        },
+        {
+          "type": "Normal",
+          "count": 5,
+          "reason": "Created",
+          "source": {
+            "host": "dev-worker-2.redhat-internal.com",
+            "component": "kubelet"
+          },
+          "message": "Created container: memory-eater",
+          "metadata": {
+            "uid": "13456d42-9d4d-43b2-9072-f0b9be9ae9b0",
+            "name": "memory-eater-85c4d9667b-xflcd.18c9ff0ed64e3198",
+            "namespace": "console-e2e-consent-gate-f63921",
+            "managedFields": [
+              {
+                "time": "2026-08-09T01:34:12Z",
+                "manager": "kubelet",
+                "fieldsV1": {
+                  "f:type": {},
+                  "f:count": {},
+                  "f:reason": {},
+                  "f:source": {
+                    "f:host": {},
+                    "f:component": {}
+                  },
+                  "f:message": {},
+                  "f:lastTimestamp": {},
+                  "f:firstTimestamp": {},
+                  "f:involvedObject": {},
+                  "f:reportingInstance": {},
+                  "f:reportingComponent": {}
+                },
+                "operation": "Update",
+                "apiVersion": "v1",
+                "fieldsType": "FieldsV1"
+              }
+            ],
+            "resourceVersion": "54062167",
+            "creationTimestamp": "2026-08-09T01:32:46Z"
+          },
+          "eventTime": null,
+          "lastTimestamp": "2026-08-09T01:34:12Z",
+          "firstTimestamp": "2026-08-09T01:32:46Z",
+          "involvedObject": {
+            "uid": "aa066aa2-5094-4a7b-b165-14aea2991ce6",
+            "kind": "Pod",
+            "name": "memory-eater-85c4d9667b-xflcd",
+            "fieldPath": "spec.containers{memory-eater}",
+            "namespace": "console-e2e-consent-gate-f63921",
+            "apiVersion": "v1",
+            "resourceVersion": "54060062"
+          },
+          "reportingInstance": "dev-worker-2.redhat-internal.com",
+          "reportingComponent": "kubelet"
+        },
+        {
+          "type": "Normal",
+          "count": 5,
+          "reason": "Started",
+          "source": {
+            "host": "dev-worker-2.redhat-internal.com",
+            "component": "kubelet"
+          },
+          "message": "Started container memory-eater",
+          "metadata": {
+            "uid": "47892568-17f4-4321-9e17-306e093af194",
+            "name": "memory-eater-85c4d9667b-xflcd.18c9ff0ed74ff9d8",
+            "namespace": "console-e2e-consent-gate-f63921",
+            "managedFields": [
+              {
+                "time": "2026-08-09T01:34:12Z",
+                "manager": "kubelet",
+                "fieldsV1": {
+                  "f:type": {},
+                  "f:count": {},
+                  "f:reason": {},
+                  "f:source": {
+                    "f:host": {},
+                    "f:component": {}
+                  },
+                  "f:message": {},
+                  "f:lastTimestamp": {},
+                  "f:firstTimestamp": {},
+                  "f:involvedObject": {},
+                  "f:reportingInstance": {},
+                  "f:reportingComponent": {}
+                },
+                "operation": "Update",
+                "apiVersion": "v1",
+                "fieldsType": "FieldsV1"
+              }
+            ],
+            "resourceVersion": "54062169",
+            "creationTimestamp": "2026-08-09T01:32:46Z"
+          },
+          "eventTime": null,
+          "lastTimestamp": "2026-08-09T01:34:12Z",
+          "firstTimestamp": "2026-08-09T01:32:46Z",
+          "involvedObject": {
+            "uid": "aa066aa2-5094-4a7b-b165-14aea2991ce6",
+            "kind": "Pod",
+            "name": "memory-eater-85c4d9667b-xflcd",
+            "fieldPath": "spec.containers{memory-eater}",
+            "namespace": "console-e2e-consent-gate-f63921",
+            "apiVersion": "v1",
+            "resourceVersion": "54060062"
+          },
+          "reportingInstance": "dev-worker-2.redhat-internal.com",
+          "reportingComponent": "kubelet"
+        },
+        {
+          "type": "Warning",
+          "count": 115,
+          "reason": "BackOff",
+          "source": {
+            "host": "dev-worker-2.redhat-internal.com",
+            "component": "kubelet"
+          },
+          "message": "Back-off restarting failed container memory-eater in pod memory-eater-85c4d9667b-xflcd_console-e2e-consent-gate-f63921(aa066aa2-5094-4a7b-b165-14aea2991ce6)",
+          "metadata": {
+            "uid": "3d2c7d14-7cae-46f2-8e0b-430c977e2329",
+            "name": "memory-eater-85c4d9667b-xflcd.18c9ff11543d285a",
+            "namespace": "console-e2e-consent-gate-f63921",
+            "managedFields": [
+              {
+                "time": "2026-08-09T01:57:55Z",
+                "manager": "kubelet",
+                "fieldsV1": {
+                  "f:type": {},
+                  "f:count": {},
+                  "f:reason": {},
+                  "f:source": {
+                    "f:host": {},
+                    "f:component": {}
+                  },
+                  "f:message": {},
+                  "f:lastTimestamp": {},
+                  "f:firstTimestamp": {},
+                  "f:involvedObject": {},
+                  "f:reportingInstance": {},
+                  "f:reportingComponent": {}
+                },
+                "operation": "Update",
+                "apiVersion": "v1",
+                "fieldsType": "FieldsV1"
+              }
+            ],
+            "resourceVersion": "54092383",
+            "creationTimestamp": "2026-08-09T01:32:57Z"
+          },
+          "eventTime": null,
+          "lastTimestamp": "2026-08-09T01:57:55Z",
+          "firstTimestamp": "2026-08-09T01:32:57Z",
+          "involvedObject": {
+            "uid": "aa066aa2-5094-4a7b-b165-14aea2991ce6",
+            "kind": "Pod",
+            "name": "memory-eater-85c4d9667b-xflcd",
+            "fieldPath": "spec.containers{memory-eater}",
+            "namespace": "console-e2e-consent-gate-f63921",
+            "apiVersion": "v1",
+            "resourceVersion": "54060062"
+          },
+          "reportingInstance": "dev-worker-2.redhat-internal.com",
+          "reportingComponent": "kubelet"
+        }
+      ]
+    },
+    {
+      "tool": "kubectl_previous_logs",
+      "args": {
+        "name": "memory-eater-85c4d9667b-xflcd",
+        "container": "memory-eater",
+        "namespace": "console-e2e-consent-gate-f63921"
+      },
+      "result": "Allocating memory to trigger OOMKilled..."
+    },
+    {
+      "tool": "kubectl_logs",
+      "args": {
+        "name": "memory-eater-85c4d9667b-xflcd",
+        "container": "memory-eater",
+        "namespace": "console-e2e-consent-gate-f63921"
+      },
+      "result": "Allocating memory to trigger OOMKilled..."
+    },
+    {
+      "tool": "kubectl_top_nodes",
+      "args": {},
+      "result": "NAME\tCPU\tMEMORY\ndev-ctlplane-0.redhat-internal.com\t1870m\t19354Mi\ndev-worker-0.redhat-internal.com\t1639m\t15297Mi\ndev-worker-1.redhat-internal.com\t1340m\t17592Mi\ndev-worker-2.redhat-internal.com\t1252m\t16893Mi"
+    },
+    {
+      "tool": "get_namespaced_resource_context",
+      "args": {
+        "kind": "Deployment",
+        "name": "memory-eater",
+        "namespace": "console-e2e-consent-gate-f63921"
+      },
+      "result": {
+        "root_owner": {
+          "kind": "Deployment",
+          "name": "memory-eater",
+          "namespace": "console-e2e-consent-gate-f63921"
+        },
+        "remediation_history": {
+          "tier1": [],
+          "tier2": [],
+          "tier1_window": "24h0m0s",
+          "tier2_window": "2160h0m0s",
+          "target_resource": "console-e2e-consent-gate-f63921/Deployment/memory-eater",
+          "regression_detected": false
+        }
+      }
+    },
+    {
+      "tool": "list_available_actions",
+      "args": {},
+      "result": {
+        "actionTypes": []
+      }
+    },
+    {
+      "tool": "list_available_actions",
+      "args": {
+        "page": "next",
+        "cursor": "0"
+      },
+      "result": {
+        "actionTypes": []
+      }
+    },
+    {
+      "tool": "list_workflows",
+      "args": {
+        "action_type": "ResourceUpdate"
+      },
+      "result": {
+        "workflows": [],
+        "actionType": "ResourceUpdate"
+      }
+    },
+    {
+      "tool": "list_workflows",
+      "args": {
+        "action_type": "DeploymentUpdate"
+      },
+      "result": {
+        "workflows": [],
+        "actionType": "DeploymentUpdate"
+      }
+    },
+    {
+      "tool": "list_workflows",
+      "args": {
+        "action_type": "PatchDeployment"
+      },
+      "result": {
+        "workflows": [],
+        "actionType": "PatchDeployment"
+      }
+    },
+    {
+      "tool": "list_workflows",
+      "args": {
+        "action_type": "ContainerUpdate"
+      },
+      "result": {
+        "workflows": [],
+        "actionType": "ContainerUpdate"
+      }
+    }
+  ],
+  "groundTruth": {
+    "rrPhase": "Completed",
+    "rrOutcome": "ManualReviewRequired",
+    "workflowExecutionPhase": "<none>",
+    "workflowExecutionWorkflow": "<none>"
+  }
+}

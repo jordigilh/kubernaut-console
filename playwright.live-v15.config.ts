@@ -45,7 +45,22 @@ export default defineConfig({
   // scripted mock-llm) run noticeably slower than the mocked or Kind/Dex
   // live suites — observed 5+ min for a single investigation against a
   // non-trivial fixture during the 2026-08-03 preflight spike.
-  timeout: 420_000,
+  //
+  // Bumped 420_000 -> 900_000 (kubernaut-console#73 follow-up, 2026-08-08):
+  // 420s was never reconciled against the sum of this suite's own
+  // per-step budgets after REAL_VERIFICATION_TIMEOUT_MS was separately
+  // bumped 60s -> 240s (helpers.ts) — full-remediation-lifecycle.spec.ts's
+  // worst case alone is investigation (up to 300s) + clickExecuteWorkflow's
+  // wait (up to 300s) + approval gate (~32s) + Verifying (60s) + Complete
+  // (240s) ≈ 930s, and even the *typical* case (169s investigation observed
+  // via trace + ~150s completion observed on 2026-08-08) was already
+  // brushing 420s before adding any margin. A too-tight outer timeout kills
+  // the test mid-step with a misleading final symptom (the real state, e.g.
+  // a rendered workflow card, is often already correct by the time the
+  // outer timeout fires — see full-remediation-lifecycle.spec.ts's
+  // "real KubernautAgent investigation completes" step comment) rather than
+  // surfacing the real per-step slowness.
+  timeout: 900_000,
   reporter: process.env.CI ? "github" : "html",
   use: {
     baseURL:
