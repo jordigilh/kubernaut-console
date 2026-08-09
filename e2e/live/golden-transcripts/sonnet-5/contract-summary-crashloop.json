@@ -1,0 +1,560 @@
+{
+  "scenario": "contract-summary-crashloop",
+  "incidentId": "rr-5e4d73d7d820-9180dad6",
+  "model": "claude-sonnet-5",
+  "signal": {
+    "signalName": "KubePodCrashLooping",
+    "namespace": "console-e2e-contract-3-0e08c1",
+    "resourceKind": "Deployment",
+    "resourceName": "worker",
+    "severity": "critical"
+  },
+  "analysis": {
+    "phase": "Completed",
+    "selectedWorkflow": {
+      "name": "crashloop-rollback-v1",
+      "status": "Active"
+    },
+    "approvalRequired": true,
+    "needsHumanReview": false,
+    "humanReviewReason": null,
+    "rootCauseAnalysis": {
+      "summary": "The `worker` Deployment's pod template was patched to override the container `command` with `sh -c \"echo fatal: bad release 1.1.0 -- aborting && exit 1\"`, causing every pod in the new ReplicaSet `worker-7986b99df8` to immediately exit(1) on start and enter CrashLoopBackOff.",
+      "severity": "critical",
+      "causalChain": [
+        "Signal: KubePodCrashLooping fired for Deployment/worker in console-e2e-contract-3-0e08c1.",
+        "Why? Pod `worker-7986b99df8-g82pj` (new ReplicaSet) restarts repeatedly (7 restarts) and enters CrashLoopBackOff.",
+        "Why? The container's process (`sh -c \"echo fatal: bad release 1.1.0 -- aborting && exit 1\"`) exits with code 1 immediately every time it starts \u2014 it never runs the actual demo-http-server application.",
+        "Why? The Deployment's pod template `command` field was overridden via a separate `kubectl-patch` update applied 5 seconds after the Deployment was first created, injecting this failing shell command in place of the application's normal entrypoint.",
+        "Root cause: A deliberate/erroneous patch to `Deployment/worker`'s container `command` field replaced the application's entrypoint with a scripted failure (simulating a 'bad release 1.1.0'), causing all new-generation pods to crash-loop, while the previous ReplicaSet's pods remain healthy and keep the Deployment nominally 'Available'."
+      ],
+      "dueDiligence": {
+        "targetAccuracy": "Targeting Deployment/worker because its pod template `spec.containers[0].command` field is exactly what needs to be reverted/corrected to stop the crash loop. This is a direct, single-field configuration fix, not a symptom-reporting resource.",
+        "proportionality": "The remediation target (Deployment/worker) is the smallest, most specific resource whose configuration change (removing/reverting the injected `command` field, e.g. via rollback or patch) directly resolves the incident. No other resource (node, ConfigMap, ReplicaSet) requires modification \u2014 ReplicaSet `worker-7986b99df8` is a generated child of the Deployment and will self-correct once the Deployment template is fixed.",
+        "scopeCompleteness": "Examined the Deployment, both ReplicaSets (implicitly via owning pod names/UIDs), all 3 pods in the namespace, pod events/describe, current and previous-state logs (only current logs needed since restart output is consistent per describe: last terminated matches current crash reason), and Deployment-level events. Node conditions were not separately checked because the pod's `PodScheduled=True` and `PodReadyToStartContainers=True` conditions confirm scheduling/node health is not implicated. No other namespaces or cluster-wide resources are relevant to this single-namespace incident.",
+        "causalCompleteness": "Traced from the CrashLoopBackOff symptom down to the exact container command causing the immediate exit(1), then further to the Deployment manifest's managedFields history showing a distinct `kubectl-patch` operation injected the `command` field 5 seconds after Deployment creation. This is the deepest verifiable cause available from cluster state; the identity of the actor/pipeline that issued the patch is not recoverable from Kubernetes objects alone (would require audit logs, which were not queried/available).",
+        "evidenceSufficiency": "All claims are backed by tool output: pod list showing 2 healthy + 1 crash-looping pod, `kubectl_describe` showing exit code 1/reason Error and the exact command, `kubectl_logs` showing the literal output 'fatal: bad release 1.1.0 -- aborting', Deployment YAML managedFields showing the two separate apply operations (client-side-apply without command, then kubectl-patch adding command), and Deployment status/events showing ProgressDeadlineExceeded and ScalingReplicaSet events. No assumptions were required beyond attributing intent (e2e test namespace) which is clearly labeled contextual, not asserted as fact.",
+        "regressionAwareness": "get_namespaced_resource_context returned no remediation history for this Deployment (tier1 and tier2 both empty, regression_detected=false), so there is no prior failed remediation to differentiate from.",
+        "alternativeHypotheses": "Considered image pull failure \u2014 ruled out since `imagePullPolicy=IfNotPresent` and image `1.0.0` is the same image successfully running in the healthy old ReplicaSet pods. Considered resource limit exhaustion (OOMKilled) \u2014 ruled out via describe showing exit reason 'Error' (exit code 1) not OOMKilled, and requests/limits (32Mi/64Mi mem) are unchanged from the healthy pods. Considered probe failures \u2014 ruled out since container never reaches the point of running the app or being probed (probes never fire because process exits before they'd apply). Considered ConfigMap `worker-config` misconfiguration \u2014 ruled out since the failure happens in the shell command itself, before any app code would read the mounted config.",
+        "confidenceCalibration": "0.95. Deducted 0.05 because the underlying actor/pipeline that issued the `kubectl-patch` injecting the bad command could not be identified (no access to audit logs or CI/CD system), so while the *what* and *where* are fully evidenced, the *why* (intentional e2e test vs. accidental bad deploy) is inferred from the namespace naming convention rather than directly proven."
+      },
+      "remediationTarget": {
+        "kind": "Deployment",
+        "name": "worker",
+        "namespace": "console-e2e-contract-3-0e08c1"
+      },
+      "contributingFactors": [
+        "A `kubectl-patch` field manager applied a change to `spec.template.spec.containers[0].command` on the Deployment at 2026-08-09T01:01:51Z, 5 seconds after the Deployment was created \u2014 consistent with an injected/simulated bad-release scenario in this e2e test namespace (`console-e2e-contract-3-0e08c1`).",
+        "The container image tag remains `quay.io/kubernaut-cicd/demo-http-server:1.0.0` (unchanged), so the failure is not an image pull or version issue \u2014 it is purely the injected command override.",
+        "Deployment rollout is stuck: status shows `Progressing=False, reason=ProgressDeadlineExceeded, message=\"ReplicaSet \\\"worker-7986b99df8\\\" has timed out progressing.\"`; `readyReplicas=2, replicas=3, unavailableReplicas=1` \u2014 the rollout cannot complete because the new ReplicaSet pod never becomes Ready.",
+        "The old ReplicaSet `worker-6d5df85f86` (2 pods, `worker-6d5df85f86-qt2d6` and `worker-6d5df85f86-vxgn6`) is still Running/Ready with 0 restarts, so the Deployment reports `Available=True` and service traffic is still served \u2014 the blast radius is currently limited to the failed rollout, not full service outage."
+      ]
+    }
+  },
+  "remediationRequest": {
+    "outcome": "Processing"
+  },
+  "kaResponse": {
+    "confidence": 0.95,
+    "analysis": "The `worker` Deployment's pod template was patched to override the container `command` with `sh -c \"echo fatal: bad release 1.1.0 -- aborting && exit 1\"`, causing every pod in the new ReplicaSet `worker-7986b99df8` to immediately exit(1) on start and enter CrashLoopBackOff."
+  },
+  "traceStats": {
+    "totalTokens": 115229,
+    "llmTurns": 9,
+    "totalToolCalls": 10
+  },
+  "toolCalls": [
+    {
+      "tool": "kubectl_get_by_kind_in_namespace",
+      "args": {
+        "kind": "Pod",
+        "namespace": "console-e2e-contract-3-0e08c1"
+      },
+      "result": "## Summary: Pod Status in `console-e2e-contract-3-0e08c1` Namespace\n\n**3 pods found**, belonging to two different ReplicaSets of the `worker` deployment \u2014 indicating a **rollout in progress or a failed deployment rollback scenario**:\n\n### \u2705 Healthy Pods (old ReplicaSet: `worker-6d5df85f86`)\n| Pod | Node | Status | Started |\n|---|---|---|---|\n| `worker-6d5df85f86-qt2d6` | dev-worker-2 | Running, Ready | 2026-08-09T01:01:47Z |\n| `worker-6d5df85f86-vxgn6` | dev-worker-1 | Running, Ready | 2026-08-09T01:01:48Z |\n\n- Image: `quay.io/kubernaut-cicd/demo-http-server:1.0.0`\n- No restarts, passing liveness/readiness probes on `/healthz:8080`\n\n### \ud83d\udd34 Failing Pod (new ReplicaSet: `worker-7986b99df8`) \u2014 **ROOT CAUSE**\n| Pod | Node | Status |\n|---|---|---|\n| `worker-7986b99df8-g82pj` | dev-worker-2 | **CrashLoopBackOff** |\n\n**Key details:**\n- **Container command was overridden** to:\n  ```\n  sh -c \"echo fatal: bad release 1.1.0 -- aborting && exit 1\"\n  ```\n- This explicitly exits with code 1 \u2014 **this is a deliberate/bad deployment**, not an image or config issue. The image tag is still `1.0.0`, but the injected command references a \"bad release 1.1.0.\"\n- **Restart count: 7**, in `CrashLoopBackOff` with 5-minute backoff.\n- `Ready` and `ContainersReady` conditions = `False`, reason `ContainersNotReady`.\n- Last termination: exitCode `1`, reason `Error`, at `2026-08-09T01:12:45Z`.\n- Pod is otherwise scheduled and network-ready (PodScheduled=True, PodReadyToStartContainers=True) \u2014 failure is purely at the container startup/command level.\n\n### Incident Assessment\n- The new ReplicaSet (`worker-7986b99df8`, owner UID `6f0d6bb6-828d-455b-9935-8cdea94da9f1`) was likely created by a deployment update that injected a broken `command` override (possibly a bad rollout/test artifact referencing \"release 1.1.0\").\n- The old ReplicaSet (`worker-6d5df85f86`) pods remain healthy and serving traffic, which is why the service is likely still available \u2014 but the rollout to the new version is stuck/failing.\n- **Recommended action:** Investigate the Deployment/manifest change that introduced the `command` override on the `worker-7986b99df8` ReplicaSet; roll back or fix the deployment spec, then delete/replace the crash-looping pod."
+    },
+    {
+      "tool": "kubectl_get_by_name",
+      "args": {
+        "kind": "Deployment",
+        "name": "worker",
+        "namespace": "console-e2e-contract-3-0e08c1"
+      },
+      "result": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":[REDACTED],\\\"labels\\\":{\\\"app\\\":\\\"worker\\\",\\\"kubernaut.ai/managed\\\":\\\"true\\\"},\\\"name\\\":\\\"worker\\\",\\\"namespace\\\":\\\"console-e2e-contract-3-0e08c1\\\"},\\\"spec\\\":{\\\"replicas\\\":2,\\\"selector\\\":{\\\"matchLabels\\\":{\\\"app\\\":\\\"worker\\\"}},\\\"template\\\":{\\\"metadata\\\":{\\\"labels\\\":{\\\"app\\\":\\\"worker\\\"}},\\\"spec\\\":{\\\"containers\\\":[{\\\"env\\\":[{\\\"name\\\":\\\"CONFIG_PATH\\\",\\\"value\\\":\\\"/etc/demo-http-server/config.yaml\\\"}],\\\"image\\\":\\\"quay.io/kubernaut-cicd/demo-http-server:1.0.0\\\",\\\"livenessProbe\\\":{\\\"httpGet\\\":{\\\"path\\\":\\\"/healthz\\\",\\\"port\\\":8080},\\\"initialDelaySeconds\\\":3,\\\"periodSeconds\\\":5},\\\"name\\\":\\\"worker\\\",\\\"ports\\\":[{\\\"containerPort\\\":8080,\\\"name\\\":\\\"http\\\"}],\\\"readinessProbe\\\":{\\\"httpGet\\\":{\\\"path\\\":\\\"/healthz\\\",\\\"port\\\":8080},\\\"initialDelaySeconds\\\":2,\\\"periodSeconds\\\":3},\\\"resources\\\":{\\\"limits\\\":{\\\"cpu\\\":\\\"50m\\\",\\\"memory\\\":\\\"64Mi\\\"},\\\"requests\\\":{\\\"cpu\\\":\\\"10m\\\",\\\"memory\\\":\\\"32Mi\\\"}},\\\"volumeMounts\\\":[{\\\"mountPath\\\":\\\"/etc/demo-http-server/config.yaml\\\",\\\"name\\\":\\\"config\\\",\\\"subPath\\\":\\\"config.yaml\\\"}]}],\\\"volumes\\\":[{\\\"configMap\\\":{\\\"name\\\":\\\"worker-config\\\"},\\\"name\\\":\\\"config\\\"}]}}}}\\n\"},\"creationTimestamp\":\"2026-08-09T01:01:46Z\",\"generation\":2,\"labels\":{\"app\":\"worker\",\"kubernaut.ai/managed\":\"true\"},\"managedFields\":[{\"apiVersion\":\"apps/v1\",\"fieldsType\":\"FieldsV1\",\"fieldsV1\":{\"f:metadata\":{\"f:annotations\":{\".\":{},\"f:kubectl.kubernetes.io/last-applied-configuration\":{}},\"f:labels\":{\".\":{},\"f:app\":{},\"f:kubernaut.ai/managed\":{}}},\"f:spec\":{\"f:progressDeadlineSeconds\":{},\"f:replicas\":{},\"f:revisionHistoryLimit\":{},\"f:selector\":{},\"f:strategy\":{\"f:rollingUpdate\":{\".\":{},\"f:maxSurge\":{},\"f:maxUnavailable\":{}},\"f:type\":{}},\"f:template\":{\"f:metadata\":{\"f:labels\":{\".\":{},\"f:app\":{}}},\"f:spec\":{\"f:containers\":{\"k:{\\\"name\\\":\\\"worker\\\"}\":{\".\":{},\"f:env\":{\".\":{},\"k:{\\\"name\\\":\\\"CONFIG_PATH\\\"}\":{\".\":{},\"f:name\":{},\"f:value\":{}}},\"f:image\":{},\"f:imagePullPolicy\":{},\"f:livenessProbe\":{\".\":{},\"f:failureThreshold\":{},\"f:httpGet\":{\".\":{},\"f:path\":{},\"f:port\":{},\"f:scheme\":{}},\"f:initialDelaySeconds\":{},\"f:periodSeconds\":{},\"f:successThreshold\":{},\"f:timeoutSeconds\":{}},\"f:name\":{},\"f:ports\":{\".\":{},\"k:{\\\"containerPort\\\":8080,\\\"protocol\\\":\\\"TCP\\\"}\":{\".\":{},\"f:containerPort\":{},\"f:name\":{},\"f:protocol\":{}}},\"f:readinessProbe\":{\".\":{},\"f:failureThreshold\":{},\"f:httpGet\":{\".\":{},\"f:path\":{},\"f:port\":{},\"f:scheme\":{}},\"f:initialDelaySeconds\":{},\"f:periodSeconds\":{},\"f:successThreshold\":{},\"f:timeoutSeconds\":{}},\"f:resources\":{\".\":{},\"f:limits\":{\".\":{},\"f:cpu\":{},\"f:memory\":{}},\"f:requests\":{\".\":{},\"f:cpu\":{},\"f:memory\":{}}},\"f:terminationMessagePath\":{},\"f:terminationMessagePolicy\":{},\"f:volumeMounts\":{\".\":{},\"k:{\\\"mountPath\\\":\\\"/etc/demo-http-server/config.yaml\\\"}\":{\".\":{},\"f:mountPath\":{},\"f:name\":{},\"f:subPath\":{}}}}},\"f:dnsPolicy\":{},\"f:restartPolicy\":{},\"f:schedulerName\":{},\"f:securityContext\":{},\"f:terminationGracePeriodSeconds\":{},\"f:volumes\":{\".\":{},\"k:{\\\"name\\\":\\\"config\\\"}\":{\".\":{},\"f:configMap\":{\".\":{},\"f:defaultMode\":{},\"f:name\":{}},\"f:name\":{}}}}}}},\"manager\":\"kubectl-client-side-apply\",\"operation\":\"Update\",\"time\":\"2026-08-09T01:01:46Z\"},{\"apiVersion\":\"apps/v1\",\"fieldsType\":\"FieldsV1\",\"fieldsV1\":{\"f:spec\":{\"f:template\":{\"f:spec\":{\"f:containers\":{\"k:{\\\"name\\\":\\\"worker\\\"}\":{\"f:command\":{}}}}}}},\"manager\":\"kubectl-patch\",\"operation\":\"Update\",\"time\":\"2026-08-09T01:01:51Z\"},{\"apiVersion\":\"apps/v1\",\"fieldsType\":\"FieldsV1\",\"fieldsV1\":{\"f:metadata\":{\"f:annotations\":{\"f:deployment.kubernetes.io/revision\":{}}},\"f:status\":{\"f:availableReplicas\":{},\"f:conditions\":{\".\":{},\"k:{\\\"type\\\":\\\"Available\\\"}\":{\".\":{},\"f:lastTransitionTime\":{},\"f:lastUpdateTime\":{},\"f:message\":{},\"f:reason\":{},\"f:status\":{},\"f:type\":{}},\"k:{\\\"type\\\":\\\"Progressing\\\"}\":{\".\":{},\"f:lastTransitionTime\":{},\"f:lastUpdateTime\":{},\"f:message\":{},\"f:reason\":{},\"f:status\":{},\"f:type\":{}}},\"f:observedGeneration\":{},\"f:readyReplicas\":{},\"f:replicas\":{},\"f:unavailableReplicas\":{},\"f:updatedReplicas\":{}}},\"manager\":\"kube-controller-manager\",\"operation\":\"Update\",\"subresource\":\"status\",\"time\":\"2026-08-09T01:11:52Z\"}],\"name\":\"worker\",\"namespace\":\"console-e2e-contract-3-0e08c1\",\"resourceVersion\":\"54032768\",\"uid\":\"e3b20d6d-ba73-4fdc-b2e3-352d51cc0e09\"},\"spec\":{\"progressDeadlineSeconds\":600,\"replicas\":2,\"revisionHistoryLimit\":10,\"selector\":{\"matchLabels\":{\"app\":\"worker\"}},\"strategy\":{\"rollingUpdate\":{\"maxSurge\":\"25%\",\"maxUnavailable\":\"25%\"},\"type\":\"RollingUpdate\"},\"template\":{\"metadata\":{\"creationTimestamp\":null,\"labels\":{\"app\":\"worker\"}},\"spec\":{\"containers\":[{\"command\":[\"sh\",\"-c\",\"echo fatal: bad release 1.1.0 -- aborting \\u0026\\u0026 exit 1\"],\"env\":[{\"name\":\"CONFIG_PATH\",\"value\":\"/etc/demo-http-server/config.yaml\"}],\"image\":\"quay.io/kubernaut-cicd/demo-http-server:1.0.0\",\"imagePullPolicy\":\"IfNotPresent\",\"livenessProbe\":{\"failureThreshold\":3,\"httpGet\":{\"path\":\"/healthz\",\"port\":8080,\"scheme\":\"HTTP\"},\"initialDelaySeconds\":3,\"periodSeconds\":5,\"successThreshold\":1,\"timeoutSeconds\":1},\"name\":\"worker\",\"ports\":[{\"containerPort\":8080,\"name\":\"http\",\"protocol\":\"TCP\"}],\"readinessProbe\":{\"failureThreshold\":3,\"httpGet\":{\"path\":\"/healthz\",\"port\":8080,\"scheme\":\"HTTP\"},\"initialDelaySeconds\":2,\"periodSeconds\":3,\"successThreshold\":1,\"timeoutSeconds\":1},\"resources\":{\"limits\":{\"cpu\":\"50m\",\"memory\":\"64Mi\"},\"requests\":{\"cpu\":\"10m\",\"memory\":\"32Mi\"}},\"terminationMessagePath\":\"/dev/termination-log\",\"terminationMessagePolicy\":\"File\",\"volumeMounts\":[{\"mountPath\":\"/etc/demo-http-server/config.yaml\",\"name\":\"config\",\"subPath\":\"config.yaml\"}]}],\"dnsPolicy\":\"ClusterFirst\",\"restartPolicy\":\"Always\",\"schedulerName\":\"default-scheduler\",\"securityContext\":{},\"terminationGracePeriodSeconds\":30,\"volumes\":[{\"configMap\":{\"defaultMode\":420,\"name\":\"worker-config\"},\"name\":\"config\"}]}}},\"status\":{\"availableReplicas\":2,\"conditions\":[{\"lastTransitionTime\":\"2026-08-09T01:01:50Z\",\"lastUpdateTime\":\"2026-08-09T01:01:50Z\",\"message\":\"Deployment has minimum availability.\",\"reason\":\"MinimumReplicasAvailable\",\"status\":\"True\",\"type\":\"Available\"},{\"lastTransitionTime\":\"2026-08-09T01:11:52Z\",\"lastUpdateTime\":\"2026-08-09T01:11:52Z\",\"message\":\"ReplicaSet \\\"worker-7986b99df8\\\" has timed out progressing.\",\"reason\":\"ProgressDeadlineExceeded\",\"status\":\"False\",\"type\":\"Progressing\"}],\"observedGeneration\":2,\"readyReplicas\":2,\"replicas\":3,\"unavailableReplicas\":1,\"updatedReplicas\":1}}"
+    },
+    {
+      "tool": "kubectl_describe",
+      "args": {
+        "kind": "Pod",
+        "name": "worker-7986b99df8-g82pj",
+        "namespace": "console-e2e-contract-3-0e08c1"
+      },
+      "result": "## Summary: Pod in CrashLoopBackOff\n\n**Pod:** `worker-7986b99df8-g82pj`\n**Namespace:** `console-e2e-contract-3-0e08c1`\n**Node:** `dev-worker-2.redhat-internal.com`\n**Owner:** ReplicaSet `worker-7986b99df8` (part of Deployment `worker`)\n**Created:** 2026-08-09T01:01:51Z\n\n### Root Cause\nThe container's command is hardcoded to fail intentionally:\n```\nsh -c \"echo fatal: bad release 1.1.0 -- aborting && exit 1\"\n```\nDespite this message referencing release **1.1.0**, the actual image deployed is **`quay.io/kubernaut-cicd/demo-http-server:1.0.0`**. This looks like a bad build/config where an intentional failure command for validating \"1.1.0\" was left in (or mistakenly applied to) the 1.0.0 image \u2014 indicating a possible CI/CD or deployment configuration error.\n\n### Status\n- **Phase:** Running (pod), but container is unhealthy\n- **Container state:** `CrashLoopBackOff` \u2014 waiting, back-off 5m0s\n- **Restart count:** 7\n- **Exit code:** 1, reason: `Error`\n- **Last terminated:** started and finished at the same timestamp (2026-08-09T01:12:45Z) \u2014 confirms immediate crash on start\n- **Ready:** False \u2014 `ContainersNotReady`, message: \"containers with unready status: [worker]\"\n- **Conditions:** Initialized=True, PodScheduled=True, PodReadyToStartContainers=True, but Ready=False and ContainersReady=False\n\n### Container Configuration Details\n- **Ports:** 8080/TCP (http)\n- **Probes:** Both liveness and readiness probes target `GET /healthz:8080` \u2014 never reached since container exits immediately\n- **Resources:** requests(cpu:10m, mem:32Mi) / limits(cpu:50m, mem:64Mi)\n- **Security context:** non-root (UID 1001320000), all capabilities dropped, seccomp RuntimeDefault, restricted-v2 SCC\n- **Volumes:** ConfigMap `worker-config` mounted at `/etc/demo-http-server/config.yaml`; standard service account token projection\n\n### Networking\n- Uses OVN-Kubernetes CNI, pod assigned IP via primary interface eth0\n- No networking-related issues noted \u2014 network status healthy\n\n### Recommended Investigation Steps\n1. Check the Deployment/CI pipeline that generates the container `command` \u2014 confirm why a hardcoded failing command referencing \"1.1.0\" is baked into image tag `1.0.0`.\n2. Verify if this is a broken canary/test image intentionally left in a bad state (e2e testing artifact), given namespace name `console-e2e-contract-3-...`.\n3. Confirm intended image tag/version and correct the deployment spec or rebuild image excluding the failing echo/exit command.\n4. Check ConfigMap `worker-config` for correctness, though it's unlikely related since the container fails before reaching app logic."
+    },
+    {
+      "tool": "kubectl_logs",
+      "args": {
+        "name": "worker-7986b99df8-g82pj",
+        "namespace": "console-e2e-contract-3-0e08c1"
+      },
+      "result": "fatal: bad release 1.1.0 -- aborting"
+    },
+    {
+      "tool": "kubectl_events",
+      "args": {
+        "kind": "Deployment",
+        "name": "worker",
+        "namespace": "console-e2e-contract-3-0e08c1"
+      },
+      "result": [
+        {
+          "type": "Normal",
+          "count": 1,
+          "reason": "ScalingReplicaSet",
+          "source": {
+            "component": "deployment-controller"
+          },
+          "message": "Scaled up replica set worker-6d5df85f86 to 2",
+          "metadata": {
+            "uid": "96acc16d-b122-4323-8a8d-f7cd169e8971",
+            "name": "worker.18c9fd5dd5ca7c32",
+            "namespace": "console-e2e-contract-3-0e08c1",
+            "managedFields": [
+              {
+                "time": "2026-08-09T01:01:46Z",
+                "manager": "kube-controller-manager",
+                "fieldsV1": {
+                  "f:type": {},
+                  "f:count": {},
+                  "f:reason": {},
+                  "f:source": {
+                    "f:component": {}
+                  },
+                  "f:message": {},
+                  "f:lastTimestamp": {},
+                  "f:firstTimestamp": {},
+                  "f:involvedObject": {},
+                  "f:reportingComponent": {}
+                },
+                "operation": "Update",
+                "apiVersion": "v1",
+                "fieldsType": "FieldsV1"
+              }
+            ],
+            "resourceVersion": "54019184",
+            "creationTimestamp": "2026-08-09T01:01:46Z"
+          },
+          "eventTime": null,
+          "lastTimestamp": "2026-08-09T01:01:46Z",
+          "firstTimestamp": "2026-08-09T01:01:46Z",
+          "involvedObject": {
+            "uid": "e3b20d6d-ba73-4fdc-b2e3-352d51cc0e09",
+            "kind": "Deployment",
+            "name": "worker",
+            "namespace": "console-e2e-contract-3-0e08c1",
+            "apiVersion": "apps/v1",
+            "resourceVersion": "54019181"
+          },
+          "reportingInstance": "",
+          "reportingComponent": "deployment-controller"
+        },
+        {
+          "type": "Normal",
+          "count": 1,
+          "reason": "ScalingReplicaSet",
+          "source": {
+            "component": "deployment-controller"
+          },
+          "message": "Scaled up replica set worker-7986b99df8 to 1",
+          "metadata": {
+            "uid": "0466c03d-be5b-47f5-8fe0-45a9a6d0544e",
+            "name": "worker.18c9fd5efb83bfd2",
+            "namespace": "console-e2e-contract-3-0e08c1",
+            "managedFields": [
+              {
+                "time": "2026-08-09T01:01:51Z",
+                "manager": "kube-controller-manager",
+                "fieldsV1": {
+                  "f:type": {},
+                  "f:count": {},
+                  "f:reason": {},
+                  "f:source": {
+                    "f:component": {}
+                  },
+                  "f:message": {},
+                  "f:lastTimestamp": {},
+                  "f:firstTimestamp": {},
+                  "f:involvedObject": {},
+                  "f:reportingComponent": {}
+                },
+                "operation": "Update",
+                "apiVersion": "v1",
+                "fieldsType": "FieldsV1"
+              }
+            ],
+            "resourceVersion": "54019395",
+            "creationTimestamp": "2026-08-09T01:01:51Z"
+          },
+          "eventTime": null,
+          "lastTimestamp": "2026-08-09T01:01:51Z",
+          "firstTimestamp": "2026-08-09T01:01:51Z",
+          "involvedObject": {
+            "uid": "e3b20d6d-ba73-4fdc-b2e3-352d51cc0e09",
+            "kind": "Deployment",
+            "name": "worker",
+            "namespace": "console-e2e-contract-3-0e08c1",
+            "apiVersion": "apps/v1",
+            "resourceVersion": "54019392"
+          },
+          "reportingInstance": "",
+          "reportingComponent": "deployment-controller"
+        }
+      ]
+    },
+    {
+      "tool": "get_namespaced_resource_context",
+      "args": {
+        "kind": "Deployment",
+        "name": "worker",
+        "namespace": "console-e2e-contract-3-0e08c1"
+      },
+      "result": {
+        "root_owner": {
+          "kind": "Deployment",
+          "name": "worker",
+          "namespace": "console-e2e-contract-3-0e08c1"
+        },
+        "remediation_history": {
+          "tier1": [],
+          "tier2": [],
+          "tier1_window": "24h0m0s",
+          "tier2_window": "2160h0m0s",
+          "target_resource": "console-e2e-contract-3-0e08c1/Deployment/worker",
+          "regression_detected": false
+        }
+      }
+    },
+    {
+      "tool": "list_available_actions",
+      "args": {},
+      "result": {
+        "pagination": {
+          "hasNext": true,
+          "nextCursor": "eyJvIjoxMCwibCI6MTB9"
+        },
+        "actionTypes": [
+          {
+            "actionType": "ExpandPersistentVolumeClaim",
+            "description": {
+              "what": "Expand a PersistentVolumeClaim by patching its storage request to a larger size, leveraging the CSI driver's online volume expansion capability.",
+              "whenToUse": "When a PVC is projected to exhaust capacity based on storage growth trends (predict_linear), and the underlying StorageClass supports allowVolumeExpansion. The workload must be using a CSI-backed PVC with a filesystem that supports online resize (ext4, xfs).",
+              "whenNotToUse": "When disk growth is caused by stale data that should be cleaned up rather than accommodated. When the StorageClass does not support volume expansion. When the PVC is backed by a non-CSI provisioner.",
+              "preconditions": "The PVC's StorageClass has allowVolumeExpansion: true. The CSI driver supports ControllerExpandVolume and NodeExpandVolume RPCs. Sufficient storage capacity exists in the underlying storage pool."
+            },
+            "workflowCount": 1
+          },
+          {
+            "actionType": "FixBuildSource",
+            "description": {
+              "what": "Patches an OCP BuildConfig's source URI or ref to point to a valid Git repository, then triggers a new build.",
+              "whenToUse": "Builds fail repeatedly because the BuildConfig references a non-existent Git repository, wrong branch, or unreachable URI.",
+              "whenNotToUse": "When the build fails due to image builder errors, insufficient resources, or registry push failures.",
+              "preconditions": "The correct Git URI and ref are known. The BuildConfig exists and the builder image is available."
+            },
+            "workflowCount": 1
+          },
+          {
+            "actionType": "FixRouteTarget",
+            "description": {
+              "what": "Patches an OCP Route whose spec.to.name points to a non-existent or wrong Service, restoring external traffic flow.",
+              "whenToUse": "An OCP Route returns 503/404 because spec.to.name references a Service that was renamed, deleted, or never created.",
+              "whenNotToUse": "When the backend Service exists but the pods behind it are unhealthy. When TLS termination is misconfigured.",
+              "preconditions": "The correct backend Service name is known. The Route exists and is owned by the target application."
+            },
+            "workflowCount": 1
+          },
+          {
+            "actionType": "FixSecurityContext",
+            "description": {
+              "what": "Patches a Deployment's securityContext to comply with the assigned OCP SecurityContextConstraint, allowing pods to schedule.",
+              "whenToUse": "Pods are blocked by SCC admission because the Deployment requests capabilities, runAsUser, or volume types not allowed by the SCC bound to the ServiceAccount.",
+              "whenNotToUse": "When the SCC itself needs to be changed or when the workload genuinely requires privileged access.",
+              "preconditions": "The target Deployment and namespace are known. The allowed SCC and its constraints are discoverable from the cluster."
+            },
+            "workflowCount": 1
+          },
+          {
+            "actionType": "GracefulRestart",
+            "description": {
+              "what": "Perform a graceful rolling restart of a workload to reset its runtime state.",
+              "whenToUse": "Predictive analysis indicates an impending failure (memory leak, resource exhaustion) that can be prevented by proactively restarting before the crash occurs.",
+              "whenNotToUse": "When the issue is caused by a code bug or misconfiguration that will recur after restart.",
+              "preconditions": "Evidence of gradual resource degradation (trending metrics) and the workload supports rolling restarts without data loss."
+            },
+            "workflowCount": 1
+          },
+          {
+            "actionType": "HelmRollback",
+            "description": {
+              "what": "Roll back a Helm release to its previous healthy revision.",
+              "whenToUse": "A Helm-managed workload is crashing after a helm upgrade introduced a bad configuration, and the previous Helm revision was healthy.",
+              "whenNotToUse": "When the workload is not managed by Helm (use RollbackDeployment or GracefulRestart instead), or when the crash is caused by an external dependency failure.",
+              "preconditions": "The Helm release has at least one previous healthy revision in its history, and the Helm tiller/controller has access to roll back."
+            },
+            "workflowCount": 1
+          },
+          {
+            "actionType": "IncreaseMemoryLimits",
+            "description": {
+              "what": "Increase memory resource limits on containers.",
+              "whenToUse": "OOM kills are caused by memory limits being too low relative to the workload's requirements. This is the correct action for any ContainerOOMKilling signal, including suspected memory leaks -- increasing limits is the proper first-pass mitigation to buy runtime for investigation. The platform's escalation guardrails handle repeated ineffective attempts automatically.",
+              "whenNotToUse": "When the deployment is constrained by a ResourceQuota -- increasing individual container limits does not increase the namespace's total allocation and may worsen it by requesting more memory per pod against a fixed quota ceiling.",
+              "preconditions": "The deployment exists and containers have memory limits set. The node has sufficient allocatable memory for the increased limit."
+            },
+            "workflowCount": 1
+          },
+          {
+            "actionType": "PatchConfiguration",
+            "description": {
+              "what": "Patch a faulty ConfigMap or configuration resource in-place to fix a configuration error without rolling back the deployment.",
+              "whenToUse": "When the root cause is a specific, identifiable configuration error in a mounted ConfigMap, and the fix is deterministic. Prioritizes speed over safety by modifying live resources.",
+              "whenNotToUse": "When the root cause is unclear, when multiple configuration resources may be affected, or when a full rollback to a known-good revision is preferred for safety.",
+              "preconditions": "The faulty configuration resource is identified and the correction can be applied programmatically."
+            },
+            "workflowCount": 3
+          },
+          {
+            "actionType": "ProactiveRollback",
+            "description": {
+              "what": "Roll back a deployment to stop SLO error-budget burn caused by a bad deployment change.",
+              "whenToUse": "When an ErrorBudgetBurn or SLO-violation alert fires and the root cause is a recent deployment revision that changed the pod spec (image, volume mounts, environment variables). Use this instead of RollbackDeployment when the trigger is an SLO or error-budget signal.",
+              "whenNotToUse": "When the rollout is stuck or pods are crashlooping without SLO impact (use RollbackDeployment instead). When the ConfigMap content itself is corrupt and must be patched in-place (use PatchConfiguration).",
+              "preconditions": "A previous stable deployment revision exists, and the error spike correlates with a recent deployment change."
+            },
+            "workflowCount": 1
+          },
+          {
+            "actionType": "ProvisionNode",
+            "description": {
+              "what": "Request provisioning of a new Kubernetes node to increase cluster capacity.",
+              "whenToUse": "Pods are Pending due to insufficient cluster-wide resources (CPU, memory) and no existing node has capacity.",
+              "whenNotToUse": "When scheduling failures are caused by taints, affinity rules, or PDB constraints rather than resource exhaustion.",
+              "preconditions": "Confirmed that all schedulable nodes are at or near capacity and pending pods have resource requests that cannot be satisfied."
+            },
+            "workflowCount": 1
+          }
+        ]
+      }
+    },
+    {
+      "tool": "list_available_actions",
+      "args": {
+        "page": "next",
+        "cursor": "eyJvIjoxMCwibCI6MTB9"
+      },
+      "result": {
+        "pagination": {
+          "hasPrevious": true,
+          "previousCursor": "eyJvIjowLCJsIjoxMH0"
+        },
+        "actionTypes": [
+          {
+            "actionType": "RefreshImagePullSecret",
+            "description": {
+              "what": "Recreates a missing or expired ImagePullSecret and restarts affected workloads to recover from ImagePullBackOff.",
+              "whenToUse": "Pods are stuck in ImagePullBackOff because the referenced ImagePullSecret was deleted, expired, or contains invalid registry credentials.",
+              "whenNotToUse": "When the image reference itself is wrong (tag does not exist, wrong registry URL). When the registry is rate-limiting pulls.",
+              "preconditions": "The target namespace and Deployment name are known. A known-good credential template exists."
+            },
+            "workflowCount": 1
+          },
+          {
+            "actionType": "RelaxPDB",
+            "description": {
+              "what": "Temporarily relax a PodDisruptionBudget to unblock a pending node drain, then restore it.",
+              "whenToUse": "A node drain is blocked because a PDB prevents evicting the required number of pods.",
+              "whenNotToUse": "When the PDB is correctly preventing unsafe evictions and the drain should be postponed.",
+              "preconditions": "Confirmed that the drain is intentional and the PDB is the sole blocker. The workload can tolerate temporary reduced availability."
+            },
+            "workflowCount": 1
+          },
+          {
+            "actionType": "RestoreRoleBinding",
+            "description": {
+              "what": "Recreates a deleted or corrupted RoleBinding / ClusterRoleBinding so that the affected ServiceAccount regains its RBAC permissions.",
+              "whenToUse": "A workload fails with 403 Forbidden because its RoleBinding was accidentally deleted or modified, removing required RBAC grants.",
+              "whenNotToUse": "When the ServiceAccount itself is missing. When the ClusterRole referenced by the binding does not exist.",
+              "preconditions": "The target namespace, ServiceAccount, and required Role/ClusterRole are known. The original binding spec is recoverable from the workflow definition."
+            },
+            "workflowCount": 1
+          },
+          {
+            "actionType": "RollbackDeployment",
+            "description": {
+              "what": "Revert a deployment to its previous stable revision.",
+              "whenToUse": "Root cause is a recent deployment that introduced a regression (bad image, broken command/args, misconfigured env vars), and the previous revision was healthy. Intended for stuck rollouts (progressDeadlineSeconds exceeded) and crashlooping pods caused by spec changes.",
+              "whenNotToUse": "When the trigger is an SLO error-budget burn alert (ErrorBudgetBurn) or SLO-violation signal \u2014 use ProactiveRollback instead. Do not use when containers are OOMKilled (ContainerOOMKilling signal or OOMKilled termination reason) \u2014 OOMKill is a memory pressure problem, not a deployment regression. Rollback does not change memory limits; use IncreaseMemoryLimits instead.",
+              "preconditions": "A previous healthy revision exists (verify via rollout history) and the issue started after the most recent deployment. The container must not be terminated with reason OOMKilled."
+            },
+            "workflowCount": 4
+          },
+          {
+            "actionType": "ScaleReplicas",
+            "description": {
+              "what": "Horizontally scale a workload by adjusting the replica count.",
+              "whenToUse": "Root cause is insufficient capacity to handle current load and the workload supports horizontal scaling.",
+              "preconditions": "Evidence of increased incoming traffic or load correlating with the resource exhaustion."
+            },
+            "workflowCount": 1
+          }
+        ]
+      }
+    },
+    {
+      "tool": "list_workflows",
+      "args": {
+        "action_type": "RollbackDeployment"
+      },
+      "result": {
+        "workflows": [
+          {
+            "name": "crashloop-rollback-v1",
+            "version": "1.5.3",
+            "workflowId": "1ff8f000-fba1-5beb-aee6-5cf449a8eaa8",
+            "description": {
+              "what": "Rolls back a Deployment to its previous revision to recover from CrashLoopBackOff caused by a bad release or pod spec change",
+              "whenToUse": "When a Deployment enters CrashLoopBackOff because its pod spec was modified (image tag, command/args, env vars, volume mount references including ConfigMap name changes in the volume spec, or resource limits) and the previous revision was healthy. This is the correct choice when the Deployment spec itself changed -- rollback reverts the entire pod template to the last known-good revision. Includes cases where the volume references a different ConfigMap name than before (e.g. volumes[].configMap.name was changed).",
+              "whenNotToUse": "When the Deployment spec is completely unchanged and only the content inside a mounted ConfigMap was edited in-place (the volume reference still points to the same ConfigMap name but its data keys were modified) -- rollback cannot revert ConfigMap data. Do not use when the crash is caused by an external dependency failure (database down, network partition) rather than a local spec change. Do not use when the primary signal is ContainerOOMKilling or the container termination reason is OOMKilled -- OOMKill indicates memory pressure, not a bad release or spec regression. Rollback does not change memory limits; use IncreaseMemoryLimits instead for OOM scenarios.",
+              "preconditions": "The Deployment has at least one previous healthy revision in its rollout history. The RCA target must be a Deployment, not a ConfigMap. The container must NOT be terminated with reason OOMKilled."
+            },
+            "workflowName": "crashloop-rollback-v1",
+            "executionBundle": "quay.io/kubernaut-cicd/test-workflows/crashloop-rollback-job@sha256:d2488483a61afe4936c64fcd6ea5e807636b0c13d970fd4f8a25f9096f01e9d5",
+            "executionEngine": "job",
+            "serviceAccountName": "crashloop-rollback-v1-runner"
+          },
+          {
+            "name": "rollback-deployment-v1",
+            "version": "1.5.3",
+            "workflowId": "4e792310-a868-5893-8a27-262ef6aadcbb",
+            "description": {
+              "what": "Rolls back a deployment to its previous working revision when the current rollout is stuck",
+              "whenToUse": "When a deployment rollout has exceeded its progressDeadlineSeconds and new pods cannot start (ImagePullBackOff, CrashLoopBackOff from a bad spec change, or scheduling failures)",
+              "whenNotToUse": "When the rollout is still within its deadline and may succeed with more time, or when the issue affects all revisions (cluster-wide problem). Do not use when containers are OOMKilled (ContainerOOMKilling signal or OOMKilled termination reason) \u2014 OOMKill is a memory pressure problem, not a stuck rollout. Use IncreaseMemoryLimits instead.",
+              "preconditions": "The deployment has at least one previous successful revision in its history"
+            },
+            "workflowName": "rollback-deployment-v1",
+            "executionBundle": "quay.io/kubernaut-cicd/test-workflows/rollback-deployment-job@sha256:0c048ae632c8c82ab35222dc3d9ed129df0a0be5f363056331f4b2c966acd3b9",
+            "executionEngine": "job",
+            "serviceAccountName": "rollback-deployment-v1-runner"
+          },
+          {
+            "name": "crashloop-rollback-risk-v1",
+            "version": "1.5.3",
+            "workflowId": "57eac46a-431a-5a5c-bbbd-cd44e9c0f377",
+            "description": {
+              "what": "Rolls back a Deployment to its previous healthy revision to recover from CrashLoopBackOff caused by a bad configuration change (e.g., a poisoned ConfigMap) or a bad image change",
+              "whenToUse": "When a Deployment enters CrashLoopBackOff and the signal carries risk_tolerance=low. The root cause analysis must identify a Deployment as the target resource, since this workflow operates exclusively on Deployments by reverting to the last known-good pod template. This full rollback approach prioritizes safety over speed. Best for production teams that require guaranteed recovery with minimal risk.",
+              "whenNotToUse": "When the root cause analysis identifies a ConfigMap as the target resource -- rolling back a Deployment does not modify the ConfigMap, so the EA pre/post hash check on the ConfigMap would show no change and the remediation would be flagged as ineffective. Use a PatchConfiguration workflow instead to directly fix the ConfigMap. Also do not use when the crash is caused by an external dependency failure, when no previous healthy revision exists, or when the signal carries risk_tolerance=high.",
+              "preconditions": "The Deployment has at least one previous healthy revision in its rollout history. The RCA target must be a Deployment, not a ConfigMap."
+            },
+            "workflowName": "crashloop-rollback-risk-v1",
+            "executionBundle": "quay.io/kubernaut-cicd/test-workflows/crashloop-rollback-job@sha256:d2488483a61afe4936c64fcd6ea5e807636b0c13d970fd4f8a25f9096f01e9d5",
+            "executionEngine": "job",
+            "serviceAccountName": "crashloop-rollback-ri[REDACTED]"
+          },
+          {
+            "name": "fix-image-reference-v1",
+            "version": "1.5.3",
+            "workflowId": "97979b3a-1d5f-508f-92a0-b2024c14c0d7",
+            "description": {
+              "what": "Corrects a Deployment's container image reference by reverting to the last known-good image from rollout history, recovering pods stuck in ImagePullBackOff due to a wrong tag or registry URL",
+              "whenToUse": "When pods are stuck in ImagePullBackOff or ErrImagePull because the container image reference points to a non-existent tag, a wrong registry URL, or a deleted image. The Deployment has at least one previous revision with a valid image in its ReplicaSet history. Common after botched image promotions, typos in CI/CD pipelines, or premature tag deletions.",
+              "whenNotToUse": "When the image pull failure is caused by expired or missing ImagePullSecrets (authentication issue) \u2014 use RefreshImagePullSecret instead. When the registry itself is down or rate-limiting \u2014 wait for recovery. When all revisions use the same broken image (no good revision to revert to).",
+              "preconditions": "The Deployment has at least one previous ReplicaSet with a valid, pullable container image. The registry hosting the known-good image is accessible."
+            },
+            "workflowName": "fix-image-reference-v1",
+            "executionBundle": "quay.io/kubernaut-cicd/test-workflows/fix-image-reference-job@sha256:ef92c1fa1156f81ef062bdc1ac670781e79cc0029a2300c687857bd63437e349",
+            "executionEngine": "job",
+            "serviceAccountName": "fix-image-reference-v1-runner"
+          }
+        ],
+        "actionType": "RollbackDeployment"
+      }
+    },
+    {
+      "tool": "get_workflow",
+      "args": {
+        "workflow_id": "1ff8f000-fba1-5beb-aee6-5cf449a8eaa8"
+      },
+      "result": {
+        "name": "crashloop-rollback-v1",
+        "labels": {
+          "priority": "*",
+          "severity": [
+            "critical",
+            "info"
+          ],
+          "component": [
+            "apps/v1/Deployment"
+          ],
+          "environment": [
+            "production"
+          ]
+        },
+        "status": "Active",
+        "content": "{\"apiVersion\":\"kubernaut.ai/v1alpha1\",\"kind\":\"RemediationWorkflow\",\"metadata\":{\"name\":\"crashloop-rollback-v1\"},\"spec\":{\"version\":\"1.5.3\",\"description\":{\"what\":\"Rolls back a Deployment to its previous revision to recover from CrashLoopBackOff caused by a bad release or pod spec change\",\"whenToUse\":\"When a Deployment enters CrashLoopBackOff because its pod spec was modified (image tag, command/args, env vars, volume mount references including ConfigMap name changes in the volume spec, or resource limits) and the previous revision was healthy. This is the correct choice when the Deployment spec itself changed -- rollback reverts the entire pod template to the last known-good revision. Includes cases where the volume references a different ConfigMap name than before (e.g. volumes[].configMap.name was changed).\",\"whenNotToUse\":\"When the Deployment spec is completely unchanged and only the content inside a mounted ConfigMap was edited in-place (the volume reference still points to the same ConfigMap name but its data keys were modified) -- rollback cannot revert ConfigMap data. Do not use when the crash is caused by an external dependency failure (database down, network partition) rather than a local spec change. Do not use when the primary signal is ContainerOOMKilling or the container termination reason is OOMKilled -- OOMKill indicates memory pressure, not a bad release or spec regression. Rollback does not change memory limits; use IncreaseMemoryLimits instead for OOM scenarios.\",\"preconditions\":\"The Deployment has at least one previous healthy revision in its rollout history. The RCA target must be a Deployment, not a ConfigMap. The container must NOT be terminated with reason OOMKilled.\"},\"actionType\":\"RollbackDeployment\",\"labels\":{\"severity\":[\"critical\",\"info\"],\"environment\":[\"production\"],\"component\":[\"apps/v1/Deployment\"],\"priority\":\"*\"},\"execution\":{\"engine\":\"job\",\"bundle\":\"quay.io/kubernaut-cicd/test-workflows/crashloop-rollback-job@sha256:d2488483a61afe4936c64fcd6ea5e807636b0c13d970fd4f8a25f9096f01e9d5\",\"serviceAccountName\":\"crashloop-rollback-v1-runner\"},\"parameters\":[{\"name\":\"TARGET_RESOURCE_NAMESPACE\",\"type\":\"string\",\"required\":true,\"description\":\"Namespace of the affected deployment\"},{\"name\":\"TARGET_RESOURCE_NAME\",\"type\":\"string\",\"required\":true,\"description\":\"Name of the deployment to roll back\"},{\"name\":\"TARGET_RESOURCE_KIND\",\"type\":\"string\",\"required\":true,\"description\":\"Must be Deployment\"}]}}",
+        "version": "1.5.3",
+        "createdAt": "2026-08-07T23:20:10Z",
+        "updatedAt": "2026-08-07T23:20:10Z",
+        "actionType": "RollbackDeployment",
+        "parameters": {
+          "schema": {
+            "parameters": [
+              {
+                "name": "TARGET_RESOURCE_NAMESPACE",
+                "type": "string",
+                "required": true,
+                "description": "Namespace of the affected deployment"
+              },
+              {
+                "name": "TARGET_RESOURCE_NAME",
+                "type": "string",
+                "required": true,
+                "description": "Name of the deployment to roll back"
+              },
+              {
+                "name": "TARGET_RESOURCE_KIND",
+                "type": "string",
+                "required": true,
+                "description": "Must be Deployment"
+              }
+            ]
+          }
+        },
+        "workflowId": "1ff8f000-fba1-5beb-aee6-5cf449a8eaa8",
+        "contentHash": "2d6383b98f92246e6304a087c49d89ae5b192b85adeb7af69992e63b95d8591e",
+        "description": {
+          "what": "Rolls back a Deployment to its previous revision to recover from CrashLoopBackOff caused by a bad release or pod spec change",
+          "whenToUse": "When a Deployment enters CrashLoopBackOff because its pod spec was modified (image tag, command/args, env vars, volume mount references including ConfigMap name changes in the volume spec, or resource limits) and the previous revision was healthy. This is the correct choice when the Deployment spec itself changed -- rollback reverts the entire pod template to the last known-good revision. Includes cases where the volume references a different ConfigMap name than before (e.g. volumes[].configMap.name was changed).",
+          "whenNotToUse": "When the Deployment spec is completely unchanged and only the content inside a mounted ConfigMap was edited in-place (the volume reference still points to the same ConfigMap name but its data keys were modified) -- rollback cannot revert ConfigMap data. Do not use when the crash is caused by an external dependency failure (database down, network partition) rather than a local spec change. Do not use when the primary signal is ContainerOOMKilling or the container termination reason is OOMKilled -- OOMKill indicates memory pressure, not a bad release or spec regression. Rollback does not change memory limits; use IncreaseMemoryLimits instead for OOM scenarios.",
+          "preconditions": "The Deployment has at least one previous healthy revision in its rollout history. The RCA target must be a Deployment, not a ConfigMap. The container must NOT be terminated with reason OOMKilled."
+        },
+        "workflowName": "crashloop-rollback-v1",
+        "schemaVersion": "1.0",
+        "detectedLabels": {},
+        "executionBundle": "quay.io/kubernaut-cicd/test-workflows/crashloop-rollback-job@sha256:d2488483a61afe4936c64fcd6ea5e807636b0c13d970fd4f8a25f9096f01e9d5",
+        "executionEngine": "job",
+        "isLatestVersion": true,
+        "totalExecutions": 0,
+        "serviceAccountName": "crashloop-rollback-v1-runner",
+        "successfulExecutions": 0,
+        "executionBundleDigest": "d2488483a61afe4936c64fcd6ea5e807636b0c13d970fd4f8a25f9096f01e9d5"
+      }
+    }
+  ],
+  "groundTruth": {
+    "rrPhase": "Analyzing",
+    "rrOutcome": "unknown",
+    "workflowExecutionPhase": "<none>",
+    "workflowExecutionWorkflow": "<none>"
+  }
+}

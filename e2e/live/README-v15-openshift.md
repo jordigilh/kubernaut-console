@@ -201,20 +201,33 @@ labeled — check `oc get aianalysis -n kubernaut-system` for a `phase:
 Investigating` entry stuck for 5+ minutes with a high `pollCount` before
 assuming it's a fixture problem.
 
-## Also known: `sre` persona RBAC gap (upstream, tracked)
+## Previously known: `sre` persona RBAC gap (upstream, now fixed)
 
 `approval-gate.spec.ts`'s approve/decline paths and
-`full-remediation-lifecycle.spec.ts`'s full flow deterministically hit a
-known, already-filed RBAC gap: the `sre` persona's ACL has
-`kubernaut_approve` but not `kubernaut_get_approval_request`, so the console
-correctly renders a graceful-degradation "Contact a team member with the
-approver role" card instead of a real Approve/Decline gate. See
-`helpers.ts`'s `assertApprovalGateReachable` doc comment and
+`full-remediation-lifecycle.spec.ts`'s full flow used to deterministically
+hit a known RBAC gap: the `sre` persona's ACL had `kubernaut_approve` but
+not `kubernaut_get_approval_request`, so the console correctly rendered a
+graceful-degradation "Contact a team member with the approver role" card
+instead of a real Approve/Decline gate. See `helpers.ts`'s
+`assertApprovalGateReachable` doc comment and
 [jordigilh/kubernaut-operator#278](https://github.com/jordigilh/kubernaut-operator/issues/278)
 (v1.5) / [jordigilh/kubernaut#1869](https://github.com/jordigilh/kubernaut/issues/1869)
-(v1.6). These three tests are expected to fail with this specific, attributed
-message until either lands — that is the suite working as designed, not a
-console regression.
+(v1.6) — **both closed/shipped** (operator `v1.5.8-rc1`), confirmed live on
+the shared dev cluster via direct `ClusterRole` inspection (2026-08-08,
+[kubernaut-console#71](https://github.com/jordigilh/kubernaut-console/issues/71)).
+These tests no longer hit this gap; if you see the denied-message error,
+re-verify live RBAC state before re-attributing to #278/#1869.
+
+The workflow-discovery session-release bug that was blocking these tests
+next ([jordigilh/kubernaut#1995](https://github.com/jordigilh/kubernaut/issues/1995),
+[#2003](https://github.com/jordigilh/kubernaut/issues/2003),
+[#2019](https://github.com/jordigilh/kubernaut/issues/2019)) is also fixed
+and confirmed live (2026-08-08, clean fresh-fixture re-run: RR reached
+`Completed`/`Remediated`, `WorkflowExecution Completed`, real rollout
+revision created). What remained after that were three `e2e/live`-local test
+bugs (verification timeout budget, decline's hardcoded revision baseline,
+and `getRemediationRequestForTarget` querying the wrong RR field) — now
+fixed in this suite, not upstream issues.
 
 ## Switching LLM models (Sonnet 5 <-> Sonnet 4.6)
 
