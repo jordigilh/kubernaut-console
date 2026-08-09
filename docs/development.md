@@ -273,9 +273,14 @@ The CI workflow (`.github/workflows/ci.yml`) runs on every PR:
 
 Tags matching `v*` trigger `.github/workflows/release.yaml`:
 1. Run tests
-2. Build multi-arch container image
-3. Push to `quay.io/kubernaut-ai/demo-console:<version>`
-4. Package Helm chart
+2. Build multi-arch container image, push to `quay.io/kubernaut-ai/kubernaut-console:<version>`
+3. Generate and attest SBOM (SPDX)
+4. Attest **SLSA Build Level 3** provenance via
+   [`slsa-framework/slsa-github-generator`](https://github.com/slsa-framework/slsa-github-generator)'s
+   container workflow — see [SECURITY.md](../SECURITY.md#supply-chain-security)
+   for consumer verification instructions
+5. Trivy vulnerability scan
+6. Package Helm chart
 
 ## Pre-commit Hooks
 

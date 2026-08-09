@@ -34,6 +34,7 @@ jobs:
       id-token: write
       attestations: write
     outputs:
+      image: ${{ steps.image.outputs.image }}
       digest: ${{ steps.push.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
@@ -71,6 +72,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # #74: the SLSA3 provenance job below is a reusable *workflow call*
+      # (`uses:`), not a step -- its `with:` block can't see this job's
+      # `env` context (env vars aren't propagated into reusable-workflow
+      # inputs), so the image ref has to be surfaced as a job output like
+      # `digest` already is, rather than referenced inline via env.REGISTRY.
+      - name: Resolve image ref
+        id: image
+        run: echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
+
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
@@ -85,18 +95,64 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           sbom-path: sbom.spdx.json
 
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.push.outputs.digest }}
-
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
         with:
           name: sbom
           path: sbom.spdx.json
           retention-days: 90
+
+  # ========================================
+  # SLSA Build Level 3 provenance
+  #
+  # #74: upgraded from actions/attest-build-provenance (SLSA Build L1-2,
+  # self-attested by this same workflow) to slsa-framework/slsa-github-
+  # generator's container workflow (SLSA Build L3). The build/push steps
+  # above are unchanged -- this generator attests an already-built/pushed
+  # digest, it does not build the image itself (only the generator's
+  # ecosystem-specific *builders*, e.g. its Go builder, do that):
+  #
+  # - Before: the "Attest build provenance" step ran as part of *this*
+  #   repo's own job, so the provenance's builder identity was
+  #   self-asserted (release.yaml attesting to its own build).
+  # - After: this job is a *reusable workflow call* (`uses:`, not a step),
+  #   so GitHub mints its OIDC token against the *generator's* job, not
+  #   ours. The resulting provenance's builder.id is slsa-github-
+  #   generator's own pinned identity
+  #   (.../generator_container_slsa3.yml@refs/tags/v2.1.0) -- this repo
+  #   can only supply `image`/`digest` as inputs, it cannot forge or
+  #   influence the attestation's builder identity or signing material.
+  #
+  # Only one provenance job is needed (unlike per-arch setups) because
+  # `build-and-push` already publishes a single multi-arch manifest-list
+  # digest via buildx, not separate per-arch images.
+  #
+  # Must be pinned by an exact release tag (@vX.Y.Z); referencing it by a
+  # shorter tag or by commit hash fails at run time -- an open upstream
+  # limitation, not a mistake here: GitHub's OIDC token for a reusable
+  # workflow call only reliably reports the ref it was invoked at, so
+  # slsa-verifier can't yet confirm an arbitrary hash maps to a trusted
+  # release (see https://github.com/slsa-framework/slsa-verifier/issues/12).
+  #
+  # `packages: write` is required by the generator's own reusable workflow
+  # permission declarations even though we push to Quay, not ghcr.io -- an
+  # acknowledged upstream quirk (see slsa-github-generator#1257).
+  # ========================================
+
+  provenance:
+    name: SLSA3 provenance
+    needs: build-and-push
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ${{ needs.build-and-push.outputs.image }}
+      digest: ${{ needs.build-and-push.outputs.digest }}
+    secrets:
+      registry-username: ${{ secrets.QUAY_USERNAME }}
+      registry-password: ${{ secrets.QUAY_PASSWORD }}
 
   trivy-scan:
     runs-on: ubuntu-latest
