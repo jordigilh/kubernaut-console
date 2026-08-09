@@ -6,7 +6,6 @@ import {
   waitForPhaseLabel,
   clickExecuteWorkflow,
   assertApprovalGateReachable,
-  REAL_INVESTIGATION_TIMEOUT_MS,
   REAL_EXECUTION_TIMEOUT_MS,
   REAL_VERIFICATION_TIMEOUT_MS,
   oomkillTarget,
@@ -124,8 +123,22 @@ test.describe("Full remediation lifecycle — real cluster, real browser", () =>
 
     await test.step("real KubernautAgent investigation completes", async () => {
       await waitForInvestigationSummaryOrKnownRace(page);
+      // Bug found 2026-08-08 (kubernaut-console#73 follow-up): this check is
+      // explicitly optional — its failure is swallowed by `.catch()` below
+      // because "the next step's phase assertion is the real gate either
+      // way" — yet it used to carry the full REAL_INVESTIGATION_TIMEOUT_MS
+      // (300s) budget. A real investigation regularly takes 150-200s+ on its
+      // own (confirmed by trace: 169s in one run), so
+      // investigation-time + this check's own 300s ceiling routinely
+      // exceeded the outer 420s test timeout — killing the test *inside this
+      // swallowed check* before clickExecuteWorkflow ever got a chance to
+      // run. That produced a misleading final symptom (workflow card visible
+      // in the failure screenshot, test still timed out) that was previously
+      // misattributed to a clickExecuteWorkflow locator bug. A short, fixed
+      // budget here preserves the "nice to catch an instant auto-advance"
+      // behavior without being able to starve the rest of the test.
       await expect(page.locator(".kn-phase-label")).toHaveText("Awaiting Approval", {
-        timeout: REAL_INVESTIGATION_TIMEOUT_MS,
+        timeout: 15_000,
       }).catch(() => {
         // Some policies auto-advance straight past the approval phase —
         // the next step's phase assertion is the real gate either way.

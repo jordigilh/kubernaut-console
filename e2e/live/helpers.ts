@@ -230,12 +230,31 @@ export async function clickExecuteWorkflow(page: Page, expectedWorkflowName: str
   // visible simultaneously once a real workflow is found, which made the
   // original `firstWorkflowCard.or(noMatchingWorkflowsEscapeHatch)` union
   // resolve to 2 elements and fail Playwright's strict-mode toBeVisible().
-  // `.first()` on the *union* (DOM order) fixes the wait; the actual
-  // no_matching_workflows verdict must be decided from firstWorkflowCard's
-  // absence, not from the escape hatch's presence.
-  await expect(firstWorkflowCard.or(noMatchingWorkflowsEscapeHatch).first()).toBeVisible({
-    timeout: REAL_INVESTIGATION_TIMEOUT_MS,
-  });
+  // `.first()` on the *union* (DOM order) fixed the strict-mode violation,
+  // but introduced a *different*, worse bug (kubernaut-console#73,
+  // 2026-08-08): against a real claude-sonnet-5 backend, this combined
+  // `.or(...).first()` locator's own `toBeVisible()` intermittently never
+  // resolved even though its target element was genuinely present and
+  // visible in the DOM well before the timeout — confirmed twice in
+  // independent runs (once for the workflow card, once for the escape hatch
+  // button), each burning the full REAL_INVESTIGATION_TIMEOUT_MS and then
+  // the outer test timeout with `Received: undefined`, despite the final
+  // error-context.md snapshot showing the element rendered correctly minutes
+  // earlier. A live standalone repro against the same backend, polling each
+  // locator's `.count()` independently instead of trusting a single combined
+  // locator's actionability/stability checks, detected the identical
+  // elements reliably — most likely because Sonnet 5's SSE re-render cadence
+  // produces enough DOM churn to keep defeating `.or()`'s re-resolution or
+  // `toBeVisible()`'s frame-to-frame stability check. `expect(...).toPass()`
+  // around plain `.count()` reads sidesteps that entirely: `.count()` is a
+  // point-in-time query with no actionability/stability semantics of its own.
+  await expect(async () => {
+    const [workflowCardCount, noActionCount] = await Promise.all([
+      firstWorkflowCard.count(),
+      noMatchingWorkflowsEscapeHatch.count(),
+    ]);
+    expect(workflowCardCount > 0 || noActionCount > 0).toBe(true);
+  }).toPass({ timeout: REAL_INVESTIGATION_TIMEOUT_MS, intervals: [1_000] });
 
   const workflowCardVisible = await firstWorkflowCard.isVisible().catch(() => false);
   if (!workflowCardVisible && (await noMatchingWorkflowsEscapeHatch.isVisible().catch(() => false))) {
