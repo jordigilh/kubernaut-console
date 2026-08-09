@@ -86,17 +86,20 @@ push:
 - **SBOM**: SPDX JSON, generated via `anchore/sbom-action`, attested via
   `actions/attest-sbom` and attached to the GitHub Actions run as a
   90-day artifact.
-- **Build provenance**: **SLSA Build Level 3**, via
-  [`slsa-framework/slsa-github-generator`](https://github.com/slsa-framework/slsa-github-generator)'s
-  container workflow (`generator_container_slsa3.yml`). The provenance's
-  builder identity is the generator's own pinned reusable workflow, not
-  `release.yaml` itself — this repo can only supply the `image`/`digest`
-  inputs, it cannot forge or influence the attestation's builder identity
-  or signing material.
+- **Build provenance**: **SLSA Build Level 3**, via `actions/attest-build-provenance`
+  called from an isolated same-repo reusable workflow
+  (`.github/workflows/slsa-provenance.yml`, `on: workflow_call`), rather than
+  inline in the job that builds the image. The provenance's builder identity
+  is that isolated workflow's own OIDC identity, not `release.yaml` itself —
+  `release.yaml` can only supply the `image`/`digest` inputs, it cannot forge
+  or influence the attestation's builder identity or signing material. This
+  isolation (not a different action) is what upgrades provenance from L1-2 to
+  L3; confirmed via an A/B spike against Quay.io in
+  [kubernaut#1109](https://github.com/jordigilh/kubernaut/issues/1109#issuecomment-5231483895).
 
 ### Consumer verification
 
-Verify the SBOM attestation (generated via GitHub's native attestation API):
+Verify the SBOM attestation:
 
 ```bash
 gh attestation verify oci://quay.io/kubernaut-ai/kubernaut-console:<version> \
@@ -104,23 +107,27 @@ gh attestation verify oci://quay.io/kubernaut-ai/kubernaut-console:<version> \
   --predicate-type https://spdx.dev/Document
 ```
 
-Verify the SLSA Build L3 provenance (pushed directly to the registry by the
-generator, via `slsa-verifier` or `cosign`):
+Verify the SLSA Build L3 provenance, scoping the signer identity to the
+isolated `slsa-provenance.yml` workflow (not `release.yaml`) to confirm it
+was attested by the isolated job, not self-asserted by the build job:
 
 ```bash
-# via slsa-verifier (https://github.com/slsa-framework/slsa-verifier)
-slsa-verifier verify-image \
-  --source-uri github.com/jordigilh/kubernaut-console \
-  --builder-id "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v2.1.0" \
-  quay.io/kubernaut-ai/kubernaut-console:<version>
+# via gh attestation verify
+gh attestation verify oci://quay.io/kubernaut-ai/kubernaut-console:<version> \
+  --repo jordigilh/kubernaut-console \
+  --signer-workflow jordigilh/kubernaut-console/.github/workflows/slsa-provenance.yml
 
 # or via cosign, against the in-toto/SLSA predicate attestation directly
 cosign verify-attestation \
   --type slsaprovenance \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
-  --certificate-identity-regexp="^https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/" \
+  --certificate-identity-regexp="^https://github.com/jordigilh/kubernaut-console/\.github/workflows/slsa-provenance\.yml@.*$" \
   quay.io/kubernaut-ai/kubernaut-console:<version>
 ```
+
+Both commands require the caller to already be authenticated to `quay.io`
+(e.g., `cosign login quay.io` or `docker login quay.io`) if the image isn't
+publicly pullable.
 
 ## Dependency Security
 

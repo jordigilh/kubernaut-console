@@ -105,48 +105,29 @@ jobs:
   # ========================================
   # SLSA Build Level 3 provenance
   #
-  # #74: upgraded from actions/attest-build-provenance (SLSA Build L1-2,
-  # self-attested by this same workflow) to slsa-framework/slsa-github-
-  # generator's container workflow (SLSA Build L3). The build/push steps
-  # above are unchanged -- this generator attests an already-built/pushed
-  # digest, it does not build the image itself (only the generator's
-  # ecosystem-specific *builders*, e.g. its Go builder, do that):
+  # #74: upgraded from actions/attest-build-provenance running inline in
+  # build-and-push (SLSA Build L1-2, self-attested by this same job) to the
+  # same action called from an isolated same-repo reusable workflow
+  # (SLSA Build L3). See ./slsa-provenance.yml for the isolation rationale
+  # and why this deliberately does NOT use slsa-framework/slsa-github-
+  # generator (now unmaintained) -- confirmed via an A/B spike against
+  # Quay.io in kubernaut#1109:
+  # https://github.com/jordigilh/kubernaut/issues/1109#issuecomment-5231483895
   #
-  # - Before: the "Attest build provenance" step ran as part of *this*
-  #   repo's own job, so the provenance's builder identity was
-  #   self-asserted (release.yaml attesting to its own build).
-  # - After: this job is a *reusable workflow call* (`uses:`, not a step),
-  #   so GitHub mints its OIDC token against the *generator's* job, not
-  #   ours. The resulting provenance's builder.id is slsa-github-
-  #   generator's own pinned identity
-  #   (.../generator_container_slsa3.yml@refs/tags/v2.1.0) -- this repo
-  #   can only supply `image`/`digest` as inputs, it cannot forge or
-  #   influence the attestation's builder identity or signing material.
-  #
-  # Only one provenance job is needed (unlike per-arch setups) because
-  # `build-and-push` already publishes a single multi-arch manifest-list
-  # digest via buildx, not separate per-arch images.
-  #
-  # Must be pinned by an exact release tag (@vX.Y.Z); referencing it by a
-  # shorter tag or by commit hash fails at run time -- an open upstream
-  # limitation, not a mistake here: GitHub's OIDC token for a reusable
-  # workflow call only reliably reports the ref it was invoked at, so
-  # slsa-verifier can't yet confirm an arbitrary hash maps to a trusted
-  # release (see https://github.com/slsa-framework/slsa-verifier/issues/12).
-  #
-  # `packages: write` is required by the generator's own reusable workflow
-  # permission declarations even though we push to Quay, not ghcr.io -- an
-  # acknowledged upstream quirk (see slsa-github-generator#1257).
+  # Only one provenance call is needed (unlike per-arch setups elsewhere)
+  # because `build-and-push` already publishes a single multi-arch
+  # manifest-list digest via buildx, not separate per-arch images.
   # ========================================
 
   provenance:
     name: SLSA3 provenance
     needs: build-and-push
     permissions:
-      actions: read
+      contents: read
       id-token: write
-      packages: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+      attestations: write
+      artifact-metadata: write
+    uses: ./.github/workflows/slsa-provenance.yml
     with:
       image: ${{ needs.build-and-push.outputs.image }}
       digest: ${{ needs.build-and-push.outputs.digest }}
