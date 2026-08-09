@@ -34,6 +34,7 @@ jobs:
       id-token: write
       attestations: write
     outputs:
+      image: ${{ steps.image.outputs.image }}
       digest: ${{ steps.push.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
@@ -71,6 +72,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # #74: the SLSA3 provenance job below is a reusable *workflow call*
+      # (`uses:`), not a step -- its `with:` block can't see this job's
+      # `env` context (env vars aren't propagated into reusable-workflow
+      # inputs), so the image ref has to be surfaced as a job output like
+      # `digest` already is, rather than referenced inline via env.REGISTRY.
+      - name: Resolve image ref
+        id: image
+        run: echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> "$GITHUB_OUTPUT"
+
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
@@ -85,18 +95,45 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           sbom-path: sbom.spdx.json
 
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.push.outputs.digest }}
-
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
         with:
           name: sbom
           path: sbom.spdx.json
           retention-days: 90
+
+  # ========================================
+  # SLSA Build Level 3 provenance
+  #
+  # #74: upgraded from actions/attest-build-provenance running inline in
+  # build-and-push (SLSA Build L1-2, self-attested by this same job) to the
+  # same action called from an isolated same-repo reusable workflow
+  # (SLSA Build L3). See ./slsa-provenance.yml for the isolation rationale
+  # and why this deliberately does NOT use slsa-framework/slsa-github-
+  # generator (now unmaintained) -- confirmed via an A/B spike against
+  # Quay.io in kubernaut#1109:
+  # https://github.com/jordigilh/kubernaut/issues/1109#issuecomment-5231483895
+  #
+  # Only one provenance call is needed (unlike per-arch setups elsewhere)
+  # because `build-and-push` already publishes a single multi-arch
+  # manifest-list digest via buildx, not separate per-arch images.
+  # ========================================
+
+  provenance:
+    name: SLSA3 provenance
+    needs: build-and-push
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    uses: ./.github/workflows/slsa-provenance.yml
+    with:
+      image: ${{ needs.build-and-push.outputs.image }}
+      digest: ${{ needs.build-and-push.outputs.digest }}
+    secrets:
+      registry-username: ${{ secrets.QUAY_USERNAME }}
+      registry-password: ${{ secrets.QUAY_PASSWORD }}
 
   trivy-scan:
     runs-on: ubuntu-latest

@@ -274,9 +274,13 @@ The CI workflow (`.github/workflows/ci.yml`) runs on every PR:
 Tags matching `v*` trigger `.github/workflows/release.yaml`:
 1. Run tests
 2. Build multi-arch container image, push to `quay.io/kubernaut-ai/kubernaut-console:<version>`
-3. Generate and attest SBOM (SPDX), attest build provenance (SLSA)
-4. Trivy vulnerability scan
-5. Tag visual regression baselines with the release version
+3. Generate and attest SBOM (SPDX)
+4. Attest **SLSA Build Level 3** provenance via an isolated same-repo
+   reusable workflow (`.github/workflows/slsa-provenance.yml`) — see
+   [SECURITY.md](../SECURITY.md#supply-chain-security) for consumer
+   verification instructions
+5. Trivy vulnerability scan
+6. Tag visual regression baselines with the release version
 
 This repo does not package or publish its own Helm chart (see
 [Deployment Options](deployment.md#deployment-options)) — the image above is
