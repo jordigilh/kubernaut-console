@@ -7,14 +7,12 @@ on:
       - "packages/standalone/**"
       - "packages/ui-core/**"
       - "deploy/**"
-      - "chart/**"
   push:
     branches: [main, 'release/**']
     paths:
       - "packages/standalone/**"
       - "packages/ui-core/**"
       - "deploy/**"
-      - "chart/**"
   workflow_dispatch:
 
 concurrency:

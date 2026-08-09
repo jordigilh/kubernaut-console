@@ -133,26 +133,3 @@ jobs:
 
       - name: Tag baselines with release version
         run: oras cp quay.io/kubernaut-cicd/visual-baselines:latest quay.io/kubernaut-cicd/visual-baselines:${{ github.ref_name }}
-
-  helm-package:
-    runs-on: ubuntu-latest
-    needs: [build-and-push]
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: azure/setup-helm@v4
-        with:
-          version: v3.17.0
-
-      - name: Update Chart appVersion
-        run: |
-          sed -i "s/appVersion:.*/appVersion: \"${GITHUB_REF_NAME#v}\"/" chart/Chart.yaml
-          sed -i "s/version:.*/version: ${GITHUB_REF_NAME#v}/" chart/Chart.yaml
-
-      - run: helm package chart/
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: helm-chart
-          path: "*.tgz"
-          retention-days: 30

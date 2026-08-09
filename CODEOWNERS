@@ -10,7 +10,6 @@ src/hooks/ @jordigilh
 
 # Deployment and infrastructure
 deploy/ @jordigilh
-chart/ @jordigilh
 Dockerfile @jordigilh
 .github/workflows/ @jordigilh
 
