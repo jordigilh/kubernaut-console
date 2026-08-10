@@ -229,6 +229,41 @@ bugs (verification timeout budget, decline's hardcoded revision baseline,
 and `getRemediationRequestForTarget` querying the wrong RR field) — now
 fixed in this suite, not upstream issues.
 
+## Current status (2026-08-10): 2 blockers open, 10/12 passing
+
+Full suite run against `v1.5.6-rc2` base + [jordigilh/kubernaut#2072](https://github.com/jordigilh/kubernaut/pull/2072)'s
+images (`kubernaut-agent`, `aianalysis-controller`), Sonnet 5, sequential
+(`workers: 1`), fresh fixtures: **10 passed, 2 failed**. Both failures are
+newly-discovered upstream bugs, distinct from every issue in the two sections
+above (all of which are confirmed fixed/closed as of this run) — filed with
+full live-cluster evidence:
+
+- **approve path** (`approval-gate.spec.ts:139`) blocked by
+  [jordigilh/kubernaut#2073](https://github.com/jordigilh/kubernaut/issues/2073)
+  (v1.5.6) / [#2074](https://github.com/jordigilh/kubernaut/issues/2074) (v1.6):
+  `kubernaut_present_decision`'s `rca` schema requires `tool_calls_count`/
+  `llm_turns`, but the LLM is never told these fields exist (missing
+  `omitempty` + not mentioned in `prompt.txt`) — **100% failure whenever the
+  tool is called**, confirmed by counting 193 failures / 0 successes for this
+  tool across the run. Any investigation that dead-ends (ambiguous signal,
+  `no_matching_workflows`) hits this and hangs for the rest of the session.
+- **dismiss path** (`approval-gate.spec.ts:209`) blocked by
+  [jordigilh/kubernaut#2075](https://github.com/jordigilh/kubernaut/issues/2075)
+  (v1.5.6) / [#2076](https://github.com/jordigilh/kubernaut/issues/2076) (v1.6):
+  KA releases the interactive session the instant workflow discovery
+  concludes `no_matching_workflows`, so the console's (correctly-enabled)
+  Dismiss button subsequently fails with "no active interactive session for
+  rr_id". **Not** the `sre` RBAC gap the test's own error message names (that
+  gap is confirmed closed per the section above) — live KA logs show the
+  session being released *before* the Dismiss click, a distinct root cause.
+  The test's error-message text is stale and should be corrected once #2075
+  lands.
+
+Goal remains: iterate until a full-suite run shows zero failures on v1.5.6,
+then cut the release. Do not regenerate/relax any assertions to work around
+either blocker above — both are confirmed backend defects with live evidence,
+not test-design gaps.
+
 ## Switching LLM models (Sonnet 5 <-> Sonnet 4.6)
 
 ```bash
