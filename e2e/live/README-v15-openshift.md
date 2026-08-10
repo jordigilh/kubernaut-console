@@ -229,6 +229,78 @@ bugs (verification timeout budget, decline's hardcoded revision baseline,
 and `getRemediationRequestForTarget` querying the wrong RR field) — now
 fixed in this suite, not upstream issues.
 
+## Current status: iterating toward a clean v1.5.6 — blocked on kubernaut#2061 / kubernaut#2064
+
+The release gate for cutting `v1.5.6` upstream (and the operator's
+`v1.5.8`) is a full run of this suite with zero known regressions. Progress
+so far, most recent first:
+
+**Blocking another full run** (both open, found 2026-08-10 while triaging a
+`decline`-path failure where KA's workflow catalog matched zero entries for
+a correctly-faulted, correctly-labeled target):
+
+- [kubernaut#2061](https://github.com/jordigilh/kubernaut/issues/2061)
+  (milestone `v1.5`) — `list_available_actions`'s `component` filter falls
+  back to a bare lowercase resource kind (e.g. `deployment`) whenever
+  `ResourceAPIVersion` is empty, instead of the full GVK the workflow
+  catalog is actually keyed on — silently matching zero entries. No fix PR
+  yet.
+- [kubernaut#2064](https://github.com/jordigilh/kubernaut/issues/2064)
+  (milestone `v1.5.6`) — found while triaging #2061: a deeper, more
+  systemic root cause. The `AIAnalysis`→KA `IncidentRequest` wire contract
+  has no field to carry `apiVersion` at all, so `ResourceAPIVersion` starts
+  empty for *every* investigation (autonomous included), not just the
+  narrower case #2061's own fix (cloned for `v1.6` as #2063) addresses. No
+  fix PR yet.
+
+Holding off on the next full-suite run — including the Sonnet 4.6
+regression baseline in the section below — until both land and are
+redeployed; re-running against the same known-broken filter logic would
+only reproduce the same failure without new information.
+
+**Resolved and confirmed fixed**, all found live against this suite and
+closed under milestone `v1.5.6`:
+
+- [kubernaut#2018](https://github.com/jordigilh/kubernaut/issues/2018) /
+  [#2027](https://github.com/jordigilh/kubernaut/issues/2027) — an RR
+  investigated an unrelated, pre-existing cluster-scoped alert
+  (`CDIDefaultStorageClassDegraded`) instead of its own triggering signal
+  (`KubePodCrashLooping`); recurred once after #2018's first fix, then
+  root-caused and fixed again as #2027.
+- [kubernaut#2022](https://github.com/jordigilh/kubernaut/issues/2022) —
+  `kubernaut_investigate_alert` created an RR/KA session for unmanaged
+  resources before RO's block on unmanaged targets ever fired.
+- [kubernaut#2023](https://github.com/jordigilh/kubernaut/issues/2023) —
+  the apifrontend agent fabricated an RCA/audit-trail narrative when the
+  investigation session had zero real content to summarize.
+- [kubernaut#2029](https://github.com/jordigilh/kubernaut/issues/2029) —
+  reconnecting ("takeover") to a timed-out interactive session desynced
+  `AIAnalysis` from the new KA session, leaving the RR permanently stuck in
+  `Analyzing` with no backing `WorkflowExecution`.
+
+**New coverage added**, validated live with zero regressions found:
+
+- `autonomous-fix.spec.ts`
+  ([kubernaut-console#77](https://github.com/jordigilh/kubernaut-console/issues/77),
+  [PR #78](https://github.com/jordigilh/kubernaut-console/pull/78)) — the
+  console's chat-driven "Fix ..." (`kubernaut_remediate`) fire-and-forget
+  path had zero live coverage despite being one of only two top-level modes
+  on the welcome screen. Two clean end-to-end passes (2026-08-10) confirm
+  `rr_id` tracking from the tool-call confirmation reply alone, the
+  session-less `/a2a/status` `AwaitingApproval` fallback rendering a real
+  `ApprovalCard`, and real execution/verification all working correctly,
+  with no `InvestigationSession` ever created.
+
+Also tracked, but not itself a reproducing defect against this suite:
+[kubernaut#1995](https://github.com/jordigilh/kubernaut/issues/1995) is
+being kept open by upstream as a QE sign-off placeholder for the whole
+`v1.5.6` regression effort (not specific to this suite), expected to close
+only once `v1.5.6` GA ships.
+
+This section will be updated after every run until the goal is met: a full
+run with zero known regressions, at which point `v1.5.6` gets cut upstream
+and this file should read clean of open bugs.
+
 ## Switching LLM models (Sonnet 5 <-> Sonnet 4.6)
 
 ```bash
