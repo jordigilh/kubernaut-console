@@ -325,3 +325,4 @@ possible JSON merge patch for any CR change on this cluster, and re-check
 | `full-remediation-lifecycle.spec.ts` | End-to-end: real investigation -> decision -> (approval) -> real Job execution -> real verification -> complete |
 | `consent-gate-regression.spec.ts` | Regression coverage for kubernaut#1899/#1912 (unsolicited investigations) |
 | `full-remediation-default-regression.spec.ts` | Regression coverage for kubernaut#1915 (workflow auto-discovery on plain "investigate") |
+| `autonomous-fix.spec.ts` | Autonomous fire-and-forget fix (`kubernaut_remediate`, kubernaut-console#77): "Fix ..." request -> zero-pause autonomous investigation/selection -> (approval) -> real execution -> real verification -> complete |
