@@ -18,3 +18,4 @@ console-e2e-lifecycle-3|crashloop
 console-e2e-consent-gate|memory-eater
 console-e2e-consent-gate-2|none
 console-e2e-full-remediation-3|crashloop
+console-e2e-autonomous-fix-3|crashloop
