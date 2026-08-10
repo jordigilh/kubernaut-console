@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { type Page, expect } from "@playwright/test";
 
 /**
@@ -25,6 +27,23 @@ export const REAL_EXECUTION_TIMEOUT_MS = 60_000;
 // rollout revision created). The test was failing on its own timeout, not
 // on a real product hang.
 export const REAL_VERIFICATION_TIMEOUT_MS = 240_000;
+
+/**
+ * Budget for the autonomous `kubernaut_remediate` path (kubernaut-console#77)
+ * between sending the "Fix ..." message and knowing whether an approval gate
+ * exists at all. Unlike the interactive path — where RCA is bounded by
+ * `REAL_INVESTIGATION_TIMEOUT_MS` and workflow discovery+selection then
+ * happen synchronously within `clickExecuteWorkflow`'s own call, so approval
+ * (if any) already exists by the time that function returns —
+ * `kubernaut_remediate` has no such synchronous trigger point: RCA,
+ * discovery, and selection all run autonomously on RO/KA's own schedule
+ * after the chat turn already ended. Measured live (2026-08-10,
+ * `console-e2e-autonomous-fix`, claude-sonnet-5): AIAnalysis went
+ * Investigating -> Completed and RO created a real RAR in 3m6s
+ * (11:46:13Z -> 11:49:19Z). 300s gives headroom above that single data point
+ * without being unbounded.
+ */
+export const REAL_AUTONOMOUS_DECISION_TIMEOUT_MS = 300_000;
 
 /**
  * Seeds a fresh, unique `contextId` into sessionStorage before any page
@@ -70,6 +89,49 @@ export async function openConsole(page: Page): Promise<void> {
  * kubernaut_complete_no_action) surfaces exactly this way — checking only
  * the envelope's `error` field misses it entirely.
  */
+/**
+ * Snapshots `page` to `test-results/screenshots/<label>/NNN.png` on a fixed
+ * interval, for manually reviewing a long real-cluster run's visual progress
+ * without waiting for the test to finish — Playwright's own
+ * `screenshot`/`video`/`trace` config in playwright.live-v15.config.ts is all
+ * `on-failure`/`retain-on-failure`, so nothing is captured at all for a run
+ * that *passes*, which is exactly the case where a first-ever run of a new
+ * spec still benefits from a human being able to sanity-check what actually
+ * rendered at each stage (kubernaut-console#77's autonomous-fix.spec.ts, its
+ * first live confirmation run). `test-results/` is already gitignored.
+ *
+ * Returns a stop function; callers must call it (e.g. in a `finally`) once
+ * the run is done, or the interval leaks past the test's own lifetime.
+ * Screenshot failures (page mid-navigation, closed, etc.) are swallowed —
+ * this is a best-effort observability aid, never a source of test flakiness.
+ */
+export function startPeriodicScreenshots(page: Page, label: string, intervalMs = 15_000): () => void {
+  const dir = join("test-results", "screenshots", label);
+  mkdirSync(dir, { recursive: true });
+  let stopped = false;
+  let n = 0;
+
+  const tick = async () => {
+    if (stopped) return;
+    n += 1;
+    const seq = String(n).padStart(3, "0");
+    try {
+      await page.screenshot({ path: join(dir, `${seq}.png`) });
+    } catch {
+      // best-effort only — see doc comment
+    }
+  };
+
+  const handle = setInterval(() => {
+    void tick();
+  }, intervalMs);
+
+  return () => {
+    stopped = true;
+    clearInterval(handle);
+  };
+}
+
 export async function parseMcpResponseBody(text: string): Promise<{ error?: { code: number; message: string }; result?: unknown }> {
   const dataLine = text.split("\n").find((line) => line.trim().startsWith("data:"));
   const jsonStr = dataLine ? dataLine.trim().slice(5).trim() : text;
@@ -164,9 +226,23 @@ export async function isApprovalDenied(page: Page, timeout = 5_000): Promise<boo
  * direct ClusterRole inspection, kubernaut-console#71). If this throws again,
  * it's a genuine regression, not the old known gap — don't re-attribute to
  * #278/#1869 without re-verifying live RBAC state first.
+ *
+ * `timeout` (kubernaut-console#77, added 2026-08-10): defaults to 30s, which
+ * is correct for callers where the click that triggers RO's approval
+ * evaluation (e.g. `clickExecuteWorkflow`) has *already* happened
+ * synchronously — approval, if required, exists by the time this runs. The
+ * autonomous `kubernaut_remediate` path has no such synchronous trigger
+ * point: RCA + workflow discovery + selection all happen on RO/KA's own
+ * schedule *after* this function could first be called, so a caller with no
+ * earlier explicit wait for "past investigating" must pass a timeout long
+ * enough to cover that whole autonomous sequence (e.g.
+ * `REAL_INVESTIGATION_TIMEOUT_MS`), or this reads `requested: false` purely
+ * because the RAR did not exist *yet* — confirmed live: a first pass of
+ * `autonomous-fix.spec.ts` with the old hardcoded 30s window read `false`
+ * while `oc get remediationapprovalrequest` showed one created ~2m31s later.
  */
-export async function assertApprovalGateReachable(page: Page): Promise<boolean> {
-  const requested = await isApprovalRequested(page, 30_000);
+export async function assertApprovalGateReachable(page: Page, timeout = 30_000): Promise<boolean> {
+  const requested = await isApprovalRequested(page, timeout);
   if (requested) return true;
   if (await isApprovalDenied(page, 2_000)) {
     throw new Error(
@@ -423,6 +499,24 @@ export function crashloopInvestigateMessage(target: { kind: string; namespace: s
   return `The ${target.name} ${target.kind} in ${target.namespace} is in CrashLoopBackOff after a bad release, please investigate.`;
 }
 
+/**
+ * Triggers the autonomous "fire-and-forget fix" path (kubernaut-console#77):
+ * `pkg/apifrontend/agent/prompt.txt`'s "Autonomous mode" section routes
+ * "fix"/"remediate"/"address"/"resolve"/"heal" + a target, combined with an
+ * explicit "no further interaction expected" signal, to `kubernaut_remediate`
+ * instead of `kubernaut_investigate` — a materially different backend path
+ * (no InvestigationSession at all; RemediationOrchestrator/AIAnalysis/KA run
+ * investigation, workflow discovery, and selection entirely autonomously,
+ * with zero pause for a workflow-selection card). Unlike
+ * `crashloopInvestigateMessage`, this must avoid "investigate"/"please
+ * investigate" wording entirely and state plainly that no follow-up
+ * interaction is wanted, so a real model doesn't fall back to the default
+ * `full_remediation` (pause-for-selection) interactive mode.
+ */
+export function crashloopFixMessage(target: { kind: string; namespace: string; name: string }): string {
+  return `Fix the ${target.name} ${target.kind} in ${target.namespace} — it's in CrashLoopBackOff after a bad release. Just fix it autonomously, I don't need to review or select anything.`;
+}
+
 // crashloop-rollback-v1 is the only catalog workflow purpose-built for this
 // exact shape (CrashLoopBackOff from a pod-spec/command override on a
 // Deployment, not OOMKilled) — see its `whenToUse`/`whenNotToUse` in
@@ -578,6 +672,30 @@ export function getRemediationRequestForTarget(namespace: string): RemediationRe
   const anyCompleted = rows.find((r) => r.phase === "Completed");
   const chosen = completedRemediated ?? anyCompleted ?? rows[0];
   return { name: chosen.name, phase: chosen.phase, outcome: chosen.outcome };
+}
+
+/**
+ * True if any InvestigationSession CRD references this RR
+ * (`spec.remediationRequestRef.name`). Used to confirm `kubernaut_remediate`
+ * (kubernaut-console#77) genuinely took the session-less autonomous path —
+ * `HandleRemediate` (`pkg/apifrontend/tools/ka_remediate.go`) documents
+ * itself as "creates RR without InvestigationSession", unlike every
+ * `kubernaut_investigate`-driven flow this suite's other specs exercise.
+ */
+export function hasInvestigationSessionForRR(rrName: string): boolean {
+  const raw = execOc([
+    "get",
+    "investigationsessions",
+    "-n",
+    PLATFORM_NS,
+    "-o",
+    'jsonpath={range .items[*]}{.spec.remediationRequestRef.name}{"\\n"}{end}',
+  ]);
+  return raw
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .includes(rrName);
 }
 
 export function getWorkflowExecutionPhase(rrName: string): string | null {

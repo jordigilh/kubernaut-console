@@ -67,6 +67,7 @@ Override any of these if your cluster's ports/credentials differ from the
 | `contract-compliance.spec.ts` | `docs/integration-guide.md`'s Minimal Implementation Checklist, asserted against real payloads |
 | `approval-gate.spec.ts` | Real `kubernaut_approve` / `kubernaut_complete_no_action` MCP calls, real per-persona SAR authorization |
 | `full-remediation-lifecycle.spec.ts` | End-to-end: real investigation → decision → (approval) → real Job execution → real verification → complete |
+| `autonomous-fix.spec.ts` | Autonomous fire-and-forget fix (`kubernaut_remediate`, kubernaut-console#77): "Fix ..." request → zero-pause autonomous investigation/selection → (approval) → real execution → real verification → complete |
 
 ## Current status: blocked on kubernaut#1853
 
