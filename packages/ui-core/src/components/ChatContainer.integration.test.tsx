@@ -1059,7 +1059,9 @@ describe("ChatContainer Integration", () => {
     expect(body.params.name).toBe("kubernaut_approve");
     expect(body.params.arguments.rar_name).toBe("rar-rr-test-001");
     expect(body.params.arguments.decision).toBe("Approved");
-    expect(body.params.arguments.reason).toContain("Approved by");
+    // Reason field default is decision-neutral (ApprovalCard.tsx) — it feeds
+    // whichever button gets clicked, so it must never presuppose "Approved".
+    expect(body.params.arguments.reason).toContain("Reviewed by");
 
     fetchSpy.mockRestore();
   });
