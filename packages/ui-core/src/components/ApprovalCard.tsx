@@ -35,7 +35,15 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline, userNa
     return new Date(request.requiredBy).getTime() - Date.now();
   });
   const [submitted, setSubmitted] = useState(false);
-  const [reason, setReason] = useState(() => `Approved by ${userName || "operator"}`);
+  // Decision-neutral default: this single field feeds *either* onApprove or
+  // onDecline (whichever button gets clicked), so it must never presuppose
+  // which one that'll be. A prior version defaulted to `Approved by
+  // ${userName}` unconditionally — clicking Decline without editing the
+  // field then sent that literal "Approved by..." text as the *rejection*
+  // reason, producing a self-contradictory audit trail (RAR condition:
+  // "Rejected by X: Approved by X"). Confirmed live against a real cluster,
+  // 2026-08-10 (kubernaut #2061/#2064 decline-path re-validation).
+  const [reason, setReason] = useState(() => `Reviewed by ${userName || "operator"}`);
 
   useEffect(() => {
     if (submitted || resolution) return;
