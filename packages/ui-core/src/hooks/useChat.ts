@@ -152,7 +152,7 @@ export interface ChatMessage {
   targetDivergence?: TargetDivergence;
 }
 
-export type ConnectionStatus = "idle" | "connected" | "reconnecting" | "lost";
+export type ConnectionStatus = "idle" | "connected" | "reconnecting" | "lost" | "interrupted";
 
 const STORAGE_KEY = "kubernaut-console-messages"; // pre-commit:allow-sensitive (storage key name)
 const CONTEXT_KEY = "kubernaut-console-context"; // pre-commit:allow-sensitive (storage key name)
@@ -233,6 +233,16 @@ function friendlyError(raw: string): string {
   if (/maximum retries/i.test(raw)) return "Connection lost after multiple retries. Please check your network.";
   return raw;
 }
+
+// kubernaut#2096 follow-up (2026-08-11): a stream dropped after the server
+// had already started this investigation must not be silently retried with
+// an identical request -- see StreamOptions.onStreamInterrupted's doc
+// comment for why. Tell the user plainly instead: the RR/investigation may
+// still be running server-side even though this chat stream died, and
+// resending would risk starting a duplicate.
+const STREAM_INTERRUPTED_MESSAGE =
+  "Connection to the investigation was lost. It may still be running in the background -- " +
+  "check its status above before resending, since resending now could start a duplicate investigation.";
 
 function parseDuration(value: string | number): number {
   if (typeof value === "number") return value;
@@ -876,6 +886,12 @@ export function useChat() {
       onReconnecting: () => {
         if (terminalReceivedRef.current) return;
         setConnectionStatus("reconnecting");
+      },
+      onStreamInterrupted: () => {
+        setConnectionStatus("interrupted");
+        setError(STREAM_INTERRUPTED_MESSAGE);
+        updateAgent({ isStreaming: false });
+        setIsStreaming(false);
       },
       signal: controller.signal,
     });
