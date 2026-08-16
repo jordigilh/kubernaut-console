@@ -57,6 +57,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add verification_step to StatusUpdateEvent type union
 - Fix MCP promise type mismatch
 
+## [1.5.7] - 2026-08-16
+
+Content-identical re-release of v1.5.6 (same commit) under a new version
+number, cut so the operator team can bundle it alongside upstream
+kubernaut v1.5.7. No source changes -- see [1.5.6] below for the actual
+content of this release.
+
 ## [1.5.6] - 2026-08-06
 
 ### Fixed
