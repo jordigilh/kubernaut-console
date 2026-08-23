@@ -298,7 +298,89 @@ bugs (verification timeout budget, decline's hardcoded revision baseline,
 and `getRemediationRequestForTarget` querying the wrong RR field) — now
 fixed in this suite, not upstream issues.
 
-## Current status (2026-08-12): 0 blockers, 12/12 passing on v1.5.6-rc5
+## Current status: v1.5.6 (and v1.5.7 re-release) shipped — all tracked blockers closed
+
+Two parallel status updates were in flight on 2026-08-10 while iterating
+toward the `v1.5.6` release gate; both sets of blockers they tracked are now
+**closed**, and `v1.5.6` has since GA'd upstream (2026-08-06) with a
+content-identical `v1.5.7` re-release cut on 2026-08-16 so the operator team
+could bundle a matching version number. Kept here for history:
+
+**First blocker set** (found 2026-08-10 triaging a `decline`-path failure
+where KA's workflow catalog matched zero entries for a correctly-faulted,
+correctly-labeled target) — both closed 2026-08-12:
+
+- [kubernaut#2061](https://github.com/jordigilh/kubernaut/issues/2061) —
+  `list_available_actions`'s `component` filter fell back to a bare
+  lowercase resource kind (e.g. `deployment`) whenever `ResourceAPIVersion`
+  was empty, instead of the full GVK the workflow catalog is actually keyed
+  on — silently matched zero entries.
+- [kubernaut#2064](https://github.com/jordigilh/kubernaut/issues/2064) —
+  the deeper root cause found while triaging #2061: the `AIAnalysis`→KA
+  `IncidentRequest` wire contract had no field to carry `apiVersion` at all,
+  so `ResourceAPIVersion` started empty for *every* investigation
+  (autonomous included), not just the narrower case #2061's own fix
+  addressed.
+
+**Second blocker set** (found in a full suite run against `v1.5.6-rc2` base
++ [jordigilh/kubernaut#2072](https://github.com/jordigilh/kubernaut/pull/2072)'s
+images, Sonnet 5, sequential, fresh fixtures — 10 passed, 2 failed) — both
+closed 2026-08-10/12:
+
+- **approve path** (`approval-gate.spec.ts:139`) blocked by
+  [kubernaut#2073](https://github.com/jordigilh/kubernaut/issues/2073) —
+  `kubernaut_present_decision`'s `rca` schema required `tool_calls_count`/
+  `llm_turns`, but the LLM was never told these fields exist (missing
+  `omitempty` + not mentioned in `prompt.txt`) — 100% failure whenever the
+  tool was called.
+- **dismiss path** (`approval-gate.spec.ts:209`) blocked by
+  [kubernaut#2075](https://github.com/jordigilh/kubernaut/issues/2075) — KA
+  released the interactive session the instant workflow discovery concluded
+  `no_matching_workflows`, so the console's Dismiss button subsequently
+  failed with "no active interactive session for rr_id".
+
+**Also resolved and confirmed fixed** during the same release-gate push, all
+found live against this suite and closed under milestone `v1.5.6`:
+
+- [kubernaut#2018](https://github.com/jordigilh/kubernaut/issues/2018) /
+  [#2027](https://github.com/jordigilh/kubernaut/issues/2027) — an RR
+  investigated an unrelated, pre-existing cluster-scoped alert
+  (`CDIDefaultStorageClassDegraded`) instead of its own triggering signal
+  (`KubePodCrashLooping`); recurred once after #2018's first fix, then
+  root-caused and fixed again as #2027.
+- [kubernaut#2022](https://github.com/jordigilh/kubernaut/issues/2022) —
+  `kubernaut_investigate_alert` created an RR/KA session for unmanaged
+  resources before RO's block on unmanaged targets ever fired.
+- [kubernaut#2023](https://github.com/jordigilh/kubernaut/issues/2023) —
+  the apifrontend agent fabricated an RCA/audit-trail narrative when the
+  investigation session had zero real content to summarize.
+- [kubernaut#2029](https://github.com/jordigilh/kubernaut/issues/2029) —
+  reconnecting ("takeover") to a timed-out interactive session desynced
+  `AIAnalysis` from the new KA session, leaving the RR permanently stuck in
+  `Analyzing` with no backing `WorkflowExecution`.
+
+**New coverage added** during the same push, validated live with zero
+regressions found:
+
+- `autonomous-fix.spec.ts`
+  ([kubernaut-console#77](https://github.com/jordigilh/kubernaut-console/issues/77),
+  [PR #78](https://github.com/jordigilh/kubernaut-console/pull/78)) — the
+  console's chat-driven "Fix ..." (`kubernaut_remediate`) fire-and-forget
+  path had zero live coverage despite being one of only two top-level modes
+  on the welcome screen. Two clean end-to-end passes (2026-08-10) confirmed
+  `rr_id` tracking from the tool-call confirmation reply alone, the
+  session-less `/a2a/status` `AwaitingApproval` fallback rendering a real
+  `ApprovalCard`, and real execution/verification all working correctly,
+  with no `InvestigationSession` ever created.
+
+### Full-suite confirmation runs (chronological)
+
+The following full-suite runs (Playwright pass/fail **and** journey-level
+CR spot-checks, not just green checkmarks) were recorded after the blockers
+above closed, superseding the older "no full-suite confirmation run"
+concern from an earlier draft of this section:
+
+#### 2026-08-12: 0 blockers, 12/12 passing on v1.5.6-rc5
 
 Full suite run against `v1.5.6-rc5` (all 10 `kubernaut` service images +
 `kubernaut-console` digest-verified against the Quay.io manifests before the
@@ -344,7 +426,7 @@ recur in this 12/12 sequential run). Does not crash or hang anything; a data
 correctness issue in one specific gate-retry path. Not release-blocking for
 v1.5.6.
 
-### Update (2026-08-12): v1.5.6-rc6 confirmed — #2118 fixed, 12/12 passing
+#### Update (2026-08-12): v1.5.6-rc6 confirmed — #2118 fixed, 12/12 passing
 
 Upstream cut `v1.5.6-rc6` same-day with three fixes landed on `release/v1.5`
 since rc5 ([jordigilh/kubernaut#2122](https://github.com/jordigilh/kubernaut/pull/2122)):
@@ -371,7 +453,7 @@ rebuild.
 Release readiness: **v1.5.6-rc6 is a clean release candidate** — no known
 open blockers.
 
-### Update (2026-08-16): `kubernaut-operator v1.5.11-rc1` confirmed — 12/12 passing
+#### Update (2026-08-16): `kubernaut-operator v1.5.11-rc1` confirmed — 12/12 passing
 
 First validation run against a genuinely *fresh* operator install (new
 `kubernaut-system` namespace, empty Postgres) rather than a reused/upgraded
@@ -395,7 +477,6 @@ and zero pods left in `CrashLoopBackOff`. Image digests for all 11 deployed
 services (`gateway` intentionally absent — disabled on this cluster) and
 `kubernaut-console` verified against the operator's pinned manifests
 (`kubernaut v1.5.7-rc2` + `kubernaut-console v1.5.6`) before the run.
-
 ## Switching LLM models (Sonnet 5 <-> Sonnet 4.6)
 
 ```bash
