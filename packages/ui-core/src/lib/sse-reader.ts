@@ -1,4 +1,4 @@
-export type SSEStreamResult = "complete" | "aborted" | "retryable";
+export type SSEStreamResult = "complete" | "aborted" | "retryable" | "disconnected";
 
 export interface SSEReaderOptions {
   signal?: AbortSignal;
@@ -10,14 +10,33 @@ export interface SSEReaderOptions {
  * parsed JSON payload from `data:` lines. The handler can return a result
  * to stop reading early ("complete", "retryable", "fatal", or "terminal").
  *
- * Returns "complete" when the stream ends normally, "aborted" if signal fires,
- * or "retryable" on idle timeout or network error.
+ * Returns "complete" when the stream ends normally, "aborted" if signal
+ * fires, "retryable" when the *server itself* signalled (via a parsed
+ * frame, through `onFrame`'s own return value) that a resubmission is safe,
+ * or "disconnected" on idle timeout / a read-time network error that this
+ * reader detected on its own.
+ *
+ * "retryable" and "disconnected" are deliberately distinct (kubernaut#2096
+ * follow-up spike, 2026-08-11): once `postForSSE` has handed back a live
+ * response body, the server has already started executing this request.
+ * "retryable" only ever comes from `onFrame` itself recognizing a
+ * server-attested safe-to-resubmit signal (e.g. AF's own "task execution is
+ * already in progress" reply) -- the server is asserting it's safe. A read
+ * error or idle timeout detected *by this reader* carries no such
+ * attestation: the caller has no idea whether the in-flight execution is
+ * still running. Callers must not treat "disconnected" as "safe to silently
+ * resubmit the same request" the way they safely can for "retryable" --
+ * doing so risks starting a second, fully independent execution against the
+ * same a2a context/session (confirmed by reading the vendored
+ * a2a-go/ADK stack: neither keys any collision detection off contextId, only
+ * off the per-call TaskID this client never sets, so a resubmission after a
+ * genuine mid-stream drop is not deduplicated by the server at all).
  */
 export async function readSSEStream(
   body: ReadableStream<Uint8Array>,
   onFrame: (parsed: Record<string, unknown>) => "continue" | "complete" | "retryable" | "fatal" | "terminal" | "not_found",
   options?: SSEReaderOptions,
-): Promise<SSEStreamResult | "fatal" | "terminal" | "not_found"> {
+): Promise<SSEStreamResult | "fatal" | "terminal" | "not_found" | "disconnected"> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -36,7 +55,7 @@ export async function readSSEStream(
 
       if ("timedOut" in result) {
         reader.cancel();
-        return "retryable";
+        return "disconnected";
       }
 
       const { done, value } = result;
@@ -68,7 +87,7 @@ export async function readSSEStream(
     }
   } catch {
     if (options?.signal?.aborted) return "aborted";
-    return "retryable";
+    return "disconnected";
   }
 
   return "complete";

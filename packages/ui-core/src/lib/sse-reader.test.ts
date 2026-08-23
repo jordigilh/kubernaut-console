@@ -82,8 +82,13 @@ describe("sse-reader", () => {
       expect(frames).toEqual([{ x: 1 }]);
     });
 
-    it("returns retryable on idle timeout", async () => {
-      const body = makeStream([]);
+    // kubernaut#2096 follow-up (2026-08-11): an idle timeout is detected by
+    // this reader itself, with no server attestation that resubmitting is
+    // safe -- distinct from "retryable" (only ever returned when onFrame
+    // itself recognizes a server-signalled safe-to-resubmit condition, e.g.
+    // AF's own "task execution is already in progress" reply). See this
+    // file's "disconnected" doc comment for the full mechanism.
+    it("returns disconnected (not retryable) on idle timeout", async () => {
       const neverEndingBody = new ReadableStream({
         pull() {
           return new Promise(() => {});
@@ -94,7 +99,19 @@ describe("sse-reader", () => {
         idleTimeoutMs: 50,
       });
 
-      expect(result).toBe("retryable");
+      expect(result).toBe("disconnected");
+    });
+
+    it("returns disconnected (not retryable) on a mid-stream read error", async () => {
+      const body = new ReadableStream({
+        pull() {
+          throw new Error("network error: connection reset");
+        },
+      });
+
+      const result = await readSSEStream(body, () => "continue");
+
+      expect(result).toBe("disconnected");
     });
 
     it("returns aborted if signal is aborted during read", async () => {

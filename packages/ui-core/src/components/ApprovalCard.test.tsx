@@ -150,7 +150,7 @@ describe("AC-6: ApprovalCard component", () => {
     );
 
     const reasonInput = screen.getByLabelText("Reason");
-    expect(reasonInput).toHaveValue("Approved by jane.doe");
+    expect(reasonInput).toHaveValue("Reviewed by jane.doe");
   });
 
   // AU-2: Edited reason is passed to onApprove callback
@@ -187,5 +187,26 @@ describe("AC-6: ApprovalCard component", () => {
     await waitFor(() => {
       expect(onDecline).toHaveBeenCalledWith("Risk too high");
     });
+  });
+
+  // Regression for kubernaut #2061/#2064 decline-path re-validation
+  // (2026-08-10): declining *without* first editing the shared reason field
+  // must never send approval-flavored text as the rejection reason — the
+  // field's pre-filled default has to stay decision-neutral since it feeds
+  // whichever button (Approve or Decline) actually gets clicked.
+  it("UT-CONSOLE-APPROVAL-012: declining without editing the reason field never sends approval-flavored text", async () => {
+    vi.useRealTimers();
+    render(
+      <ApprovalCard request={baseRequest} onApprove={onApprove} onDecline={onDecline} userName="jane.doe" />
+    );
+
+    const declineBtn = screen.getByRole("button", { name: /decline/i });
+    fireEvent.click(declineBtn);
+
+    await waitFor(() => {
+      expect(onDecline).toHaveBeenCalledTimes(1);
+    });
+    const [reasonSent] = onDecline.mock.calls[0] as [string];
+    expect(reasonSent).not.toMatch(/approved/i);
   });
 });

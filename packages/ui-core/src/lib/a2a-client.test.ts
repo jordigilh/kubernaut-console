@@ -338,6 +338,88 @@ describe("streamA2A", () => {
     expect(onReconnecting).not.toHaveBeenCalled();
   });
 
+  // ── kubernaut#2096 follow-up (2026-08-11) ───────────────────────────────
+  //
+  // jordigilh's spike on kubernaut#2096 disproved the original "120s
+  // per-model-call timeout" theory (every model call gets a fresh budget;
+  // the observed error is "context canceled", which only an explicit
+  // ancestor cancel() produces, never a deadline) and pointed at the client
+  // disconnecting/retrying the a2a stream mid-investigation as the more
+  // likely trigger, deferred as separate follow-up work. A follow-up spike
+  // here (real `streamA2A`/`readSSEStream`/`postForSSE` code, only `fetch`
+  // mocked -- exactly as jordigilh's spike only faked the boundary
+  // `model.LLM`) found the client-side half of a concrete mechanism: before
+  // this fix, `streamA2A` resubmitted a byte-identical request (same
+  // id/messageId/contextId, no taskId) on *any* non-fatal stream failure,
+  // including a genuine mid-investigation network drop. Reading the
+  // vendored a2a-go/ADK stack confirmed that resubmission is never
+  // deduplicated server-side: neither `a2aproject/a2a-go/v2`'s task manager
+  // (keyed off TaskID, which this client never sets, so every call mints a
+  // fresh one) nor `google.golang.org/adk`'s executor/runner (no locking
+  // keyed off contextId/sessionId at all) would stop a second, independent
+  // execution from starting against the same session while the first might
+  // still be running -- a real, confirmed duplicate-execution risk
+  // regardless of whether it is the exact #2096 mechanism.
+  //
+  // Fix: `readSSEStream`/`postForSSE` failures the reader detects on its
+  // own (idle timeout, read-time network error) after a live response body
+  // was already handed back are now "disconnected", not "retryable" --
+  // distinct from a server-attested safe-to-resubmit signal (e.g. AF's own
+  // "task execution is already in progress" reply, still exercised by
+  // UT-CONSOLE-A2A-010 above). `streamA2A` treats "disconnected" as
+  // terminal for the stream and does NOT resubmit; it fires
+  // `onStreamInterrupted` instead so the caller can tell the user the
+  // investigation may still be running rather than silently risking a
+  // duplicate.
+  it("does NOT resubmit after a mid-stream drop; fires onStreamInterrupted instead", async () => {
+    let pullCount = 0;
+    const droppedConnectionStream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pullCount++;
+        if (pullCount === 1) {
+          // Mid-frame: no trailing \n\n, so no event is ever parsed from
+          // this attempt -- mirrors a real investigation that had already
+          // started streaming but hadn't reached a client-visible artifact.
+          controller.enqueue(
+            new TextEncoder().encode('data: {"jsonrpc":"2.0","id":"1","result":{"kind":"status-update"'),
+          );
+          return;
+        }
+        controller.error(new TypeError("network error: connection reset"));
+      },
+    });
+    const droppedResponse = new Response(droppedConnectionStream, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    });
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(droppedResponse);
+
+    const request = buildStreamRequest("investigate the alert in payments", "ctx-existing");
+    const events: A2AEvent[] = [];
+    const onError = vi.fn();
+    const onComplete = vi.fn();
+    const onConnectionLost = vi.fn();
+    const onStreamInterrupted = vi.fn();
+    await streamA2A(request, {
+      onEvent: (e) => events.push(e),
+      onError,
+      onComplete,
+      onConnectionLost,
+      onStreamInterrupted,
+      maxRetries: 3,
+      preRetryDelayMs: 5,
+    });
+
+    // Exactly one attempt -- no resubmission of the same task/session identity.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onStreamInterrupted).toHaveBeenCalledTimes(1);
+    expect(onConnectionLost).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(events).toHaveLength(0);
+  });
+
   it("UT-CONSOLE-A2A-012: preRetryDelayMs is applied before the first retry attempt", async () => {
     const transientError = {
       jsonrpc: "2.0",

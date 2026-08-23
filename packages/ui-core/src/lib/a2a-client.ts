@@ -13,6 +13,20 @@ export interface StreamOptions {
   onComplete: () => void;
   onConnectionLost?: () => void;
   onReconnecting?: (attempt: number) => void;
+  /**
+   * Fired when the stream dropped *after* the server had already started
+   * executing this request (a read-time network error or idle timeout, not
+   * a server-attested "safe to retry" signal) -- see readSSEStream's
+   * "disconnected" doc comment for the full mechanism (kubernaut#2096
+   * follow-up, 2026-08-11). Unlike onConnectionLost, this is terminal for
+   * the current stream attempt: the same request is deliberately NOT
+   * resubmitted, since the server has no way to deduplicate it against the
+   * still-possibly-running original (no collision detection is keyed off
+   * contextId anywhere in the a2a-go/ADK stack, only off a per-call TaskID
+   * this client never sets). Callers should tell the user the investigation
+   * may still be running rather than silently starting a second one.
+   */
+  onStreamInterrupted?: () => void;
   signal?: AbortSignal;
   maxRetries?: number;
   idleTimeoutMs?: number;
@@ -74,13 +88,17 @@ export async function streamA2A(
     if (result === "fatal") {
       return;
     }
+    if (result === "disconnected") {
+      options.onStreamInterrupted?.();
+      return;
+    }
     options.onConnectionLost?.();
   }
 
   options.onError(new Error("Connection lost after maximum retries"));
 }
 
-type StreamResult = "complete" | "aborted" | "fatal" | "retryable";
+type StreamResult = "complete" | "aborted" | "fatal" | "retryable" | "disconnected";
 
 async function attemptStream(
   request: JsonRpcRequest,

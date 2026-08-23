@@ -229,37 +229,49 @@ bugs (verification timeout budget, decline's hardcoded revision baseline,
 and `getRemediationRequestForTarget` querying the wrong RR field) — now
 fixed in this suite, not upstream issues.
 
-## Current status: iterating toward a clean v1.5.6 — blocked on kubernaut#2061 / kubernaut#2064
+## Current status: v1.5.6 (and v1.5.7 re-release) shipped — all tracked blockers closed
 
-The release gate for cutting `v1.5.6` upstream (and the operator's
-`v1.5.8`) is a full run of this suite with zero known regressions. Progress
-so far, most recent first:
+Two parallel status updates were in flight on 2026-08-10 while iterating
+toward the `v1.5.6` release gate; both sets of blockers they tracked are now
+**closed**, and `v1.5.6` has since GA'd upstream (2026-08-06) with a
+content-identical `v1.5.7` re-release cut on 2026-08-16 so the operator team
+could bundle a matching version number. Kept here for history:
 
-**Blocking another full run** (both open, found 2026-08-10 while triaging a
-`decline`-path failure where KA's workflow catalog matched zero entries for
-a correctly-faulted, correctly-labeled target):
+**First blocker set** (found 2026-08-10 triaging a `decline`-path failure
+where KA's workflow catalog matched zero entries for a correctly-faulted,
+correctly-labeled target) — both closed 2026-08-12:
 
-- [kubernaut#2061](https://github.com/jordigilh/kubernaut/issues/2061)
-  (milestone `v1.5`) — `list_available_actions`'s `component` filter falls
-  back to a bare lowercase resource kind (e.g. `deployment`) whenever
-  `ResourceAPIVersion` is empty, instead of the full GVK the workflow
-  catalog is actually keyed on — silently matching zero entries. No fix PR
-  yet.
-- [kubernaut#2064](https://github.com/jordigilh/kubernaut/issues/2064)
-  (milestone `v1.5.6`) — found while triaging #2061: a deeper, more
-  systemic root cause. The `AIAnalysis`→KA `IncidentRequest` wire contract
-  has no field to carry `apiVersion` at all, so `ResourceAPIVersion` starts
-  empty for *every* investigation (autonomous included), not just the
-  narrower case #2061's own fix (cloned for `v1.6` as #2063) addresses. No
-  fix PR yet.
+- [kubernaut#2061](https://github.com/jordigilh/kubernaut/issues/2061) —
+  `list_available_actions`'s `component` filter fell back to a bare
+  lowercase resource kind (e.g. `deployment`) whenever `ResourceAPIVersion`
+  was empty, instead of the full GVK the workflow catalog is actually keyed
+  on — silently matched zero entries.
+- [kubernaut#2064](https://github.com/jordigilh/kubernaut/issues/2064) —
+  the deeper root cause found while triaging #2061: the `AIAnalysis`→KA
+  `IncidentRequest` wire contract had no field to carry `apiVersion` at all,
+  so `ResourceAPIVersion` started empty for *every* investigation
+  (autonomous included), not just the narrower case #2061's own fix
+  addressed.
 
-Holding off on the next full-suite run — including the Sonnet 4.6
-regression baseline in the section below — until both land and are
-redeployed; re-running against the same known-broken filter logic would
-only reproduce the same failure without new information.
+**Second blocker set** (found in a full suite run against `v1.5.6-rc2` base
++ [jordigilh/kubernaut#2072](https://github.com/jordigilh/kubernaut/pull/2072)'s
+images, Sonnet 5, sequential, fresh fixtures — 10 passed, 2 failed) — both
+closed 2026-08-10/12:
 
-**Resolved and confirmed fixed**, all found live against this suite and
-closed under milestone `v1.5.6`:
+- **approve path** (`approval-gate.spec.ts:139`) blocked by
+  [kubernaut#2073](https://github.com/jordigilh/kubernaut/issues/2073) —
+  `kubernaut_present_decision`'s `rca` schema required `tool_calls_count`/
+  `llm_turns`, but the LLM was never told these fields exist (missing
+  `omitempty` + not mentioned in `prompt.txt`) — 100% failure whenever the
+  tool was called.
+- **dismiss path** (`approval-gate.spec.ts:209`) blocked by
+  [kubernaut#2075](https://github.com/jordigilh/kubernaut/issues/2075) — KA
+  released the interactive session the instant workflow discovery concluded
+  `no_matching_workflows`, so the console's Dismiss button subsequently
+  failed with "no active interactive session for rr_id".
+
+**Also resolved and confirmed fixed** during the same release-gate push, all
+found live against this suite and closed under milestone `v1.5.6`:
 
 - [kubernaut#2018](https://github.com/jordigilh/kubernaut/issues/2018) /
   [#2027](https://github.com/jordigilh/kubernaut/issues/2027) — an RR
@@ -278,28 +290,24 @@ closed under milestone `v1.5.6`:
   `AIAnalysis` from the new KA session, leaving the RR permanently stuck in
   `Analyzing` with no backing `WorkflowExecution`.
 
-**New coverage added**, validated live with zero regressions found:
+**New coverage added** during the same push, validated live with zero
+regressions found:
 
 - `autonomous-fix.spec.ts`
   ([kubernaut-console#77](https://github.com/jordigilh/kubernaut-console/issues/77),
   [PR #78](https://github.com/jordigilh/kubernaut-console/pull/78)) — the
   console's chat-driven "Fix ..." (`kubernaut_remediate`) fire-and-forget
   path had zero live coverage despite being one of only two top-level modes
-  on the welcome screen. Two clean end-to-end passes (2026-08-10) confirm
+  on the welcome screen. Two clean end-to-end passes (2026-08-10) confirmed
   `rr_id` tracking from the tool-call confirmation reply alone, the
   session-less `/a2a/status` `AwaitingApproval` fallback rendering a real
   `ApprovalCard`, and real execution/verification all working correctly,
   with no `InvestigationSession` ever created.
 
-Also tracked, but not itself a reproducing defect against this suite:
-[kubernaut#1995](https://github.com/jordigilh/kubernaut/issues/1995) is
-being kept open by upstream as a QE sign-off placeholder for the whole
-`v1.5.6` regression effort (not specific to this suite), expected to close
-only once `v1.5.6` GA ships.
-
-This section will be updated after every run until the goal is met: a full
-run with zero known regressions, at which point `v1.5.6` gets cut upstream
-and this file should read clean of open bugs.
+No full-suite confirmation run against a build with every fix above applied
+was recorded in this file before `v1.5.6` shipped; if a fresh full run is
+needed (e.g. ahead of `v1.6`), replace this section with its results rather
+than appending another parallel "Current status" block.
 
 ## Switching LLM models (Sonnet 5 <-> Sonnet 4.6)
 

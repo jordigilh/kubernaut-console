@@ -446,6 +446,9 @@ export function ChatContainer() {
         {connectionStatus === "lost" && (
           <span style={{ fontSize: "0.75rem", color: "#fecaca" }} role="status">Chat connection lost</span>
         )}
+        {connectionStatus === "interrupted" && (
+          <span style={{ fontSize: "0.75rem", color: "#fecaca" }} role="status">Connection lost -- investigation may still be running</span>
+        )}
         {rawThinkingEnabled && (
           <button
             type="button"
@@ -536,6 +539,7 @@ export function ChatContainer() {
         {isStreaming && "Agent is responding"}
         {connectionStatus === "reconnecting" && "Chat stream reconnecting"}
         {connectionStatus === "lost" && "Chat connection lost"}
+        {connectionStatus === "interrupted" && "Connection lost. Investigation may still be running."}
         {effectiveRrId && statusConnection === "reconnecting" && "Status stream reconnecting"}
         {effectiveRrId && statusConnection === "error" && "Status stream lost"}
         {effectiveRrId && statusConnection === "not_found" && "Status unavailable"}
