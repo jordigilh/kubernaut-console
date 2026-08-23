@@ -229,40 +229,85 @@ bugs (verification timeout budget, decline's hardcoded revision baseline,
 and `getRemediationRequestForTarget` querying the wrong RR field) — now
 fixed in this suite, not upstream issues.
 
-## Current status (2026-08-10): 2 blockers open, 10/12 passing
+## Current status: v1.5.6 (and v1.5.7 re-release) shipped — all tracked blockers closed
 
-Full suite run against `v1.5.6-rc2` base + [jordigilh/kubernaut#2072](https://github.com/jordigilh/kubernaut/pull/2072)'s
-images (`kubernaut-agent`, `aianalysis-controller`), Sonnet 5, sequential
-(`workers: 1`), fresh fixtures: **10 passed, 2 failed**. Both failures are
-newly-discovered upstream bugs, distinct from every issue in the two sections
-above (all of which are confirmed fixed/closed as of this run) — filed with
-full live-cluster evidence:
+Two parallel status updates were in flight on 2026-08-10 while iterating
+toward the `v1.5.6` release gate; both sets of blockers they tracked are now
+**closed**, and `v1.5.6` has since GA'd upstream (2026-08-06) with a
+content-identical `v1.5.7` re-release cut on 2026-08-16 so the operator team
+could bundle a matching version number. Kept here for history:
+
+**First blocker set** (found 2026-08-10 triaging a `decline`-path failure
+where KA's workflow catalog matched zero entries for a correctly-faulted,
+correctly-labeled target) — both closed 2026-08-12:
+
+- [kubernaut#2061](https://github.com/jordigilh/kubernaut/issues/2061) —
+  `list_available_actions`'s `component` filter fell back to a bare
+  lowercase resource kind (e.g. `deployment`) whenever `ResourceAPIVersion`
+  was empty, instead of the full GVK the workflow catalog is actually keyed
+  on — silently matched zero entries.
+- [kubernaut#2064](https://github.com/jordigilh/kubernaut/issues/2064) —
+  the deeper root cause found while triaging #2061: the `AIAnalysis`→KA
+  `IncidentRequest` wire contract had no field to carry `apiVersion` at all,
+  so `ResourceAPIVersion` started empty for *every* investigation
+  (autonomous included), not just the narrower case #2061's own fix
+  addressed.
+
+**Second blocker set** (found in a full suite run against `v1.5.6-rc2` base
++ [jordigilh/kubernaut#2072](https://github.com/jordigilh/kubernaut/pull/2072)'s
+images, Sonnet 5, sequential, fresh fixtures — 10 passed, 2 failed) — both
+closed 2026-08-10/12:
 
 - **approve path** (`approval-gate.spec.ts:139`) blocked by
-  [jordigilh/kubernaut#2073](https://github.com/jordigilh/kubernaut/issues/2073)
-  (v1.5.6) / [#2074](https://github.com/jordigilh/kubernaut/issues/2074) (v1.6):
-  `kubernaut_present_decision`'s `rca` schema requires `tool_calls_count`/
-  `llm_turns`, but the LLM is never told these fields exist (missing
-  `omitempty` + not mentioned in `prompt.txt`) — **100% failure whenever the
-  tool is called**, confirmed by counting 193 failures / 0 successes for this
-  tool across the run. Any investigation that dead-ends (ambiguous signal,
-  `no_matching_workflows`) hits this and hangs for the rest of the session.
+  [kubernaut#2073](https://github.com/jordigilh/kubernaut/issues/2073) —
+  `kubernaut_present_decision`'s `rca` schema required `tool_calls_count`/
+  `llm_turns`, but the LLM was never told these fields exist (missing
+  `omitempty` + not mentioned in `prompt.txt`) — 100% failure whenever the
+  tool was called.
 - **dismiss path** (`approval-gate.spec.ts:209`) blocked by
-  [jordigilh/kubernaut#2075](https://github.com/jordigilh/kubernaut/issues/2075)
-  (v1.5.6) / [#2076](https://github.com/jordigilh/kubernaut/issues/2076) (v1.6):
-  KA releases the interactive session the instant workflow discovery
-  concludes `no_matching_workflows`, so the console's (correctly-enabled)
-  Dismiss button subsequently fails with "no active interactive session for
-  rr_id". **Not** the `sre` RBAC gap the test's own error message names (that
-  gap is confirmed closed per the section above) — live KA logs show the
-  session being released *before* the Dismiss click, a distinct root cause.
-  The test's error-message text is stale and should be corrected once #2075
-  lands.
+  [kubernaut#2075](https://github.com/jordigilh/kubernaut/issues/2075) — KA
+  released the interactive session the instant workflow discovery concluded
+  `no_matching_workflows`, so the console's Dismiss button subsequently
+  failed with "no active interactive session for rr_id".
 
-Goal remains: iterate until a full-suite run shows zero failures on v1.5.6,
-then cut the release. Do not regenerate/relax any assertions to work around
-either blocker above — both are confirmed backend defects with live evidence,
-not test-design gaps.
+**Also resolved and confirmed fixed** during the same release-gate push, all
+found live against this suite and closed under milestone `v1.5.6`:
+
+- [kubernaut#2018](https://github.com/jordigilh/kubernaut/issues/2018) /
+  [#2027](https://github.com/jordigilh/kubernaut/issues/2027) — an RR
+  investigated an unrelated, pre-existing cluster-scoped alert
+  (`CDIDefaultStorageClassDegraded`) instead of its own triggering signal
+  (`KubePodCrashLooping`); recurred once after #2018's first fix, then
+  root-caused and fixed again as #2027.
+- [kubernaut#2022](https://github.com/jordigilh/kubernaut/issues/2022) —
+  `kubernaut_investigate_alert` created an RR/KA session for unmanaged
+  resources before RO's block on unmanaged targets ever fired.
+- [kubernaut#2023](https://github.com/jordigilh/kubernaut/issues/2023) —
+  the apifrontend agent fabricated an RCA/audit-trail narrative when the
+  investigation session had zero real content to summarize.
+- [kubernaut#2029](https://github.com/jordigilh/kubernaut/issues/2029) —
+  reconnecting ("takeover") to a timed-out interactive session desynced
+  `AIAnalysis` from the new KA session, leaving the RR permanently stuck in
+  `Analyzing` with no backing `WorkflowExecution`.
+
+**New coverage added** during the same push, validated live with zero
+regressions found:
+
+- `autonomous-fix.spec.ts`
+  ([kubernaut-console#77](https://github.com/jordigilh/kubernaut-console/issues/77),
+  [PR #78](https://github.com/jordigilh/kubernaut-console/pull/78)) — the
+  console's chat-driven "Fix ..." (`kubernaut_remediate`) fire-and-forget
+  path had zero live coverage despite being one of only two top-level modes
+  on the welcome screen. Two clean end-to-end passes (2026-08-10) confirmed
+  `rr_id` tracking from the tool-call confirmation reply alone, the
+  session-less `/a2a/status` `AwaitingApproval` fallback rendering a real
+  `ApprovalCard`, and real execution/verification all working correctly,
+  with no `InvestigationSession` ever created.
+
+No full-suite confirmation run against a build with every fix above applied
+was recorded in this file before `v1.5.6` shipped; if a fresh full run is
+needed (e.g. ahead of `v1.6`), replace this section with its results rather
+than appending another parallel "Current status" block.
 
 ## Switching LLM models (Sonnet 5 <-> Sonnet 4.6)
 
