@@ -1,14 +1,32 @@
 # Live E2E Suite — release/v1.6 fleet management on the shared OpenShift dev cluster
 
-**Status: BLOCKED on a release-blocking upstream RBAC bug, [kubernaut-operator#400](https://github.com/jordigilh/kubernaut-operator/issues/400).**
-`kubernaut` v1.6.0-rc5 was deployed by the operator team on 2026-08-23/24 (`Kubernaut` CR
-`Running`, generation 8). A full preflight was run 2026-08-24 against the live
-deployment — most previously-TBD items are now confirmed with real data, and three
-fresh-install gaps were found and fixed (see "Preflight results, 2026-08-24" below).
-The suite run itself started 2026-08-24 but was **stopped after 2/12 tests**, both of
-which failed identically on a 100%-reproducible RBAC gap that blocks every investigation
-regardless of fixture or fleet mode (see "Suite run blocked" below). Fixtures were torn
-down; resume once a build with the fix is deployed.
+**Status: BLOCKED on a new release-blocking upstream hang bug, [kubernaut#2273](https://github.com/jordigilh/kubernaut/issues/2273).**
+The prior blocker ([kubernaut-operator#400](https://github.com/jordigilh/kubernaut-operator/issues/400),
+`aianalyses/finalizers` RBAC gap) is **CONFIRMED FIXED** in `kubernaut-operator` v1.6.0-rc6
+(PR [#401](https://github.com/jordigilh/kubernaut-operator/pull/401), deployed 2026-08-24) —
+live `ClusterRole` now grants `update` on `aianalyses/finalizers`, and both re-run tests got
+cleanly past `AIAnalysis`->`AgentSession` creation with zero RBAC errors.
+
+While re-validating, found and fixed a second, unrelated fresh-install gap: 5 of the 32
+`RemediationWorkflow` manifests in `kubernaut-demo-scenarios` store boolean `detectedLabels`
+fields as quoted strings (`"true"` instead of `true`), which broke KA's workflow-catalog-list
+call **wholesale** (not just for the 5 affected workflows) for every investigation on this
+cluster. Fixed live via `oc apply` and filed
+[kubernaut-demo-scenarios#416](https://github.com/jordigilh/kubernaut-demo-scenarios/pull/416).
+
+With both of those out of the way, hit a third, new, and currently blocking issue: the
+`approval-gate.spec.ts` approve/decline paths both reproduce a severe backend hang —
+`workflow_discovery` correctly selects and validates a workflow (confirmed via full audit
+trail: `crashloop-rollback-v1` picked with clear reasoning, `is_valid: true`), then the
+flow goes **completely silent** with zero further logs or audit events, bounded only by
+`AIAnalysis`'s outer 10-minute `Analyzing` timeout, which eventually force-fails the
+session (`ERR_UPSTREAM_FAILURE: investigation timed out after 10m0s`). Filed as
+[kubernaut#2273](https://github.com/jordigilh/kubernaut/issues/2273) — likely a regression
+in the just-merged `AgentSession` CRD dispatch rework
+([kubernaut#2170](https://github.com/jordigilh/kubernaut/issues/2170) / PR #2189, and its
+controller-runtime Reconciler migration in #2231), both merged 2-6 days before this
+`v1.6.0-rc6` build. Suite stopped again pending a fix; fixtures left in place under
+suffix `145dd1` for now since teardown isn't urgent (no successful remediations to leak).
 
 This document is **distinct** from [README-v15-openshift.md](./README-v15-openshift.md):
 that one validates `kubernaut-console` against a real, single-cluster `release/v1.5`
@@ -364,6 +382,71 @@ this build regardless of fixture or fleet mode, just discovered during fleet val
 since that's the current focus). Fixtures torn down (`teardown-fixtures.sh`) since
 testing is fully blocked pending a fixed build.
 
+## Suite re-run blocked, 2026-08-24: RBAC fix confirmed, new post-validation hang found
+
+Operator team deployed `kubernaut-operator` v1.6.0-rc6 (PR
+[#401](https://github.com/jordigilh/kubernaut-operator/pull/401)) same day. Re-preflighted
+(all pods healthy, `Kubernaut` CR conditions all `True`, no stale namespaces) and
+confirmed the RBAC fix directly:
+
+```
+$ oc get clusterrole kubernaut-system-aianalysis-controller -o json | jq '.rules[] | select(.resources[]? | contains("finalizers"))'
+{"apiGroups": ["kubernaut.ai"], "resources": ["aianalyses/finalizers"], "verbs": ["update"]}
+```
+
+Provisioned fresh fixtures (suffix `145dd1`), re-ran `approval-gate.spec.ts`. Both
+`AIAnalysis`->`AgentSession` creation steps succeeded cleanly (**#400 is fixed**), but the
+approve-path test still failed on `no_matching_workflows`. Triaging (per the "don't accept
+the observed outcome without checking" rule established during v1.5 validation) surfaced
+**two** further issues, one fixed and one new:
+
+**Fixed: `kubernaut-demo-scenarios` boolean/string type bug (long-standing, not new).**
+KA logs showed `failed to unmarshal detectedLabels: json: cannot unmarshal string into Go
+struct field DetectedLabels.helmManaged of type bool`. 5 of the 32 seeded
+`RemediationWorkflow` manifests (`helm-rollback-v1`, `patch-hpa-v1`, `relax-pdb-v1`,
+`fix-network-policy-v1`, `fix-statefulset-pvc-v1`) set boolean `detectedLabels` fields as
+quoted strings (`"true"`) — `git blame` traces this to 2026-03-10, present through several
+batch version-bump commits since. Because KA's catalog-list call fails **wholesale** on
+any single malformed entry (not per-item), this broke workflow discovery catalog-wide for
+*every* investigation on this cluster, not just the 5 affected workflows — a plausible
+contributor to some of the "non-determinism" observed during earlier v1.5 validation
+rounds too. Fixed live via `oc apply` (bool type + `1.5.3`->`1.5.4` version bump to satisfy
+the content-hash immutability webhook) and filed
+[kubernaut-demo-scenarios#416](https://github.com/jordigilh/kubernaut-demo-scenarios/pull/416).
+Confirmed fix: KA subsequently logged `workflow catalog fetched (DD-KA-001: per-request
+validation) | allowed_workflows: 32` with no unmarshal errors.
+
+**New, currently blocking: post-validation hang, filed as
+[kubernaut#2273](https://github.com/jordigilh/kubernaut/issues/2273).** With the catalog
+fixed, re-running the approve-path test showed the full audit trail (`data-storage`'s
+`audit_events` table) proving `workflow_discovery` reasoned *correctly* — evaluated 4
+`RollbackDeployment` candidates, picked `crashloop-rollback-v1` with clear justification,
+validated it (`is_valid: true`), and the LLM said "Now let me submit the result with the
+selected workflow." — then **zero further audit events, ever**, for that
+`RemediationRequest`. A second repro (the decline-path test's RR) hit the exact same wall
+but ran long enough to surface a clean, deadline-bounded failure:
+
+```json
+{"phase": "Failed", "reason": "TransientError", "error_details": {
+  "code": "ERR_UPSTREAM_FAILURE",
+  "message": "investigation timed out after 10m0s (limit: deadline 2026-08-24T15:37:12Z)"
+}}
+```
+
+8 minutes of total silence (no logs, no audit events, in either `apifrontend` or
+`kubernaut-agent`) between `workflow.catalog.selection_validated` succeeding and
+`AIAnalysis`'s own 10-minute `Analyzing` timeout force-failing the session. Suspected
+regression in the very recently merged `AgentSession` CRD dispatch rework
+([kubernaut#2170](https://github.com/jordigilh/kubernaut/issues/2170) / PR #2189,
+2026-08-18) and its controller-runtime Reconciler migration (#2231, 2026-08-22) — both
+land 2-6 days before this rc6 build, and the hang occurs precisely at the
+post-validation submission handoff those PRs touch. See the issue for full forensics
+(ruled out `AgentSession.Status.Phase` staying non-terminal as a red herring — that's
+intentional design for human-in-the-loop holds per `status_writer.go`'s own doc comments).
+
+Suite stopped again pending a fix. Fixtures (suffix `145dd1`) left in place — no
+successful remediations occurred in this run, so nothing to leak/clean up urgently.
+
 ## Full setup sequence — v1.6.0-rc5 deployed, environment ready
 
 | # | Step | Command | Status |
@@ -376,7 +459,7 @@ testing is fully blocked pending a fixed build.
 | 6 | Fetch credentials | `source e2e/live/scripts/fetch-creds.sh` (same Keycloak `kagenti` realm / `console-e2e-test` identity as v1.5 — unrelated to fleet's own auth) | Done — Secret recreated, token issuance verified |
 | 7 | Provision fixtures | `e2e/live/scripts/setup-fixtures.sh` (same script as v1.5 — fixtures are plain K8s resources, no fleet-specific references) | Done — 10 fixtures, suffix `02c6b9`, now torn down |
 | 8 | Preflight | Confirmed: CR `Running`, all services ready, `MCPServerRegistration` `Ready: True`, no stale namespaces | Done |
-| 9 | Run | `npx playwright test --config=playwright.live-v15.config.ts` — same config as v1.5, no fleet-specific variant needed | **Blocked after 2/12** — [kubernaut-operator#400](https://github.com/jordigilh/kubernaut-operator/issues/400), see "Suite run blocked" above |
+| 9 | Run | `npx playwright test --config=playwright.live-v15.config.ts` — same config as v1.5, no fleet-specific variant needed | **Blocked** — RBAC gap [kubernaut-operator#400](https://github.com/jordigilh/kubernaut-operator/issues/400) fixed in rc6 and confirmed; now blocked on new post-validation hang [kubernaut#2273](https://github.com/jordigilh/kubernaut/issues/2273), see "Suite re-run blocked, 2026-08-24" above |
 
 ## Open questions
 
