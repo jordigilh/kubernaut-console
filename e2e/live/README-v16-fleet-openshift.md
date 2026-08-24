@@ -157,7 +157,18 @@ $ oc get crd workflowexecutions.kubernaut.ai -o jsonpath='{range .spec.versions[
 v1alpha1 served=true storage=true
 ```
 
-`v1alpha2` doesn't exist at all as a version on this CRD. **Triaged via `hindsight-docs`/
+`v1alpha2` doesn't exist at all as a version on this specific CRD. **This is not uniform
+across all `kubernaut.ai` CRDs** — the v1alpha2 migration has genuinely started on this
+rc5 build, just not finished:
+
+| CRD | Versions present | Storage version |
+|---|---|---|
+| `kubernauts.kubernaut.ai` (top-level operator CR) | `v1alpha1`, `v1alpha2` | **`v1alpha2`** — the live CR's `apiVersion` is confirmed `kubernaut.ai/v1alpha2` |
+| `workflowexecutions.kubernaut.ai` and every other workload CRD (`remediationrequests`, `signalprocessings`, `aianalyses`, `remediationworkflows`, `actiontypes`, `agentsessions`, `investigationsessions`, `effectivenessassessments`, `notificationrequests`, `remediationapprovalrequests`) | `v1alpha1` only | `v1alpha1` |
+
+So the top-level `Kubernaut` CR (where `spec.fleet.*` lives, confirmed above) has already
+cut over to `v1alpha2`, but that hasn't propagated to any workload CRD, `WorkflowExecution`
+included. **Triaged via `hindsight-docs`/
 `hindsight-issues` recall, 2026-08-24 — this is NOT a novel gap, it's a known,
 already-tracked, in-progress upstream item, not something to file fresh:**
 
