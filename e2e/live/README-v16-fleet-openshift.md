@@ -1,11 +1,14 @@
 # Live E2E Suite — release/v1.6 fleet management on the shared OpenShift dev cluster
 
-**Status: living doc, in progress.** `kubernaut` v1.6.0-rc5 was deployed by the operator
-team on 2026-08-23/24 (`Kubernaut` CR `Running`, generation 8). A full preflight was run
-2026-08-24 against the live deployment — most **TBD** items below are now confirmed with
-real data, and three fresh-install gaps were found and fixed (see "Preflight results,
-2026-08-24" below). The full 12-test suite has **not yet been run** against this
-deployment; environment is ready to do so.
+**Status: BLOCKED on a release-blocking upstream RBAC bug, [kubernaut-operator#400](https://github.com/jordigilh/kubernaut-operator/issues/400).**
+`kubernaut` v1.6.0-rc5 was deployed by the operator team on 2026-08-23/24 (`Kubernaut` CR
+`Running`, generation 8). A full preflight was run 2026-08-24 against the live
+deployment — most previously-TBD items are now confirmed with real data, and three
+fresh-install gaps were found and fixed (see "Preflight results, 2026-08-24" below).
+The suite run itself started 2026-08-24 but was **stopped after 2/12 tests**, both of
+which failed identically on a 100%-reproducible RBAC gap that blocks every investigation
+regardless of fixture or fleet mode (see "Suite run blocked" below). Fixtures were torn
+down; resume once a build with the fix is deployed.
 
 This document is **distinct** from [README-v15-openshift.md](./README-v15-openshift.md):
 that one validates `kubernaut-console` against a real, single-cluster `release/v1.5`
@@ -327,6 +330,40 @@ Everything else — `MCPServerRegistration` (`Ready: True`, 19 tools), tool RBAC
 ClusterRoleBindings (all 6 present), no stale `console-e2e-*` namespaces — was already
 healthy with no changes needed.
 
+## Suite run blocked, 2026-08-24: aianalyses/finalizers RBAC gap
+
+Fixtures provisioned (suffix `02c6b9`, all 10 namespaces), credentials fetched, suite
+started against `playwright.live-v15.config.ts` (sequential, 1 worker). Stopped after
+2/12 tests — both failed identically, and every remaining test would fail the same way,
+so continuing would only burn cluster/CI time without new information.
+
+**Not the known `no_matching_workflows` non-determinism** (`kubernaut-console#64`) the
+test helper's error message suggested — that's a UI-level inference (same escape-hatch
+buttons render whether investigation genuinely found no workflow *or* AIAnalysis crashed
+outright), and checking the actual `RemediationRequest` showed a real, different failure:
+
+```
+status.completionStatus.failureReason: 'AIAnalysis failed: Permanent error: failed to
+create AgentSession: agentsessions.kubernaut.ai "as-rr-..." is forbidden: cannot set
+blockOwnerDeletion if an ownerReference refers to a resource you can't set finalizers
+on: , <nil>'
+```
+
+Root cause: the `aianalysis-controller` ClusterRole is missing an `update` grant on the
+`aianalyses/finalizers` subresource, which Kubernetes' `OwnerReferencesPermissionEnforcement`
+admission plugin requires whenever a new child object (here, `AgentSession`) sets
+`blockOwnerDeletion: true` on an ownerReference back to its parent (here, `AIAnalysis`
+itself). Confirmed as a genuine omission, not intentional, by comparing against 5 sibling
+controllers that all correctly declare the equivalent rule for their own type
+(`signalprocessing-controller`, `workflowexecution-controller`,
+`remediationorchestrator-controller`, `notification-controller`, `authwebhook-role`).
+
+Filed as [kubernaut-operator#400](https://github.com/jordigilh/kubernaut-operator/issues/400)
+(v1.6 milestone) — release-blocking, not fleet-specific (blocks every investigation on
+this build regardless of fixture or fleet mode, just discovered during fleet validation
+since that's the current focus). Fixtures torn down (`teardown-fixtures.sh`) since
+testing is fully blocked pending a fixed build.
+
 ## Full setup sequence — v1.6.0-rc5 deployed, environment ready
 
 | # | Step | Command | Status |
@@ -337,9 +374,9 @@ healthy with no changes needed.
 | 4 | Seed workflow/action-type catalogs + policy ConfigMaps | `e2e/live/scripts/seed-fresh-install-prerequisites.sh` (also seeds catalogs via `kubernaut-demo-scenarios` scripts) | Done — 32 workflows / 35 action types, both policy ConfigMaps corrected |
 | 5 | Verify catalog populated (CRD-native, see above) | `oc get remediationworkflows -n kubernaut-system --no-headers \| wc -l` | Done — 32 |
 | 6 | Fetch credentials | `source e2e/live/scripts/fetch-creds.sh` (same Keycloak `kagenti` realm / `console-e2e-test` identity as v1.5 — unrelated to fleet's own auth) | Done — Secret recreated, token issuance verified |
-| 7 | Provision fixtures | `e2e/live/scripts/setup-fixtures.sh` (same script as v1.5 — fixtures are plain K8s resources, no fleet-specific references) | Ready to run |
+| 7 | Provision fixtures | `e2e/live/scripts/setup-fixtures.sh` (same script as v1.5 — fixtures are plain K8s resources, no fleet-specific references) | Done — 10 fixtures, suffix `02c6b9`, now torn down |
 | 8 | Preflight | Confirmed: CR `Running`, all services ready, `MCPServerRegistration` `Ready: True`, no stale namespaces | Done |
-| 9 | Run | `npx playwright test --config=playwright.live-v15.config.ts` — same config as v1.5, no fleet-specific variant created (none of the 12 tests reference cluster identity, so no config changes are anticipated to be needed) | Ready to run |
+| 9 | Run | `npx playwright test --config=playwright.live-v15.config.ts` — same config as v1.5, no fleet-specific variant needed | **Blocked after 2/12** — [kubernaut-operator#400](https://github.com/jordigilh/kubernaut-operator/issues/400), see "Suite run blocked" above |
 
 ## Open questions
 
