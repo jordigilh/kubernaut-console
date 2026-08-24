@@ -324,23 +324,47 @@ export async function clickExecuteWorkflow(page: Page, expectedWorkflowName: str
   // `toBeVisible()`'s frame-to-frame stability check. `expect(...).toPass()`
   // around plain `.count()` reads sidesteps that entirely: `.count()` is a
   // point-in-time query with no actionability/stability semantics of its own.
-  await expect(async () => {
-    const [workflowCardCount, noActionCount] = await Promise.all([
-      firstWorkflowCard.count(),
-      noMatchingWorkflowsEscapeHatch.count(),
-    ]);
-    expect(workflowCardCount > 0 || noActionCount > 0).toBe(true);
-  }).toPass({ timeout: REAL_INVESTIGATION_TIMEOUT_MS, intervals: [1_000] });
+  //
+  // Found 2026-08-24 (kubernaut#2273 live pprof repro, confirmed via two
+  // goroutine dumps + full KA log trail — root-caused as a console/test-side
+  // gap, not a KA hang): for an interactive (BR-INTERACTIVE-010) session,
+  // RCA returns *early* and renders as its own agent message before the
+  // separate, later `discover_workflows` call even starts. AgentBubble's
+  // `showEscapeHatches = hasRCAData && !hasWorkflows` (see AgentBubble.tsx)
+  // means the "No action needed"/"Escalate to team" escape hatch is visible
+  // unconditionally the instant that RCA-only message exists — this is a
+  // real, ~seconds-to-tens-of-seconds-wide transient state on the happy
+  // path, not evidence of no_matching_workflows. Confirmed live: the escape
+  // hatch rendered and this function's old "stop polling as soon as EITHER
+  // is visible" loop threw its no_matching_workflows error *before*
+  // discover_workflows had even been called on the backend, ~26s before it
+  // went on to correctly select and validate a real workflow. Fixed by
+  // polling for firstWorkflowCard alone as the only success condition for
+  // the full timeout, and only reporting no_matching_workflows once that
+  // full wait is exhausted with the escape hatch (and no card) still
+  // showing — trading fast-fail on a genuine no-match for not misreporting
+  // a legitimate, still-in-flight recommendation.
+  let timedOutWaitingForCard: unknown;
+  try {
+    await expect(async () => {
+      expect(await firstWorkflowCard.count()).toBeGreaterThan(0);
+    }).toPass({ timeout: REAL_INVESTIGATION_TIMEOUT_MS, intervals: [1_000] });
+  } catch (err) {
+    timedOutWaitingForCard = err;
+  }
 
-  const workflowCardVisible = await firstWorkflowCard.isVisible().catch(() => false);
-  if (!workflowCardVisible && (await noMatchingWorkflowsEscapeHatch.isVisible().catch(() => false))) {
-    throw new Error(
-      `Investigation concluded no_matching_workflows, but the documented expectation for this fixture ` +
-        `(kubernaut-demo-scenarios' own scenario README/golden transcript) is "${expectedWorkflowName}". ` +
-        "The console correctly rendered the 'No action needed'/'Escalate to team' escape hatch — this is " +
-        "not a console bug — but it diverges from the known-good expected outcome. See kubernaut-console#64 " +
-        "for this fixture's documented non-determinism data points and next steps.",
-    );
+  if (timedOutWaitingForCard) {
+    const noActionVisible = await noMatchingWorkflowsEscapeHatch.isVisible().catch(() => false);
+    if (noActionVisible) {
+      throw new Error(
+        `Investigation concluded no_matching_workflows, but the documented expectation for this fixture ` +
+          `(kubernaut-demo-scenarios' own scenario README/golden transcript) is "${expectedWorkflowName}". ` +
+          "The console correctly rendered the 'No action needed'/'Escalate to team' escape hatch — this is " +
+          "not a console bug — but it diverges from the known-good expected outcome. See kubernaut-console#64 " +
+          "for this fixture's documented non-determinism data points and next steps.",
+      );
+    }
+    throw timedOutWaitingForCard;
   }
 
   await expect(
