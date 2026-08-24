@@ -21,12 +21,20 @@ trail: `crashloop-rollback-v1` picked with clear reasoning, `is_valid: true`), t
 flow goes **completely silent** with zero further logs or audit events, bounded only by
 `AIAnalysis`'s outer 10-minute `Analyzing` timeout, which eventually force-fails the
 session (`ERR_UPSTREAM_FAILURE: investigation timed out after 10m0s`). Filed as
-[kubernaut#2273](https://github.com/jordigilh/kubernaut/issues/2273) — likely a regression
-in the just-merged `AgentSession` CRD dispatch rework
-([kubernaut#2170](https://github.com/jordigilh/kubernaut/issues/2170) / PR #2189, and its
-controller-runtime Reconciler migration in #2231), both merged 2-6 days before this
-`v1.6.0-rc6` build. Suite stopped again pending a fix; fixtures left in place under
-suffix `145dd1` for now since teardown isn't urgent (no successful remediations to leak).
+[kubernaut#2273](https://github.com/jordigilh/kubernaut/issues/2273).
+
+**Update, 2026-08-24 (live pprof repro):** captured two live goroutine dumps during the hang
+window (pprof was already enabled, no redeploy needed). Neither shows any active frame in
+`investigator/`, `mcp/tools/`, or `session/` — the `Investigate()` call chain almost
+certainly finishes in well under a second (its own `FetchValidator` log line fires 11ms
+after the sentinel). This **rules out** "a synchronous MCP call never returns" as the
+mechanism. Revised theory: the work completes fine, but its result is never relayed to
+unblock/notify the interactive `AgentSession` (push the validated workflow to the console
+for approval), so it sits idle at `phase: Pending` until the hard 10-minute deadline force-
+cancels it. See "kubernaut#2273 live pprof repro" section below for full details and the
+raw dumps. Suite stopped again pending upstream's next fix iteration; fixtures left in place
+under suffix `145dd1` for now since teardown isn't urgent (no successful remediations to
+leak).
 
 This document is **distinct** from [README-v15-openshift.md](./README-v15-openshift.md):
 that one validates `kubernaut-console` against a real, single-cluster `release/v1.5`
@@ -446,6 +454,41 @@ intentional design for human-in-the-loop holds per `status_writer.go`'s own doc 
 
 Suite stopped again pending a fix. Fixtures (suffix `145dd1`) left in place — no
 successful remediations occurred in this run, so nothing to leak/clean up urgently.
+
+## kubernaut#2273 live pprof repro, 2026-08-24: rules out "synchronous call never returns"
+
+Upstream confirmed pprof was already enabled (no redeploy needed — `disableProfiling: false`
+by default, health port `8081` exposed) and asked for a live goroutine dump captured during
+the hang window to localize the exact blocked frame in the suspected chain
+(`handleDiscoverWorkflows` -> `selfCorrectWorkflowSelection` -> `finalizeSelfCorrection`).
+
+Re-ran the approve-path test against the same single-replica pod (no restarts), tailed KA
+logs live, and captured two dumps via `curl localhost:8081/debug/pprof/goroutine?debug=2`
+port-forwarded from the pod — one 24s after the `submit_result_with_workflow` sentinel, one
+3m34s after. **Neither dump contains an active frame anywhere in `investigator/`,
+`mcp/tools/`, or `session/`** for this call — the only goroutines present are the same fixed
+set of long-lived background loops (informer caches, keepalive, rate-limiter cleanup,
+`SessionJanitor`/`EventLogBridge`), identical between both captures. `FetchValidator`'s own
+log line fired 11ms after the sentinel, confirming the CPU-only chain downstream of it
+(`SelfCorrect`/`resultParser.Parse`, both non-blocking per prior review) almost certainly
+finished within that same sub-second window, not 10 minutes later.
+
+**Revised theory posted to the issue**: this isn't a hung synchronous call at all — the
+`Investigate()` work completes fast, but its result is never relayed to whatever is supposed
+to unblock/notify the interactive `AgentSession` (push the validated workflow to the console
+via SSE for approval). The session just sits at `phase: Pending` / `interactive: true` until
+`AIAnalysis`'s hard 10-minute deadline force-cancels it — confirmed live: RR
+`rr-7cb6948ec49b-ed1f08c5` failed at exactly `acquireTime + 10m0s`
+(`"Interactive investigation timed out after 10m0s"`). Also ruled out the periodic
+`"dispatch lease race lost, another replica owns this agentsession"` V(1) log as a red
+herring — it's expected/benign per the `tryDispatch` doc comment (single replica here, no
+actual race, just correct reconcile back-off since dispatch already won).
+
+Full raw dumps and detailed writeup:
+[issuecomment-5399991188](https://github.com/jordigilh/kubernaut/issues/2273#issuecomment-5399991188).
+Suite remains stopped pending upstream's next fix iteration — likely a static trace of the
+`interactive=true` / `BR-INTERACTIVE-010` post-`Investigate()` handoff path now that "blocked
+in a known function" is ruled out.
 
 ## Full setup sequence — v1.6.0-rc5 deployed, environment ready
 
