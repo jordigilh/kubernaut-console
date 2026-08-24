@@ -148,33 +148,45 @@ listed in `status.services` as `ready: true`. No ACM Search install was needed o
 `gatewayType` has no default — an empty value means fleet is disabled outright (no
 implicit "off" vs. explicit "off" ambiguity to worry about at CR-read time).
 
-### CONFIRMED gap: `WorkflowExecution` only serves v1alpha1 on rc5 — no Fleet/OAuth2 fields at execution time
+### CONFIRMED gap on this build, but already tracked upstream: `WorkflowExecution` only serves v1alpha1 on rc5 — no Fleet/OAuth2 fields at execution time
 
-**Upgraded from "likely" to confirmed fact, 2026-08-24**, via direct inspection of the
-live CRD on the v1.6.0-rc5 cluster:
+**Confirmed via direct CRD inspection, 2026-08-24**:
 
 ```bash
 $ oc get crd workflowexecutions.kubernaut.ai -o jsonpath='{range .spec.versions[*]}{.name}{" served="}{.served}{" storage="}{.storage}{"\n"}{end}'
 v1alpha1 served=true storage=true
 ```
 
-`v1alpha2` **does not exist at all** as a version on this CRD — not "exists but
-unserved", genuinely absent. This confirms the prior session's code-inspection
-hypothesis: `WorkflowExecutionSpec` has no `Fleet`/`OAuth2` fields in the version this
-rc5 build actually serves. Practical implication: fleet target-cluster identity is
-threaded through SignalProcessing → AIAnalysis → KA discovery (BR-FLEET-003, confirmed
-working via the `cluster` label fix) but **cannot** be threaded down to the
-`WorkflowExecution` CR itself at execution time. In this cluster's loopback topology
-(exactly one registered cluster) this is unobservable — there's nothing to route
-*wrong*, since there's only one valid target — but it means this suite's own test run
-cannot validate genuine multi-cluster execution-time routing even if it passes cleanly.
-**Not yet raised upstream** — worth a decision on whether this is intentional (execution
-is meant to be cluster-agnostic once KA has resolved the workflow, with the actual K8s
-action itself carrying no cluster context of its own — plausible if the *workflow
-runner Job* is what actually talks to `kube-mcp-server`, not `WorkflowExecution`'s own
-controller) or a genuine gap worth a `kubernaut` v1.6 milestone issue. Flagging as an
-open question rather than filing preemptively, since I don't have enough visibility
-into the executor's actual runtime call path to be confident which it is.
+`v1alpha2` doesn't exist at all as a version on this CRD. **Triaged via `hindsight-docs`/
+`hindsight-issues` recall, 2026-08-24 — this is NOT a novel gap, it's a known,
+already-tracked, in-progress upstream item, not something to file fresh:**
+
+- `kubernaut-operator#235` (opened 2026-07-25): WE is the *only* fleet-integration
+  component that calls MCP **write** tools (`resources_create_or_update`/`resources_delete`,
+  `pkg/fleet/mcpclient/writer.go`) rather than read-only ones, so it needs its own
+  write-scoped OAuth2 credential (`WorkflowExecutionFleetSpec`, no fallback to the shared
+  read-only `spec.fleet.oauth2.credentialsSecretRef`, for least-privilege) — BR-FLEET-054 /
+  ADR-068 / DD-235.
+- Retargeted 2026-08-06 from the v1.6 milestone to a dedicated **v1alpha2** milestone,
+  specifically *because* it's a CRD-schema change: per the project's v1alpha2 redesign
+  initiative (tracking issue `kubernaut-operator#297`), CRD-schema-touching work is
+  designed directly against the new `kubernaut.ai/v1alpha2` shape rather than patched into
+  `v1alpha1` first, to avoid building fields that would be immediately restructured.
+- `kubernaut-operator` PR #363 (merged 2026-08-17) already implemented the `WorkflowExecutionFleetSpec`
+  type in `api/v1alpha2/kubernaut_types.go` upstream — but that's the Go type existing in
+  the codebase, not the same thing as `v1alpha2` being cut over as an actual *served* CRD
+  API version. This cluster's rc5 build confirms it isn't served yet: consistent with
+  #235/#297 being explicitly gated on sign-off of the full v1alpha2 migration ADR before
+  the new version goes live, a separate/later step from merging the Go types.
+
+Practical implication for this suite: fleet target-cluster identity threads through
+SignalProcessing → AIAnalysis → KA discovery (BR-FLEET-003, confirmed working via the
+`cluster` label fix) but genuinely cannot reach `WorkflowExecution`'s write path yet on
+this build. In this cluster's loopback topology (exactly one registered cluster) that's
+unobservable in this suite's results — there's only one valid target either way — so a
+clean suite run here doesn't validate genuine multi-cluster write-path routing. No new
+issue needed; just tracking that this suite's coverage has that known limit until
+`kubernaut-operator#235`/`#297` ship.
 
 ### `kubernaut` CRD/CR: installed and Running
 
@@ -332,9 +344,9 @@ healthy with no changes needed.
   existing `kagenti` realm (not a separate `kubernaut-fleet` realm).
 - ~~Does `WorkflowExecution`'s served CRD version include `Fleet`/`OAuth2` fields?~~
   **Answered**: no — only `v1alpha1` is served/stored, `v1alpha2` doesn't exist on this
-  CRD at all. Whether this is an intentional design (execution doesn't need cluster
-  context because the workflow runner Job talks to `kube-mcp-server` directly) or a real
-  gap is **still open** — worth asking upstream before assuming either way.
+  CRD at all. **Not a novel gap** — already tracked as `kubernaut-operator#235`
+  (BR-FLEET-054/ADR-068/DD-235), gated on the broader v1alpha2 CRD migration
+  (`kubernaut-operator#297`); see the confirmed-gap section above.
 - Are fixture namespaces (crashloop/memory-eater) correctly discoverable through the
   `loopback_cluster_`-prefixed MCP tools without any changes to `setup-fixtures.sh`?
   **Still open — requires a real suite run to observe.**
