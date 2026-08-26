@@ -56,7 +56,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add verification_step to StatusUpdateEvent type union
 - Fix MCP promise type mismatch
 
-## [1.6.0-rc1] - 2026-08-26
+## [1.1.0] - 2026-08-26
+
+**Versioning change**: starting with this release, kubernaut-console version
+numbers are no longer kept 1:1 with the kubernaut/kubernaut-operator release
+they ship alongside (v1.0.0 through v1.5.7 were). The console now uses its
+own independent semver line, with compatible upstream ranges documented in
+[README.md § Compatibility](README.md#compatibility) — a new console version
+is only cut when console-side changes actually require one, rather than on
+every upstream version bump. `release/v1.5` (and future `release/vX.Y`
+branches) remain available for the rare case where a fix must diverge
+per-upstream-line.
 
 ### Changed
 - **Rescoped to standalone console only.** `plugin-ocm` and `plugin-backstage` are not under active development and have been removed from the repo; ADR-007 (Multi-Platform Plugin Architecture) is marked Superseded. The production-readiness audit's plugin-ocm/plugin-backstage findings were preserved in a Deferred-Scope appendix in case these integrations are revisited (#103)
@@ -143,8 +153,8 @@ content of this release.
 - SSE reconnection error banner suppression
 - Approval button swap and disable on click
 
-[Unreleased]: https://github.com/jordigilh/kubernaut-console/compare/v1.6.0-rc1...HEAD
-[1.6.0-rc1]: https://github.com/jordigilh/kubernaut-console/compare/v1.5.7...v1.6.0-rc1
+[Unreleased]: https://github.com/jordigilh/kubernaut-console/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/jordigilh/kubernaut-console/compare/v1.5.7...v1.1.0
 [1.5.7]: https://github.com/jordigilh/kubernaut-console/compare/v1.5.6...v1.5.7
 [1.5.6]: https://github.com/jordigilh/kubernaut-console/compare/v0.5.13...v1.5.6
 [0.5.12]: https://github.com/jordigilh/kubernaut-console/compare/v0.5.11...v0.5.12
