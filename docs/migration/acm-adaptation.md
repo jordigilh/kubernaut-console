@@ -1,5 +1,9 @@
 # ACM Downstream Adaptation Guide
 
+> **Deferred (2026-08-26)** — `@kubernaut/plugin-ocm` has been removed from
+> the active codebase; see [ADR-007](../adr/007-multi-platform-plugin-architecture.md).
+> Preserved as historical/design reference.
+
 This guide covers adapting the `@kubernaut/plugin-ocm` for Red Hat Advanced Cluster Management (ACM) deployment.
 
 ## Compatibility Matrix
