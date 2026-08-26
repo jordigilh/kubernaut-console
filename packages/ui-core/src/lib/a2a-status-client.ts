@@ -106,11 +106,24 @@ async function attemptSubscription(
       }
 
       if (parsed.method === "status/update" && parsed.params) {
-        const params = parsed.params as { phase: RRPhase; final?: boolean; metadata: Record<string, unknown> };
-        options.onPhaseChange(params.phase, params.metadata ?? {});
+        const params = parsed.params as { phase: unknown; final?: boolean; metadata: Record<string, unknown> };
+        // kubernaut-console#90 (F-12): `phase` was cast straight to RRPhase
+        // with no runtime check -- a missing/non-string phase (e.g. server
+        // sends `phase: null`) would propagate to onPhaseChange unchecked.
+        // Deliberately permissive on *unrecognized-but-string* values
+        // (UT-CONSOLE-STATUS-021 relies on forward-compat: a new phase name
+        // the client doesn't know about yet must still flow through), so
+        // this only rejects the genuinely malformed case: not a string.
+        if (typeof params.phase !== "string" || params.phase.length === 0) {
+          console.error("[a2a] status/update payload has a missing/invalid phase field", parsed.params);
+          options.onError(new Error("Received a malformed status update from the server."));
+          return "fatal";
+        }
+        const phase = params.phase as RRPhase;
+        options.onPhaseChange(phase, params.metadata ?? {});
 
-        if (params.final || TERMINAL_PHASES.has(params.phase)) {
-          options.onTerminal?.(params.phase);
+        if (params.final || TERMINAL_PHASES.has(phase)) {
+          options.onTerminal?.(phase);
           return "terminal";
         }
       }
