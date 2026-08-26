@@ -80,4 +80,33 @@ describe("SI-17: Error boundary prevents cascading UI failure", () => {
     expect(payload.message).toBe("Test explosion");
     expect(payload.ts).toBeGreaterThan(0);
   });
+
+  it("IT-CONSOLE-EB-005: an error with an empty message shows the generic fallback, not blank text (closes #99/F-10)", () => {
+    function ThrowEmptyMessage(): never {
+      throw new Error("");
+    }
+
+    render(
+      <ErrorBoundary>
+        <ThrowEmptyMessage />
+      </ErrorBoundary>,
+    );
+
+    expect(screen.getByText("An unexpected error occurred.")).toBeInTheDocument();
+  });
+
+  it("IT-CONSOLE-EB-006: telemetry beacon payload includes a correlationId alongside message/stack", () => {
+    const beaconSpy = vi.fn();
+    Object.defineProperty(navigator, "sendBeacon", { value: beaconSpy, writable: true });
+
+    render(
+      <ErrorBoundary>
+        <ThrowingChild shouldThrow={true} />
+      </ErrorBoundary>,
+    );
+
+    const payload = JSON.parse(beaconSpy.mock.calls[0][1]);
+    expect(typeof payload.correlationId).toBe("string");
+    expect(payload.correlationId.length).toBeGreaterThan(0);
+  });
 });
