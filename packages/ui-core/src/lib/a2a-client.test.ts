@@ -449,4 +449,42 @@ describe("streamA2A", () => {
 
     expect(elapsed).toBeGreaterThanOrEqual(preRetryDelayMs - 10);
   });
+
+  // kubernaut-console#93 (F-15): an SSE response that never terminates a
+  // frame (no "\n\n") must not grow the buffer unboundedly -- it should
+  // fail visibly and immediately instead of retrying against a broken/
+  // hostile upstream.
+  it("UT-CONSOLE-A2A-018: an oversized/never-terminated SSE response surfaces onError and does not retry", async () => {
+    const oversizedStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("x".repeat(50)));
+        // Deliberately never close/terminate a frame -- simulates a
+        // misbehaving upstream. readSSEStream's own cap enforcement is
+        // what ends this, not stream completion.
+      },
+    });
+    const oversizedResponse = new Response(oversizedStream, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    });
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(oversizedResponse);
+    const onError = vi.fn();
+    const onComplete = vi.fn();
+    const onConnectionLost = vi.fn();
+
+    await streamA2A(buildStreamRequest("test"), {
+      onEvent: () => {},
+      onError,
+      onComplete,
+      onConnectionLost,
+      maxRetries: 3,
+      maxBufferBytes: 20,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("oversized") }));
+    expect(onConnectionLost).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
 });

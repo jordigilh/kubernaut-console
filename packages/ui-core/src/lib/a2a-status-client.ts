@@ -34,6 +34,8 @@ export interface StatusSubscribeOptions {
   token?: string;
   fetchFn?: typeof fetch;
   idleTimeoutMs?: number;
+  /** See `SSEReaderOptions.maxBufferBytes` (kubernaut-console#93). Default: 1 MiB. */
+  maxBufferBytes?: number;
 }
 
 export interface StatusSubscribeRequest {
@@ -58,7 +60,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-type StreamResult = "complete" | "terminal" | "not_found" | "aborted" | "retryable" | "fatal" | "service_unavailable";
+type StreamResult = "complete" | "terminal" | "not_found" | "aborted" | "retryable" | "fatal" | "service_unavailable" | "buffer_overflow";
 
 async function attemptSubscription(
   rrId: string,
@@ -117,7 +119,7 @@ async function attemptSubscription(
 
       return "continue";
     },
-    { signal: options.signal, idleTimeoutMs: options.idleTimeoutMs ?? STATUS_STREAM_IDLE_TIMEOUT_MS },
+    { signal: options.signal, idleTimeoutMs: options.idleTimeoutMs ?? STATUS_STREAM_IDLE_TIMEOUT_MS, maxBufferBytes: options.maxBufferBytes },
   );
 
   return streamResult as StreamResult;
@@ -139,6 +141,14 @@ export async function subscribeRRStatus(rrId: string, options: StatusSubscribeOp
 
     const result = await attemptSubscription(rrId, options);
 
+    if (result === "buffer_overflow") {
+      // kubernaut-console#93 (F-15): a non-terminating/oversized SSE
+      // response is not transient -- retrying would just repeat the same
+      // failure against a broken or hostile upstream, so this fails
+      // immediately instead of falling through to the retry loop.
+      options.onError(new Error("Received an oversized status update from the server; connection terminated."));
+      return;
+    }
     if (result === "aborted" || result === "complete" || result === "terminal" || result === "fatal") return;
     if (result === "not_found") {
       lastNotFound = true;
