@@ -44,6 +44,8 @@ export interface StreamOptions {
   idleTimeoutMs?: number;
   /** Delay before the first retry attempt (ms). Useful after aborting a previous stream to give the server time to detect the disconnect. Default: 500 */
   preRetryDelayMs?: number;
+  /** See `SSEReaderOptions.maxBufferBytes` (kubernaut-console#93). Default: 1 MiB. */
+  maxBufferBytes?: number;
 }
 
 let requestCounter = 0;
@@ -104,13 +106,21 @@ export async function streamA2A(
       options.onStreamInterrupted?.();
       return;
     }
+    if (result === "buffer_overflow") {
+      // kubernaut-console#93 (F-15): a non-terminating/oversized SSE
+      // response is not transient -- retrying would just repeat the same
+      // failure against a broken or hostile upstream, so this fails
+      // immediately instead of falling through to the retry loop.
+      options.onError(new Error("Received an oversized response from the server; connection terminated."));
+      return;
+    }
     options.onConnectionLost?.();
   }
 
   options.onError(new Error("Connection lost after maximum retries"));
 }
 
-type StreamResult = "complete" | "aborted" | "fatal" | "retryable" | "disconnected";
+type StreamResult = "complete" | "aborted" | "fatal" | "retryable" | "disconnected" | "buffer_overflow";
 
 async function attemptStream(
   request: JsonRpcRequest,
@@ -159,7 +169,7 @@ async function attemptStream(
       }
       return "continue";
     },
-    { signal: options.signal, idleTimeoutMs: options.idleTimeoutMs ?? 300_000 },
+    { signal: options.signal, idleTimeoutMs: options.idleTimeoutMs ?? 300_000, maxBufferBytes: options.maxBufferBytes },
   );
 
   return streamResult as StreamResult;

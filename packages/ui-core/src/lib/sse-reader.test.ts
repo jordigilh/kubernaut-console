@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { readSSEStream, postForSSE } from "./sse-reader";
+import { readSSEStream, postForSSE, DEFAULT_MAX_SSE_BUFFER_BYTES } from "./sse-reader";
 
 function makeStream(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -144,6 +144,104 @@ describe("sse-reader", () => {
 
       expect(result).toBe("complete");
       expect(frames).toEqual([{ part: "joined" }]);
+    });
+
+    // kubernaut-console#93 (F-15): the buffer had no maximum size -- a
+    // non-terminating upstream could grow it unboundedly for the life of
+    // the connection (client-side resource-exhaustion / SC-5).
+    describe("buffer size cap (kubernaut-console#93)", () => {
+      it("UT-CONSOLE-SSE-009: many small well-formed frames whose cumulative total exceeds maxBufferBytes do not trigger a false-positive overflow (each is drained immediately)", async () => {
+        const frames: Record<string, unknown>[] = [];
+        // 50 frames of ~12 bytes each = ~600 bytes total, but a tiny 20-byte
+        // cap -- each frame is fully drained (has its own "\n\n") before the
+        // next arrives, so the *leftover* buffer never exceeds the cap even
+        // though the *cumulative* total sent over the stream's life does.
+        const chunks = Array.from({ length: 50 }, (_, i) => `data: {"i":${i}}\n\n`);
+        const body = makeStream(chunks);
+
+        const result = await readSSEStream(
+          body,
+          (parsed) => {
+            frames.push(parsed);
+            return "continue";
+          },
+          { maxBufferBytes: 20 },
+        );
+
+        expect(result).toBe("complete");
+        expect(frames).toHaveLength(50);
+      });
+
+      it("UT-CONSOLE-SSE-010: a stream that never sends a frame terminator and exceeds maxBufferBytes returns buffer_overflow and stops reading", async () => {
+        const frames: Record<string, unknown>[] = [];
+        let pulls = 0;
+        const cancel = vi.fn();
+        const body = new ReadableStream<Uint8Array>({
+          pull(controller) {
+            pulls++;
+            // Defensive hard stop so a not-yet-fixed implementation fails
+            // fast (assertion below) instead of spinning indefinitely.
+            if (pulls > 1000) {
+              controller.close();
+              return;
+            }
+            // Never emit "\n\n" -- each chunk just grows the undelimited buffer.
+            controller.enqueue(new TextEncoder().encode("x".repeat(10)));
+          },
+          cancel,
+        });
+
+        const result = await readSSEStream(
+          body,
+          (parsed) => {
+            frames.push(parsed);
+            return "continue";
+          },
+          { maxBufferBytes: 20 },
+        );
+
+        expect(result).toBe("buffer_overflow");
+        expect(frames).toHaveLength(0);
+        // Cap of 20 bytes, 10 bytes/pull: overflow must be detected within
+        // a handful of pulls, not continue indefinitely (the exact count
+        // has a small implementation-defined margin from the stream's
+        // internal read-ahead queuing).
+        expect(pulls).toBeLessThanOrEqual(5);
+        expect(cancel).toHaveBeenCalled();
+      }, 10000);
+
+      it("UT-CONSOLE-SSE-011: a buffer sitting exactly at the cap (not exceeding it) still completes normally", async () => {
+        const frames: Record<string, unknown>[] = [];
+        // Leftover after the drained frame is exactly 20 bytes of undelimited
+        // padding -- at the cap, not over it, so this must not overflow.
+        const body = makeStream(['data: {"ok":true}\n\n', "y".repeat(20)]);
+
+        const result = await readSSEStream(
+          body,
+          (parsed) => {
+            frames.push(parsed);
+            return "continue";
+          },
+          { maxBufferBytes: 20 },
+        );
+
+        expect(result).toBe("complete");
+        expect(frames).toEqual([{ ok: true }]);
+      });
+
+      it("UT-CONSOLE-SSE-012: the default maxBufferBytes (no option passed) still bounds an unterminated stream", async () => {
+        const oversizedChunk = "x".repeat(DEFAULT_MAX_SSE_BUFFER_BYTES + 1);
+        const body = new ReadableStream<Uint8Array>({
+          pull(controller) {
+            controller.enqueue(new TextEncoder().encode(oversizedChunk));
+            controller.close();
+          },
+        });
+
+        const result = await readSSEStream(body, () => "continue");
+
+        expect(result).toBe("buffer_overflow");
+      });
     });
   });
 
