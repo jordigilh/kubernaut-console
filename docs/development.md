@@ -84,9 +84,12 @@ This is a pnpm monorepo managed by Turborepo:
 packages/
   ui-core/       — Shared UI component library (@kubernaut/ui-core)
   standalone/    — Standalone SPA wrapper (@kubernaut/standalone)
-  plugin-backstage/ — Backstage/RHDH frontend plugin
-  plugin-ocm/    — OCP/OCM dynamic console plugin
 ```
+
+> A multi-platform plugin architecture (`plugin-backstage`, `plugin-ocm`) was
+> previously scaffolded here; it is deferred — see
+> [ADR-007](adr/007-multi-platform-plugin-architecture.md) — and not part of
+> the actively maintained codebase.
 
 ## Testing
 

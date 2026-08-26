@@ -43,11 +43,6 @@ echo "Core library (ui-core):"
 check_size "@kubernaut/ui-core" "packages/ui-core/dist/index.js" "$BUDGET_KB"
 echo ""
 
-echo "Platform plugins:"
-check_size "plugin-backstage (remoteEntry)" "packages/plugin-backstage/dist/remoteEntry.js" "200"
-check_size "plugin-ocm (plugin-entry)" "packages/plugin-ocm/dist/plugin-entry.js" "50"
-echo ""
-
 echo "Applications:"
 STANDALONE_JS=$(find packages/standalone/dist/assets -name "*.js" 2>/dev/null | head -1)
 if [ -n "$STANDALONE_JS" ]; then

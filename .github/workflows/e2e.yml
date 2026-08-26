@@ -26,12 +26,6 @@ jobs:
       - name: Install Playwright
         run: npx playwright install chromium --with-deps
 
-      - name: Bundle Backstage plugin
-        run: pnpm --filter @kubernaut/plugin-backstage bundle
-
-      - name: Run structural E2E (Backstage + OCM)
-        run: npx playwright test e2e/backstage.spec.ts e2e/ocm.spec.ts
-
       - name: Run standalone E2E
         run: VITE_MOCK_A2A=true npx playwright test e2e/standalone.spec.ts
         env:

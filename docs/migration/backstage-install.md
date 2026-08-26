@@ -1,5 +1,9 @@
 # Kubernaut Console — Backstage Plugin Installation Guide
 
+> **Deferred (2026-08-26)** — `@kubernaut/plugin-backstage` has been removed
+> from the active codebase; see [ADR-007](../adr/007-multi-platform-plugin-architecture.md).
+> Preserved as historical/design reference.
+
 ## Overview
 
 The `@kubernaut/plugin-backstage` package provides the Kubernaut Console as a
