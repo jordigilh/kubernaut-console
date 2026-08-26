@@ -103,3 +103,19 @@ swallowed.
 - `maxBufferBytes` option + `DEFAULT_MAX_SSE_BUFFER_BYTES` constant + `"buffer_overflow"` result in `sse-reader.ts`
 - Wiring in `a2a-client.ts` and `a2a-status-client.ts`
 - New test cases per §6
+
+## 10. REFACTOR Review
+
+Reviewed after GREEN for extraction opportunities. The `"buffer_overflow"`
+handling in `a2a-client.ts`/`streamA2A` and `a2a-status-client.ts`/
+`subscribeRRStatus` is structurally similar (same condition, same
+"call `onError`, return without retry" shape) but not a true duplicate —
+each call site's error message is bespoke to its own protocol
+(`"...response..."` vs `"...status update..."`), and each sits in a
+different surrounding control-flow context. Extracting a shared helper
+(e.g. `handleBufferOverflow(options, message)`) would save ~2 lines per
+call site at the cost of an extra indirection layer for something already
+short and clear. **Conclusion: no extraction applied** — unlike
+kubernaut-console#90's `isRecord()` extraction, where the duplicated code
+was a byte-for-byte identical guard clause repeated 5 times, this
+duplication is not significant enough to warrant it.
