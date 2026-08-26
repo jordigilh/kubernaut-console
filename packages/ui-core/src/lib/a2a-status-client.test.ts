@@ -453,6 +453,69 @@ describe("subscribeRRStatus", () => {
     }));
   });
 
+  // kubernaut-console#90 (F-12): `params.phase` was cast straight to
+  // RRPhase with no runtime check; a missing/non-string phase would
+  // propagate to onPhaseChange unchecked.
+  it("UT-CONSOLE-STATUS-026: calls onError and does not call onPhaseChange when phase is missing/non-string", async () => {
+    const onPhaseChange = vi.fn();
+    const onError = vi.fn();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createSSEResponse([sseFrame({
+        jsonrpc: "2.0", method: "status/update",
+        params: { rr_id: "rr-1", phase: null, timestamp: "t1", metadata: {} },
+      })])
+    );
+
+    await subscribeRRStatus("rr-1", { onPhaseChange, onError, maxRetries: 0 });
+
+    expect(onPhaseChange).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("malformed") }));
+  });
+
+  it("UT-CONSOLE-STATUS-027: still calls onPhaseChange for an unrecognized-but-string phase (forward compat, not malformed)", async () => {
+    const onPhaseChange = vi.fn();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createSSEResponse([sseFrame({
+        jsonrpc: "2.0", method: "status/update",
+        params: { rr_id: "rr-1", phase: "SomeBrandNewPhase", timestamp: "t1", metadata: {} },
+      })])
+    );
+
+    await subscribeRRStatus("rr-1", { onPhaseChange, onError: vi.fn(), maxRetries: 0 });
+
+    expect(onPhaseChange).toHaveBeenCalledWith("SomeBrandNewPhase", {});
+  });
+
+  // kubernaut-console#93 (F-15): an SSE response that never terminates a
+  // frame must not grow the buffer unboundedly -- it should fail visibly
+  // and immediately instead of retrying against a broken/hostile upstream.
+  it("UT-CONSOLE-STATUS-028: an oversized/never-terminated SSE response surfaces onError and does not retry", async () => {
+    const oversizedStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("x".repeat(50)));
+      },
+    });
+    const oversizedResponse = new Response(oversizedStream, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    });
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(oversizedResponse);
+    const onError = vi.fn();
+    const onPhaseChange = vi.fn();
+
+    await subscribeRRStatus("rr-1", {
+      onPhaseChange,
+      onError,
+      maxRetries: 3,
+      maxBufferBytes: 20,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("oversized") }));
+    expect(onPhaseChange).not.toHaveBeenCalled();
+  });
+
   // kubernaut-console#96 (F-07): postForSSE's fatal-HTTP-error path (any
   // non-5xx, non-2xx status) and status/closing's reconnect:false path had
   // zero test coverage in this file -- only the 5xx-retryable path was
