@@ -22,7 +22,7 @@
   },
   "scripts": {
     "build": "vite build",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "test:watch": "vitest",
     "lint": "eslint ."
   },
