@@ -1,5 +1,6 @@
 import type { A2AEvent, JsonRpcRequest, JsonRpcResponse } from "./a2a-types";
 import { readSSEStream, postForSSE, type SSEFetchError } from "./sse-reader";
+import { isRecord } from "./type-guards";
 
 // kubernaut-console#90 (F-12): every SSE frame was treated as a valid
 // JsonRpcResponse via a bare type assertion. A frame that is valid JSON but
@@ -7,10 +8,9 @@ import { readSSEStream, postForSSE, type SSEFetchError } from "./sse-reader";
 // through both checks below and silently returned "continue" forever --
 // invisible to the caller, with the stream just hanging until idle timeout.
 export function isJsonRpcResponse(data: unknown): data is JsonRpcResponse {
-  if (typeof data !== "object" || data === null) return false;
-  const obj = data as Record<string, unknown>;
-  if (obj.jsonrpc !== "2.0") return false;
-  return "error" in obj || "result" in obj;
+  if (!isRecord(data)) return false;
+  if (data.jsonrpc !== "2.0") return false;
+  return "error" in data || "result" in data;
 }
 
 export type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;

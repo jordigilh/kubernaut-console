@@ -1,3 +1,5 @@
+import { isRecord } from "../type-guards";
+
 export interface InvestigationSummaryRCA {
   severity: "critical" | "high" | "medium" | "low" | "info";
   confidence: number;
@@ -68,10 +70,9 @@ const INVESTIGATION_SUMMARY_FIELDS = [
 ] as const;
 
 export function isInvestigationSummary(data: unknown): data is InvestigationSummary {
-  if (typeof data !== "object" || data === null) return false;
-  const obj = data as Record<string, unknown>;
+  if (!isRecord(data)) return false;
   // When `rca` IS present, it must be a non-null object -- a malformed rca
   // is still rejected even on an otherwise-plausible payload.
-  if ("rca" in obj && (typeof obj.rca !== "object" || obj.rca === null)) return false;
-  return INVESTIGATION_SUMMARY_FIELDS.some((field) => field in obj);
+  if ("rca" in data && !isRecord(data.rca)) return false;
+  return INVESTIGATION_SUMMARY_FIELDS.some((field) => field in data);
 }

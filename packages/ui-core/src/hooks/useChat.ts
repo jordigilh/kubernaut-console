@@ -6,6 +6,7 @@ import { AuthContext } from "../providers/auth";
 import { ConfigContext } from "../providers/config";
 import { clearSessionState, loadPersistedPhase, savePersistedPhase } from "../lib/session-state";
 import { maxChatPhase } from "../lib/phase-rank";
+import { isRecord } from "../lib/type-guards";
 import { isInvestigationSummary, type InvestigationSummary } from "../lib/schemas/investigation-summary";
 
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
@@ -97,23 +98,21 @@ export interface ApprovalResolution {
 // correctly typed (see ApprovalCard.tsx); other optional fields are left
 // unchecked, matching the interfaces above.
 export function isApprovalRequest(data: unknown): data is ApprovalRequest {
-  if (typeof data !== "object" || data === null) return false;
-  const obj = data as Record<string, unknown>;
+  if (!isRecord(data)) return false;
   return (
-    typeof obj.name === "string" &&
-    typeof obj.confidence === "number" &&
-    typeof obj.confidenceLevel === "string" &&
-    typeof obj.reason === "string" &&
-    typeof obj.requiredBy === "string"
+    typeof data.name === "string" &&
+    typeof data.confidence === "number" &&
+    typeof data.confidenceLevel === "string" &&
+    typeof data.reason === "string" &&
+    typeof data.requiredBy === "string"
   );
 }
 
 export function isApprovalResolution(data: unknown): data is ApprovalResolution {
-  if (typeof data !== "object" || data === null) return false;
-  const obj = data as Record<string, unknown>;
+  if (!isRecord(data)) return false;
   return (
-    typeof obj.name === "string" &&
-    (obj.decision === "Approved" || obj.decision === "Rejected" || obj.decision === "Expired")
+    typeof data.name === "string" &&
+    (data.decision === "Approved" || data.decision === "Rejected" || data.decision === "Expired")
   );
 }
 
@@ -138,12 +137,11 @@ export interface AlignmentVerdict {
 }
 
 export function isAlignmentVerdict(data: unknown): data is AlignmentVerdict {
-  if (typeof data !== "object" || data === null) return false;
-  const obj = data as Record<string, unknown>;
+  if (!isRecord(data)) return false;
   return (
-    typeof obj.result === "string" &&
-    typeof obj.summary === "string" &&
-    Array.isArray(obj.findings)
+    typeof data.result === "string" &&
+    typeof data.summary === "string" &&
+    Array.isArray(data.findings)
   );
 }
 
