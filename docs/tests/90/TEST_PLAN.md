@@ -155,3 +155,16 @@ guard predates this issue) but does not change any test ID or the item 1
 call-site wiring in §3 — only the guard's internal accept/reject boundary.
 All pre-existing integration tests listed above pass unmodified after this
 refinement; this is the authoritative, verified contract.
+
+## 12. REFACTOR Step
+
+After GREEN, reviewed the 5 new/wired guards for duplication:
+`isApprovalRequest`/`isApprovalResolution`/`isAlignmentVerdict` (`useChat.ts`),
+`isInvestigationSummary` (`investigation-summary.ts`), and
+`isJsonRpcResponse` (`a2a-client.ts`) all repeated an identical
+`typeof data !== "object" || data === null` prefix before narrowing to
+`Record<string, unknown>` — a true byte-for-byte duplicate, not just a
+similar shape. Extracted to a new `lib/type-guards.ts`'s `isRecord()`
+(with its own unit tests), and updated all 5 call sites to use it. No
+behavior change; all 490 tests continued to pass unmodified. Done as a
+separate commit per RED → GREEN → REFACTOR.
