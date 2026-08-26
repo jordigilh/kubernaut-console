@@ -15,7 +15,6 @@ Real-time operator console for the [Kubernaut](https://github.com/jordigilh/kube
 - **Verification Timer** — Live activity log during stabilization window
 - **Phase Indicator** — Real-time remediation lifecycle tracking with elapsed timer
 - **Escalation** — Inline escalation input with reason capture
-- **Multi-Platform** — Standalone, OCP Console Plugin, and Backstage plugin targets
 - **OAuth2 Authentication** — OIDC via OAuth2 Proxy sidecar (Keycloak)
 - **Accessibility** — ARIA attributes, focus management, reduced-motion support
 
@@ -102,20 +101,22 @@ packages/
 │   ├── src/hooks/       # useChat, useRRStatus, useUser
 │   ├── src/lib/         # A2A/MCP clients, SSE reader, session state
 │   └── src/providers/   # Auth and config context providers
-├── standalone/          # Standalone Vite application (nginx + oauth2-proxy)
-├── plugin-backstage/    # Backstage frontend plugin (Module Federation)
-└── plugin-ocm/          # OCP console dynamic plugin (Webpack Federation)
+└── standalone/          # Standalone Vite application (nginx + oauth2-proxy)
 e2e/                     # Playwright E2E tests (a11y, visual, integration)
 docs/                    # Documentation
 scripts/                 # Build and CI utilities
 ```
+
+> **Note**: this repo previously scaffolded `plugin-backstage` and `plugin-ocm`
+> packages for a multi-platform (Backstage/OCM) plugin architecture. That work
+> is currently deferred — see [ADR-007](docs/adr/007-multi-platform-plugin-architecture.md)
+> — and only the standalone console is actively maintained.
 
 ## Tech Stack
 
 - **React 19** + TypeScript
 - **PatternFly 6** — Component library and chat UI
 - **Vite** — Build tooling and dev server (ui-core, standalone)
-- **Webpack** — OCP console plugin build
 - **Turborepo** — Monorepo task orchestration
 - **Vitest** + Testing Library — Unit and integration tests
 - **Playwright** — E2E and visual regression testing
@@ -130,9 +131,7 @@ scripts/                 # Build and CI utilities
 | [Architecture](docs/architecture.md) | System design, data flows, component diagrams |
 | [Deployment](docs/deployment.md) | Helm install, configuration, troubleshooting |
 | [Development](docs/development.md) | Local setup, testing, CI/CD |
-| [Migration Design](docs/migration/design.md) | Multi-platform architecture decisions |
-| [Backstage Install](docs/migration/backstage-install.md) | RHDH/Backstage plugin deployment |
-| [ACM Adaptation](docs/migration/acm-adaptation.md) | OCM/ACM plugin configuration |
+| [Migration Design](docs/migration/design.md) | Multi-platform architecture decisions (deferred, see ADR-007) |
 | [Contributing](CONTRIBUTING.md) | How to contribute |
 | [Security](SECURITY.md) | Vulnerability reporting |
 | [Changelog](CHANGELOG.md) | Release history |

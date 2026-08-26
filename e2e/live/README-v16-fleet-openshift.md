@@ -27,6 +27,70 @@ un-blessed testing initiative. Worth an explicit ADR-009 addendum (or a small
 ADR-010) once this phase actually starts producing results, so the "Phase 1 only"
 scope statement in ADR-009 itself doesn't go stale.
 
+## STATUS UPDATE (2026-08-25, v1.6.0-rc7): fleet MCP tool routing has never actually been exercised
+
+**Critical finding, confirmed live on this cluster:** despite `fleet.enabled: true`
+on the `Kubernaut` CR and healthy `mcp-gateway`/`kube-mcp-server` pods in `mcp-system`
+(the `loopback-cluster` `MCPServerRegistration` is `Ready: True`, 19 tools), every
+`kubernaut-agent` investigation run in this validation session — including everything
+reported as "no major regression from the fleet enhancement" further down this doc —
+has silently used KA's own **built-in v1.5-style K8s tools** (client-go direct API
+calls), not the fleet MCP Gateway → `kube-mcp-server` path. The two have never
+actually been compared; only the fallback path has been tested.
+
+Root cause: a path-hyphenation mismatch between `kubernaut-operator` (mounts KA's
+`fleet-oauth2-creds` Secret at non-hyphenated `/etc/kubernautagent/`) and `kubernaut`
+itself (KA's `toolregistry.go` looks for it at hyphenated `/etc/kubernaut-agent/`,
+changed while fixing #1729's *Helm* parity gap, which flipped a previously-latent
+mismatch into a live one for operator-deployed KA). KA logs
+`"fleet tool overlay resolution failed; investigation proceeds without remote-cluster
+tools"` on every single investigation as a result — a **silent, fail-open** fallback,
+which is why nothing user-visible ever flagged it.
+
+**Resolution (same day):** decided this is a live deployment config mismatch on this
+cluster, not something worth a separate upstream-tracked issue — closed without
+filing (initially filed as
+[kubernaut#2295](https://github.com/jordigilh/kubernaut/issues/2295), then closed
+per that decision). Fixed directly by patching the live `kubernaut-agent` Deployment
+to add a second volume mount at the hyphenated path KA's code actually reads
+(`/etc/kubernaut-agent/fleet-oauth2-creds`, same underlying `fleet-oauth2-creds`
+Secret), alongside the operator's existing non-hyphenated mount. Confirmed fixed
+after rollout: KA now logs `"MCP Gateway connection established"` and
+`"Fleet readiness gate started","ready":true` at startup, same as every other
+fleet-aware service. **Caveat: not durable** — this is a manual patch of a
+Deployment the operator reconciles; it may get reverted on the next operator
+reconcile (CR update, upgrade, resync) and would need reapplying. No CRD field
+exists to express this durably (`kubernautAgent` has no `extraVolumes`/
+`extraVolumeMounts` escape hatch as of v1.6.0-rc7).
+
+**Preflight of every other fleet-aware component (2026-08-25), to check whether the
+same class of mismatch existed elsewhere:** KA was the *only* outlier. Every other
+fleet-aware service's own hardcoded credential path already matched exactly what
+`kubernaut-operator`'s `deployments.go` mounts, and all show a successful
+`"MCP Gateway connection established"` + `"Fleet readiness gate started","ready":true`
+in their logs:
+
+| Component | Own code's OAuth2 path | Operator mount | Status |
+|---|---|---|---|
+| `kubernaut-agent` | `/etc/kubernaut-agent/` | `/etc/kubernautagent/` (mismatch) | fixed via live patch above |
+| `remediationorchestrator-controller` | `/etc/remediationorchestrator/` | matches | ✅ connected |
+| `signalprocessing-controller` | `/etc/signalprocessing/` | matches | ✅ connected |
+| `apifrontend` | `/etc/apifrontend/` | matches | ✅ connected |
+| `effectivenessmonitor-controller` | `/etc/effectivenessmonitor/` | matches | ✅ connected |
+| `workflowexecution-controller` | `/etc/workflowexecution/` | matches | ✅ connected |
+| `fleetmetadatacache` | config-driven `CredentialsDir` (operator sets both ends consistently) | matches | ✅ connected |
+| `gateway` (webhook ingress component) | n/a | not deployed on this cluster (`spec.gateway.enabled: false` — AF is the ingress) | N/A |
+| `aianalysis-controller`, `notification-controller`, `data-storage`, `authwebhook` | n/a | not fleet-aware | N/A (expected, no MCP Gateway wiring needed) |
+
+**Implication for everything recorded below before 2026-08-25 19:10 UTC:** every
+"passed"/"no regression" result recorded below (topology discovery, workflow
+catalog, fixture runs, etc.) validated KA operating in its legacy built-in-tool mode
+for K8s access specifically — every *other* service was already correctly
+fleet-routed the whole time. Golden-transcript extraction for "k8s-mcp-server vs KA
+builtin" MCP-call comparison can now proceed for fresh runs (KA's fleet path is
+live as of the patch above), but anything captured before the patch should not be
+used for that comparison.
+
 ## What's different about fleet mode
 
 In non-fleet (v1.5) mode, AF/KA call the Kubernetes API directly via client-go. In
