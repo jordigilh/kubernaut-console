@@ -289,6 +289,18 @@ This repo does not package or publish its own Helm chart (see
 [Deployment Options](deployment.md#deployment-options)) — the image above is
 consumed by kubernaut-operator and kubernaut's own chart instead.
 
+> **Note**: tag-push events have been observed to trigger this workflow with
+> a delay of up to ~25 minutes in this repo (vs. the near-instant trigger for
+> `push`/`pull_request` events on branches) — this appears to be GitHub-side
+> queuing rather than a workflow or permissions problem. Don't assume a tag
+> push failed to trigger the release just because no run appears within the
+> first few minutes; check back before re-tagging or investigating further.
+
+See [README.md § Compatibility](../README.md#compatibility) for how console
+version numbers relate to kubernaut/kubernaut-operator versions — since
+`v1.1.0` these are versioned independently, so a tag here does not need to
+match the upstream release it's cut alongside.
+
 ## Pre-commit Hooks
 
 The repository includes a pre-commit hook that detects sensitive data:
