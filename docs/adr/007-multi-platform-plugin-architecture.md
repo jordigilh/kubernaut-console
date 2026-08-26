@@ -2,7 +2,20 @@
 
 ## Status
 
-Accepted
+**Superseded (2026-08-26)** — deferred, not withdrawn. `plugin-backstage` and
+`plugin-ocm` (and their CI jobs, Helm chart, and E2E structural tests) have
+been removed from the active codebase; only the standalone console
+(`packages/standalone`) is currently maintained. This ADR's design remains
+the intended approach *if and when* multi-platform integration is revisited —
+it is not rejected, just out of current scope. See the note at the top of
+[README.md](../../README.md) and [CONTRIBUTING.md](../../CONTRIBUTING.md).
+
+The content below is preserved as historical record of the original decision
+and design; do not treat it as describing the current codebase.
+
+---
+
+Originally: Accepted
 
 ## Context
 
