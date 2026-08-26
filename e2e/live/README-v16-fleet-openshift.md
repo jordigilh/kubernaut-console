@@ -1,11 +1,40 @@
 # Live E2E Suite — release/v1.6 fleet management on the shared OpenShift dev cluster
 
-**Status: living doc, in progress.** Fleet management (`kubernaut` v1.6.0-rc5) has not
-yet been deployed by the operator team on this cluster as of this writing — everything
-below reflects infrastructure prep and topology discovery done *ahead of* that
-deployment, per [README-v15-openshift.md](./README-v15-openshift.md)'s companion
-pattern. Sections marked **TBD** will be filled in once v1.6.0-rc5 is live and a real
-suite run can validate them.
+**Status: BLOCKED on a new release-blocking upstream hang bug, [kubernaut#2273](https://github.com/jordigilh/kubernaut/issues/2273).**
+The prior blocker ([kubernaut-operator#400](https://github.com/jordigilh/kubernaut-operator/issues/400),
+`aianalyses/finalizers` RBAC gap) is **CONFIRMED FIXED** in `kubernaut-operator` v1.6.0-rc6
+(PR [#401](https://github.com/jordigilh/kubernaut-operator/pull/401), deployed 2026-08-24) —
+live `ClusterRole` now grants `update` on `aianalyses/finalizers`, and both re-run tests got
+cleanly past `AIAnalysis`->`AgentSession` creation with zero RBAC errors.
+
+While re-validating, found and fixed a second, unrelated fresh-install gap: 5 of the 32
+`RemediationWorkflow` manifests in `kubernaut-demo-scenarios` store boolean `detectedLabels`
+fields as quoted strings (`"true"` instead of `true`), which broke KA's workflow-catalog-list
+call **wholesale** (not just for the 5 affected workflows) for every investigation on this
+cluster. Fixed live via `oc apply` and filed
+[kubernaut-demo-scenarios#416](https://github.com/jordigilh/kubernaut-demo-scenarios/pull/416).
+
+With both of those out of the way, hit a third, new, and currently blocking issue: the
+`approval-gate.spec.ts` approve/decline paths both reproduce a severe backend hang —
+`workflow_discovery` correctly selects and validates a workflow (confirmed via full audit
+trail: `crashloop-rollback-v1` picked with clear reasoning, `is_valid: true`), then the
+flow goes **completely silent** with zero further logs or audit events, bounded only by
+`AIAnalysis`'s outer 10-minute `Analyzing` timeout, which eventually force-fails the
+session (`ERR_UPSTREAM_FAILURE: investigation timed out after 10m0s`). Filed as
+[kubernaut#2273](https://github.com/jordigilh/kubernaut/issues/2273).
+
+**Update, 2026-08-24 (live pprof repro):** captured two live goroutine dumps during the hang
+window (pprof was already enabled, no redeploy needed). Neither shows any active frame in
+`investigator/`, `mcp/tools/`, or `session/` — the `Investigate()` call chain almost
+certainly finishes in well under a second (its own `FetchValidator` log line fires 11ms
+after the sentinel). This **rules out** "a synchronous MCP call never returns" as the
+mechanism. Revised theory: the work completes fine, but its result is never relayed to
+unblock/notify the interactive `AgentSession` (push the validated workflow to the console
+for approval), so it sits idle at `phase: Pending` until the hard 10-minute deadline force-
+cancels it. See "kubernaut#2273 live pprof repro" section below for full details and the
+raw dumps. Suite stopped again pending upstream's next fix iteration; fixtures left in place
+under suffix `145dd1` for now since teardown isn't urgent (no successful remediations to
+leak).
 
 This document is **distinct** from [README-v15-openshift.md](./README-v15-openshift.md):
 that one validates `kubernaut-console` against a real, single-cluster `release/v1.5`
@@ -106,8 +135,8 @@ an AF/KA-internal backend change, not a console API change. This means:
 
 - The **same 6 spec files / 12 test cases** documented in
   [README-v15-openshift.md](./README-v15-openshift.md#suite-layout) are expected to be
-  reusable as-is against a fleet-enabled deployment — **TBD, not yet confirmed** with a
-  real run.
+  reusable as-is against a fleet-enabled deployment — environment is now preflighted and
+  ready; **not yet confirmed** with a real run.
 - The **same fixture scripts** (`setup-fixtures.sh`/`teardown-fixtures.sh`,
   crashloop/memory-eater targets) should still work: fixtures are just real broken K8s
   resources in real namespaces; only the *mechanism* AF/KA use to discover/read/act on
@@ -158,15 +187,34 @@ checks on `kube-mcp-server` itself** in this deployment. Confirmed:
   no credential reference at all for the `loopback-cluster` upstream connection — just
   a bare URL (`http://kube-mcp-server.mcp-system.svc.cluster.local:8080/mcp`).
 
-**Implication for the `Kubernaut` CR once the operator deploys it**: the CRD schema
-(`kubernaut-operator`'s `kubernaut.ai_kubernauts.yaml`, `spec.fleet.oauth2`) has an
-admission-time CEL validation rule requiring `oauth2.enabled: true` whenever
-`spec.fleet.mcpGatewayEndpoint` is set — **regardless of whether the underlying gateway
-actually enforces it**. Some `spec.fleet.oauth2` values (a `credentialsSecretRef` at
-minimum) will likely need to be populated just to satisfy CR admission, even though
-`kube-mcp-server`'s `kubeconfig` auth mode means the token's actual content doesn't
-matter for authorization on this cluster. **TBD**: confirm exact values needed once the
-operator's `v1.6.0-rc5` `Kubernaut` CR manifest/values are available.
+**Confirmed 2026-08-24, live `Kubernaut` CR on v1.6.0-rc5**:
+
+```json
+{
+  "backend": "fleetmetadatacache",
+  "enabled": true,
+  "mcpGatewayEndpoint": "https://mcp-gateway-gateway-system.apps.dev.redhat-internal.com/mcp",
+  "mcpGatewayNamespace": "mcp-system",
+  "mcpGatewayType": "kuadrant",
+  "oauth2": {
+    "credentialsSecretRef": "fleet-oauth2-creds",
+    "enabled": true,
+    "tokenURL": "http://keycloak-service.keycloak:8080/realms/kagenti/protocol/openid-connect/token"
+  }
+}
+```
+
+Notably, `oauth2.tokenURL` points at the **same `kagenti` realm** this cluster's console
+auth already uses — there is no separate `kubernaut-fleet` realm on this cluster, despite
+upstream's getting-started doc describing one. AF/the fleet client still performs a real
+OAuth2 client-credentials exchange against `kagenti` (the `fleet-oauth2-creds` Secret
+holds a `client-id`/`client-secret` pair scoped to that realm) to obtain *a* token to
+present to the MCP Gateway — it's just that `kube-mcp-server`'s `kubeconfig` auth mode
+(see above) never inspects that token's claims for authorization, only its presence
+satisfies the CR's CEL admission rule and whatever the Kuadrant gateway itself checks at
+the transport layer. `status.services` confirms `fleetmetadatacache: {ready: true,
+readyReplicas: 1}` — FMC is deployed and healthy as part of this rollout (see backend
+question resolved below).
 
 ### Fleet-related `Kubernaut` CRD fields (from `kubernaut-operator` main, pre-rc5)
 
@@ -185,39 +233,78 @@ Found in `kubernaut-operator/config/crd/bases/kubernaut.ai_kubernauts.yaml`
 | `spec.fleet.tokenSecretName` | string | Only relevant for `backend: acm` |
 | `spec.fleetMetadataCache.enabled` | bool, default `false` | Whether operator deploys its own FMC; not needed if `backend: acm` points at an existing RHACM Search install |
 
-**TBD**: this cluster's actual `backend` choice (`fleetmetadatacache` vs `acm`) —
-no FMC or ACM Search deployment was found during this investigation (checked
-`oc get namespace`/`oc get pods -A` for `fleetmetadatacache`/`acm`-related workloads,
-found none as of 2026-08-22). Likely FMC will be deployed alongside the v1.6.0-rc5
-`Kubernaut` CR itself, not pre-provisioned like the MCP Gateway/`kube-mcp-server`
-pieces were.
+**Confirmed 2026-08-24**: `backend: fleetmetadatacache`, and it *was* deployed alongside
+the rest of the v1.6.0-rc5 rollout as predicted — `fleetmetadatacache-67687b6576-45t8l`
+pod `Running 1/1`, `quay.io/kubernaut-ai/fleetmetadatacache@sha256:f11c6dc9...` image,
+listed in `status.services` as `ready: true`. No ACM Search install was needed or used.
 
 `gatewayType` has no default — an empty value means fleet is disabled outright (no
 implicit "off" vs. explicit "off" ambiguity to worry about at CR-read time).
 
-### Likely blocker: `WorkflowExecution` v1alpha1 may not carry Fleet/OAuth2 fields yet
+### CONFIRMED gap on this build, but already tracked upstream: `WorkflowExecution` only serves v1alpha1 on rc5 — no Fleet/OAuth2 fields at execution time
 
-Recalled from a prior session's direct code inspection (`hindsight`, 2026-08-07/11,
-re-confirmed unchanged as of 2026-08-11): on `kubernaut-operator` main,
-`WorkflowExecutionSpec` in the **`v1alpha1`** API group — the version actually served
-today — does **not** have `Fleet`/`OAuth2` fields; those exist only on the not-yet-served
-**`v1alpha2`** type. If `v1.6.0-rc5` still serves `v1alpha1` as the storage/served
-version for `WorkflowExecution`, this would mean the fleet target-cluster identity
-can't be threaded down to the actual workflow-execution step, only through the earlier
-SignalProcessing → AIAnalysis → KA discovery chain (per BR-FLEET-003, confirmed
-working via the `cluster` label fix above). **TBD, high-priority check once rc5 is
-available**: `oc get crd workflowexecutions.kubernaut.ai -o jsonpath='{.spec.versions[*].name}'`
-and whether `v1alpha2` is present/served — if not, execution-time fleet propagation may
-still be an open upstream gap worth confirming with the operator/kubernaut teams before
-assuming full fleet coverage end-to-end.
+**Confirmed via direct CRD inspection, 2026-08-24**:
 
-### `kubernaut` CRD/CR: not yet installed
+```bash
+$ oc get crd workflowexecutions.kubernaut.ai -o jsonpath='{range .spec.versions[*]}{.name}{" served="}{.served}{" storage="}{.storage}{"\n"}{end}'
+v1alpha1 served=true storage=true
+```
 
-As of this writing, `kubernaut-system` namespace and the `kubernauts.kubernaut.ai` CRD
-do not exist on this cluster (`oc get crd kubernauts.kubernaut.ai` → `NotFound`). The
-prior `v1.5.12` spot-check deployment (see README-v15-openshift.md) was fully torn down
-at some point between then and 2026-08-22. **Blocked on the operator team deploying
-v1.6.0-rc5.**
+`v1alpha2` doesn't exist at all as a version on this specific CRD. **This is not uniform
+across all `kubernaut.ai` CRDs** — the v1alpha2 migration has genuinely started on this
+rc5 build, just not finished:
+
+| CRD | Versions present | Storage version |
+|---|---|---|
+| `kubernauts.kubernaut.ai` (top-level operator CR) | `v1alpha1`, `v1alpha2` | **`v1alpha2`** — the live CR's `apiVersion` is confirmed `kubernaut.ai/v1alpha2` |
+| `workflowexecutions.kubernaut.ai` and every other workload CRD (`remediationrequests`, `signalprocessings`, `aianalyses`, `remediationworkflows`, `actiontypes`, `agentsessions`, `investigationsessions`, `effectivenessassessments`, `notificationrequests`, `remediationapprovalrequests`) | `v1alpha1` only | `v1alpha1` |
+
+So the top-level `Kubernaut` CR (where `spec.fleet.*` lives, confirmed above) has already
+cut over to `v1alpha2`, but that hasn't propagated to any workload CRD, `WorkflowExecution`
+included. **Triaged via `hindsight-docs`/
+`hindsight-issues` recall, 2026-08-24 — this is NOT a novel gap, it's a known,
+already-tracked, in-progress upstream item, not something to file fresh:**
+
+- `kubernaut-operator#235` (opened 2026-07-25): WE is the *only* fleet-integration
+  component that calls MCP **write** tools (`resources_create_or_update`/`resources_delete`,
+  `pkg/fleet/mcpclient/writer.go`) rather than read-only ones, so it needs its own
+  write-scoped OAuth2 credential (`WorkflowExecutionFleetSpec`, no fallback to the shared
+  read-only `spec.fleet.oauth2.credentialsSecretRef`, for least-privilege) — BR-FLEET-054 /
+  ADR-068 / DD-235.
+- Retargeted 2026-08-06 from the v1.6 milestone to a dedicated **v1alpha2** milestone,
+  specifically *because* it's a CRD-schema change: per the project's v1alpha2 redesign
+  initiative (tracking issue `kubernaut-operator#297`), CRD-schema-touching work is
+  designed directly against the new `kubernaut.ai/v1alpha2` shape rather than patched into
+  `v1alpha1` first, to avoid building fields that would be immediately restructured.
+- `kubernaut-operator` PR #363 (merged 2026-08-17) already implemented the `WorkflowExecutionFleetSpec`
+  type in `api/v1alpha2/kubernaut_types.go` upstream — but that's the Go type existing in
+  the codebase, not the same thing as `v1alpha2` being cut over as an actual *served* CRD
+  API version. This cluster's rc5 build confirms it isn't served yet: consistent with
+  #235/#297 being explicitly gated on sign-off of the full v1alpha2 migration ADR before
+  the new version goes live, a separate/later step from merging the Go types.
+
+Practical implication for this suite: fleet target-cluster identity threads through
+SignalProcessing → AIAnalysis → KA discovery (BR-FLEET-003, confirmed working via the
+`cluster` label fix) but genuinely cannot reach `WorkflowExecution`'s write path yet on
+this build. In this cluster's loopback topology (exactly one registered cluster) that's
+unobservable in this suite's results — there's only one valid target either way — so a
+clean suite run here doesn't validate genuine multi-cluster write-path routing. No new
+issue needed; just tracking that this suite's coverage has that known limit until
+`kubernaut-operator#235`/`#297` ship.
+
+### `kubernaut` CRD/CR: installed and Running
+
+**Resolved 2026-08-23/24**: the operator team deployed v1.6.0-rc5. `Kubernaut` CR
+`kubernaut` in `kubernaut-system`, `phase: Running`, all 10 `status.conditions` `True`
+(`CRDsInstalled`, `MigrationComplete`, `BYOValidated`, `ToolRBACBound`, `AnsibleReady`,
+`AlertManagerAuthConfigured` [gateway disabled, expected], `RBACProvisioned`,
+`WebhooksConfigured`, `RouteReady`, `ServicesDeployed`). All 11 `status.services`
+entries (`data-storage`, `aianalysis`, `signalprocessing`, `remediationorchestrator`,
+`workflowexecution`, `effectivenessmonitor`, `notification`, `kubernaut-agent`,
+`authwebhook`, `apifrontend`, `fleetmetadatacache`) report `ready: true`. All 15 pods in
+`kubernaut-system` `Running`. `kubernaut-operator-controller-manager` image explicitly
+tagged `1.6.0-rc5`; every service image is digest-pinned (`quay.io/kubernaut-ai/*@sha256:...`)
+as expected of operator-managed pinning.
 
 ## Workflow catalog storage: CRD-native in v1.6, not Postgres-materialized
 
@@ -239,10 +326,15 @@ oc get remediationworkflows -n kubernaut-system --no-headers | wc -l
 oc get actiontypes -n kubernaut-system --no-headers | wc -l
 ```
 
-**TBD**: confirm the expected count once `seed-workflows.sh`/`seed-action-types.sh` are
-re-run against the v1.6.0-rc5 deployment (v1.5's expected count was 32 of 34 upstream
-manifests; the demo-scenarios catalog itself hasn't shrunk, so 32/34 is the working
-assumption pending confirmation).
+**Confirmed 2026-08-24**: fresh v1.6.0-rc5 install started with an empty catalog (0
+`RemediationWorkflow`, 0 `ActionType` — expected for a fresh install, same class of gap
+as v1.5's, see next section). After running
+`e2e/live/scripts/seed-fresh-install-prerequisites.sh`: **32 `RemediationWorkflow`, 35
+`ActionType`** (2 workflows skipped by `seed-workflows.sh --continue-on-error`, same
+32/34 pattern as v1.5's runs — not a new gap). Verified the `cluster: ["*"]` label from
+`kubernaut-demo-scenarios#412` is present end-to-end on the live CRD, e.g.
+`crashloop-rollback-v1`'s `spec.labels` includes `"cluster":["*"]` alongside the existing
+`component`/`environment`/`priority`/`severity` dimensions.
 
 ## Known blocker found and fixed ahead of time: workflow `cluster` label gap
 
@@ -301,40 +393,201 @@ handles the *most recent* suffix via its state file, not historical ones). **Les
 always run `teardown-fixtures.sh` at the end of a validation session, and periodically
 `oc get namespace | grep console-e2e-` to catch anything that slipped through.
 
-## Full setup sequence — once v1.6.0-rc5 is deployed (TBD, not yet executed)
+## Preflight results, 2026-08-24 (v1.6.0-rc5 live)
 
-Provisional, adapted from README-v15-openshift.md's sequence pending a real run:
+Ran a full preflight against the newly-deployed v1.6.0-rc5 `Kubernaut` CR before the
+first suite run. Three fresh-install gaps found, all fixed:
+
+| # | Gap found | Evidence | Fix |
+|---|---|---|---|
+| 1 | `RemediationWorkflow`/`ActionType` catalog empty (0/0) | `oc get remediationworkflows/actiontypes -n kubernaut-system` — 0 items | Ran `e2e/live/scripts/seed-fresh-install-prerequisites.sh` → 32/35. Same class of gap as v1.5's fresh-install experience (this is a documented user-provided-prerequisite, not an operator bug) |
+| 2 | `signalprocessing-policy` and `aianalysis-policy` ConfigMaps present but with **wrong Rego package names** (`package kubernaut.signalprocessing` / `package kubernaut.aianalysis` instead of the `data.signalprocessing.*` / `data.aianalysis.approval` paths the evaluators actually query — confirmed against `kubernaut` main source, `pkg/signalprocessing/evaluator/evaluator.go:44-52` and `pkg/aianalysis/rego/evaluator.go:261,416`) | Direct `oc get configmap ... -o jsonpath` content inspection, cross-checked against evaluator source and against `kubernaut-demo-scenarios` main's canonical `deploy/defaults/{signalprocessing-policy,approval-policy}.rego` (which use the correct un-prefixed package names) | Same script's Step 2 detected the mismatch and reapplied canonical content from `kubernaut-demo-scenarios`; both controllers rolled out cleanly. This is a **recurrence** of the same bug class documented in `kubernaut-demo-scenarios#403`/`#404` (v1.5/v1.6) — whatever bootstraps this shared cluster's ConfigMaps between installs is still applying stale/wrong content, now with a different wrong prefix. The script remains the reliable stopgap either way (idempotent, reads names from the live CR) |
+| 3 | `console-e2e-keycloak-creds` Secret (kubernaut-system) missing entirely — expected after the CR/namespace was recreated for this rc5 deploy, since `kubernaut-console-oidc`'s `client-secret` is regenerated on every fresh CR install | `oc get secret console-e2e-keycloak-creds -n kubernaut-system` → `NotFound`; `keycloak-0` pod itself is 5d12h old (independent of the 25h-old CR), so the underlying `console-e2e-test` Keycloak identity in the `kagenti` realm was untouched and still exists | Reset the `console-e2e-test` user's password via `kcadm.sh` (Keycloak itself, not kubernaut-system, owns this identity) and recreated the Secret with the new password + the fresh `kubernaut-console-oidc` `client-secret`. Verified end-to-end: `keycloak-token.mjs` successfully issues a JWT |
+
+None of these are new/v1.6-specific bugs in the console or in fleet mode itself — all
+three are the same fresh-install gap classes already known from v1.5 validation,
+recurring here because this is a genuinely fresh `Kubernaut` CR install (previous
+v1.5.12 spot-check was fully torn down first). `seed-fresh-install-prerequisites.sh` was
+also hardened during this preflight: its Step 1 catalog check previously queried the
+now-nonexistent `remediation_workflow_catalog` Postgres table (harmless — the query
+failure was swallowed by a `\|\| echo "0"` fallback that always forced a reseed
+attempt) — updated to check the CRD count directly when the CRD exists, falling back to
+the Postgres table only for genuinely old v1.5-era clusters. Re-verified idempotent
+after the fix: second run correctly reports "already seeded" for both the catalog and
+both policy ConfigMaps.
+
+Everything else — `MCPServerRegistration` (`Ready: True`, 19 tools), tool RBAC
+ClusterRoleBindings (all 6 present), no stale `console-e2e-*` namespaces — was already
+healthy with no changes needed.
+
+## Suite run blocked, 2026-08-24: aianalyses/finalizers RBAC gap
+
+Fixtures provisioned (suffix `02c6b9`, all 10 namespaces), credentials fetched, suite
+started against `playwright.live-v15.config.ts` (sequential, 1 worker). Stopped after
+2/12 tests — both failed identically, and every remaining test would fail the same way,
+so continuing would only burn cluster/CI time without new information.
+
+**Not the known `no_matching_workflows` non-determinism** (`kubernaut-console#64`) the
+test helper's error message suggested — that's a UI-level inference (same escape-hatch
+buttons render whether investigation genuinely found no workflow *or* AIAnalysis crashed
+outright), and checking the actual `RemediationRequest` showed a real, different failure:
+
+```
+status.completionStatus.failureReason: 'AIAnalysis failed: Permanent error: failed to
+create AgentSession: agentsessions.kubernaut.ai "as-rr-..." is forbidden: cannot set
+blockOwnerDeletion if an ownerReference refers to a resource you can't set finalizers
+on: , <nil>'
+```
+
+Root cause: the `aianalysis-controller` ClusterRole is missing an `update` grant on the
+`aianalyses/finalizers` subresource, which Kubernetes' `OwnerReferencesPermissionEnforcement`
+admission plugin requires whenever a new child object (here, `AgentSession`) sets
+`blockOwnerDeletion: true` on an ownerReference back to its parent (here, `AIAnalysis`
+itself). Confirmed as a genuine omission, not intentional, by comparing against 5 sibling
+controllers that all correctly declare the equivalent rule for their own type
+(`signalprocessing-controller`, `workflowexecution-controller`,
+`remediationorchestrator-controller`, `notification-controller`, `authwebhook-role`).
+
+Filed as [kubernaut-operator#400](https://github.com/jordigilh/kubernaut-operator/issues/400)
+(v1.6 milestone) — release-blocking, not fleet-specific (blocks every investigation on
+this build regardless of fixture or fleet mode, just discovered during fleet validation
+since that's the current focus). Fixtures torn down (`teardown-fixtures.sh`) since
+testing is fully blocked pending a fixed build.
+
+## Suite re-run blocked, 2026-08-24: RBAC fix confirmed, new post-validation hang found
+
+Operator team deployed `kubernaut-operator` v1.6.0-rc6 (PR
+[#401](https://github.com/jordigilh/kubernaut-operator/pull/401)) same day. Re-preflighted
+(all pods healthy, `Kubernaut` CR conditions all `True`, no stale namespaces) and
+confirmed the RBAC fix directly:
+
+```
+$ oc get clusterrole kubernaut-system-aianalysis-controller -o json | jq '.rules[] | select(.resources[]? | contains("finalizers"))'
+{"apiGroups": ["kubernaut.ai"], "resources": ["aianalyses/finalizers"], "verbs": ["update"]}
+```
+
+Provisioned fresh fixtures (suffix `145dd1`), re-ran `approval-gate.spec.ts`. Both
+`AIAnalysis`->`AgentSession` creation steps succeeded cleanly (**#400 is fixed**), but the
+approve-path test still failed on `no_matching_workflows`. Triaging (per the "don't accept
+the observed outcome without checking" rule established during v1.5 validation) surfaced
+**two** further issues, one fixed and one new:
+
+**Fixed: `kubernaut-demo-scenarios` boolean/string type bug (long-standing, not new).**
+KA logs showed `failed to unmarshal detectedLabels: json: cannot unmarshal string into Go
+struct field DetectedLabels.helmManaged of type bool`. 5 of the 32 seeded
+`RemediationWorkflow` manifests (`helm-rollback-v1`, `patch-hpa-v1`, `relax-pdb-v1`,
+`fix-network-policy-v1`, `fix-statefulset-pvc-v1`) set boolean `detectedLabels` fields as
+quoted strings (`"true"`) — `git blame` traces this to 2026-03-10, present through several
+batch version-bump commits since. Because KA's catalog-list call fails **wholesale** on
+any single malformed entry (not per-item), this broke workflow discovery catalog-wide for
+*every* investigation on this cluster, not just the 5 affected workflows — a plausible
+contributor to some of the "non-determinism" observed during earlier v1.5 validation
+rounds too. Fixed live via `oc apply` (bool type + `1.5.3`->`1.5.4` version bump to satisfy
+the content-hash immutability webhook) and filed
+[kubernaut-demo-scenarios#416](https://github.com/jordigilh/kubernaut-demo-scenarios/pull/416).
+Confirmed fix: KA subsequently logged `workflow catalog fetched (DD-KA-001: per-request
+validation) | allowed_workflows: 32` with no unmarshal errors.
+
+**New, currently blocking: post-validation hang, filed as
+[kubernaut#2273](https://github.com/jordigilh/kubernaut/issues/2273).** With the catalog
+fixed, re-running the approve-path test showed the full audit trail (`data-storage`'s
+`audit_events` table) proving `workflow_discovery` reasoned *correctly* — evaluated 4
+`RollbackDeployment` candidates, picked `crashloop-rollback-v1` with clear justification,
+validated it (`is_valid: true`), and the LLM said "Now let me submit the result with the
+selected workflow." — then **zero further audit events, ever**, for that
+`RemediationRequest`. A second repro (the decline-path test's RR) hit the exact same wall
+but ran long enough to surface a clean, deadline-bounded failure:
+
+```json
+{"phase": "Failed", "reason": "TransientError", "error_details": {
+  "code": "ERR_UPSTREAM_FAILURE",
+  "message": "investigation timed out after 10m0s (limit: deadline 2026-08-24T15:37:12Z)"
+}}
+```
+
+8 minutes of total silence (no logs, no audit events, in either `apifrontend` or
+`kubernaut-agent`) between `workflow.catalog.selection_validated` succeeding and
+`AIAnalysis`'s own 10-minute `Analyzing` timeout force-failing the session. Suspected
+regression in the very recently merged `AgentSession` CRD dispatch rework
+([kubernaut#2170](https://github.com/jordigilh/kubernaut/issues/2170) / PR #2189,
+2026-08-18) and its controller-runtime Reconciler migration (#2231, 2026-08-22) — both
+land 2-6 days before this rc6 build, and the hang occurs precisely at the
+post-validation submission handoff those PRs touch. See the issue for full forensics
+(ruled out `AgentSession.Status.Phase` staying non-terminal as a red herring — that's
+intentional design for human-in-the-loop holds per `status_writer.go`'s own doc comments).
+
+Suite stopped again pending a fix. Fixtures (suffix `145dd1`) left in place — no
+successful remediations occurred in this run, so nothing to leak/clean up urgently.
+
+## kubernaut#2273 live pprof repro, 2026-08-24: rules out "synchronous call never returns"
+
+Upstream confirmed pprof was already enabled (no redeploy needed — `disableProfiling: false`
+by default, health port `8081` exposed) and asked for a live goroutine dump captured during
+the hang window to localize the exact blocked frame in the suspected chain
+(`handleDiscoverWorkflows` -> `selfCorrectWorkflowSelection` -> `finalizeSelfCorrection`).
+
+Re-ran the approve-path test against the same single-replica pod (no restarts), tailed KA
+logs live, and captured two dumps via `curl localhost:8081/debug/pprof/goroutine?debug=2`
+port-forwarded from the pod — one 24s after the `submit_result_with_workflow` sentinel, one
+3m34s after. **Neither dump contains an active frame anywhere in `investigator/`,
+`mcp/tools/`, or `session/`** for this call — the only goroutines present are the same fixed
+set of long-lived background loops (informer caches, keepalive, rate-limiter cleanup,
+`SessionJanitor`/`EventLogBridge`), identical between both captures. `FetchValidator`'s own
+log line fired 11ms after the sentinel, confirming the CPU-only chain downstream of it
+(`SelfCorrect`/`resultParser.Parse`, both non-blocking per prior review) almost certainly
+finished within that same sub-second window, not 10 minutes later.
+
+**Revised theory posted to the issue**: this isn't a hung synchronous call at all — the
+`Investigate()` work completes fast, but its result is never relayed to whatever is supposed
+to unblock/notify the interactive `AgentSession` (push the validated workflow to the console
+via SSE for approval). The session just sits at `phase: Pending` / `interactive: true` until
+`AIAnalysis`'s hard 10-minute deadline force-cancels it — confirmed live: RR
+`rr-7cb6948ec49b-ed1f08c5` failed at exactly `acquireTime + 10m0s`
+(`"Interactive investigation timed out after 10m0s"`). Also ruled out the periodic
+`"dispatch lease race lost, another replica owns this agentsession"` V(1) log as a red
+herring — it's expected/benign per the `tryDispatch` doc comment (single replica here, no
+actual race, just correct reconcile back-off since dispatch already won).
+
+Full raw dumps and detailed writeup:
+[issuecomment-5399991188](https://github.com/jordigilh/kubernaut/issues/2273#issuecomment-5399991188).
+Suite remains stopped pending upstream's next fix iteration — likely a static trace of the
+`interactive=true` / `BR-INTERACTIVE-010` post-`Investigate()` handoff path now that "blocked
+in a known function" is ruled out.
+
+## Full setup sequence — v1.6.0-rc5 deployed, environment ready
 
 | # | Step | Command | Status |
 |---|---|---|---|
-| 1 | Confirm cluster context | `oc whoami && oc config current-context` | Ready to run |
-| 2 | Wait for operator to deploy `v1.6.0-rc5` `Kubernaut` CR (fleet-enabled) | — | **Blocked, waiting on operator team** |
-| 3 | Verify fleet wiring is healthy | `oc get kubernaut -n kubernaut-system -o yaml` — check `spec.fleet.enabled: true`, `status` conditions; `oc get mcpserverregistration -n mcp-system` still `Ready: True` | TBD |
-| 4 | Seed workflow/action-type catalogs | `kubernaut-demo-scenarios/scripts/seed-action-types.sh` + `seed-workflows.sh` (now includes the `cluster: ["*"]` fix) | Ready to run once CRD exists |
-| 5 | Verify catalog populated (CRD-native, see above) | `oc get remediationworkflows -n kubernaut-system --no-headers \| wc -l` (expect ~32) | Ready to run |
-| 6 | Seed/verify policy ConfigMaps | `e2e/live/scripts/seed-fresh-install-prerequisites.sh` (same script as v1.5 — policy ConfigMap gap is orthogonal to fleet mode) | Ready to run |
-| 7 | Provision fixtures | `e2e/live/scripts/setup-fixtures.sh` (same script as v1.5 — TBD confirm fixtures are correctly discoverable via `loopback_cluster_`-prefixed MCP tools rather than direct client-go) | TBD |
-| 8 | Fetch credentials | `source e2e/live/scripts/fetch-creds.sh` (same Keycloak `kagenti` realm / `console-e2e-test` identity as v1.5 — unrelated to fleet's own auth) | Ready to run |
-| 9 | Preflight | Same checks as v1.5, plus: confirm `MCPServerRegistration` `Ready: True` and tool count matches expectations | TBD |
-| 10 | Run | `npx playwright test --config=playwright.live-v15.config.ts` (TBD whether a separate `playwright.live-v16-fleet.config.ts` is needed, or the same config works unmodified) | TBD |
+| 1 | Confirm cluster context | `oc whoami && oc config current-context` | Done |
+| 2 | Operator deploys `v1.6.0-rc5` `Kubernaut` CR (fleet-enabled) | — | Done 2026-08-23/24 |
+| 3 | Verify fleet wiring is healthy | `oc get kubernaut -n kubernaut-system -o yaml` — check `spec.fleet.enabled: true`, `status` conditions; `oc get mcpserverregistration -n mcp-system` still `Ready: True` | Done — confirmed healthy |
+| 4 | Seed workflow/action-type catalogs + policy ConfigMaps | `e2e/live/scripts/seed-fresh-install-prerequisites.sh` (also seeds catalogs via `kubernaut-demo-scenarios` scripts) | Done — 32 workflows / 35 action types, both policy ConfigMaps corrected |
+| 5 | Verify catalog populated (CRD-native, see above) | `oc get remediationworkflows -n kubernaut-system --no-headers \| wc -l` | Done — 32 |
+| 6 | Fetch credentials | `source e2e/live/scripts/fetch-creds.sh` (same Keycloak `kagenti` realm / `console-e2e-test` identity as v1.5 — unrelated to fleet's own auth) | Done — Secret recreated, token issuance verified |
+| 7 | Provision fixtures | `e2e/live/scripts/setup-fixtures.sh` (same script as v1.5 — fixtures are plain K8s resources, no fleet-specific references) | Done — 10 fixtures, suffix `02c6b9`, now torn down |
+| 8 | Preflight | Confirmed: CR `Running`, all services ready, `MCPServerRegistration` `Ready: True`, no stale namespaces | Done |
+| 9 | Run | `npx playwright test --config=playwright.live-v15.config.ts` — same config as v1.5, no fleet-specific variant needed | **Blocked** — RBAC gap [kubernaut-operator#400](https://github.com/jordigilh/kubernaut-operator/issues/400) fixed in rc6 and confirmed; now blocked on new post-validation hang [kubernaut#2273](https://github.com/jordigilh/kubernaut/issues/2273), see "Suite re-run blocked, 2026-08-24" above |
 
-## Open questions / TBD once v1.6.0-rc5 lands
+## Open questions
 
 - Does the same 6-spec-file / 12-test suite pass unmodified against a fleet-enabled
   backend, or are there fleet-specific behavioral differences the console needs to
   handle (e.g. cluster-identity display, multi-cluster investigation context)? Given
   ADR-009 never exercised this combination, treat "unmodified" as the null hypothesis
-  to disprove, not a default expectation.
-- What `spec.fleet.backend` (`fleetmetadatacache` vs `acm`) does this deployment
-  actually use, and does FMC get deployed as part of the `v1.6.0-rc5` rollout?
-- What exact `spec.fleet.oauth2` values satisfy CR admission on this cluster, given
-  `kube-mcp-server`'s `kubeconfig` auth mode makes the token content itself irrelevant
-  for authorization?
-- Does `WorkflowExecution`'s served CRD version on rc5 include `Fleet`/`OAuth2` fields
-  (`v1alpha2`), or is fleet identity still `v1alpha1`-only up through discovery and
-  absent at execution time? (see blocker note above)
+  to disprove, not a default expectation. **Still open — suite run pending.**
+- ~~What `spec.fleet.backend` does this deployment actually use?~~ **Answered**:
+  `fleetmetadatacache`, deployed and healthy as part of the rc5 rollout.
+- ~~What exact `spec.fleet.oauth2` values satisfy CR admission?~~ **Answered**:
+  `enabled: true`, `credentialsSecretRef: fleet-oauth2-creds`, `tokenURL` pointing at the
+  existing `kagenti` realm (not a separate `kubernaut-fleet` realm).
+- ~~Does `WorkflowExecution`'s served CRD version include `Fleet`/`OAuth2` fields?~~
+  **Answered**: no — only `v1alpha1` is served/stored, `v1alpha2` doesn't exist on this
+  CRD at all. **Not a novel gap** — already tracked as `kubernaut-operator#235`
+  (BR-FLEET-054/ADR-068/DD-235), gated on the broader v1alpha2 CRD migration
+  (`kubernaut-operator#297`); see the confirmed-gap section above.
 - Are fixture namespaces (crashloop/memory-eater) correctly discoverable through the
   `loopback_cluster_`-prefixed MCP tools without any changes to `setup-fixtures.sh`?
+  **Still open — requires a real suite run to observe.**
 - **Answered, needs live confirmation**: `SI-4` correlation already has a defined
   console contract, not an open design question — `IT-CONSOLE-CTX-002` (per
   `docs/tests/35/TEST_PLAN.md`) asserts that an `investigation_summary` SSE artifact
