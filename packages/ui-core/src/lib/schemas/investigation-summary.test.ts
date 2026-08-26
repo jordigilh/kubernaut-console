@@ -62,10 +62,22 @@ describe("isInvestigationSummary", () => {
     expect(isInvestigationSummary({ ...validPayload, type: "remediation_list" })).toBe(true);
   });
 
-  it("UT-SCHEMA-006: returns false when required fields are missing", () => {
+  // kubernaut-console#90: session_id is NOT reliably present on every real
+  // wire payload -- IT-CONSOLE-PROVIDER-002 (KubernautChat.integration.test.tsx)
+  // is a pre-existing, currently-correct integration test whose payload has
+  // no session_id at all (only type/schema_version/rr_id/summary). Requiring
+  // it unconditionally would break that real, intended behavior, so this
+  // function no longer treats any single field as individually mandatory --
+  // see UT-SCHEMA-006 below for what it does still reject.
+  it("UT-SCHEMA-006a: still returns true when session_id is absent but other recognized fields are present", () => {
     const missing = { ...validPayload };
     delete (missing as Record<string, unknown>).session_id;
-    expect(isInvestigationSummary(missing)).toBe(false);
+    expect(isInvestigationSummary(missing)).toBe(true);
+  });
+
+  it("UT-SCHEMA-006: returns false when the payload has none of the recognized investigation_summary fields (genuine garbage, not a partial payload)", () => {
+    expect(isInvestigationSummary({ unexpected: "shape", not_a_real_field: true })).toBe(false);
+    expect(isInvestigationSummary({})).toBe(false);
   });
 
   it("UT-SCHEMA-007: returns false when rca is null", () => {
@@ -74,5 +86,21 @@ describe("isInvestigationSummary", () => {
 
   it("UT-SCHEMA-008: returns false when rca is not an object", () => {
     expect(isInvestigationSummary({ ...validPayload, rca: "not an object" })).toBe(false);
+  });
+
+  it("UT-SCHEMA-009: returns true when rca is entirely absent (partial/incremental SSE chunk, not yet available)", () => {
+    const withoutRca = { ...validPayload };
+    delete (withoutRca as Record<string, unknown>).rca;
+    expect(isInvestigationSummary(withoutRca)).toBe(true);
+  });
+
+  // kubernaut-console#90: same rationale as UT-SCHEMA-006a -- top-level
+  // summary is NOT reliably present either (IT-CONSOLE-MCP-005/006/007 send
+  // `rca: { summary: ... }` nested, with production code (useChat.ts)
+  // falling back to artifact text when the top-level field is absent).
+  it("UT-SCHEMA-010: still returns true when summary is absent but other recognized fields are present", () => {
+    const missing = { ...validPayload };
+    delete (missing as Record<string, unknown>).summary;
+    expect(isInvestigationSummary(missing)).toBe(true);
   });
 });

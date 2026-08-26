@@ -84,9 +84,12 @@ This is a pnpm monorepo managed by Turborepo:
 packages/
   ui-core/       — Shared UI component library (@kubernaut/ui-core)
   standalone/    — Standalone SPA wrapper (@kubernaut/standalone)
-  plugin-backstage/ — Backstage/RHDH frontend plugin
-  plugin-ocm/    — OCP/OCM dynamic console plugin
 ```
+
+> A multi-platform plugin architecture (`plugin-backstage`, `plugin-ocm`) was
+> previously scaffolded here; it is deferred — see
+> [ADR-007](adr/007-multi-platform-plugin-architecture.md) — and not part of
+> the actively maintained codebase.
 
 ## Testing
 
@@ -285,6 +288,18 @@ Tags matching `v*` trigger `.github/workflows/release.yaml`:
 This repo does not package or publish its own Helm chart (see
 [Deployment Options](deployment.md#deployment-options)) — the image above is
 consumed by kubernaut-operator and kubernaut's own chart instead.
+
+> **Note**: tag-push events have been observed to trigger this workflow with
+> a delay of up to ~25 minutes in this repo (vs. the near-instant trigger for
+> `push`/`pull_request` events on branches) — this appears to be GitHub-side
+> queuing rather than a workflow or permissions problem. Don't assume a tag
+> push failed to trigger the release just because no run appears within the
+> first few minutes; check back before re-tagging or investigating further.
+
+See [README.md § Compatibility](../README.md#compatibility) for how console
+version numbers relate to kubernaut/kubernaut-operator versions — since
+`v1.1.0` these are versioned independently, so a tag here does not need to
+match the upstream release it's cut alongside.
 
 ## Pre-commit Hooks
 

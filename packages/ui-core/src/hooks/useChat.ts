@@ -6,6 +6,8 @@ import { AuthContext } from "../providers/auth";
 import { ConfigContext } from "../providers/config";
 import { clearSessionState, loadPersistedPhase, savePersistedPhase } from "../lib/session-state";
 import { maxChatPhase } from "../lib/phase-rank";
+import { isRecord } from "../lib/type-guards";
+import { isInvestigationSummary, type InvestigationSummary } from "../lib/schemas/investigation-summary";
 
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
@@ -89,6 +91,31 @@ export interface ApprovalResolution {
   workflowOverride?: { workflowName: string; parameters?: Record<string, string>; rationale?: string };
 }
 
+// kubernaut-console#90 (F-12): approval_request/approval_request_resolved
+// are operator-decision-critical -- a JSON-syntax-valid but wrong-shape
+// payload must not silently render a garbled approval card or resolution.
+// These check only the fields the UI actually depends on being present and
+// correctly typed (see ApprovalCard.tsx); other optional fields are left
+// unchecked, matching the interfaces above.
+export function isApprovalRequest(data: unknown): data is ApprovalRequest {
+  if (!isRecord(data)) return false;
+  return (
+    typeof data.name === "string" &&
+    typeof data.confidence === "number" &&
+    typeof data.confidenceLevel === "string" &&
+    typeof data.reason === "string" &&
+    typeof data.requiredBy === "string"
+  );
+}
+
+export function isApprovalResolution(data: unknown): data is ApprovalResolution {
+  if (!isRecord(data)) return false;
+  return (
+    typeof data.name === "string" &&
+    (data.decision === "Approved" || data.decision === "Rejected" || data.decision === "Expired")
+  );
+}
+
 export interface AlignmentFinding {
   step_index: number;
   step_kind: string;
@@ -107,6 +134,15 @@ export interface AlignmentVerdict {
     grounded: boolean;
     explanation: string;
   } | null;
+}
+
+export function isAlignmentVerdict(data: unknown): data is AlignmentVerdict {
+  if (!isRecord(data)) return false;
+  return (
+    typeof data.result === "string" &&
+    typeof data.summary === "string" &&
+    Array.isArray(data.findings)
+  );
 }
 
 export type VerificationStepName = "stabilization_elapsed" | "spec_hash_computed" | "alert_check" | "health_check";
@@ -381,11 +417,35 @@ export function useChat() {
           event.artifact.metadata?.type === "investigation_summary";
 
         if (dataPart && isDecision) {
-          const payload = dataPart.data as unknown as import("../lib/schemas/investigation-summary").InvestigationSummary;
           const textFallback = event.artifact.parts
             .filter((p) => p.kind === "text")
             .map((p) => (p as { text: string }).text)
             .join("");
+
+          // kubernaut-console#90 (F-12): the previous `as unknown as
+          // InvestigationSummary` type assertion performed zero runtime
+          // validation -- a wrong-shape (but JSON-valid) payload would
+          // silently propagate `undefined` fields into RCAData/ChatMessage.
+          // isInvestigationSummary() already existed as a unit-tested
+          // validator but was never called from production code; it now
+          // gates this block for real.
+          const rawData = dataPart.data;
+          if (!isInvestigationSummary(rawData)) {
+            console.error("[a2a] investigation_summary artifact failed shape validation; discarding structured fields", rawData);
+            setError("Received a malformed investigation summary from the server. Some details may be missing.");
+            setCurrentPhase((prev) => maxChatPhase(prev, "decision") ?? "decision");
+            updateAgent({
+              phase: "decision",
+              text: textFallback,
+              thinking: [...thinkingRef.current],
+              thinkingLabel: undefined,
+            });
+            artifactRef.current = "";
+            terminalReceivedRef.current = true;
+            return;
+          }
+
+          const payload: InvestigationSummary = rawData;
 
           const updates: Partial<ChatMessage> = { phase: "decision", thinking: [...thinkingRef.current], thinkingLabel: undefined };
           setCurrentPhase((prev) => maxChatPhase(prev, "decision") ?? "decision");
@@ -589,7 +649,16 @@ export function useChat() {
             .filter((p) => p.kind === "text")
             .map((p) => p.text)
             .join("") || "";
-          const parsed = JSON.parse(msgText) as ApprovalRequest;
+          const parsed = JSON.parse(msgText);
+          // kubernaut-console#90 (F-12): approval_request is
+          // operator-decision-critical -- a JSON-syntax-valid but
+          // wrong-shape payload must surface visibly, not render a
+          // garbled/partial approval card.
+          if (!isApprovalRequest(parsed)) {
+            console.error("[a2a] approval_request payload failed shape validation", parsed);
+            setError("Received a malformed approval request from the server. Please check the RemediationRequest directly before approving.");
+            return;
+          }
           update({ approvalRequest: parsed });
         } catch {
           // Non-JSON approval_request payload
@@ -603,7 +672,12 @@ export function useChat() {
             .filter((p) => p.kind === "text")
             .map((p) => p.text)
             .join("") || "";
-          const parsed = JSON.parse(msgText) as ApprovalResolution;
+          const parsed = JSON.parse(msgText);
+          if (!isApprovalResolution(parsed)) {
+            console.error("[a2a] approval_request_resolved payload failed shape validation", parsed);
+            setError("Received a malformed approval resolution from the server.");
+            return;
+          }
           update({ approvalResolution: parsed });
         } catch {
           // Non-JSON approval_request_resolved payload
@@ -655,7 +729,16 @@ export function useChat() {
             .filter((p) => p.kind === "text")
             .map((p) => p.text)
             .join("") || "";
-          const verdict = JSON.parse(msgText) as AlignmentVerdict;
+          const verdict = JSON.parse(msgText);
+          // kubernaut-console#90 (F-12): treat a JSON-valid-but-wrong-shape
+          // verdict identically to a JSON-syntax error -- degrade to
+          // "recoverySignal without verdict" rather than propagating a
+          // garbled AlignmentVerdict.
+          if (!isAlignmentVerdict(verdict)) {
+            console.error("[a2a] alignment_check_failed payload failed shape validation", verdict);
+            update({ recoverySignal: "alignment_check_failed" });
+            return;
+          }
           update({ recoverySignal: "alignment_check_failed", alignmentVerdict: verdict });
         } catch {
           update({ recoverySignal: "alignment_check_failed" });

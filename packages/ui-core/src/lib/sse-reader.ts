@@ -1,9 +1,22 @@
-export type SSEStreamResult = "complete" | "aborted" | "retryable" | "disconnected";
+export type SSEStreamResult = "complete" | "aborted" | "retryable" | "disconnected" | "buffer_overflow";
 
 export interface SSEReaderOptions {
   signal?: AbortSignal;
   idleTimeoutMs?: number;
+  /**
+   * Maximum size (in JS string UTF-16 code units, an acceptable proxy for a
+   * memory bound -- not exact wire bytes) the undelimited frame buffer may
+   * reach before the stream is treated as failed. Guards against a
+   * misbehaving/hostile upstream that never sends the `"\n\n"` frame
+   * terminator, which would otherwise grow `buffer` unboundedly for the
+   * life of the connection (kubernaut-console#93, FedRAMP SC-5).
+   */
+  maxBufferBytes?: number;
 }
+
+/** 1 MiB. Generous for any real investigation_summary/status payload while
+ * still bounding a non-terminating stream's memory growth. */
+export const DEFAULT_MAX_SSE_BUFFER_BYTES = 1_048_576;
 
 /**
  * Reads an SSE stream from a response body, invoking a handler for each
@@ -41,6 +54,7 @@ export async function readSSEStream(
   const decoder = new TextDecoder();
   let buffer = "";
   const idleTimeout = options?.idleTimeoutMs ?? 300_000;
+  const maxBufferBytes = options?.maxBufferBytes ?? DEFAULT_MAX_SSE_BUFFER_BYTES;
 
   try {
     while (true) {
@@ -83,6 +97,15 @@ export async function readSSEStream(
           const action = onFrame(parsed);
           if (action !== "continue") return action;
         }
+      }
+
+      // Checked *after* draining every complete frame from this chunk, so a
+      // burst of many well-formed frames never trips a false positive --
+      // only a buffer that cannot be drained (no "\n\n" found yet) and keeps
+      // growing is the actual unbounded-memory-growth failure mode.
+      if (buffer.length > maxBufferBytes) {
+        reader.cancel();
+        return "buffer_overflow";
       }
     }
   } catch {

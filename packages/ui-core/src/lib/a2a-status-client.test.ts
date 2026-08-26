@@ -452,4 +452,149 @@ describe("subscribeRRStatus", () => {
       code: -32002,
     }));
   });
+
+  // kubernaut-console#90 (F-12): `params.phase` was cast straight to
+  // RRPhase with no runtime check; a missing/non-string phase would
+  // propagate to onPhaseChange unchecked.
+  it("UT-CONSOLE-STATUS-026: calls onError and does not call onPhaseChange when phase is missing/non-string", async () => {
+    const onPhaseChange = vi.fn();
+    const onError = vi.fn();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createSSEResponse([sseFrame({
+        jsonrpc: "2.0", method: "status/update",
+        params: { rr_id: "rr-1", phase: null, timestamp: "t1", metadata: {} },
+      })])
+    );
+
+    await subscribeRRStatus("rr-1", { onPhaseChange, onError, maxRetries: 0 });
+
+    expect(onPhaseChange).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("malformed") }));
+  });
+
+  it("UT-CONSOLE-STATUS-027: still calls onPhaseChange for an unrecognized-but-string phase (forward compat, not malformed)", async () => {
+    const onPhaseChange = vi.fn();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createSSEResponse([sseFrame({
+        jsonrpc: "2.0", method: "status/update",
+        params: { rr_id: "rr-1", phase: "SomeBrandNewPhase", timestamp: "t1", metadata: {} },
+      })])
+    );
+
+    await subscribeRRStatus("rr-1", { onPhaseChange, onError: vi.fn(), maxRetries: 0 });
+
+    expect(onPhaseChange).toHaveBeenCalledWith("SomeBrandNewPhase", {});
+  });
+
+  // kubernaut-console#93 (F-15): an SSE response that never terminates a
+  // frame must not grow the buffer unboundedly -- it should fail visibly
+  // and immediately instead of retrying against a broken/hostile upstream.
+  it("UT-CONSOLE-STATUS-028: an oversized/never-terminated SSE response surfaces onError and does not retry", async () => {
+    const oversizedStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("x".repeat(50)));
+      },
+    });
+    const oversizedResponse = new Response(oversizedStream, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    });
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(oversizedResponse);
+    const onError = vi.fn();
+    const onPhaseChange = vi.fn();
+
+    await subscribeRRStatus("rr-1", {
+      onPhaseChange,
+      onError,
+      maxRetries: 3,
+      maxBufferBytes: 20,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("oversized") }));
+    expect(onPhaseChange).not.toHaveBeenCalled();
+  });
+
+  // kubernaut-console#96 (F-07): postForSSE's fatal-HTTP-error path (any
+  // non-5xx, non-2xx status) and status/closing's reconnect:false path had
+  // zero test coverage in this file -- only the 5xx-retryable path was
+  // ever exercised.
+  it("UT-CONSOLE-STATUS-040: a non-5xx, non-404 HTTP error status calls onError once with no retry", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("Forbidden", { status: 403, statusText: "Forbidden" })
+    );
+    const onError = vi.fn();
+    const onReconnecting = vi.fn();
+
+    await subscribeRRStatus("rr-1", { onPhaseChange: vi.fn(), onError, onReconnecting, maxRetries: 3 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("403") }));
+    expect(onReconnecting).not.toHaveBeenCalled();
+  });
+
+  it("UT-CONSOLE-STATUS-041: a persistent HTTP 404 is treated as service_unavailable (retried), not a JSON-RPC not_found", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("Not Found", { status: 404, statusText: "Not Found" })
+    );
+    const onError = vi.fn();
+    const onNotFound = vi.fn();
+
+    const promise = subscribeRRStatus("rr-1", { onPhaseChange: vi.fn(), onError, onNotFound, maxRetries: 2 });
+    await vi.advanceTimersByTimeAsync(20000);
+    await promise;
+
+    // Retried across all attempts (service_unavailable keeps looping)...
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    // ...but since it was never a genuine JSON-RPC rr_not_found signal,
+    // onNotFound must not fire -- it's a transport-level 404, not an
+    // attested "this RR doesn't exist".
+    expect(onNotFound).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("retries") }));
+  });
+
+  it("UT-CONSOLE-STATUS-042: status/closing with reconnect:false ends the stream cleanly without retrying", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createSSEResponse([
+        sseFrame({ jsonrpc: "2.0", method: "status/closing", params: { reason: "server_shutdown", reconnect: false } }),
+      ])
+    );
+    const onReconnecting = vi.fn();
+    const onClosing = vi.fn();
+
+    await subscribeRRStatus("rr-1", { onPhaseChange: vi.fn(), onError: vi.fn(), onClosing, onReconnecting, maxRetries: 3 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onClosing).toHaveBeenCalledWith("server_shutdown");
+    expect(onReconnecting).not.toHaveBeenCalled();
+  });
+
+  it("UT-CONSOLE-STATUS-043: aborting during the retry backoff wait stops before the next attempt fires", async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("Error", { status: 503 }));
+    const onError = vi.fn();
+    const onReconnecting = vi.fn();
+
+    const promise = subscribeRRStatus("rr-1", {
+      onPhaseChange: vi.fn(),
+      onError,
+      onReconnecting,
+      signal: controller.signal,
+      maxRetries: 3,
+    });
+
+    // Let the first attempt fail and the backoff sleep begin, then abort
+    // mid-sleep -- before the second attempt's fetch would fire.
+    await vi.advanceTimersByTimeAsync(10);
+    controller.abort();
+    await vi.advanceTimersByTimeAsync(20000);
+    await promise;
+
+    expect(onReconnecting).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onError).not.toHaveBeenCalled();
+  });
 });

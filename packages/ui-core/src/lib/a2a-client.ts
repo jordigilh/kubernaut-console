@@ -1,5 +1,17 @@
 import type { A2AEvent, JsonRpcRequest, JsonRpcResponse } from "./a2a-types";
 import { readSSEStream, postForSSE, type SSEFetchError } from "./sse-reader";
+import { isRecord } from "./type-guards";
+
+// kubernaut-console#90 (F-12): every SSE frame was treated as a valid
+// JsonRpcResponse via a bare type assertion. A frame that is valid JSON but
+// has neither `.error` nor `.result` (a malformed envelope) previously fell
+// through both checks below and silently returned "continue" forever --
+// invisible to the caller, with the stream just hanging until idle timeout.
+export function isJsonRpcResponse(data: unknown): data is JsonRpcResponse {
+  if (!isRecord(data)) return false;
+  if (data.jsonrpc !== "2.0") return false;
+  return "error" in data || "result" in data;
+}
 
 export type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -32,6 +44,8 @@ export interface StreamOptions {
   idleTimeoutMs?: number;
   /** Delay before the first retry attempt (ms). Useful after aborting a previous stream to give the server time to detect the disconnect. Default: 500 */
   preRetryDelayMs?: number;
+  /** See `SSEReaderOptions.maxBufferBytes` (kubernaut-console#93). Default: 1 MiB. */
+  maxBufferBytes?: number;
 }
 
 let requestCounter = 0;
@@ -92,13 +106,21 @@ export async function streamA2A(
       options.onStreamInterrupted?.();
       return;
     }
+    if (result === "buffer_overflow") {
+      // kubernaut-console#93 (F-15): a non-terminating/oversized SSE
+      // response is not transient -- retrying would just repeat the same
+      // failure against a broken or hostile upstream, so this fails
+      // immediately instead of falling through to the retry loop.
+      options.onError(new Error("Received an oversized response from the server; connection terminated."));
+      return;
+    }
     options.onConnectionLost?.();
   }
 
   options.onError(new Error("Connection lost after maximum retries"));
 }
 
-type StreamResult = "complete" | "aborted" | "fatal" | "retryable" | "disconnected";
+type StreamResult = "complete" | "aborted" | "fatal" | "retryable" | "disconnected" | "buffer_overflow";
 
 async function attemptStream(
   request: JsonRpcRequest,
@@ -125,7 +147,12 @@ async function attemptStream(
   const streamResult = await readSSEStream(
     response.body!,
     (parsed) => {
-      const rpc = parsed as unknown as JsonRpcResponse;
+      if (!isJsonRpcResponse(parsed)) {
+        console.error("[a2a] SSE frame failed JSON-RPC envelope validation (neither error nor result)", parsed);
+        options.onError(new Error("Received a malformed response from the server."));
+        return "fatal";
+      }
+      const rpc = parsed;
       if (rpc.error) {
         const msg = rpc.error.message || "";
         const data = (rpc.error as Record<string, unknown>).data as Record<string, unknown> | undefined;
@@ -142,7 +169,7 @@ async function attemptStream(
       }
       return "continue";
     },
-    { signal: options.signal, idleTimeoutMs: options.idleTimeoutMs ?? 300_000 },
+    { signal: options.signal, idleTimeoutMs: options.idleTimeoutMs ?? 300_000, maxBufferBytes: options.maxBufferBytes },
   );
 
   return streamResult as StreamResult;

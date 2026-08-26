@@ -1,8 +1,11 @@
 # Roadmap: Multi-Platform Plugin Architecture
 
-> **Status: Migration Complete** (2026-06-20) — All phases delivered. See PR #15 for the consolidated changeset.
+> **Status: Deferred (2026-08-26)** — the multi-platform migration described
+> below was completed (2026-06-20, PR #15) but has since been rolled back:
+> `plugin-backstage` and `plugin-ocm` are removed from the active codebase and
+> only the standalone console is maintained. Preserved as historical record.
 
-> **ADR**: [ADR-004](../adr/004-multi-platform-plugin-architecture.md)
+> **ADR**: [ADR-007](../adr/007-multi-platform-plugin-architecture.md)
 > **Design**: [Design Document](./design.md)
 > **Last Updated**: 2026-06-16
 

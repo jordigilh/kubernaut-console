@@ -1,7 +1,11 @@
 # Design Document: Multi-Platform Plugin Architecture
 
 > **ADR Reference**: [ADR-007](../adr/007-multi-platform-plugin-architecture.md)
-> **Status**: Implemented
+> **Status**: **Deferred (2026-08-26)** — `plugin-backstage` and `plugin-ocm`
+> have been removed from the active codebase; only the standalone console is
+> currently maintained. This document is preserved as historical/design
+> reference for if and when multi-platform work resumes; it does not describe
+> the current codebase.
 > **Last Updated**: 2026-06-23
 
 ## 1. Overview
