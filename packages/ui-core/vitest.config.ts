@@ -14,7 +14,7 @@ export default defineConfig({
       include: ["src/**/*.{ts,tsx}"],
       exclude: [
         "src/**/*.test.{ts,tsx}",
-        "src/**/*.stories.{tsx}",
+        "src/**/*.stories.tsx",
         "src/test/**",
         "src/spikes/**",
       ],
