@@ -1,5 +1,17 @@
 import type { A2AEvent, JsonRpcRequest, JsonRpcResponse } from "./a2a-types";
 import { readSSEStream, postForSSE, type SSEFetchError } from "./sse-reader";
+import { isRecord } from "./type-guards";
+
+// kubernaut-console#90 (F-12): every SSE frame was treated as a valid
+// JsonRpcResponse via a bare type assertion. A frame that is valid JSON but
+// has neither `.error` nor `.result` (a malformed envelope) previously fell
+// through both checks below and silently returned "continue" forever --
+// invisible to the caller, with the stream just hanging until idle timeout.
+export function isJsonRpcResponse(data: unknown): data is JsonRpcResponse {
+  if (!isRecord(data)) return false;
+  if (data.jsonrpc !== "2.0") return false;
+  return "error" in data || "result" in data;
+}
 
 export type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -135,7 +147,12 @@ async function attemptStream(
   const streamResult = await readSSEStream(
     response.body!,
     (parsed) => {
-      const rpc = parsed as unknown as JsonRpcResponse;
+      if (!isJsonRpcResponse(parsed)) {
+        console.error("[a2a] SSE frame failed JSON-RPC envelope validation (neither error nor result)", parsed);
+        options.onError(new Error("Received a malformed response from the server."));
+        return "fatal";
+      }
+      const rpc = parsed;
       if (rpc.error) {
         const msg = rpc.error.message || "";
         const data = (rpc.error as Record<string, unknown>).data as Record<string, unknown> | undefined;

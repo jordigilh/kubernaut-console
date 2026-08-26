@@ -1,6 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { streamA2A, buildStreamRequest } from "./a2a-client";
+import { streamA2A, buildStreamRequest, isJsonRpcResponse } from "./a2a-client";
 import type { A2AEvent } from "./a2a-types";
+
+describe("isJsonRpcResponse", () => {
+  it("UT-CONSOLE-A2A-014: returns true for a valid result envelope", () => {
+    expect(isJsonRpcResponse({ jsonrpc: "2.0", id: "1", result: { kind: "artifact-update" } })).toBe(true);
+  });
+
+  it("UT-CONSOLE-A2A-015: returns true for a valid error envelope", () => {
+    expect(isJsonRpcResponse({ jsonrpc: "2.0", id: "1", error: { code: -1, message: "x" } })).toBe(true);
+  });
+
+  it("UT-CONSOLE-A2A-016: returns false when neither error nor result is present", () => {
+    expect(isJsonRpcResponse({ jsonrpc: "2.0", id: "1", notification: "something else" })).toBe(false);
+  });
+
+  it("UT-CONSOLE-A2A-017: returns false for a non-2.0 jsonrpc version, null, or non-object", () => {
+    expect(isJsonRpcResponse({ jsonrpc: "1.0", id: "1", result: {} })).toBe(false);
+    expect(isJsonRpcResponse(null)).toBe(false);
+    expect(isJsonRpcResponse("not an object")).toBe(false);
+  });
+});
 
 function createSSEResponse(frames: string[]): Response {
   const body = frames.join("");
@@ -485,6 +505,28 @@ describe("streamA2A", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("oversized") }));
     expect(onConnectionLost).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  // kubernaut-console#90 (F-12): a frame that is valid JSON but has neither
+  // `.error` nor `.result` previously fell through both checks silently and
+  // returned "continue" forever -- invisible until idle timeout.
+  it("UT-CONSOLE-A2A-013: calls onError for a JSON-valid frame with neither error nor result (malformed envelope)", async () => {
+    const malformedFrame = { jsonrpc: "2.0", id: "1", notification: "something else entirely" };
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(createSSEResponse([sseFrame(malformedFrame)]));
+
+    const events: A2AEvent[] = [];
+    const onError = vi.fn();
+    const onComplete = vi.fn();
+    await streamA2A(buildStreamRequest("test"), {
+      onEvent: (e) => events.push(e),
+      onError,
+      onComplete,
+      maxRetries: 0,
+    });
+
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("malformed") }));
+    expect(events).toHaveLength(0);
     expect(onComplete).not.toHaveBeenCalled();
   });
 });
