@@ -1992,6 +1992,189 @@ describe("useChat", () => {
     });
   });
 
+  // kubernaut-console#90 (F-12): shape-validation guards for
+  // operator-decision-critical payloads that previously relied on a bare
+  // type assertion after JSON.parse (JSON-syntax valid does not imply
+  // shape-valid).
+  describe("SI-10: isApprovalRequest/isApprovalResolution/isAlignmentVerdict guards", () => {
+    it("UT-CONSOLE-CHAT-055: isApprovalRequest returns true for a valid ApprovalRequest shape", async () => {
+      const { isApprovalRequest } = await import("./useChat");
+      expect(isApprovalRequest({
+        name: "rar-1",
+        confidence: 0.8,
+        confidenceLevel: "High",
+        reason: "test",
+        requiredBy: "2026-01-01T00:00:00Z",
+      })).toBe(true);
+    });
+
+    it("UT-CONSOLE-CHAT-056: isApprovalRequest returns false when requiredBy/confidence are missing", async () => {
+      const { isApprovalRequest } = await import("./useChat");
+      expect(isApprovalRequest({ name: "rar-1", reason: "test" })).toBe(false);
+      expect(isApprovalRequest(null)).toBe(false);
+      expect(isApprovalRequest("not an object")).toBe(false);
+    });
+
+    it("UT-CONSOLE-CHAT-057: isApprovalResolution returns true for a valid ApprovalResolution shape", async () => {
+      const { isApprovalResolution } = await import("./useChat");
+      expect(isApprovalResolution({ name: "rar-1", decision: "Approved" })).toBe(true);
+    });
+
+    it("UT-CONSOLE-CHAT-058: isApprovalResolution returns false for an invalid decision enum value", async () => {
+      const { isApprovalResolution } = await import("./useChat");
+      expect(isApprovalResolution({ name: "rar-1", decision: "MaybeLater" })).toBe(false);
+      expect(isApprovalResolution({ decision: "Approved" })).toBe(false);
+    });
+
+    it("UT-CONSOLE-CHAT-059: isAlignmentVerdict returns true for a valid AlignmentVerdict shape", async () => {
+      const { isAlignmentVerdict } = await import("./useChat");
+      expect(isAlignmentVerdict({
+        result: "flagged",
+        circuit_breaker_activated: false,
+        summary: "test",
+        flagged: 1,
+        total: 3,
+        findings: [],
+      })).toBe(true);
+    });
+
+    it("UT-CONSOLE-CHAT-060: isAlignmentVerdict returns false when findings/result are missing", async () => {
+      const { isAlignmentVerdict } = await import("./useChat");
+      expect(isAlignmentVerdict({ summary: "test" })).toBe(false);
+      expect(isAlignmentVerdict(null)).toBe(false);
+    });
+  });
+
+  describe("SI-10, AU-3: malformed-but-JSON-valid payloads surface visibly, not silently", () => {
+    it("UT-CONSOLE-CHAT-061: investigation_summary DataPart with wrong shape sets error and keeps text fallback", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "artifact-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          artifact: {
+            artifactId: "bad-summary",
+            parts: [
+              { kind: "data", data: { unexpected: "shape", no_session_id: true }, mediaType: "application/json" },
+              { kind: "text", text: "Investigation complete (fallback text)." },
+            ],
+            metadata: { type: "investigation_summary" },
+          },
+          lastChunk: true,
+          append: false,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg?.rca).toBeUndefined();
+      expect(agentMsg?.text).toBe("Investigation complete (fallback text).");
+      expect(agentMsg?.phase).toBe("decision");
+    });
+
+    it("UT-CONSOLE-CHAT-062: approval_request with wrong shape (JSON-valid) sets error, not approvalRequest", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: JSON.stringify({ notAnApprovalRequest: true }) }] },
+          },
+          metadata: { type: "approval_request" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg?.approvalRequest).toBeUndefined();
+    });
+
+    it("UT-CONSOLE-CHAT-063: approval_request_resolved with invalid decision value sets error, not approvalResolution", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: JSON.stringify({ name: "rar-1", decision: "MaybeLater" }) }] },
+          },
+          metadata: { type: "approval_request_resolved" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg?.approvalResolution).toBeUndefined();
+    });
+
+    it("UT-CONSOLE-CHAT-064: alignment_check_failed with wrong shape degrades like a JSON-syntax error (no verdict, recoverySignal still set)", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "working",
+            message: { role: "agent", parts: [{ kind: "text", text: JSON.stringify({ unexpected: "shape" }) }] },
+          },
+          metadata: { type: "alignment_check_failed" },
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("test"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.recoverySignal).toBe("alignment_check_failed");
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg?.alignmentVerdict).toBeUndefined();
+    });
+  });
+
   describe("PhaseIndicator lifecycle phases", () => {
     it("UT-CONSOLE-CHAT-028: sets phase to 'verifying' when Verifying phase is detected", async () => {
       vi.useRealTimers();
