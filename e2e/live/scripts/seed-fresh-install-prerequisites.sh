@@ -67,9 +67,20 @@ echo "==> Kubernaut CR: $CR_NAME (namespace $PLATFORM_NS)"
 
 echo ""
 echo "==> Step 1: ActionType + RemediationWorkflow catalogs"
-# PGPASSWORD below is a remote reference expanded inside the postgresql pod's
-# own env, never a literal value in this repo.
-CATALOG_COUNT="$(oc exec -n "$PLATFORM_NS" deploy/postgresql -- bash -c 'PGPASSWORD="$POSTGRESQL_PASSWORD" psql -U "$POSTGRESQL_USER" -d "$POSTGRESQL_DATABASE" -tAc "select count(*) from remediation_workflow_catalog;"' 2>/dev/null | tr -d '[:space:]' || echo "0")" # pre-commit:allow-sensitive
+# v1.6 dropped the Postgres-materialized remediation_workflow_catalog table in
+# favor of reading RemediationWorkflow/ActionType CRDs directly from etcd
+# (confirmed 2026-08-24: `select to_regclass('remediation_workflow_catalog')`
+# returns NULL on a v1.6.0-rc5 install) -- check the CRDs first since that's
+# authoritative on both branches, and only fall back to the v1.5-era Postgres
+# table if the CRD itself doesn't exist yet (very old v1.5 installs pre-CRD
+# migration, if any remain).
+if oc get crd remediationworkflows.kubernaut.ai >/dev/null 2>&1; then
+  CATALOG_COUNT="$(oc get remediationworkflows -n "$PLATFORM_NS" --no-headers 2>/dev/null | wc -l | tr -d '[:space:]')"
+else
+  # PGPASSWORD below is a remote reference expanded inside the postgresql pod's
+  # own env, never a literal value in this repo.
+  CATALOG_COUNT="$(oc exec -n "$PLATFORM_NS" deploy/postgresql -- bash -c 'PGPASSWORD="$POSTGRESQL_PASSWORD" psql -U "$POSTGRESQL_USER" -d "$POSTGRESQL_DATABASE" -tAc "select count(*) from remediation_workflow_catalog;"' 2>/dev/null | tr -d '[:space:]' || echo "0")" # pre-commit:allow-sensitive
+fi
 if [[ "$CATALOG_COUNT" == "0" ]]; then
   echo "  Catalog is empty -- seeding from $DEMO_SCENARIOS_DIR"
   ( cd "$DEMO_SCENARIOS_DIR" && PLATFORM_NS="$PLATFORM_NS" bash scripts/seed-action-types.sh --continue-on-error ) || \
