@@ -12,6 +12,13 @@ function mockFetchSuccess() {
   return vi.fn().mockImplementation(() => Promise.resolve(mockSuccessResponse()));
 }
 
+function mockResponseWithSessionHeader(sessionId: string, result: unknown = { content: [{ type: "text", text: "ok" }] }) {
+  return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result }), {
+    status: 200,
+    headers: { "Content-Type": "application/json", "mcp-session-id": sessionId },
+  });
+}
+
 describe("callMcpTool", () => {
   const originalFetch = globalThis.fetch;
 
@@ -216,6 +223,181 @@ describe("callMcpTool", () => {
 
     expect(result.result).toEqual(successResult);
     expect(result.error).toBeUndefined();
+  });
+
+  // kubernaut-console#96 (F-07): session-id/getToken/malformed-response
+  // branches in mcp-client.ts had zero test coverage despite being real
+  // SI-10-relevant error/edge paths in the module that parses all
+  // server-originated MCP data.
+  it("UT-CONSOLE-MCP-015: reuses mcp-session-id header once the server assigns one", async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockResponseWithSessionHeader("sess-abc"))
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse());
+
+    await callMcpTool("kubernaut_approve", { rar_name: "rar-1", decision: "Approved", reason: "test" });
+
+    const calls = vi.mocked(globalThis.fetch).mock.calls;
+    expect(calls.length).toBe(3);
+    // initialize's own request (1st call) precedes the server assigning the
+    // header, so it must not carry one yet.
+    expect((calls[0][1]?.headers as Record<string, string>)["Mcp-Session-Id"]).toBeUndefined();
+    // notifications/initialized (2nd) and tools/call (3rd) both fire after
+    // initialize's response assigned the session id.
+    expect((calls[1][1]?.headers as Record<string, string>)["Mcp-Session-Id"]).toBe("sess-abc");
+    expect((calls[2][1]?.headers as Record<string, string>)["Mcp-Session-Id"]).toBe("sess-abc");
+  });
+
+  it("UT-CONSOLE-MCP-016: passes Authorization header from options.getToken on every request", async () => {
+    globalThis.fetch = mockFetchSuccess();
+    const getToken = vi.fn().mockResolvedValue("my-jwt");
+
+    await callMcpTool("kubernaut_approve", { rar_name: "rar-1", decision: "Approved", reason: "test" }, { getToken });
+
+    const calls = vi.mocked(globalThis.fetch).mock.calls;
+    expect(calls.length).toBe(3);
+    for (const call of calls) {
+      expect((call[1]?.headers as Record<string, string>)["Authorization"]).toBe("Bearer my-jwt");
+    }
+  });
+
+  it("UT-CONSOLE-MCP-017: returns a truncated-snippet error when the response body is non-JSON, non-empty text", async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(new Response("<html>Gateway Timeout</html>", { status: 200 }));
+
+    const result = await callMcpTool("kubernaut_approve", { rar_name: "rar-1", decision: "Approved", reason: "test" });
+
+    expect(result.error).toBeDefined();
+    expect(result.error!.message).toContain("MCP response:");
+    expect(result.error!.message).toContain("<html>Gateway Timeout</html>");
+    expect(result.result).toBeUndefined();
+  });
+
+  it("UT-CONSOLE-MCP-018: returns a generic error when the response body is empty", async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(new Response("", { status: 200 }));
+
+    const result = await callMcpTool("kubernaut_approve", { rar_name: "rar-1", decision: "Approved", reason: "test" });
+
+    expect(result.error).toEqual({ code: -1, message: "Invalid JSON response from MCP endpoint" });
+  });
+
+  it("UT-CONSOLE-MCP-019: parses the first non-empty data: line, skipping an earlier empty one", async () => {
+    const sseWithEmptyFirstLine = 'data: \ndata: {"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"done"}]}}\n';
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(new Response(sseWithEmptyFirstLine, { status: 200 }));
+
+    const result = await callMcpTool("kubernaut_approve", { rar_name: "rar-1", decision: "Approved", reason: "test" });
+
+    expect(result.error).toBeUndefined();
+    expect(result.result).toEqual({ content: [{ type: "text", text: "done" }] });
+  });
+
+  it("UT-CONSOLE-MCP-020: falls back to a generic message when isError is true with no content field", async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse({ isError: true }));
+
+    const result = await callMcpTool("kubernaut_complete_no_action", { rr_id: "rr-1", reason: "dismiss" });
+
+    expect(result.error).toEqual({ code: -32000, message: "Tool call failed" });
+  });
+
+  it("UT-CONSOLE-MCP-021: propagates a network error from notifications/initialized and resets init state for retry", async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockSuccessResponse()) // initialize succeeds
+      .mockRejectedValueOnce(new TypeError("Failed to fetch")); // notify throws
+
+    const result = await callMcpTool("kubernaut_approve", { rar_name: "rar-1", decision: "Approved", reason: "test" });
+
+    expect(result.error).toBeDefined();
+    expect(result.error!.message).toContain("Failed to fetch");
+
+    // Init state was reset (not left "half-initialized") -- the next call
+    // re-attempts the full initialize+notify handshake.
+    globalThis.fetch = mockFetchSuccess();
+    await callMcpTool("kubernaut_approve", { rar_name: "rar-2", decision: "Approved", reason: "test" });
+    expect(vi.mocked(globalThis.fetch).mock.calls.length).toBe(3);
+  });
+
+  it("UT-CONSOLE-MCP-022: propagates an HTTP error from notifications/initialized", async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockSuccessResponse()) // initialize succeeds
+      .mockResolvedValueOnce(new Response("Internal Server Error", { status: 500, statusText: "Internal Server Error" })); // notify fails
+
+    const result = await callMcpTool("kubernaut_approve", { rar_name: "rar-1", decision: "Approved", reason: "test" });
+
+    expect(result.error).toBeDefined();
+    expect(result.error!.message).toContain("500");
+  });
+
+  it("UT-CONSOLE-MCP-023: captures mcp-session-id from notifications/initialized's response when initialize's response had none", async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockSuccessResponse()) // initialize: no session header
+      .mockResolvedValueOnce(mockResponseWithSessionHeader("sess-from-notify")) // notify: sets it
+      .mockResolvedValueOnce(mockSuccessResponse()); // tools/call
+
+    await callMcpTool("kubernaut_approve", { rar_name: "rar-1", decision: "Approved", reason: "test" });
+
+    const calls = vi.mocked(globalThis.fetch).mock.calls;
+    expect((calls[2][1]?.headers as Record<string, string>)["Mcp-Session-Id"]).toBe("sess-from-notify");
+  });
+
+  it("UT-CONSOLE-MCP-024: concurrent calls before initialization completes share a single init+notify round-trip", async () => {
+    let resolveInit!: (r: Response) => void;
+    globalThis.fetch = vi.fn()
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveInit = resolve; }))
+      .mockResolvedValueOnce(mockSuccessResponse()) // notify
+      .mockResolvedValueOnce(mockSuccessResponse({ content: [{ type: "text", text: "first" }] })) // tools/call #1
+      .mockResolvedValueOnce(mockSuccessResponse({ content: [{ type: "text", text: "second" }] })); // tools/call #2
+
+    const call1 = callMcpTool("kubernaut_approve", { rar_name: "rar-1", decision: "Approved", reason: "one" });
+    const call2 = callMcpTool("kubernaut_approve", { rar_name: "rar-2", decision: "Approved", reason: "two" });
+
+    // Let both callers reach ensureInitialized() and observe the in-flight promise.
+    await Promise.resolve();
+    await Promise.resolve();
+    resolveInit(mockSuccessResponse());
+
+    const [result1, result2] = await Promise.all([call1, call2]);
+
+    expect(result1.error).toBeUndefined();
+    expect(result2.error).toBeUndefined();
+    // Exactly one initialize + one notify, regardless of two concurrent callers.
+    const calls = vi.mocked(globalThis.fetch).mock.calls;
+    const initCalls = calls.filter((c) => JSON.parse(c[1]?.body as string).method === "initialize");
+    const notifyCalls = calls.filter((c) => JSON.parse(c[1]?.body as string).method === "notifications/initialized");
+    expect(initCalls.length).toBe(1);
+    expect(notifyCalls.length).toBe(1);
+  });
+
+  it("UT-CONSOLE-MCP-025: when session-expiry re-init itself fails, returns the re-init error without a second tools/call retry", async () => {
+    await callMcpTool("kubernaut_approve", { rar_name: "rar-1", decision: "Approved", reason: "first" }); // establishes session
+
+    const expiredError = JSON.stringify({
+      jsonrpc: "2.0", id: 4,
+      error: { code: -32600, message: "method \"tools/call\" is invalid during session initialization" },
+    });
+    globalThis.fetch = vi.fn()
+      // 1st: tools/call fails (session expired)
+      .mockResolvedValueOnce(new Response(expiredError, { status: 200 }))
+      // 2nd: re-initialize itself fails
+      .mockResolvedValueOnce(new Response("Internal Server Error", { status: 500, statusText: "Internal Server Error" }));
+
+    const result = await callMcpTool("kubernaut_approve", { rar_name: "rar-2", decision: "Approved", reason: "retry" });
+
+    expect(result.error).toBeDefined();
+    expect(result.error!.message).toContain("500");
+    // Only the failed tools/call + the failed re-initialize -- no 3rd
+    // (notifications/initialized) or 4th (retried tools/call) request.
+    expect(vi.mocked(globalThis.fetch).mock.calls.length).toBe(2);
   });
 });
 
