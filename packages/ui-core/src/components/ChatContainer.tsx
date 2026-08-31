@@ -174,7 +174,20 @@ export function ChatContainer() {
         requiredBy: (data.requiredBy as string) ?? (data.required_by as string) ?? new Date(Date.now() + 300_000).toISOString(),
       };
       setMessages((prev) => {
-        const alreadyHasApproval = prev.some((m) => m.approvalRequest?.name === approvalData.name);
+        // #115: this status-polling path and the chat SSE artifact stream
+        // (useChat's "approval_request" handling) can both independently
+        // decide to render an approval card for the same RAR. The RAR's own
+        // `.name` is not a reliable dedup key across the two paths: AF's
+        // artifact stream uses the bare RAR name while this path falls back
+        // to the namespaced `approval_request_name` metadata value when the
+        // MCP tool response omits an explicit name, so the same approval can
+        // carry two different `.name` values depending on which path
+        // populated it. `effectiveRrId` is a shared, reliable identity for
+        // "this investigation's pending approval" regardless of which path
+        // got there first, so dedup on it instead.
+        const alreadyHasApproval = prev.some(
+          (m) => m.approvalRequest && (m.rrId === effectiveRrId || m.approvalRequest.name === approvalData.name)
+        );
         if (alreadyHasApproval) return prev;
         // role is always "agent": the A2A stream is the sole contract for
         // rendering anything in the chat, and only AF (on the agent's behalf)
@@ -190,13 +203,14 @@ export function ChatContainer() {
           role: "agent" as const,
           text: "",
           timestamp: Date.now(),
+          rrId: effectiveRrId,
           approvalRequest: approvalData,
         }];
       });
       setCurrentPhase("decision");
       userScrolledUpRef.current = false;
     });
-  }, [statusPhase, statusMetadata, setMessages, setCurrentPhase, setError, mcpOptions]);
+  }, [statusPhase, statusMetadata, setMessages, setCurrentPhase, setError, mcpOptions, effectiveRrId]);
 
   useEffect(() => {
     if (statusPhase && PHASE_MAP[statusPhase]) {
