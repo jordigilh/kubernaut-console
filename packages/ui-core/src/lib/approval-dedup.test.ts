@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { hasApprovalCardFor } from "./approval-dedup";
+import { findApprovalMessageIndex } from "./approval-dedup";
 import type { ChatMessage, ApprovalRequest } from "../hooks/useChat";
 
-function approvalMessage(overrides: Partial<ChatMessage> & { approvalRequest: ApprovalRequest }): ChatMessage {
+function agentMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
     id: "m1",
     role: "agent",
@@ -20,29 +20,42 @@ const baseApproval: ApprovalRequest = {
   requiredBy: new Date(Date.now() + 300_000).toISOString(),
 };
 
-describe("hasApprovalCardFor", () => {
-  it("UT-CONSOLE-APPROVAL-001: same rrId, different RAR name -> true (console#115 dedup)", () => {
-    const messages = [approvalMessage({ rrId: "rr-1", approvalRequest: { ...baseApproval, name: "rar-bare" } })];
-    expect(hasApprovalCardFor(messages, "rr-1", "kubernaut-system/rar-bare")).toBe(true);
+describe("findApprovalMessageIndex", () => {
+  it("UT-CONSOLE-APPROVAL-001: same rrId, no approvalRequest set yet -> converges onto that message (console#115 race: path B resolves before path A's SSE event lands)", () => {
+    const messages = [agentMessage({ id: "turn-1", rrId: "rr-1" })];
+    expect(findApprovalMessageIndex(messages, "rr-1", "rar-bare")).toBe(0);
   });
 
-  it("UT-CONSOLE-APPROVAL-002: different rrId, same RAR name -> true (name fallback)", () => {
-    const messages = [approvalMessage({ rrId: "rr-1", approvalRequest: { ...baseApproval, name: "rar-shared" } })];
-    expect(hasApprovalCardFor(messages, "rr-2", "rar-shared")).toBe(true);
+  it("UT-CONSOLE-APPROVAL-002: same rrId, approvalRequest already set with a different name -> still converges onto that message (caller must check approvalRequest before overwriting)", () => {
+    const messages = [agentMessage({ id: "turn-1", rrId: "rr-1", approvalRequest: { ...baseApproval, name: "rar-bare" } })];
+    expect(findApprovalMessageIndex(messages, "rr-1", "kubernaut-system/rar-bare")).toBe(0);
   });
 
-  it("UT-CONSOLE-APPROVAL-003: different rrId, different RAR name -> false (distinct approvals both render)", () => {
-    const messages = [approvalMessage({ rrId: "rr-1", approvalRequest: { ...baseApproval, name: "rar-1" } })];
-    expect(hasApprovalCardFor(messages, "rr-2", "rar-2")).toBe(false);
+  it("UT-CONSOLE-APPROVAL-003: different rrId, same RAR name -> found via name fallback", () => {
+    const messages = [agentMessage({ id: "turn-1", rrId: "rr-1", approvalRequest: { ...baseApproval, name: "rar-shared" } })];
+    expect(findApprovalMessageIndex(messages, "rr-2", "rar-shared")).toBe(0);
   });
 
-  it("UT-CONSOLE-APPROVAL-004: no existing approval-carrying message -> false", () => {
-    const messages: ChatMessage[] = [{ id: "m1", role: "agent", text: "hello", timestamp: 0, rrId: "rr-1" }];
-    expect(hasApprovalCardFor(messages, "rr-1", "rar-1")).toBe(false);
+  it("UT-CONSOLE-APPROVAL-004: different rrId, different RAR name -> not found (-1), caller must append", () => {
+    const messages = [agentMessage({ id: "turn-1", rrId: "rr-1", approvalRequest: { ...baseApproval, name: "rar-1" } })];
+    expect(findApprovalMessageIndex(messages, "rr-2", "rar-2")).toBe(-1);
   });
 
-  it("UT-CONSOLE-APPROVAL-005: both candidate and existing rrId are undefined, names differ -> false (no false-positive dedup)", () => {
-    const messages = [approvalMessage({ rrId: undefined, approvalRequest: { ...baseApproval, name: "rar-1" } })];
-    expect(hasApprovalCardFor(messages, undefined, "rar-2")).toBe(false);
+  it("UT-CONSOLE-APPROVAL-005: no messages at all -> not found (-1)", () => {
+    expect(findApprovalMessageIndex([], "rr-1", "rar-1")).toBe(-1);
+  });
+
+  it("UT-CONSOLE-APPROVAL-006: candidate and existing rrId both undefined, names differ -> not found (no false-positive convergence)", () => {
+    const messages = [agentMessage({ id: "turn-1", rrId: undefined, approvalRequest: { ...baseApproval, name: "rar-1" } })];
+    expect(findApprovalMessageIndex(messages, undefined, "rar-2")).toBe(-1);
+  });
+
+  it("UT-CONSOLE-APPROVAL-007: multiple agent messages share rrId (multi-turn conversation about the same RR) -> converges onto the most recent one", () => {
+    const messages = [
+      agentMessage({ id: "turn-1", rrId: "rr-1" }),
+      { id: "user-1", role: "user" as const, text: "fix it", timestamp: 1 },
+      agentMessage({ id: "turn-2", rrId: "rr-1" }),
+    ];
+    expect(findApprovalMessageIndex(messages, "rr-1", "rar-1")).toBe(2);
   });
 });

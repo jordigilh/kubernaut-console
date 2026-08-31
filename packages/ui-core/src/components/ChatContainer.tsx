@@ -5,7 +5,7 @@ import { callMcpTool, isPermissionDeniedError, type McpClientOptions } from "../
 import { isPastDecisionPhase, isWorkflowResolved, markWorkflowResolved } from "../lib/session-state";
 import { getShowRawThinking, setShowRawThinking } from "../lib/preferences";
 import { isInvestigationEngaged } from "../lib/query-intent";
-import { hasApprovalCardFor } from "../lib/approval-dedup";
+import { findApprovalMessageIndex } from "../lib/approval-dedup";
 import { maxChatPhase } from "../lib/phase-rank";
 import { buildDeferredContext } from "../lib/context-builder";
 import { AuthContext } from "../providers/auth";
@@ -175,7 +175,19 @@ export function ChatContainer() {
         requiredBy: (data.requiredBy as string) ?? (data.required_by as string) ?? new Date(Date.now() + 300_000).toISOString(),
       };
       setMessages((prev) => {
-        if (hasApprovalCardFor(prev, effectiveRrId, approvalData.name)) return prev;
+        // #115: converge onto the same message the chat SSE artifact stream
+        // (useChat's "approval_request" handling) would update in place,
+        // instead of unconditionally appending a new one -- see
+        // findApprovalMessageIndex for why a same-key *comparison* alone
+        // isn't sufficient (this path's fetch can resolve before the SSE
+        // event has landed at all).
+        const idx = findApprovalMessageIndex(prev, effectiveRrId, approvalData.name);
+        if (idx !== -1) {
+          if (prev[idx].approvalRequest) return prev; // already rendered by either path
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], rrId: updated[idx].rrId ?? effectiveRrId, approvalRequest: approvalData };
+          return updated;
+        }
         // role is always "agent": the A2A stream is the sole contract for
         // rendering anything in the chat, and only AF (on the agent's behalf)
         // drives an RR into AwaitingApproval and tells the console to render
