@@ -408,4 +408,175 @@ describe("ChatContainer — Banner Status Stream Separation", () => {
     });
     expect(screen.queryByText(/don't have permission to view/i)).not.toBeInTheDocument();
   });
+
+  it("IT-CONSOLE-BANNER-012: duplicate approval card is not injected when the chat stream already rendered one for the same RR [console#115]", async () => {
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      emitRRFromChatStream(opts);
+      // Chat SSE artifact stream (path A) already delivered and rendered an
+      // approval card for this RR, using AF's bare-name convention.
+      opts.onEvent?.({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        status: {
+          state: "working",
+          message: {
+            role: "agent",
+            parts: [{
+              kind: "text",
+              text: JSON.stringify({
+                name: "rar-test-dup",
+                confidence: 0.95,
+                confidenceLevel: "high",
+                reason: "Production approval required",
+                requiredBy: new Date(Date.now() + 300_000).toISOString(),
+              }),
+            }],
+          },
+        },
+        metadata: { type: "approval_request", rr_id: "rr-test-001" },
+      });
+      opts.onComplete?.();
+    });
+
+    // Independent status-polling path (path B) resolves the RAR without an
+    // explicit name in the MCP response, so it falls back to the namespaced
+    // `approval_request_name` metadata value -- a different `.name` than
+    // path A's bare RAR name for the exact same approval.
+    mockCallMcpTool.mockResolvedValue({
+      result: {
+        content: [{ type: "text", text: JSON.stringify({
+          metadata: {},
+          spec: {
+            confidence: 0.95,
+            confidenceLevel: "high",
+            reason: "Production approval required",
+            requiredBy: new Date(Date.now() + 300_000).toISOString(),
+          },
+        }) }],
+      },
+    });
+
+    mockSubscribeStatus.mockImplementation(async (_rrId, opts) => {
+      opts.onPhaseChange("AwaitingApproval", { approval_request_name: "kubernaut-system/rar-test-dup" });
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "test" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      expect(mockCallMcpTool).toHaveBeenCalledWith(
+        "kubernaut_get_approval_request",
+        expect.objectContaining({ rar_id: "kubernaut-system/rar-test-dup" }),
+        expect.anything(),
+      );
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(screen.getAllByText("Approval Required")).toHaveLength(1);
+  });
+
+  it("IT-CONSOLE-BANNER-013: duplicate approval card is not injected when the status-polling path resolves before the chat stream's approval_request event arrives [console#115 race]", async () => {
+    let capturedOnEvent: ((event: unknown) => void) | undefined;
+
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      capturedOnEvent = opts.onEvent;
+      // Only the rr_update lands initially -- the chat SSE artifact stream's
+      // approval_request event is deliberately delayed to simulate it
+      // arriving *after* the independent status-polling path has already
+      // resolved (the actual console#115 race, confirmed against the live
+      // audit trace: both paths compute the identical bare RAR name on this
+      // backend, so a name-mismatch was never the real cause).
+      emitRRFromChatStream(opts);
+      opts.onComplete?.();
+    });
+
+    mockCallMcpTool.mockResolvedValue({
+      result: {
+        content: [{ type: "text", text: JSON.stringify({
+          metadata: { name: "rar-test-race" },
+          spec: {
+            confidence: 0.95,
+            confidenceLevel: "high",
+            reason: "Production approval required",
+            requiredBy: new Date(Date.now() + 300_000).toISOString(),
+          },
+        }) }],
+      },
+    });
+
+    mockSubscribeStatus.mockImplementation(async (_rrId, opts) => {
+      opts.onPhaseChange("AwaitingApproval", { approval_request_name: "rar-test-race" });
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "test" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(100);
+    });
+
+    // Status-polling path (path B) resolves first, with no approval card
+    // from the chat stream yet.
+    await waitFor(() => {
+      expect(mockCallMcpTool).toHaveBeenCalledWith(
+        "kubernaut_get_approval_request",
+        expect.objectContaining({ rar_id: "rar-test-race" }),
+        expect.anything(),
+      );
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(screen.getAllByText("Approval Required")).toHaveLength(1);
+
+    // Chat SSE artifact stream (path A) delivers approval_request late, for
+    // the same RR.
+    await act(async () => {
+      capturedOnEvent?.({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        status: {
+          state: "working",
+          message: {
+            role: "agent",
+            parts: [{
+              kind: "text",
+              text: JSON.stringify({
+                name: "rar-test-race",
+                confidence: 0.95,
+                confidenceLevel: "high",
+                reason: "Production approval required",
+                requiredBy: new Date(Date.now() + 300_000).toISOString(),
+              }),
+            }],
+          },
+        },
+        metadata: { type: "approval_request", rr_id: "rr-test-001" },
+      });
+    });
+
+    // Still exactly one card: path A converged onto the same message path B
+    // already updated, instead of appending a second one.
+    expect(screen.getAllByText("Approval Required")).toHaveLength(1);
+  });
 });
