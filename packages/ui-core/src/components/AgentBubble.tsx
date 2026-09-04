@@ -37,7 +37,14 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
     message.rca!.toolCallsCount > 0
   );
   const hasWorkflows = message.workflowOptions && message.workflowOptions.length > 0;
-  const showEscapeHatches = hasRCAData && !hasWorkflows;
+  // useChat only sets workflowOptions when the backend's summary includes
+  // the options array (even empty, for no_matching_workflows) -- an RCA
+  // arriving with no options field means discover_workflows hasn't completed
+  // yet, so the escape-hatch buttons wait alongside the workflow selection
+  // instead of rendering against a still-in-flight discovery. The RCA card
+  // itself still renders early (intended); only the decision buttons are gated.
+  const discoveryComplete = message.workflowOptions !== undefined;
+  const showEscapeHatches = hasRCAData && !hasWorkflows && discoveryComplete;
   // #1922/kubernaut-console#50: a backend RCA-shaped payload without a causal
   // chain or tool-call count (e.g. KA's session_active dedup fallback) must
   // still surface *something* to the user. hasRCAData intentionally hides the
