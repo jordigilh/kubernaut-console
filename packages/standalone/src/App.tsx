@@ -29,7 +29,10 @@ declare global {
 
 function App() {
   const config = useMemo(
-    () => ({ backendUrl: "", enableRawThinking: window.__KUBERNAUT_CONFIG__?.enableRawThinking }),
+    () => ({
+      backendUrl: "",
+      enableRawThinking: window.__KUBERNAUT_CONFIG__?.enableRawThinking,
+    }),
     [],
   );
 

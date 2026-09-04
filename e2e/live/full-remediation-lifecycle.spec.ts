@@ -15,6 +15,7 @@ import {
   CRASHLOOP_WORKFLOW,
   fixtureNamespace,
   assertCrashloopWasRemediated,
+  startPeriodicScreenshots,
 } from "./helpers";
 
 // One dedicated target per test — see helpers.ts's `oomkillTarget` doc
@@ -116,6 +117,17 @@ const TARGETS = {
  * ADR-009 §13.
  */
 test.describe("Full remediation lifecycle — real cluster, real browser", () => {
+  // See startPeriodicScreenshots' doc comment (helpers.ts) — this suite's own
+  // screenshot/video/trace config is all on-failure only, so a passing run
+  // would otherwise leave zero visual record to sanity-check against.
+  let stopScreenshots: () => void = () => {};
+  test.beforeEach(async ({ page }, testInfo) => {
+    stopScreenshots = startPeriodicScreenshots(page, testInfo.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase());
+  });
+  test.afterEach(() => {
+    stopScreenshots();
+  });
+
   test("investigate → decision → (approval) → execution → verification → complete", async ({ page }) => {
     await openConsole(page);
 
