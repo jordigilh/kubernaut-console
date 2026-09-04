@@ -53,6 +53,11 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
         return;
       }
 
+      // The access check is always required: GET /a2a/access is called on
+      // every mount and the chat shell only renders on a clean "allowed".
+      // The API frontend controls the behavior server-side
+      // (consoleAccessAuthorizationCheckEnabled) — there is no client-side
+      // toggle to skip it.
       const access = await checkConsoleAccess({
         baseUrl: config.backendUrl,
         getToken: () => authProvider.getToken(),

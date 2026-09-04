@@ -6,6 +6,7 @@ import {
   oomkillTarget,
   oomkillInvestigateMessage,
   fixtureNamespace,
+  startPeriodicScreenshots,
 } from "./helpers";
 
 /**
@@ -85,6 +86,17 @@ const REMEDIATION_ID_FIELD = '[aria-label^="Remediation ID:"]';
 const NO_ESCALATION_WATCH_MS = 90_000;
 
 test.describe("Consent gate — unsolicited investigation regressions", () => {
+  // See startPeriodicScreenshots' doc comment (helpers.ts) — this suite's own
+  // screenshot/video/trace config is all on-failure only, so a passing run
+  // would otherwise leave zero visual record to sanity-check against.
+  let stopScreenshots: () => void = () => {};
+  test.beforeEach(async ({ page }, testInfo) => {
+    stopScreenshots = startPeriodicScreenshots(page, testInfo.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase());
+  });
+  test.afterEach(() => {
+    stopScreenshots();
+  });
+
   test("fresh session: a read-only alert query never auto-investigates (regression: kubernaut#1899)", async ({ page }) => {
     await openConsole(page);
     await sendChatMessage(page, "list active alerts");
