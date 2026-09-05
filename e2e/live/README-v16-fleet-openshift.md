@@ -1,6 +1,134 @@
 # Live E2E Suite — release/v1.6 fleet management on the shared OpenShift dev cluster
 
-**Status: BLOCKED on a new release-blocking upstream hang bug, [kubernaut#2273](https://github.com/jordigilh/kubernaut/issues/2273).**
+> **Looking for "how do I actually run this?"** This file is a running log of
+> environment setup and every issue found along the way. For the quick-reference
+> runbook (preflight → fixtures → run → validate outcomes), see
+> [`RUNNING-FLEET-SUITE.md`](./RUNNING-FLEET-SUITE.md).
+
+## Environment migration (2026-08-26): now hub+spoke SNO clusters, not `apps.dev`
+
+Testing moved off the single shared `apps.dev.redhat-internal.com` cluster — every
+finding below through 2026-08-25 (including the "BLOCKED" status right after this note)
+refers to that now-retired cluster — onto two dedicated SNO clusters provisioned via
+`kcli` on `helios08`: **hub** (`apps.hub.redhat-internal.com`) and **spoke**
+(`apps.spoke.redhat-internal.com`), OCP 4.20/4.21, with a genuine cross-cluster MCP
+Gateway → `kube-mcp-server` wiring (spoke is a real remote target, not another
+loopback). `oc`/Playwright both reach `*.apps.hub.redhat-internal.com` directly once on
+the right network — no SSH tunnel needed (confirmed 2026-08-27; if it doesn't resolve
+for you, check VPN/network first before assuming a tunnel is required).
+
+Console and AF (`spec.console.enabled` / `spec.apiFrontend.enabled`) were initially
+**off** on hub — this environment was stood up backend-first for fleet/MCP routing
+validation, not console E2E. Both are now enabled; see below for what that actually
+took, since it's not just flipping the two booleans.
+
+### Enabling console + AF on hub: what was actually needed
+
+Beyond `spec.console.enabled: true` / `spec.apiFrontend.enabled: true`:
+
+- **AF's `spec.apiFrontend.auth.issuerURL`** must point at the realm:
+  `https://keycloak-keycloak.apps.hub.redhat-internal.com/realms/kubernaut-fleet`
+  (`auth.audience` already defaults to `kubernaut-apifrontend`; also needed
+  `allowInsecureIssuers: true` for the cluster's self-signed cert).
+- **SPIRE**: this cluster has no SPIRE/zero-trust-workload-identity-manager installed
+  (`clusterspiffeid` CRD absent). `spec.apiFrontend.spire` defaults `Enabled` to `true`
+  in the CRD, but in practice AF deployed fine with a single container (no sidecar) and
+  no ClusterSPIFFEID errors — console auth here is oauth2-proxy only, by design, not
+  SPIRE mTLS. Don't spend time on this if you see the same empty `spire: {}`.
+- **Console's `spec.console.auth.secretName`** needs a pre-existing Secret
+  (`client-id`/`client-secret`/`cookie-secret`) backed by a real Keycloak client. The
+  operator team created `kubernaut-console-oidc` plus a matching `kubernaut-console`
+  client in the `kubernaut-fleet` realm (redirect URI `.../oauth2/callback`,
+  confidential, client-secret auth).
+- **The `kubernaut-fleet` realm had no browser-login-capable client or human users at
+  all** before this — it was built purely for machine-to-machine fleet OAuth2 (client-
+  credentials + RFC 8693 token exchange for `kube-mcp-server`/`k8s-api`). Getting the
+  E2E test identity working end-to-end required two more Keycloak-side fixes on top of
+  what the operator team set up, all done live via the realm's admin API (bootstrap
+  temp-admin credentials in `keycloak-initial-admin` Secret, `keycloak` namespace — that
+  account's password grant only works with a clean, direct `curl`; nesting the call
+  inside another script/SSH-hop that re-interpolates the password through shell/Python
+  string literals can silently corrupt it and produce a misleading `invalid_grant`):
+
+  1. **AF's audience claim was missing entirely.** No client scope in this realm
+     injected `kubernaut-apifrontend` into `aud` (unlike `k8s-api`/`kube-mcp-server`,
+     which both already had one), and AF does strict `aud`-list matching with no `azp`
+     fallback (`pkg/apifrontend/auth/jwt.go`'s `validateAudience`) — it would reject
+     every console-issued token outright. Fixed by creating a
+     `kubernaut-apifrontend-audience` client scope with an `oidc-audience-mapper`
+     (`included.custom.audience: kubernaut-apifrontend`) and adding it as a **default**
+     scope on the `kubernaut-console` client.
+  2. **oauth2-proxy's own bearer-token check separately needs the client's own ID in
+     `aud`.** `--skip-jwt-bearer-tokens=true` validates the token audience against
+     oauth2-proxy's own `--client-id` (`kubernaut-console`) — a default Keycloak access
+     token does *not* include the requesting client's own ID in `aud` unless a mapper
+     adds it. Without this, oauth2-proxy silently falls through to the login-redirect
+     path (`302` to Keycloak) instead of accepting the bearer token, indistinguishable
+     from "auth just doesn't work" with no useful error. Fixed by adding a second mapper
+     to the same client scope: `oidc-audience-mapper` with `included.client.audience:
+     kubernaut-console` (self-referential). Confirmed fixed by decoding the resulting
+     token (`aud: ["kubernaut-console", "kubernaut-apifrontend", "account"]`) and
+     curling the console route directly with `Authorization: Bearer <token>` — `HTTP
+     200` (was `302` before the second mapper).
+  3. Also enabled `directAccessGrantsEnabled: true` on the `kubernaut-console` client
+     (`false` by default) — needed for `keycloak-token.mjs`'s ROPC/password-grant flow.
+  4. Created a `console-e2e-test` realm user — no group/role assigned, since this realm
+     has no persona/group model for human users yet and `spec.apiFrontend.rbac` is unset
+     on this CR's AF config, so there's nothing to assign it to yet — with a generated
+     password set via the admin API's `reset-password` endpoint (`temporary: false`).
+  5. Created the `console-e2e-keycloak-creds` Secret in `kubernaut-system` with
+     `client-secret` (reused the existing `kubernaut-console-oidc` client secret —
+     confirmed identical between the k8s Secret and the live Keycloak client) and
+     `password` (the new test user's), the two keys `e2e/live/scripts/fetch-creds.sh`
+     expects.
+
+**Separately, login succeeding is not the same as tool calls working.**
+`spec.apiFrontend.rbac` was completely unset on this CR — the coarse-grained
+`kubernaut.ai/console` access gate defaults to disabled
+(`consoleAccessAuthorizationCheckEnabled: false`) so login itself was never
+blocked, but with zero `roleBindings` there were also zero persona
+`ClusterRoleBinding`s, so *every* real MCP tool call (`kubernaut_investigate`,
+`kubernaut_approve`, ...) is authorized via a genuine Kubernetes
+`SubjectAccessReview` that denies by default with nothing to grant it. This
+would have looked like "the suite logs in fine, then every scenario fails" —
+not an auth error. Fixed by:
+
+  6. Creating a `platform-engineering` group in the `kubernaut-fleet` realm,
+     adding `console-e2e-test` to it, and adding an `oidc-group-membership-mapper`
+     (claim name `groups`) to the same client scope as the audience mappers above
+     — Keycloak does not put group membership in tokens by default, even for a
+     user that's actually in the group.
+  7. Patching the CR with `spec.apiFrontend.rbac.roleBindings: [{role: sre,
+     groups: ["platform-engineering"]}]`. Confirmed via a raw `SubjectAccessReview`
+     (no real token needed) that `console-e2e-test`/`platform-engineering` is now
+     `allowed: true` for `kubernaut_investigate` via the operator-created
+     `kubernaut-system-tool-sre-binding` ClusterRoleBinding.
+
+Filed the general version of both gaps (missing audience-mapper guidance, and
+the "login works but every tool call 403s" RBAC trap) as new troubleshooting
+entries in `kubernaut-operator`'s `docs/installation/03-deploy.md`, since
+they'll hit anyone standing up console+AF against a fresh OIDC realm, not just
+this cluster.
+
+### Running the suite against hub
+
+```bash
+export LIVE_E2E_CONSOLE_URL=https://kubernaut-console-kubernaut-system.apps.hub.redhat-internal.com
+export LIVE_E2E_KEYCLOAK_URL=https://keycloak-keycloak.apps.hub.redhat-internal.com
+export LIVE_E2E_KEYCLOAK_REALM=kubernaut-fleet
+# client-id defaults to "kubernaut-console" already — matches this cluster
+source e2e/live/scripts/fetch-creds.sh   # pulls client-secret/password from the Secret above
+npx playwright test --config=playwright.live-v15.config.ts
+```
+
+`spec.gateway.enabled: false` on this cluster is intentional (confirmed by the console
+maintainer, 2026-08-27) — this suite is entirely console/chat-driven, never
+alert/webhook-triggered, so Gateway isn't required here. Gateway's own webhook-ingestion
+path is validated separately by `kubernaut-demo-scenarios`, not this suite.
+
+---
+
+**Status (retired `apps.dev` cluster, superseded by the above): BLOCKED on a new release-blocking upstream hang bug, [kubernaut#2273](https://github.com/jordigilh/kubernaut/issues/2273).**
 The prior blocker ([kubernaut-operator#400](https://github.com/jordigilh/kubernaut-operator/issues/400),
 `aianalyses/finalizers` RBAC gap) is **CONFIRMED FIXED** in `kubernaut-operator` v1.6.0-rc6
 (PR [#401](https://github.com/jordigilh/kubernaut-operator/pull/401), deployed 2026-08-24) —
@@ -564,9 +692,67 @@ in a known function" is ruled out.
 | 4 | Seed workflow/action-type catalogs + policy ConfigMaps | `e2e/live/scripts/seed-fresh-install-prerequisites.sh` (also seeds catalogs via `kubernaut-demo-scenarios` scripts) | Done — 32 workflows / 35 action types, both policy ConfigMaps corrected |
 | 5 | Verify catalog populated (CRD-native, see above) | `oc get remediationworkflows -n kubernaut-system --no-headers \| wc -l` | Done — 32 |
 | 6 | Fetch credentials | `source e2e/live/scripts/fetch-creds.sh` (same Keycloak `kagenti` realm / `console-e2e-test` identity as v1.5 — unrelated to fleet's own auth) | Done — Secret recreated, token issuance verified |
-| 7 | Provision fixtures | `e2e/live/scripts/setup-fixtures.sh` (same script as v1.5 — fixtures are plain K8s resources, no fleet-specific references) | Done — 10 fixtures, suffix `02c6b9`, now torn down |
+| 7 | Provision fixtures | `e2e/live/scripts/setup-fixtures.sh`, `KUBECONFIG` pointed at **spoke** (see "2026-08-27: fixtures relocated to spoke" below — superseded the original hub-based provisioning once fleet dispatch was actually exercised) | Done — see below |
+| 7b | Provision workflow-runner RBAC on spoke | `e2e/live/scripts/provision-fleet-workflow-rbac.sh`, `KUBECONFIG` pointed at **spoke** | Done — see below |
 | 8 | Preflight | Confirmed: CR `Running`, all services ready, `MCPServerRegistration` `Ready: True`, no stale namespaces | Done |
 | 9 | Run | `npx playwright test --config=playwright.live-v15.config.ts` — same config as v1.5, no fleet-specific variant needed | **Blocked** — RBAC gap [kubernaut-operator#400](https://github.com/jordigilh/kubernaut-operator/issues/400) fixed in rc6 and confirmed; now blocked on new post-validation hang [kubernaut#2273](https://github.com/jordigilh/kubernaut/issues/2273), see "Suite re-run blocked, 2026-08-24" above |
+
+## 2026-08-27: fixtures relocated to spoke; AF's fleet ScopeChecker gap found (kubernaut#2303)
+
+Every fixture (all 12 console-e2e namespaces) had been living on **hub** since the
+initial fleet setup above — meaning no test so far had actually exercised
+cross-cluster dispatch; `spec.gateway.enabled: false` + hub-only fixtures made this
+suite behave identically to the v1.5 single-cluster suite regardless of fleet being
+"on." Since `WorkflowExecution`'s Job dispatch is genuinely fleet-aware
+(`pkg/workflowexecution/executor/client_factory.go`: empty `ClusterID` -> local
+client, non-empty -> MCP-Gateway-routed remote client — confirmed by reading the
+code, not assumed), moved all 12 fixtures to **spoke** to close this gap:
+
+1. **Runner ServiceAccounts were missing on spoke.** Every `RemediationWorkflow`
+   manifest bundles its own runner `ServiceAccount`/`ClusterRole`/
+   `ClusterRoleBinding` trio (see e.g. `crashloop.yaml`'s first three documents) —
+   `kubernaut-demo-scenarios/scripts/seed-workflows.sh` applies these correctly
+   already, but it *also* unconditionally applies the `RemediationWorkflow` CR
+   itself, which doesn't belong on spoke (no CRD there) and would abort the script
+   on the first file. New script
+   [`provision-fleet-workflow-rbac.sh`](./scripts/provision-fleet-workflow-rbac.sh)
+   does the same RBAC-doc extraction minus the CR, safe to run against any
+   fleet-remote target cluster:
+   ```bash
+   export KUBECONFIG=/path/to/spoke-kubeconfig
+   e2e/live/scripts/provision-fleet-workflow-rbac.sh
+   ```
+2. **`setup-fixtures.sh`/`teardown-fixtures.sh` needed no changes** — both are
+   already cluster-agnostic (act on whatever `KUBECONFIG` currently points at).
+   Just point `KUBECONFIG` at spoke before running them for fleet-mode fixtures.
+3. **Investigate messages had no cluster hint** — `helpers.ts`'s
+   `oomkillInvestigateMessage`/`crashloopInvestigateMessage`/`crashloopFixMessage`
+   now append `(fleet cluster ID: <id>)` when `LIVE_E2E_FLEET_CLUSTER_ID` is set
+   (empty/unset in v1.5 mode — zero behavior change there). Without it, AF/KA only
+   ever look on the local/loopback cluster and correctly refuse with "which cluster
+   ID?" for a spoke-hosted target — confirmed this alone fixes namespace resolution.
+4. **New hard blocker found after fixing #3**:
+   [kubernaut#2303](https://github.com/jordigilh/kubernaut/issues/2303) — with the
+   cluster hint in place, AF found the spoke-hosted target but then rejected RR
+   creation with a misleading "not managed, add `kubernaut.ai/managed=true`" error
+   — even though both the Deployment and namespace were correctly labeled
+   (confirmed via direct `oc get -o jsonpath`). Root cause: AF's RR-creation scope
+   check (`checkRRScope`, added by kubernaut#2025/#2022) calls a `ScopeChecker`
+   that the operator's `resolveMCPGatewayOnlyFleetConfig` deliberately leaves
+   local-cluster-only for AF (a decision made before #2025/#2022 existed, based on
+   an invariant — "AF never calls the Backend/Endpoint scope-check adapter" — that
+   those two issues silently broke).
+   **Update**: upstream confirmed this is an operator bug, not a `kubernaut` one —
+   `kubernaut`'s own Helm chart already renders `backend`/`endpoint` correctly for
+   AF (fixed for the same bug class in `kubernaut#2059`), so `fleet.NewScopeChecker`
+   itself works as designed. Closed #2303, re-filed as
+   [kubernaut-operator#464](https://github.com/jordigilh/kubernaut-operator/issues/464)
+   with the Helm chart's template as the fix blueprint.
+
+**Suite held pending kubernaut-operator#464.** Fixtures remain on spoke (suffix
+current as of this writing — check `~/.config/kubernaut-console-e2e/fixtures.env`)
+so the same environment is ready to re-run the moment a fix lands; no need to
+re-provision from scratch.
 
 ## Open questions
 
@@ -585,9 +771,14 @@ in a known function" is ruled out.
   CRD at all. **Not a novel gap** — already tracked as `kubernaut-operator#235`
   (BR-FLEET-054/ADR-068/DD-235), gated on the broader v1alpha2 CRD migration
   (`kubernaut-operator#297`); see the confirmed-gap section above.
-- Are fixture namespaces (crashloop/memory-eater) correctly discoverable through the
-  `loopback_cluster_`-prefixed MCP tools without any changes to `setup-fixtures.sh`?
-  **Still open — requires a real suite run to observe.**
+- ~~Are fixture namespaces (crashloop/memory-eater) correctly discoverable through the
+  `loopback_cluster_`-prefixed MCP tools without any changes to `setup-fixtures.sh`?~~
+  **Answered (2026-08-27)**: yes for `setup-fixtures.sh` itself (cluster-agnostic, no
+  changes needed) — but discoverability of the *target resource* by AF/KA requires an
+  explicit cluster hint in the investigate prompt (see the dated section above);
+  without one, only the local/loopback cluster is searched. Getting *past* discovery
+  then hit kubernaut#2303 (AF's RR-creation scope check has no fleet adapter), so
+  full end-to-end fleet-target investigation is still blocked on that fix.
 - **Answered, needs live confirmation**: `SI-4` correlation already has a defined
   console contract, not an open design question — `IT-CONSOLE-CTX-002` (per
   `docs/tests/35/TEST_PLAN.md`) asserts that an `investigation_summary` SSE artifact
