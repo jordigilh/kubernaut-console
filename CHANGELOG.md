@@ -56,6 +56,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add verification_step to StatusUpdateEvent type union
 - Fix MCP promise type mismatch
 
+## [1.6.0-rc10] - 2026-09-07
+
+This release restores 1:1 version alignment with the upstream Kubernaut
+release. The upstream Helm chart uses a single image tag for all components,
+so the console image is published with the same `1.6.0-rc10` tag as the
+upstream images.
+
+### Changed
+- Console release and image tags now match the corresponding upstream
+  `kubernaut` and `kubernaut-operator` release tags.
+
 ## [1.1.0] - 2026-08-26
 
 **Versioning change**: starting with this release, kubernaut-console version
@@ -153,7 +164,8 @@ content of this release.
 - SSE reconnection error banner suppression
 - Approval button swap and disable on click
 
-[Unreleased]: https://github.com/jordigilh/kubernaut-console/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/jordigilh/kubernaut-console/compare/v1.6.0-rc10...HEAD
+[1.6.0-rc10]: https://github.com/jordigilh/kubernaut-console/compare/v1.1.0...v1.6.0-rc10
 [1.1.0]: https://github.com/jordigilh/kubernaut-console/compare/v1.5.7...v1.1.0
 [1.5.7]: https://github.com/jordigilh/kubernaut-console/compare/v1.5.6...v1.5.7
 [1.5.6]: https://github.com/jordigilh/kubernaut-console/compare/v0.5.13...v1.5.6

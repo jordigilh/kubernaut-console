@@ -73,25 +73,21 @@ pnpm --filter @kubernaut/ui-core test -- --watch  # Watch mode for ui-core
 
 ## Compatibility
 
-Starting with `v1.1.0`, kubernaut-console is versioned **independently** of
-[kubernaut](https://github.com/jordigilh/kubernaut) and
-[kubernaut-operator](https://github.com/jordigilh/kubernaut-operator) — its
-version number is no longer kept 1:1 with the upstream release it ships
-alongside. A console version stays valid for every upstream line it's
-actually compatible with; a new console version is only cut when a
-console-side change forces one (e.g. a fix that must not apply to an older
-supported line), not on every upstream version bump.
+Starting with `v1.6.0-rc10`, kubernaut-console is versioned **in lockstep**
+with [kubernaut](https://github.com/jordigilh/kubernaut) and
+[kubernaut-operator](https://github.com/jordigilh/kubernaut-operator). The
+upstream Helm chart uses one image tag for all platform components, so the
+console image must use the same tag as the upstream images. Each upstream
+release therefore has a matching console release and image tag.
 
 | kubernaut-console | Compatible kubernaut / kubernaut-operator |
 |---|---|
-| `v1.1.x` | `v1.5.x`, `v1.6.x` |
+| `v1.6.0-rc10` | `v1.6.0-rc10` |
 | `v1.5.7`, `v1.5.6`, `v1.5.0-rc1`–`v1.5.6-rc4` | Same version (1:1 aligned — legacy scheme) |
 | `v1.0.0` | `v1.0.0` |
 
-If a fix is ever needed for only one upstream line going forward, it will be
-released from a dedicated `release/vX.Y` branch (see
-[`release/v1.5`](https://github.com/jordigilh/kubernaut-console/tree/release/v1.5))
-instead of forcing a version bump on lines that don't need the change.
+The independent `v1.1.x` line was an interim policy and is retained in the
+changelog for historical context. It is no longer used for releases.
 
 ## Deployment
 
