@@ -86,6 +86,8 @@ export function ChatContainer() {
   const programmaticScrollRef = useRef(false);
 
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [cancellingInvestigation, setCancellingInvestigation] = useState(false);
+  const [investigationCancelled, setInvestigationCancelled] = useState(false);
   // configCtx.enableRawThinking undefined => enabled (backward-compatible
   // default for every host that doesn't set it -- see KubernautConfig's doc
   // comment). Only an explicit `false` turns the feature off.
@@ -240,6 +242,7 @@ export function ChatContainer() {
     e.preventDefault();
     const text = input.trim();
     if (!text) return;
+    setInvestigationCancelled(false);
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto";
     userScrolledUpRef.current = false;
@@ -255,6 +258,7 @@ export function ChatContainer() {
       e.preventDefault();
       const text = input.trim();
       if (!text) return;
+      setInvestigationCancelled(false);
       setInput("");
       if (inputRef.current) inputRef.current.style.height = "auto";
       sendMessage(text);
@@ -280,6 +284,35 @@ export function ChatContainer() {
       el.setSelectionRange(text.length, text.length);
     });
   }, []);
+
+  const canCancelInvestigation = Boolean(
+    effectiveRrId &&
+    investigationEngaged &&
+    !isTerminal &&
+    !workflowActionTaken &&
+    !investigationCancelled,
+  );
+
+  const handleCancelInvestigation = useCallback(async () => {
+    if (!effectiveRrId || cancellingInvestigation || investigationCancelled) return;
+
+    setCancellingInvestigation(true);
+    const res = await callMcpTool("kubernaut_investigate", {
+      rr_id: effectiveRrId,
+      action: "cancel",
+    }, mcpOptions);
+
+    if (res.error) {
+      setError(res.error.message);
+      setCancellingInvestigation(false);
+      return;
+    }
+
+    cancelStream();
+    setInvestigationCancelled(true);
+    setCurrentPhase("complete");
+    setCancellingInvestigation(false);
+  }, [effectiveRrId, cancellingInvestigation, investigationCancelled, mcpOptions, setError, cancelStream, setCurrentPhase]);
 
   // The handlers below no longer call a local emitAuditEvent(). That helper
   // only ever wrote to console.log (gated behind
@@ -572,6 +605,19 @@ export function ChatContainer() {
         phaseMetadata={statusMetadata}
         isActive={isStreaming || (bannerPhase !== "investigation" && bannerPhase !== undefined)}
       />
+
+      {canCancelInvestigation && (
+        <div className="kn-investigation-actions">
+          <button
+            type="button"
+            className="kn-cancel-investigation-btn"
+            onClick={handleCancelInvestigation}
+            disabled={cancellingInvestigation}
+          >
+            {cancellingInvestigation ? "Cancelling..." : "Cancel investigation"}
+          </button>
+        </div>
+      )}
 
       {/* Error */}
       {error && (

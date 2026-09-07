@@ -55,6 +55,19 @@ describe("callMcpTool", () => {
     });
   });
 
+  // AC-12 / ASVS V3: cancellation uses the backend interactive-session
+  // contract rather than only aborting the browser-side stream.
+  it("UT-CONSOLE-MCP-026: sends the interactive cancellation action with the RR ID", async () => {
+    await callMcpTool("kubernaut_investigate", { rr_id: "rr-cancel-026", action: "cancel" });
+
+    const calls = vi.mocked(globalThis.fetch).mock.calls;
+    const toolBody = JSON.parse(calls[2][1]?.body as string);
+    expect(toolBody.params).toEqual({
+      name: "kubernaut_investigate",
+      arguments: { rr_id: "rr-cancel-026", action: "cancel" },
+    });
+  });
+
   // SI-10: No silent pass-through on HTTP failure
   it("UT-CONSOLE-MCP-002: returns error on HTTP failure", async () => {
     globalThis.fetch = vi.fn().mockImplementation(() =>
