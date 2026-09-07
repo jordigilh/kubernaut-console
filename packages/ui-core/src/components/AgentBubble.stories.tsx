@@ -57,6 +57,9 @@ export const WithRCA: Story = {
         signalName: "KubePodCrashLooping",
         namespace: "production",
       },
+      // An empty list means workflow discovery completed with no matches,
+      // so the escape-hatch actions should be available.
+      workflowOptions: [],
     },
   },
 };
