@@ -16,6 +16,7 @@ import {
   assertCrashloopWasRemediated,
   getDeploymentRolloutRevisionCount,
   REAL_VERIFICATION_TIMEOUT_MS,
+  startPeriodicScreenshots,
 } from "./helpers";
 
 // One dedicated target per test (see helpers.ts's `oomkillTarget` doc
@@ -130,10 +131,18 @@ function investigateMessageForTest(title: string): string {
  * renderable investigation_summary again.
  */
 test.describe("Approval gate — real MCP calls", () => {
+  // See startPeriodicScreenshots' doc comment (helpers.ts) — this suite's own
+  // screenshot/video/trace config is all on-failure only, so a passing run
+  // would otherwise leave zero visual record to sanity-check against.
+  let stopScreenshots: () => void = () => {};
   test.beforeEach(async ({ page }, testInfo) => {
+    stopScreenshots = startPeriodicScreenshots(page, testInfo.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase());
     await openConsole(page);
     await sendChatMessage(page, investigateMessageForTest(testInfo.title));
     await waitForInvestigationSummaryOrKnownRace(page);
+  });
+  test.afterEach(() => {
+    stopScreenshots();
   });
 
   test("approve path: real kubernaut_approve executes and completes the remediation", async ({ page }) => {

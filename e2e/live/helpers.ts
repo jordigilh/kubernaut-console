@@ -470,8 +470,25 @@ export function fixtureNamespace(base: string): string {
   return suffix ? `${base}-${suffix}` : base;
 }
 
+/**
+ * Fleet cluster ID suffix for investigate messages (2026-08-27, see
+ * e2e/live/RUNNING-FLEET-SUITE.md §1b): this suite's fixtures live on whichever cluster
+ * `LIVE_E2E_FLEET_CLUSTER_ID` names (see e2e/live/README-v16-fleet-openshift.md),
+ * not necessarily the same cluster AF/KA run on. KA has no cross-cluster
+ * resource auto-discovery — a target with no cluster hint is only looked up
+ * on the local/loopback cluster, and a genuinely fleet-hosted target with no
+ * hint gets a correct-but-blocking clarifying question ("local cluster or
+ * fleet cluster — if fleet, which cluster ID?") instead of an investigation.
+ * Empty when unset, matching pre-fleet (single-cluster) suite runs where no
+ * disambiguation is needed.
+ */
+function fleetClusterSuffix(): string {
+  const clusterId = process.env.LIVE_E2E_FLEET_CLUSTER_ID;
+  return clusterId ? ` (fleet cluster ID: ${clusterId})` : "";
+}
+
 export function oomkillInvestigateMessage(target: { kind: string; namespace: string; name: string }): string {
-  return `The ${target.name} ${target.kind} in ${target.namespace} is OOMKilled and CrashLoopBackOff, please investigate.`;
+  return `The ${target.name} ${target.kind} in ${target.namespace} is OOMKilled and CrashLoopBackOff, please investigate.${fleetClusterSuffix()}`;
 }
 
 /**
@@ -523,7 +540,7 @@ export function crashloopTarget(namespace: string) {
 }
 
 export function crashloopInvestigateMessage(target: { kind: string; namespace: string; name: string }): string {
-  return `The ${target.name} ${target.kind} in ${target.namespace} is in CrashLoopBackOff after a bad release, please investigate.`;
+  return `The ${target.name} ${target.kind} in ${target.namespace} is in CrashLoopBackOff after a bad release, please investigate.${fleetClusterSuffix()}`;
 }
 
 /**
@@ -541,7 +558,7 @@ export function crashloopInvestigateMessage(target: { kind: string; namespace: s
  * `full_remediation` (pause-for-selection) interactive mode.
  */
 export function crashloopFixMessage(target: { kind: string; namespace: string; name: string }): string {
-  return `Fix the ${target.name} ${target.kind} in ${target.namespace} — it's in CrashLoopBackOff after a bad release. Just fix it autonomously, I don't need to review or select anything.`;
+  return `Fix the ${target.name} ${target.kind} in ${target.namespace} — it's in CrashLoopBackOff after a bad release. Just fix it autonomously, I don't need to review or select anything.${fleetClusterSuffix()}`;
 }
 
 // crashloop-rollback-v1 is the only catalog workflow purpose-built for this

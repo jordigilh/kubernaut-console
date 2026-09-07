@@ -7,6 +7,7 @@ import {
   crashloopInvestigateMessage,
   CRASHLOOP_WORKFLOW,
   fixtureNamespace,
+  startPeriodicScreenshots,
 } from "./helpers";
 
 /**
@@ -95,6 +96,17 @@ import {
 const TARGET = crashloopTarget(fixtureNamespace("console-e2e-full-remediation-3"));
 
 test.describe("Full-remediation default — workflow auto-discovery regressions", () => {
+  // See startPeriodicScreenshots' doc comment (helpers.ts) — this suite's own
+  // screenshot/video/trace config is all on-failure only, so a passing run
+  // would otherwise leave zero visual record to sanity-check against.
+  let stopScreenshots: () => void = () => {};
+  test.beforeEach(async ({ page }, testInfo) => {
+    stopScreenshots = startPeriodicScreenshots(page, testInfo.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase());
+  });
+  test.afterEach(() => {
+    stopScreenshots();
+  });
+
   test("a plain 'investigate' request (no explicit 'and fix') still auto-discovers matching workflows (regression: kubernaut#1915)", async ({ page }) => {
     test.setTimeout(REAL_INVESTIGATION_TIMEOUT_MS_BUFFER());
 

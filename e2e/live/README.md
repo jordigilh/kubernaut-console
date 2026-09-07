@@ -12,6 +12,12 @@ for the full design and status.
 > mock-llm)? See [`README-v15-openshift.md`](./README-v15-openshift.md)
 > instead — this file covers the local, disposable Kind `fullpipeline`
 > cluster only.
+>
+> **Looking for the `release/v1.6` fleet-management suite** (hub/spoke SNO
+> clusters, multi-cluster MCP Gateway routing)? See
+> [`RUNNING-FLEET-SUITE.md`](./RUNNING-FLEET-SUITE.md) for the runbook, or
+> [`README-v16-fleet-openshift.md`](./README-v16-fleet-openshift.md) for the
+> full environment log.
 
 This is **not** part of `playwright.config.ts` / `.github/workflows/e2e.yml`
 (the mocked suite, `VITE_MOCK_A2A=true`). It runs against

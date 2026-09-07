@@ -11,6 +11,7 @@ import {
   CRASHLOOP_WORKFLOW,
   CRASHLOOP_ALTERNATIVE_WORKFLOWS,
   fixtureNamespace,
+  startPeriodicScreenshots,
 } from "./helpers";
 
 /**
@@ -53,8 +54,16 @@ const TARGETS = {
 };
 
 test.describe("Contract compliance — integration-guide.md checklist", () => {
-  test.beforeEach(async ({ page }) => {
+  // See startPeriodicScreenshots' doc comment (helpers.ts) — this suite's own
+  // screenshot/video/trace config is all on-failure only, so a passing run
+  // would otherwise leave zero visual record to sanity-check against.
+  let stopScreenshots: () => void = () => {};
+  test.beforeEach(async ({ page }, testInfo) => {
+    stopScreenshots = startPeriodicScreenshots(page, testInfo.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase());
     await openConsole(page);
+  });
+  test.afterEach(() => {
+    stopScreenshots();
   });
 
   test("[checklist] SSE streaming endpoint at /a2a/ + status events with type metadata", async ({ page }) => {
