@@ -11,7 +11,6 @@ import { subscribeRRStatus } from "../lib/a2a-status-client";
 import { callMcpTool } from "../lib/mcp-client";
 import { _resetSession } from "../lib/mcp-client";
 import { markWorkflowResolved, savePersistedPhase } from "../lib/session-state";
-import type { StatusSubscribeOptions } from "../lib/a2a-status-client";
 
 vi.mock("../lib/a2a-client", () => ({
   buildStreamRequest: vi.fn((_text: string) => ({
@@ -73,9 +72,7 @@ describe("ChatContainer — Banner Status Stream Separation", () => {
       emitRRFromChatStream(opts);
     });
 
-    let statusOpts: StatusSubscribeOptions | undefined;
     mockSubscribeStatus.mockImplementation(async (_rrId, opts) => {
-      statusOpts = opts;
       opts.onPhaseChange("Verifying", {});
     });
 
@@ -90,6 +87,66 @@ describe("ChatContainer — Banner Status Stream Separation", () => {
     await waitFor(() => {
       expect(screen.getByText(/Verifying/)).toBeInTheDocument();
     });
+  });
+
+  it("IT-CONSOLE-CANCEL-001: explicit cancellation releases the active investigation through MCP", async () => {
+    mockCallMcpTool.mockResolvedValue({ result: { status: "cancelled" } });
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      emitRRFromChatStream(opts);
+    });
+    mockSubscribeStatus.mockImplementation(async (_rrId, opts) => {
+      opts.onPhaseChange("Investigating", {});
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate the workload" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    });
+
+    const cancelButton = await screen.findByRole("button", { name: "Cancel investigation" });
+    await act(async () => {
+      fireEvent.click(cancelButton);
+    });
+
+    expect(mockCallMcpTool).toHaveBeenCalledWith(
+      "kubernaut_investigate",
+      { rr_id: "rr-test-001", action: "cancel" },
+      expect.any(Object),
+    );
+    expect(screen.queryByRole("button", { name: "Cancel investigation" })).not.toBeInTheDocument();
+  });
+
+  it("IT-CONSOLE-CANCEL-002: failed cancellation preserves the active investigation and reports the error", async () => {
+    mockCallMcpTool.mockResolvedValue({ error: { code: -32000, message: "permission denied: active driver required" } });
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: {
+      onEvent?: (event: unknown) => void;
+      onComplete?: () => void;
+    }) => {
+      emitRRFromChatStream(opts);
+    });
+    mockSubscribeStatus.mockImplementation(async (_rrId, opts) => {
+      opts.onPhaseChange("Investigating", {});
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate the workload" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    });
+
+    const cancelButton = await screen.findByRole("button", { name: "Cancel investigation" });
+    await act(async () => {
+      fireEvent.click(cancelButton);
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("permission denied: active driver required");
+    expect(screen.getByRole("button", { name: "Cancel investigation" })).toBeInTheDocument();
   });
 
   it("IT-CONSOLE-BANNER-002: chat stream 'Reconnecting...' does NOT affect banner phase display", async () => {
