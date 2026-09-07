@@ -138,6 +138,38 @@ describe("AgentBubble", () => {
     expect(screen.queryByTestId("severity-accent")).not.toBeInTheDocument();
   });
 
+  it("UT-CONSOLE-BUBBLE-011: hides 'No action needed'/'Escalate to team' when RCA arrives before workflow discovery completes", () => {
+    const msg: ChatMessage = {
+      id: "1", role: "agent", text: "", timestamp: Date.now(),
+      phase: "decision",
+      rca: {
+        severity: "critical", confidence: 0, causalChain: ["Signal: crash"],
+        target: "Deployment/worker", toolCallsCount: 0, llmTurns: 0, summary: "Crash looping",
+      },
+      // No workflowOptions: discover_workflows still in flight.
+    };
+    render(<AgentBubble message={msg} onDismiss={() => {}} onEscalate={() => {}} />);
+    // RCA card itself still renders early (intended).
+    expect(screen.getByText("Root Cause Analysis")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /no action needed/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /escalate to team/i })).not.toBeInTheDocument();
+  });
+
+  it("UT-CONSOLE-BUBBLE-012: shows 'No action needed'/'Escalate to team' once discovery completes with zero options (no_matching_workflows)", () => {
+    const msg: ChatMessage = {
+      id: "1", role: "agent", text: "", timestamp: Date.now(),
+      phase: "decision",
+      rca: {
+        severity: "critical", confidence: 0.9, causalChain: ["Signal: crash"],
+        target: "Deployment/worker", toolCallsCount: 5, llmTurns: 3, summary: "Crash looping",
+      },
+      workflowOptions: [],
+    };
+    render(<AgentBubble message={msg} onDismiss={() => {}} onEscalate={() => {}} />);
+    expect(screen.getByRole("button", { name: /no action needed/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /escalate to team/i })).toBeInTheDocument();
+  });
+
   // AU-12: Content of Audit Records — presentation ordering: CTA > thinking > RCA > workflows
   it("UT-CONSOLE-BUBBLE-006: renders components in correct order: CTA > thinking > RCA > workflows", () => {
     const msg: ChatMessage = {
