@@ -48,6 +48,7 @@ export interface RCAData {
   target: string;
   toolCallsCount: number;
   llmTurns: number;
+  metricsPending?: boolean;
   summary: string;
   rrId?: string;
   signalName?: string;
@@ -469,6 +470,9 @@ export function useChat() {
               target: payload.rca.target,
               toolCallsCount: payload.rca.tool_calls_count ?? 0,
               llmTurns: payload.rca.llm_turns ?? 0,
+              metricsPending: event.artifact.metadata?.schema === "early_rca"
+                || payload.rca.tool_calls_count === undefined
+                || payload.rca.llm_turns === undefined,
               summary: payload.summary || textFallback,
               rrId: payload.rr_id,
               signalName: payload.signal_name,
@@ -780,6 +784,9 @@ export function useChat() {
               target: parsed.rca.target,
               toolCallsCount: parsed.rca.tool_calls_count ?? 0,
               llmTurns: parsed.rca.llm_turns ?? 0,
+              metricsPending: event.metadata?.schema === "early_rca"
+                || parsed.rca.tool_calls_count === undefined
+                || parsed.rca.llm_turns === undefined,
               summary: parsed.summary ?? "",
               signalName: parsed.signal_name,
               namespace: parsedNamespace,
