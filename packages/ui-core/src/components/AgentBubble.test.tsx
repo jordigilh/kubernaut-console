@@ -170,6 +170,22 @@ describe("AgentBubble", () => {
     expect(screen.getByRole("button", { name: /escalate to team/i })).toBeInTheDocument();
   });
 
+  it("UT-CONSOLE-BUBBLE-013: hides escape hatches while an empty workflow selection is still streaming", () => {
+    const msg: ChatMessage = {
+      id: "1", role: "agent", text: "", timestamp: Date.now(),
+      phase: "decision",
+      isStreaming: true,
+      rca: {
+        severity: "critical", confidence: 0.9, causalChain: ["Signal: crash"],
+        target: "Deployment/worker", toolCallsCount: 5, llmTurns: 3, summary: "Crash looping",
+      },
+      workflowOptions: [],
+    };
+    render(<AgentBubble message={msg} onDismiss={() => {}} onEscalate={() => {}} />);
+    expect(screen.queryByRole("button", { name: /no action needed/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /escalate to team/i })).not.toBeInTheDocument();
+  });
+
   // AU-12: Content of Audit Records — presentation ordering: CTA > thinking > RCA > workflows
   it("UT-CONSOLE-BUBBLE-006: renders components in correct order: CTA > thinking > RCA > workflows", () => {
     const msg: ChatMessage = {

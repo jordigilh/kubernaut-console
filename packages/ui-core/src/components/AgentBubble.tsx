@@ -43,7 +43,10 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
   // yet, so the escape-hatch buttons wait alongside the workflow selection
   // instead of rendering against a still-in-flight discovery. The RCA card
   // itself still renders early (intended); only the decision buttons are gated.
-  const discoveryComplete = message.workflowOptions !== undefined;
+  // An interim investigation summary can carry an empty options array while
+  // the workflow-selection stream is still running. Do not expose decision
+  // actions until that stream has actually completed.
+  const discoveryComplete = message.workflowOptions !== undefined && !message.isStreaming;
   const showEscapeHatches = hasRCAData && !hasWorkflows && discoveryComplete;
   // #1922/kubernaut-console#50: a backend RCA-shaped payload without a causal
   // chain or tool-call count (e.g. KA's session_active dedup fallback) must
