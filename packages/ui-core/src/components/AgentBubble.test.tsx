@@ -197,8 +197,8 @@ describe("AgentBubble", () => {
       workflowOptions: [],
     };
     render(<AgentBubble message={msg} onDismiss={() => {}} onEscalate={() => {}} />);
-    expect(screen.getByTestId("workflow-discovery-pending")).toHaveTextContent("Selecting remediation workflow");
-    expect(screen.getByText("Root cause identified. Matching available actions to this incident.")).toBeInTheDocument();
+    expect(screen.getByTestId("workflow-discovery-pending")).toHaveTextContent("Preparing remediation workflow");
+    expect(screen.getByText("Identifying the action type, then selecting a matching workflow.")).toBeInTheDocument();
   });
 
   // AU-12: Content of Audit Records — presentation ordering: CTA > thinking > RCA > workflows
