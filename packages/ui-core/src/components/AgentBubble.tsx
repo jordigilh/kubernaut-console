@@ -100,6 +100,7 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
               <span className="kn-skeleton kn-workflow-skeleton-icon" aria-hidden="true" />
               <strong>Selecting remediation workflow</strong>
               <span className="kn-skeleton kn-workflow-skeleton-badge" aria-hidden="true" />
+              <span className="kn-skeleton kn-workflow-skeleton-id" aria-hidden="true" />
             </div>
             <p className="kn-workflow-skeleton-caption">Root cause identified. Matching available actions to this incident.</p>
             <span className="kn-skeleton kn-workflow-skeleton-line kn-workflow-skeleton-line-wide" aria-hidden="true" />

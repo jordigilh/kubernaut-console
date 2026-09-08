@@ -311,6 +311,13 @@
   border-radius: 999px;
 }
 
+.kn-workflow-skeleton-id {
+  width: 6rem;
+  height: 1.5rem;
+  margin-left: auto;
+  border-radius: 999px;
+}
+
 .kn-workflow-skeleton-line {
   height: 0.75rem;
   margin-top: 1rem;
