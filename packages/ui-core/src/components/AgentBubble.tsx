@@ -90,6 +90,22 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
           <RCACard rca={message.rca!} />
         )}
 
+        {showWorkflowDiscoveryPending && (
+          <div className="kn-workflow-card-skeleton" role="status" aria-live="polite" data-testid="workflow-discovery-pending">
+            <div className="kn-workflow-skeleton-header">
+              <span className="kn-skeleton kn-workflow-skeleton-icon" aria-hidden="true" />
+              <strong>Preparing remediation workflow</strong>
+              <span className="kn-skeleton kn-workflow-skeleton-badge" aria-hidden="true" />
+              <span className="kn-skeleton kn-workflow-skeleton-id" aria-hidden="true" />
+            </div>
+            <p className="kn-workflow-skeleton-caption">Identifying the action type, then selecting a matching workflow.</p>
+            <span className="kn-skeleton kn-workflow-skeleton-line kn-workflow-skeleton-line-wide" aria-hidden="true" />
+            <span className="kn-skeleton kn-workflow-skeleton-line kn-workflow-skeleton-line-medium" aria-hidden="true" />
+            <span className="kn-skeleton kn-workflow-skeleton-parameter" aria-hidden="true" />
+            <span className="kn-skeleton kn-workflow-skeleton-button" aria-hidden="true" />
+          </div>
+        )}
+
         {hasWorkflows && (
           <WorkflowCards
             options={message.workflowOptions!}
