@@ -93,4 +93,11 @@ describe("RCACard", () => {
     expect(screen.getByRole("status", { name: "Tool call count not yet available" })).toBeInTheDocument();
     expect(screen.getByRole("status", { name: "LLM turn count not yet available" })).toBeInTheDocument();
   });
+
+  it("UT-CONSOLE-RCA-013: preserves a real confidence value while counters load", () => {
+    render(<RCACard rca={{ ...rca, confidence: 0.95, toolCallsCount: 0, llmTurns: 0, metricsPending: true }} />);
+    expect(screen.getByTestId("rca-metadata")).toHaveTextContent("Confidence: 0.95");
+    expect(screen.getByRole("status", { name: "Tool call count not yet available" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "LLM turn count not yet available" })).toBeInTheDocument();
+  });
 });
