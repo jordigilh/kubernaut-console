@@ -342,6 +342,17 @@
   opacity: 0.8;
 }
 
+.kn-inline-metric-skeleton {
+  display: inline-block;
+  width: 2.5rem;
+  height: 0.9em;
+  vertical-align: -0.1em;
+  border-radius: 0.25rem;
+  background: linear-gradient(90deg, var(--kn-border) 25%, var(--kn-surface) 50%, var(--kn-border) 75%);
+  background-size: 200% 100%;
+  animation: kn-workflow-skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
 @keyframes kn-workflow-skeleton-shimmer {
   to { background-position: -200% 0; }
 }
