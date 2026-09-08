@@ -266,43 +266,81 @@
   max-width: 85%;
 }
 
-.kn-workflow-discovery-pending {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.875rem 1rem;
+.kn-workflow-card-skeleton {
+  padding: 1rem;
   border: 1px solid var(--kn-border);
-  border-left: 3px solid var(--kn-teal-500);
-  border-radius: 0.5rem;
+  border-radius: 0.375rem;
   background: var(--kn-surface-secondary);
   color: var(--kn-text-secondary);
 }
 
-.kn-workflow-discovery-pending strong {
-  display: block;
+.kn-workflow-skeleton-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kn-workflow-skeleton-header strong {
   color: var(--kn-teal-800);
   font-size: 0.875rem;
 }
 
-.kn-workflow-discovery-pending p {
+.kn-workflow-skeleton-caption {
   margin: 0.25rem 0 0;
   color: var(--kn-text-muted);
   font-size: 0.8125rem;
 }
 
-.kn-workflow-discovery-spinner {
-  flex: 0 0 auto;
-  width: 0.875rem;
-  height: 0.875rem;
-  margin-top: 0.125rem;
-  border: 2px solid var(--kn-teal-200);
-  border-top-color: var(--kn-teal-600);
-  border-radius: 50%;
-  animation: kn-workflow-discovery-spin 0.8s linear infinite;
+.kn-skeleton {
+  display: block;
+  background: linear-gradient(90deg, var(--kn-border) 25%, var(--kn-surface) 50%, var(--kn-border) 75%);
+  background-size: 200% 100%;
+  animation: kn-workflow-skeleton-shimmer 1.6s ease-in-out infinite;
 }
 
-@keyframes kn-workflow-discovery-spin {
-  to { transform: rotate(360deg); }
+.kn-workflow-skeleton-icon {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+}
+
+.kn-workflow-skeleton-badge {
+  width: 5.25rem;
+  height: 1.25rem;
+  margin-left: 0.25rem;
+  border-radius: 999px;
+}
+
+.kn-workflow-skeleton-line {
+  height: 0.75rem;
+  margin-top: 1rem;
+  border-radius: 0.25rem;
+}
+
+.kn-workflow-skeleton-line-wide { width: 82%; }
+.kn-workflow-skeleton-line-medium { width: 61%; margin-top: 0.5rem; }
+
+.kn-workflow-skeleton-parameter {
+  width: 38%;
+  height: 0.625rem;
+  margin-top: 1rem;
+  border-radius: 0.25rem;
+}
+
+.kn-workflow-skeleton-button {
+  width: 100%;
+  height: 2.25rem;
+  margin-top: 1rem;
+  border-radius: 0.25rem;
+  opacity: 0.8;
+}
+
+@keyframes kn-workflow-skeleton-shimmer {
+  to { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kn-skeleton { animation: none; }
 }
 
 .kn-agent-time {
