@@ -43,8 +43,9 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
   // yet, so the escape-hatch buttons wait alongside the workflow selection
   // instead of rendering against a still-in-flight discovery. The RCA card
   // itself still renders early (intended); only the decision buttons are gated.
-  const discoveryComplete = message.workflowOptions !== undefined;
+  const discoveryComplete = message.workflowOptions !== undefined && !message.isStreaming;
   const showEscapeHatches = hasRCAData && !hasWorkflows && discoveryComplete;
+  const showWorkflowDiscoveryPending = hasRCAData && message.isStreaming && !hasWorkflows;
   // #1922/kubernaut-console#50: a backend RCA-shaped payload without a causal
   // chain or tool-call count (e.g. KA's session_active dedup fallback) must
   // still surface *something* to the user. hasRCAData intentionally hides the
@@ -88,6 +89,22 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
 
         {hasRCA && hasRCAData && (
           <RCACard rca={message.rca!} />
+        )}
+
+        {showWorkflowDiscoveryPending && (
+          <div className="kn-workflow-card-skeleton" role="status" aria-live="polite" data-testid="workflow-discovery-pending">
+            <div className="kn-workflow-skeleton-header">
+              <span className="kn-skeleton kn-workflow-skeleton-icon" aria-hidden="true" />
+              <strong>Preparing remediation workflow</strong>
+              <span className="kn-skeleton kn-workflow-skeleton-badge" aria-hidden="true" />
+              <span className="kn-skeleton kn-workflow-skeleton-id" aria-hidden="true" />
+            </div>
+            <p className="kn-workflow-skeleton-caption">Identifying the action type, then selecting a matching workflow.</p>
+            <span className="kn-skeleton kn-workflow-skeleton-line kn-workflow-skeleton-line-wide" aria-hidden="true" />
+            <span className="kn-skeleton kn-workflow-skeleton-line kn-workflow-skeleton-line-medium" aria-hidden="true" />
+            <span className="kn-skeleton kn-workflow-skeleton-parameter" aria-hidden="true" />
+            <span className="kn-skeleton kn-workflow-skeleton-button" aria-hidden="true" />
+          </div>
         )}
 
         {hasWorkflows && (

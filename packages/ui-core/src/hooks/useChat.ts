@@ -48,6 +48,7 @@ export interface RCAData {
   target: string;
   toolCallsCount: number;
   llmTurns: number;
+  metricsPending?: boolean;
   summary: string;
   rrId?: string;
   signalName?: string;
@@ -305,6 +306,7 @@ export function useChat() {
   const activeAgentMsgIdRef = useRef<string | null>(null);
   const activeRrIdRef = useRef<string | undefined>(undefined);
   const thinkingRef = useRef<ThinkingEntry[]>([]);
+  const observedToolCallsRef = useRef(0);
   const artifactRef = useRef("");
   const messageIdRef = useRef(0);
   const lastSendRef = useRef(0);
@@ -367,6 +369,7 @@ export function useChat() {
     const agentMsgId = nextId();
     activeAgentMsgIdRef.current = agentMsgId;
     thinkingRef.current = [];
+    observedToolCallsRef.current = 0;
     artifactRef.current = "";
     terminalReceivedRef.current = false;
 
@@ -462,6 +465,14 @@ export function useChat() {
               payload.rca.namespace,
             );
 
+            const metricsPending = event.artifact.metadata?.schema === "early_rca"
+              || payload.rca.tool_calls_count === undefined
+              || payload.rca.llm_turns === undefined
+              // Older early-RCA payloads serialized unavailable counters as
+              // zero instead of omitting them.
+              || (payload.rca.tool_calls_count === 0 && payload.rca.llm_turns === 0
+                && (payload.options === undefined || observedToolCallsRef.current > 0));
+
             updates.rca = {
               severity: payload.rca.severity,
               confidence: payload.rca.confidence,
@@ -469,6 +480,7 @@ export function useChat() {
               target: payload.rca.target,
               toolCallsCount: payload.rca.tool_calls_count ?? 0,
               llmTurns: payload.rca.llm_turns ?? 0,
+              metricsPending,
               summary: payload.summary || textFallback,
               rrId: payload.rr_id,
               signalName: payload.signal_name,
@@ -773,6 +785,12 @@ export function useChat() {
               parsed.namespace,
               parsed.rca.namespace,
             );
+            const metricsPending = event.metadata?.schema === "early_rca"
+              || parsed.rca.tool_calls_count === undefined
+              || parsed.rca.llm_turns === undefined
+              || (parsed.rca.tool_calls_count === 0 && parsed.rca.llm_turns === 0
+                && (parsed.options === undefined || observedToolCallsRef.current > 0));
+
             updates.rca = {
               severity: parsed.rca.severity,
               confidence: parsed.rca.confidence,
@@ -780,6 +798,7 @@ export function useChat() {
               target: parsed.rca.target,
               toolCallsCount: parsed.rca.tool_calls_count ?? 0,
               llmTurns: parsed.rca.llm_turns ?? 0,
+              metricsPending,
               summary: parsed.summary ?? "",
               signalName: parsed.signal_name,
               namespace: parsedNamespace,
@@ -848,14 +867,18 @@ export function useChat() {
         return;
       }
 
-      if (
+        if (
         metaType === "reasoning" ||
         metaType === "reasoning_content" ||
         metaType === "status" ||
         metaType === "investigation" ||
         metaType === "preflight" ||
         metaType === "tool_call"
-      ) {
+        ) {
+          if (metaType === "tool_call") {
+            observedToolCallsRef.current += 1;
+          }
+
         // kubernaut-console#32 / upstream kubernaut#1716: a provider-redacted
         // reasoning turn always carries empty text — it must still surface as
         // its own distinct entry (never silently dropped, never merged into

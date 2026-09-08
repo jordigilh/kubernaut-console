@@ -92,6 +92,7 @@ export function ChatContainer() {
   // default for every host that doesn't set it -- see KubernautConfig's doc
   // comment). Only an explicit `false` turns the feature off.
   const rawThinkingEnabled = configCtx?.enableRawThinking !== false;
+  const showRawThinkingToggle = import.meta.env.VITE_SHOW_RAW_THINKING_TOGGLE === "true";
   const [showRawThinkingPref, setShowRawThinkingState] = useState(getShowRawThinking);
   const showRawThinking = rawThinkingEnabled && showRawThinkingPref;
   const handleToggleRawThinking = () => {
@@ -495,7 +496,22 @@ export function ChatContainer() {
         {connectionStatus === "interrupted" && (
           <span style={{ fontSize: "0.75rem", color: "#fecaca" }} role="status">Connection lost -- investigation may still be running</span>
         )}
-        {rawThinkingEnabled && (
+        {canCancelInvestigation && (
+          <button
+            type="button"
+            className="kn-header-btn kn-header-cancel-btn"
+            onClick={handleCancelInvestigation}
+            disabled={cancellingInvestigation}
+            aria-label={cancellingInvestigation ? "Cancelling investigation" : "Cancel investigation"}
+            title={cancellingInvestigation ? "Cancelling investigation" : "Cancel investigation"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l8 8M14 6l-8 8" />
+            </svg>
+          </button>
+        )}
+        {/* Raw-thinking preference remains supported, but its header toggle is intentionally hidden for now. */}
+        {showRawThinkingToggle && rawThinkingEnabled && (
           <button
             type="button"
             onClick={handleToggleRawThinking}
@@ -605,19 +621,6 @@ export function ChatContainer() {
         phaseMetadata={statusMetadata}
         isActive={isStreaming || (bannerPhase !== "investigation" && bannerPhase !== undefined)}
       />
-
-      {canCancelInvestigation && (
-        <div className="kn-investigation-actions">
-          <button
-            type="button"
-            className="kn-cancel-investigation-btn"
-            onClick={handleCancelInvestigation}
-            disabled={cancellingInvestigation}
-          >
-            {cancellingInvestigation ? "Cancelling..." : "Cancel investigation"}
-          </button>
-        </div>
-      )}
 
       {/* Error */}
       {error && (

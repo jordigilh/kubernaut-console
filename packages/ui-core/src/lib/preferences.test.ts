@@ -6,8 +6,8 @@ describe("preferences", () => {
     localStorage.clear();
   });
 
-  it("UT-CONSOLE-PREFS-001 [console#53]: defaults to showing raw thinking when nothing is persisted", () => {
-    expect(getShowRawThinking()).toBe(true);
+  it("UT-CONSOLE-PREFS-001 [console#53]: defaults to hiding raw thinking when nothing is persisted", () => {
+    expect(getShowRawThinking()).toBe(false);
   });
 
   it("UT-CONSOLE-PREFS-002 [console#53]: persists an explicit opt-out across reads", () => {
@@ -25,7 +25,7 @@ describe("preferences", () => {
     const spy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("storage unavailable");
     });
-    expect(getShowRawThinking()).toBe(true);
+    expect(getShowRawThinking()).toBe(false);
     spy.mockRestore();
   });
 

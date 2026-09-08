@@ -152,6 +152,7 @@ describe("ChatContainer Integration", () => {
    */
   it("renders the full operator investigation journey through production dispatch path", async () => {
     setupFullJourneyStream();
+    setShowRawThinking(true);
     render(<ChatContainer />);
 
     // Send investigation message (AU-10: audit event generation)
@@ -263,6 +264,7 @@ describe("ChatContainer Integration", () => {
       onComplete?.();
     });
 
+    setShowRawThinking(true);
     render(<ChatContainer />);
 
     const input = screen.getByRole("textbox", { name: /type your message/i });
@@ -315,6 +317,7 @@ describe("ChatContainer Integration", () => {
       onComplete?.();
     });
 
+    setShowRawThinking(true);
     render(<ChatContainer />);
 
     const input = screen.getByRole("textbox", { name: /type your message/i });
@@ -1911,9 +1914,9 @@ describe("ChatContainer Integration", () => {
   // all) needs to hide this control entirely, not just leave a dead-looking
   // button around -- see KubernautConfig.enableRawThinking's doc comment.
   describe("enableRawThinking config flag", () => {
-    it("IT-CONSOLE-RAWTHINK-001: defaults to enabled when a host doesn't set the flag", () => {
+    it("IT-CONSOLE-RAWTHINK-001: hides the raw-thinking toggle from the primary header", () => {
       render(<ChatContainer />);
-      expect(screen.getByRole("button", { name: /hide raw thinking|show raw thinking/i })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /hide raw thinking|show raw thinking/i })).not.toBeInTheDocument();
     });
 
     it("IT-CONSOLE-RAWTHINK-002: hides the toggle entirely when the host sets enableRawThinking=false", () => {

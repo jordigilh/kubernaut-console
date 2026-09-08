@@ -48,3 +48,27 @@ export const WithError: Story = {
     };
   },
 };
+
+export const CancellableInvestigation: Story = {
+  beforeEach: async () => {
+    sessionStorage.setItem("kubernaut-console-messages", JSON.stringify([
+      {
+        id: "user-1",
+        role: "user",
+        text: "Investigate the crashing worker",
+        timestamp: Date.now() - 5000,
+      },
+      {
+        id: "agent-1",
+        role: "agent",
+        text: "",
+        timestamp: Date.now(),
+        rrId: "rr-demo-cancellable",
+        phase: "investigation",
+        isStreaming: true,
+        thinking: [{ id: "thinking-1", type: "tool_call", text: "Investigating worker status..." }],
+      },
+    ]));
+    sessionStorage.setItem("kubernaut-console-phase", "investigation");
+  },
+};

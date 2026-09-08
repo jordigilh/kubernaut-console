@@ -197,6 +197,49 @@ describe("useChat", () => {
       expect(rca.summary).toBe("ConfigMap app-config contains an invalid directive.");
     });
 
+    it("UT-CONSOLE-CHAT-006a: does not treat zero RCA metrics as final after observing a tool call", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "kubectl get pods" }] } },
+          metadata: { type: "tool_call" },
+        });
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-1",
+          status: {
+            state: "input-required",
+            message: {
+              role: "agent",
+              parts: [{ kind: "text", text: JSON.stringify({
+                summary: "Investigation complete.",
+                rca: { severity: "high", confidence: 0.98, target: "Deployment/worker", tool_calls_count: 0, llm_turns: 0 },
+                options: [],
+              }) }],
+            },
+          },
+          metadata: { type: "decision" },
+          final: true,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("investigate"); });
+
+      await waitFor(() => {
+        const agentMsg = result.current.messages.find(m => m.role === "agent");
+        expect(agentMsg?.rca?.metricsPending).toBe(true);
+      });
+    });
+
     // SI-7: Software, Firmware, and Information Integrity — workflow parameters parsed faithfully from backend
     it("UT-CONSOLE-CHAT-007: parses workflow parameters and ruledOutReason from decision payload", async () => {
       vi.useRealTimers();
