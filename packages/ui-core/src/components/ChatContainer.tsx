@@ -495,6 +495,20 @@ export function ChatContainer() {
         {connectionStatus === "interrupted" && (
           <span style={{ fontSize: "0.75rem", color: "#fecaca" }} role="status">Connection lost -- investigation may still be running</span>
         )}
+        {canCancelInvestigation && (
+          <button
+            type="button"
+            className="kn-header-btn kn-header-cancel-btn"
+            onClick={handleCancelInvestigation}
+            disabled={cancellingInvestigation}
+            aria-label={cancellingInvestigation ? "Cancelling investigation" : "Cancel investigation"}
+            title={cancellingInvestigation ? "Cancelling investigation" : "Cancel investigation"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l8 8M14 6l-8 8" />
+            </svg>
+          </button>
+        )}
         {rawThinkingEnabled && (
           <button
             type="button"
@@ -605,19 +619,6 @@ export function ChatContainer() {
         phaseMetadata={statusMetadata}
         isActive={isStreaming || (bannerPhase !== "investigation" && bannerPhase !== undefined)}
       />
-
-      {canCancelInvestigation && (
-        <div className="kn-investigation-actions">
-          <button
-            type="button"
-            className="kn-cancel-investigation-btn"
-            onClick={handleCancelInvestigation}
-            disabled={cancellingInvestigation}
-          >
-            {cancellingInvestigation ? "Cancelling..." : "Cancel investigation"}
-          </button>
-        </div>
-      )}
 
       {/* Error */}
       {error && (

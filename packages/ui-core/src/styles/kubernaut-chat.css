@@ -176,6 +176,10 @@
   transition: color 0.15s, background 0.15s;
 }
 .kn-header-btn:hover { color: #fff; background: rgba(255,255,255,0.25); }
+.kn-header-btn:disabled { cursor: wait; opacity: 0.6; }
+.kn-header-cancel-btn { color: #fecaca; }
+.kn-header-cancel-btn:hover { color: #fff; background: rgba(220,38,38,0.5); }
+.kn-header-cancel-btn svg { width: 1.125rem; height: 1.125rem; }
 
 .kn-header-avatar {
   display: flex;
@@ -468,29 +472,6 @@
 }
 .kn-stop-btn:hover { background: var(--kn-red-700); }
 .kn-stop-btn:focus-visible {
-  outline: 2px solid var(--kn-red-600);
-  outline-offset: 2px;
-}
-
-.kn-investigation-actions {
-  display: flex;
-  justify-content: flex-end;
-  padding: 0 1rem 0.5rem;
-}
-
-.kn-cancel-investigation-btn {
-  border: 1px solid var(--kn-red-600);
-  border-radius: 0.375rem;
-  background: transparent;
-  color: var(--kn-red-600);
-  cursor: pointer;
-  font-size: 0.75rem;
-  padding: 0.375rem 0.75rem;
-}
-
-.kn-cancel-investigation-btn:hover { background: var(--kn-red-50); }
-.kn-cancel-investigation-btn:disabled { cursor: wait; opacity: 0.6; }
-.kn-cancel-investigation-btn:focus-visible {
   outline: 2px solid var(--kn-red-600);
   outline-offset: 2px;
 }
