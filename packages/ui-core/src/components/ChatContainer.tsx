@@ -92,6 +92,7 @@ export function ChatContainer() {
   // default for every host that doesn't set it -- see KubernautConfig's doc
   // comment). Only an explicit `false` turns the feature off.
   const rawThinkingEnabled = configCtx?.enableRawThinking !== false;
+  const showRawThinkingToggle = import.meta.env.VITE_SHOW_RAW_THINKING_TOGGLE === "true";
   const [showRawThinkingPref, setShowRawThinkingState] = useState(getShowRawThinking);
   const showRawThinking = rawThinkingEnabled && showRawThinkingPref;
   const handleToggleRawThinking = () => {
@@ -509,7 +510,8 @@ export function ChatContainer() {
             </svg>
           </button>
         )}
-        {rawThinkingEnabled && (
+        {/* Raw-thinking preference remains supported, but its header toggle is intentionally hidden for now. */}
+        {showRawThinkingToggle && rawThinkingEnabled && (
           <button
             type="button"
             onClick={handleToggleRawThinking}
