@@ -463,6 +463,13 @@ export function useChat() {
               payload.rca.namespace,
             );
 
+            const metricsPending = event.artifact.metadata?.schema === "early_rca"
+              || payload.rca.tool_calls_count === undefined
+              || payload.rca.llm_turns === undefined
+              // Older early-RCA payloads serialized unavailable counters as
+              // zero instead of omitting them.
+              || (payload.rca.tool_calls_count === 0 && payload.rca.llm_turns === 0 && payload.options === undefined);
+
             updates.rca = {
               severity: payload.rca.severity,
               confidence: payload.rca.confidence,
@@ -470,9 +477,7 @@ export function useChat() {
               target: payload.rca.target,
               toolCallsCount: payload.rca.tool_calls_count ?? 0,
               llmTurns: payload.rca.llm_turns ?? 0,
-              metricsPending: event.artifact.metadata?.schema === "early_rca"
-                || payload.rca.tool_calls_count === undefined
-                || payload.rca.llm_turns === undefined,
+              metricsPending,
               summary: payload.summary || textFallback,
               rrId: payload.rr_id,
               signalName: payload.signal_name,
@@ -777,6 +782,11 @@ export function useChat() {
               parsed.namespace,
               parsed.rca.namespace,
             );
+            const metricsPending = event.metadata?.schema === "early_rca"
+              || parsed.rca.tool_calls_count === undefined
+              || parsed.rca.llm_turns === undefined
+              || (parsed.rca.tool_calls_count === 0 && parsed.rca.llm_turns === 0 && parsed.options === undefined);
+
             updates.rca = {
               severity: parsed.rca.severity,
               confidence: parsed.rca.confidence,
@@ -784,9 +794,7 @@ export function useChat() {
               target: parsed.rca.target,
               toolCallsCount: parsed.rca.tool_calls_count ?? 0,
               llmTurns: parsed.rca.llm_turns ?? 0,
-              metricsPending: event.metadata?.schema === "early_rca"
-                || parsed.rca.tool_calls_count === undefined
-                || parsed.rca.llm_turns === undefined,
+              metricsPending,
               summary: parsed.summary ?? "",
               signalName: parsed.signal_name,
               namespace: parsedNamespace,
