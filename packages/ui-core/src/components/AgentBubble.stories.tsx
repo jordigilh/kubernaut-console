@@ -89,6 +89,32 @@ export const WithWorkflows: Story = {
   },
 };
 
+export const RCAWithPendingWorkflowDiscovery: Story = {
+  args: {
+    message: {
+      ...baseMessage,
+      text: "",
+      isStreaming: true,
+      rca: {
+        severity: "critical",
+        confidence: 0.95,
+        summary: "Deployment worker has a broken startup command.",
+        causalChain: [
+          "Pod worker entered CrashLoopBackOff",
+          "Container exits with code 1 on startup",
+          "Deployment revision contains a failing command override",
+        ],
+        target: "deployment/worker",
+        toolCallsCount: 12,
+        llmTurns: 6,
+      },
+      workflowOptions: [],
+      thinking: [{ id: "t1", type: "tool_call", text: "list_available_actions" }],
+      thinkingLabel: "Discovering remediation options",
+    },
+  },
+};
+
 export const Streaming: Story = {
   args: {
     message: {

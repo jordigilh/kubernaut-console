@@ -48,6 +48,7 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
   // actions until that stream has actually completed.
   const discoveryComplete = message.workflowOptions !== undefined && !message.isStreaming;
   const showEscapeHatches = hasRCAData && !hasWorkflows && discoveryComplete;
+  const showWorkflowDiscoveryPending = hasRCAData && message.isStreaming && !hasWorkflows;
   // #1922/kubernaut-console#50: a backend RCA-shaped payload without a causal
   // chain or tool-call count (e.g. KA's session_active dedup fallback) must
   // still surface *something* to the user. hasRCAData intentionally hides the
@@ -91,6 +92,16 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
 
         {hasRCA && hasRCAData && (
           <RCACard rca={message.rca!} />
+        )}
+
+        {showWorkflowDiscoveryPending && (
+          <div className="kn-workflow-discovery-pending" role="status" aria-live="polite" data-testid="workflow-discovery-pending">
+            <span className="kn-workflow-discovery-spinner" aria-hidden="true" />
+            <div>
+              <strong>Finding available remediation workflows</strong>
+              <p>Root cause identified. Workflow selection is still in progress.</p>
+            </div>
+          </div>
         )}
 
         {hasWorkflows && (

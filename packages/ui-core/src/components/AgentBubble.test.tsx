@@ -186,6 +186,21 @@ describe("AgentBubble", () => {
     expect(screen.queryByRole("button", { name: /escalate to team/i })).not.toBeInTheDocument();
   });
 
+  it("UT-CONSOLE-BUBBLE-014: shows workflow discovery pending status after the RCA while streaming", () => {
+    const msg: ChatMessage = {
+      id: "1", role: "agent", text: "", timestamp: Date.now(),
+      isStreaming: true,
+      rca: {
+        severity: "critical", confidence: 0.9, causalChain: ["Signal: crash"],
+        target: "Deployment/worker", toolCallsCount: 5, llmTurns: 3, summary: "Crash looping",
+      },
+      workflowOptions: [],
+    };
+    render(<AgentBubble message={msg} onDismiss={() => {}} onEscalate={() => {}} />);
+    expect(screen.getByTestId("workflow-discovery-pending")).toHaveTextContent("Finding available remediation workflows");
+    expect(screen.getByText("Root cause identified. Workflow selection is still in progress.")).toBeInTheDocument();
+  });
+
   // AU-12: Content of Audit Records — presentation ordering: CTA > thinking > RCA > workflows
   it("UT-CONSOLE-BUBBLE-006: renders components in correct order: CTA > thinking > RCA > workflows", () => {
     const msg: ChatMessage = {

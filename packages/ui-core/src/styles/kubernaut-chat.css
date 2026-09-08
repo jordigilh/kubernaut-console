@@ -266,6 +266,45 @@
   max-width: 85%;
 }
 
+.kn-workflow-discovery-pending {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--kn-border);
+  border-left: 3px solid var(--kn-teal-500);
+  border-radius: 0.5rem;
+  background: var(--kn-surface-secondary);
+  color: var(--kn-text-secondary);
+}
+
+.kn-workflow-discovery-pending strong {
+  display: block;
+  color: var(--kn-teal-800);
+  font-size: 0.875rem;
+}
+
+.kn-workflow-discovery-pending p {
+  margin: 0.25rem 0 0;
+  color: var(--kn-text-muted);
+  font-size: 0.8125rem;
+}
+
+.kn-workflow-discovery-spinner {
+  flex: 0 0 auto;
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-top: 0.125rem;
+  border: 2px solid var(--kn-teal-200);
+  border-top-color: var(--kn-teal-600);
+  border-radius: 50%;
+  animation: kn-workflow-discovery-spin 0.8s linear infinite;
+}
+
+@keyframes kn-workflow-discovery-spin {
+  to { transform: rotate(360deg); }
+}
+
 .kn-agent-time {
   font-size: 0.6875rem;
   color: var(--kn-text-dim);
