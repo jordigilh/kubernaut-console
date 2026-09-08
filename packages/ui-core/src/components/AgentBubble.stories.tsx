@@ -153,6 +153,30 @@ export const RCAWithDiscoveredWorkflows: Story = {
   },
 };
 
+export const RCAWithMetricsLoading: Story = {
+  args: {
+    message: {
+      ...baseMessage,
+      text: "",
+      rca: {
+        severity: "critical",
+        confidence: 0.95,
+        summary: "Deployment worker has a broken startup command.",
+        causalChain: [
+          "Pod worker entered CrashLoopBackOff",
+          "Container exits with code 1 on startup",
+          "Deployment revision contains a failing command override",
+        ],
+        target: "Deployment/worker in demo-checkout",
+        toolCallsCount: 0,
+        llmTurns: 0,
+        metricsPending: true,
+        rrId: "rr-b0cc6c7d543e-30bff791",
+      },
+    },
+  },
+};
+
 export const Streaming: Story = {
   args: {
     message: {
