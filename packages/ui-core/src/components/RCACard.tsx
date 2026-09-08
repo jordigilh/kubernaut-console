@@ -63,11 +63,24 @@ function parseCausalEntry(entry: string): { label: string; text: string } {
   return { label: "", text: entry };
 }
 
+function MetricSkeleton({ label }: { label: string }) {
+  return <span className="kn-inline-metric-skeleton" role="status" aria-label={`${label} not yet available`} />;
+}
+
 export function RCACard({ rca }: Props) {
   const severityColor = SEVERITY_COLOR[rca.severity] ?? "grey";
   const hasExplicitChain = rca.causalChain.length > 0;
   const parsed = hasExplicitChain ? null : parseSummary(rca.summary);
   const chainSteps = hasExplicitChain ? rca.causalChain : (parsed?.steps ?? []);
+  const confidence = rca.metricsPending && rca.confidence === 0
+    ? <MetricSkeleton label="Confidence" />
+    : rca.confidence;
+  const toolCalls = rca.metricsPending
+    ? <MetricSkeleton label="Tool call count" />
+    : rca.toolCallsCount;
+  const llmTurns = rca.metricsPending
+    ? <MetricSkeleton label="LLM turn count" />
+    : rca.llmTurns;
 
   return (
     <Card data-testid="severity-accent" isCompact>
@@ -111,7 +124,7 @@ export function RCACard({ rca }: Props) {
 
         <Content component={ContentVariants.small} data-testid="rca-metadata">
           {rca.rrId && <>RR: {rca.rrId} | </>}
-          Target: {rca.target} | Confidence: {rca.confidence} | {rca.toolCallsCount} tool calls, {rca.llmTurns} LLM turns
+          Target: {rca.target} | Confidence: {confidence} | {toolCalls} tool calls, {llmTurns} LLM turns
         </Content>
       </CardBody>
     </Card>
