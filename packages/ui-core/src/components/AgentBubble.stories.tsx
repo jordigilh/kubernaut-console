@@ -115,6 +115,44 @@ export const RCAWithPendingWorkflowDiscovery: Story = {
   },
 };
 
+export const RCAWithDiscoveredWorkflows: Story = {
+  args: {
+    message: {
+      ...baseMessage,
+      text: "",
+      isStreaming: false,
+      rca: {
+        severity: "critical",
+        confidence: 0.95,
+        summary: "Deployment worker has a broken startup command.",
+        causalChain: [
+          "Pod worker entered CrashLoopBackOff",
+          "Container exits with code 1 on startup",
+          "Deployment revision contains a failing command override",
+        ],
+        target: "deployment/worker",
+        toolCallsCount: 12,
+        llmTurns: 6,
+      },
+      workflowOptions: [
+        {
+          workflowId: "rollback-deployment-v1",
+          name: "Rollback deployment",
+          description: "Restores the previous known-good deployment revision.",
+          recommended: true,
+        },
+        {
+          workflowId: "restart-deployment-v1",
+          name: "Restart deployment",
+          description: "Restarts the current deployment without changing its revision.",
+          recommended: false,
+          ruledOutReason: "Does not address the broken startup command.",
+        },
+      ],
+    },
+  },
+};
+
 export const Streaming: Story = {
   args: {
     message: {
