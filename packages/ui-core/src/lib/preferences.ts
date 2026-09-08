@@ -9,7 +9,7 @@ const SHOW_RAW_THINKING_KEY = "kubernaut-console-show-raw-thinking";
 // deliberation, not a polished statement -- some users will want it hidden,
 // but a silent/blank panel during a multi-minute investigation is worse UX
 // than showing it, so raw thinking stays visible until a user opts out.
-const DEFAULT_SHOW_RAW_THINKING = true;
+const DEFAULT_SHOW_RAW_THINKING = false;
 
 export function getShowRawThinking(): boolean {
   try {
