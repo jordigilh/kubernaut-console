@@ -157,7 +157,7 @@ necessarily hub. Idempotent; safe to re-run. Skip entirely in v1.5 mode
 export KUBECONFIG=/path/to/hub-kubeconfig   # back to hub — AF/console run here
 export LIVE_E2E_CONSOLE_URL=https://kubernaut-console-kubernaut-system.apps.hub.redhat-internal.com
 export LIVE_E2E_KEYCLOAK_URL=https://keycloak-keycloak.apps.hub.redhat-internal.com
-export LIVE_E2E_KEYCLOAK_REALM=kubernaut-fleet
+export LIVE_E2E_KEYCLOAK_REALM=kubernaut-demo
 export LIVE_E2E_FLEET_CLUSTER_ID=spoke   # fleet mode only — omit entirely for v1.5 mode
 npx playwright test --config=playwright.live-v15.config.ts
 ```

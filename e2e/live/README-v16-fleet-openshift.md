@@ -27,7 +27,7 @@ took, since it's not just flipping the two booleans.
 Beyond `spec.console.enabled: true` / `spec.apiFrontend.enabled: true`:
 
 - **AF's `spec.apiFrontend.auth.issuerURL`** must point at the realm:
-  `https://keycloak-keycloak.apps.hub.redhat-internal.com/realms/kubernaut-fleet`
+  `https://keycloak-keycloak.apps.hub.redhat-internal.com/realms/kubernaut-demo`
   (`auth.audience` already defaults to `kubernaut-apifrontend`; also needed
   `allowInsecureIssuers: true` for the cluster's self-signed cert).
 - **SPIRE**: this cluster has no SPIRE/zero-trust-workload-identity-manager installed
@@ -38,9 +38,9 @@ Beyond `spec.console.enabled: true` / `spec.apiFrontend.enabled: true`:
 - **Console's `spec.console.auth.secretName`** needs a pre-existing Secret
   (`client-id`/`client-secret`/`cookie-secret`) backed by a real Keycloak client. The
   operator team created `kubernaut-console-oidc` plus a matching `kubernaut-console`
-  client in the `kubernaut-fleet` realm (redirect URI `.../oauth2/callback`,
+  client in the `kubernaut-demo` realm (redirect URI `.../oauth2/callback`,
   confidential, client-secret auth).
-- **The `kubernaut-fleet` realm had no browser-login-capable client or human users at
+- **The `kubernaut-demo` realm had no browser-login-capable client or human users at
   all** before this — it was built purely for machine-to-machine fleet OAuth2 (client-
   credentials + RFC 8693 token exchange for `kube-mcp-server`/`k8s-api`). Getting the
   E2E test identity working end-to-end required two more Keycloak-side fixes on top of
@@ -93,7 +93,7 @@ blocked, but with zero `roleBindings` there were also zero persona
 would have looked like "the suite logs in fine, then every scenario fails" —
 not an auth error. Fixed by:
 
-  6. Creating a `platform-engineering` group in the `kubernaut-fleet` realm,
+  6. Creating a `platform-engineering` group in the `kubernaut-demo` realm,
      adding `console-e2e-test` to it, and adding an `oidc-group-membership-mapper`
      (claim name `groups`) to the same client scope as the audience mappers above
      — Keycloak does not put group membership in tokens by default, even for a
@@ -115,7 +115,7 @@ this cluster.
 ```bash
 export LIVE_E2E_CONSOLE_URL=https://kubernaut-console-kubernaut-system.apps.hub.redhat-internal.com
 export LIVE_E2E_KEYCLOAK_URL=https://keycloak-keycloak.apps.hub.redhat-internal.com
-export LIVE_E2E_KEYCLOAK_REALM=kubernaut-fleet
+export LIVE_E2E_KEYCLOAK_REALM=kubernaut-demo
 # client-id defaults to "kubernaut-console" already — matches this cluster
 source e2e/live/scripts/fetch-creds.sh   # pulls client-secret/password from the Secret above
 npx playwright test --config=playwright.live-v15.config.ts
@@ -294,7 +294,7 @@ ID `loopback-cluster`. Confirmed via direct inspection: `oc get mcpserverregistr
 
 `docs/development/getting-started/fleet-mcp-gateway-keycloak-local-setup.md` (upstream
 `kubernaut` repo) describes a **passthrough + RFC 8693 Standard Token Exchange**
-setup against a dedicated `kubernaut-fleet` Keycloak realm. **This cluster does not use
+setup against a dedicated `kubernaut-demo` Keycloak realm. **This cluster does not use
 that.** Confirmed by direct inspection of the live `kube-mcp-server-config` ConfigMap:
 
 ```toml
@@ -304,11 +304,11 @@ cluster_auth_mode = "kubeconfig"
 Not `"passthrough"`. This means `kube-mcp-server` always acts using its own in-cluster
 ServiceAccount (bound to the `view` ClusterRole per the getting-started doc's general
 pattern) for every K8s API call, regardless of caller identity — there is **no
-per-caller token exchange, no `kubernaut-fleet` Keycloak realm, no OAuth2 audience
+per-caller token exchange, no `kubernaut-demo` Keycloak realm, no OAuth2 audience
 checks on `kube-mcp-server` itself** in this deployment. Confirmed:
 
 - `oc get realms` on this cluster's Keycloak (`keycloak` namespace) shows only `master`
-  and `kagenti` — no `kubernaut-fleet` realm exists here. (`kagenti` is the *console's
+  and `kagenti` — no `kubernaut-demo` realm exists here. (`kagenti` is the *console's
   own* OIDC realm, used for `kubernaut-console`/AF auth, unrelated to fleet MCP tool
   calls.)
 - The broker's own registration config (`mcp-gateway-config` Secret, `mcp-system`) has
@@ -333,7 +333,7 @@ checks on `kube-mcp-server` itself** in this deployment. Confirmed:
 ```
 
 Notably, `oauth2.tokenURL` points at the **same `kagenti` realm** this cluster's console
-auth already uses — there is no separate `kubernaut-fleet` realm on this cluster, despite
+auth already uses — there is no separate `kubernaut-demo` realm on this cluster, despite
 upstream's getting-started doc describing one. AF/the fleet client still performs a real
 OAuth2 client-credentials exchange against `kagenti` (the `fleet-oauth2-creds` Secret
 holds a `client-id`/`client-secret` pair scoped to that realm) to obtain *a* token to
@@ -765,7 +765,7 @@ re-provision from scratch.
   `fleetmetadatacache`, deployed and healthy as part of the rc5 rollout.
 - ~~What exact `spec.fleet.oauth2` values satisfy CR admission?~~ **Answered**:
   `enabled: true`, `credentialsSecretRef: fleet-oauth2-creds`, `tokenURL` pointing at the
-  existing `kagenti` realm (not a separate `kubernaut-fleet` realm).
+  existing `kagenti` realm (not a separate `kubernaut-demo` realm).
 - ~~Does `WorkflowExecution`'s served CRD version include `Fleet`/`OAuth2` fields?~~
   **Answered**: no — only `v1alpha1` is served/stored, `v1alpha2` doesn't exist on this
   CRD at all. **Not a novel gap** — already tracked as `kubernaut-operator#235`
