@@ -85,7 +85,17 @@ describe("checkConsoleAccess", () => {
     expect((init.headers as Record<string, string>)["Authorization"]).toBeUndefined();
   });
 
-  it("UT-CONSOLE-ACCESS-010 [console#48]: fails closed to 'error' when getToken itself rejects, rather than throwing", async () => {
+  it("UT-CONSOLE-ACCESS-010 [console#48]: does not send an empty bearer token", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    globalThis.fetch = fetchMock;
+
+    await checkConsoleAccess({ getToken: async () => "" });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect((init.headers as Record<string, string>)["Authorization"]).toBeUndefined();
+  });
+
+  it("UT-CONSOLE-ACCESS-011 [console#48]: fails closed to 'error' when getToken itself rejects, rather than throwing", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
 
     await expect(checkConsoleAccess({ getToken: async () => { throw new Error("token refresh failed"); } })).resolves.toBe("error");
