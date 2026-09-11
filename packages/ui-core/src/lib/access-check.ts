@@ -22,7 +22,10 @@ export async function checkConsoleAccess(options?: AccessCheckOptions): Promise<
   const headers: Record<string, string> = {};
   if (options?.getToken) {
     try {
-      headers["Authorization"] = `Bearer ${await options.getToken()}`;
+      const token = await options.getToken();
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
     } catch {
       // fall through without auth; server will reject with 401 -> "error" below
     }
