@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import type { ChatMessage } from "../hooks/useChat";
 import { ThinkingPanel } from "./ThinkingPanel";
 import { RCACard } from "./RCACard";
@@ -22,13 +23,14 @@ interface Props {
   workflowActionTaken?: boolean;
   /** console#53: forwarded to ThinkingPanel to gate the raw-thinking content stream. Defaults to true. */
   showRawThinking?: boolean;
+  rcaAnchorRef?: Ref<HTMLDivElement>;
 }
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow, onApprove, onDecline, onDismiss, onEscalate, userName, recoverySignal, workflowActionTaken, showRawThinking = true }: Props) {
+export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow, onApprove, onDecline, onDismiss, onEscalate, userName, recoverySignal, workflowActionTaken, showRawThinking = true, rcaAnchorRef }: Props) {
   const hasContent = message.text.trim().length > 0;
   const hasThinking = message.thinking && message.thinking.length > 0;
   const hasRCA = !!message.rca;
@@ -88,7 +90,9 @@ export function AgentBubble({ message, investigationStartTime, onExecuteWorkflow
         )}
 
         {hasRCA && hasRCAData && (
-          <RCACard rca={message.rca!} />
+          <div ref={rcaAnchorRef}>
+            <RCACard rca={message.rca!} />
+          </div>
         )}
 
         {showWorkflowDiscoveryPending && (

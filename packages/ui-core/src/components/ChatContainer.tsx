@@ -8,6 +8,7 @@ import { isInvestigationEngaged } from "../lib/query-intent";
 import { findApprovalMessageIndex } from "../lib/approval-dedup";
 import { maxChatPhase } from "../lib/phase-rank";
 import { buildDeferredContext } from "../lib/context-builder";
+import { shouldAnchorToNewRca } from "../lib/chat-scroll";
 import { AuthContext } from "../providers/auth";
 import { ConfigContext } from "../providers/config";
 import { UserBubble } from "./UserBubble";
@@ -84,6 +85,9 @@ export function ChatContainer() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const userScrolledUpRef = useRef(false);
   const programmaticScrollRef = useRef(false);
+  const lastRcaMessageId = messages.findLast(m => m.role === "agent" && m.rca)?.id;
+  const previousRcaMessageIdRef = useRef(lastRcaMessageId);
+  const rcaAnchorRef = useRef<HTMLDivElement>(null);
 
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [cancellingInvestigation, setCancellingInvestigation] = useState(false);
@@ -113,13 +117,24 @@ export function ChatContainer() {
   };
 
   useEffect(() => {
+    const newRcaPresented = shouldAnchorToNewRca(
+      previousRcaMessageIdRef.current,
+      lastRcaMessageId,
+      userScrolledUpRef.current,
+    );
+    previousRcaMessageIdRef.current = lastRcaMessageId;
     if (userScrolledUpRef.current) return;
     const el = scrollRef.current;
     if (!el) return;
     programmaticScrollRef.current = true;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+
+    if (newRcaPresented && rcaAnchorRef.current) {
+      rcaAnchorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
     setTimeout(() => { programmaticScrollRef.current = false; }, 400);
-  }, [messages]);
+  }, [messages, lastRcaMessageId]);
 
   const [approvalDenied, setApprovalDenied] = useState(false);
   const approvalFetchedRef = useRef<string | null>(null);
@@ -590,6 +605,7 @@ export function ChatContainer() {
                 recoverySignal={recoverySignal}
                 workflowActionTaken={workflowActionTaken}
                 showRawThinking={showRawThinking}
+                rcaAnchorRef={msg.id === lastRcaMessageId ? rcaAnchorRef : undefined}
               />
             ),
           )
