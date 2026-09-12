@@ -67,6 +67,10 @@ function MetricSkeleton({ label }: { label: string }) {
   return <span className="kn-inline-metric-skeleton" role="status" aria-label={`${label} not yet available`} />;
 }
 
+function formatMetric(value: number): string {
+  return value.toLocaleString("en-US");
+}
+
 export function RCACard({ rca }: Props) {
   const severityColor = SEVERITY_COLOR[rca.severity] ?? "grey";
   const hasExplicitChain = rca.causalChain.length > 0;
@@ -81,6 +85,9 @@ export function RCACard({ rca }: Props) {
   const llmTurns = rca.metricsPending
     ? <MetricSkeleton label="LLM turn count" />
     : rca.llmTurns;
+  const tokenUsage = rca.tokenMetricsAvailable && !rca.metricsPending
+    ? <> | {formatMetric(rca.totalTokens ?? 0)} tokens ({formatMetric(rca.promptTokens ?? 0)} in / {formatMetric(rca.completionTokens ?? 0)} out)</>
+    : null;
 
   return (
     <Card data-testid="severity-accent" isCompact>
@@ -123,8 +130,7 @@ export function RCACard({ rca }: Props) {
         <Divider />
 
         <Content component={ContentVariants.small} data-testid="rca-metadata">
-          {rca.rrId && <>RR: {rca.rrId} | </>}
-          Target: {rca.target} | Confidence: {confidence} | {toolCalls} tool calls, {llmTurns} LLM turns
+          Target: {rca.target} | Confidence: {confidence} | {toolCalls} tool calls, {llmTurns} LLM turns{tokenUsage}
         </Content>
       </CardBody>
     </Card>

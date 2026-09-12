@@ -113,6 +113,9 @@ test.describe("Contract compliance — integration-guide.md checklist", () => {
     // (and therefore non-deterministic) text staying disjoint from this
     // pattern.
     await expect(page.getByTestId("rca-metadata")).toContainText(/Confidence: 0\.\d+/);
+    // Token fields are optional with real providers, but the redundant RR
+    // label must never return when the metadata footer is rendered.
+    await expect(page.getByTestId("rca-metadata")).not.toContainText(/\bRR:/);
     await expect(page.getByTestId("causal-chain")).toBeVisible();
 
     // Recommended workflow is deterministic (crashloop-rollback-v1 is the

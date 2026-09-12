@@ -73,6 +73,9 @@ describe("IT: Structured artifact flow (SSE -> DataPart -> ChatMessage state)", 
                   rca_summary: "Bad commit introduced invalid_directive in ConfigMap.",
                   tool_calls_count: 19,
                   llm_turns: 17,
+                  prompt_tokens: 1200,
+                  completion_tokens: 450,
+                  total_tokens: 1650,
                 },
                 options: [
                   {
@@ -135,6 +138,10 @@ describe("IT: Structured artifact flow (SSE -> DataPart -> ChatMessage state)", 
     expect(agentMsg.rca!.causalChain).toHaveLength(4);
     expect(agentMsg.rca!.toolCallsCount).toBe(19);
     expect(agentMsg.rca!.llmTurns).toBe(17);
+    expect(agentMsg.rca!.promptTokens).toBe(1200);
+    expect(agentMsg.rca!.completionTokens).toBe(450);
+    expect(agentMsg.rca!.totalTokens).toBe(1650);
+    expect(agentMsg.rca!.tokenMetricsAvailable).toBe(true);
     expect(agentMsg.rca!.summary).toBe("GitOps drift detected: ConfigMap modified outside Git source.");
 
     expect(agentMsg.workflowOptions).toHaveLength(2);

@@ -164,6 +164,9 @@ describe("useChat", () => {
                     target: "ConfigMap/app-config in demo-webui",
                     tool_calls_count: 19,
                     llm_turns: 17,
+                    prompt_tokens: 1200,
+                    completion_tokens: 450,
+                    total_tokens: 1650,
                   },
                   options: [
                     { workflow_id: "git-revert-v2", name: "git-revert-v2", description: "Reverts commit", risk: "low", recommended: true, parameters: { TARGET_RESOURCE_NAME: "app-config" } },
@@ -194,6 +197,11 @@ describe("useChat", () => {
       expect(rca.target).toBe("ConfigMap/app-config in demo-webui");
       expect(rca.toolCallsCount).toBe(19);
       expect(rca.llmTurns).toBe(17);
+      expect(rca.promptTokens).toBe(1200);
+      expect(rca.completionTokens).toBe(450);
+      expect(rca.totalTokens).toBe(1650);
+      expect(rca.tokenMetricsAvailable).toBe(true);
+      expect(rca.metricsPending).toBe(false);
       expect(rca.summary).toBe("ConfigMap app-config contains an invalid directive.");
     });
 
@@ -1178,6 +1186,9 @@ describe("useChat", () => {
                     rca_summary: "The worker is OOM-killing.",
                     tool_calls_count: 8,
                     llm_turns: 3,
+                    prompt_tokens: 1200,
+                    completion_tokens: 450,
+                    total_tokens: 1650,
                   },
                   options: [
                     {
@@ -1222,10 +1233,109 @@ describe("useChat", () => {
       expect(agentMsg?.rca?.causalChain).toEqual(["OOM kill", "memory limit too low"]);
       expect(agentMsg?.rca?.toolCallsCount).toBe(8);
       expect(agentMsg?.rca?.llmTurns).toBe(3);
+      expect(agentMsg?.rca?.promptTokens).toBe(1200);
+      expect(agentMsg?.rca?.completionTokens).toBe(450);
+      expect(agentMsg?.rca?.totalTokens).toBe(1650);
+      expect(agentMsg?.rca?.tokenMetricsAvailable).toBe(true);
+      expect(agentMsg?.rca?.metricsPending).toBe(false);
       expect(agentMsg?.rca?.summary).toBe("Root cause identified: OOM kill on worker deployment.");
       expect(agentMsg?.workflowOptions).toHaveLength(1);
       expect(agentMsg?.workflowOptions?.[0].workflowId).toBe("rollback-v1");
       expect(agentMsg?.workflowOptions?.[0].recommended).toBe(true);
+    });
+
+    it("UT-CONSOLE-CHAT-127-005: keeps cumulative token metrics pending until options arrive", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-127-005",
+          status: {
+            state: "input-required",
+            message: {
+              role: "agent",
+              parts: [{ kind: "text", text: JSON.stringify({
+                summary: "RCA complete; workflow discovery still pending.",
+                rca: {
+                  severity: "high",
+                  confidence: 0.9,
+                  target: "Deployment/worker",
+                  causal_chain: ["Resource exhausted"],
+                  tool_calls_count: 5,
+                  llm_turns: 3,
+                  prompt_tokens: 1200,
+                  completion_tokens: 450,
+                  total_tokens: 1650,
+                },
+              }) }],
+            },
+          },
+          metadata: { type: "decision" },
+          final: true,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("investigate"); });
+
+      await waitFor(() => {
+        expect(result.current.isStreaming).toBe(false);
+      });
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg?.rca?.tokenMetricsAvailable).toBe(true);
+      expect(agentMsg?.rca?.metricsPending).toBe(true);
+      expect(agentMsg?.workflowOptions).toBeUndefined();
+    });
+
+    it("UT-CONSOLE-CHAT-127-003: does not invent omitted token values", async () => {
+      vi.useRealTimers();
+      const { streamA2A: streamFn } = await import("../lib/a2a-client");
+      const mockedStream = vi.mocked(streamFn);
+
+      mockedStream.mockImplementation(async (_req, opts) => {
+        opts.onEvent({
+          kind: "status-update",
+          taskId: "t1",
+          contextId: "ctx-127-003",
+          status: {
+            state: "input-required",
+            message: {
+              role: "agent",
+              parts: [{ kind: "text", text: JSON.stringify({
+                summary: "RCA complete.",
+                rca: {
+                  severity: "high",
+                  confidence: 0.9,
+                  target: "Deployment/worker",
+                  causal_chain: ["Resource exhausted"],
+                  tool_calls_count: 5,
+                  llm_turns: 3,
+                  total_tokens: 1650,
+                },
+                options: [],
+              }) }],
+            },
+          },
+          metadata: { type: "decision" },
+          final: true,
+        });
+        opts.onComplete?.();
+      });
+
+      const { result } = renderHook(() => useChat());
+      await act(async () => { await result.current.sendMessage("investigate"); });
+      await waitFor(() => expect(result.current.isStreaming).toBe(false));
+
+      const agentMsg = result.current.messages.find(m => m.role === "agent");
+      expect(agentMsg?.rca?.totalTokens).toBe(1650);
+      expect(agentMsg?.rca?.tokenMetricsAvailable).toBe(false);
+      expect(agentMsg?.rca?.metricsPending).toBe(false);
     });
 
     it("UT-CONSOLE-CHAT-023: falls back to text concatenation when no DataPart is present", async () => {

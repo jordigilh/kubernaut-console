@@ -16,6 +16,10 @@ const rca: RCAData = {
   target: "ConfigMap/app-config in demo-webui",
   toolCallsCount: 19,
   llmTurns: 17,
+  promptTokens: 1200,
+  completionTokens: 450,
+  totalTokens: 1650,
+  tokenMetricsAvailable: true,
   summary: "ConfigMap app-config contains an invalid directive introduced by Git commit caa704e8, synced by ArgoCD. With selfHeal:true, in-cluster patches are futile.",
 };
 
@@ -37,12 +41,14 @@ describe("RCACard", () => {
     expect(screen.getByText(/ConfigMap app-config contains an invalid directive/)).toBeInTheDocument();
   });
 
-  it("UT-CONSOLE-RCA-004: renders metadata line with target, confidence, tool calls, LLM turns", () => {
+  it("UT-CONSOLE-RCA-004: renders final metadata without RR and with token usage", () => {
     render(<RCACard rca={rca} />);
     expect(screen.getByText(/ConfigMap\/app-config in demo-webui/)).toBeInTheDocument();
     expect(screen.getByText(/0\.95/)).toBeInTheDocument();
     expect(screen.getByText(/19 tool calls/)).toBeInTheDocument();
     expect(screen.getByText(/17 LLM turns/)).toBeInTheDocument();
+    expect(screen.getByText(/1,650 tokens \(1,200 in \/ 450 out\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/RR:/)).not.toBeInTheDocument();
   });
 
   it("UT-CONSOLE-RCA-005: renders causal chain entries", () => {
@@ -74,14 +80,14 @@ describe("RCACard", () => {
     expect(screen.getByText("high")).toBeInTheDocument();
   });
 
-  // AU-2: Audit Events — RR ID in RCA card enables audit correlation between
-  // console display and backend CR lifecycle events
-  it("UT-CONSOLE-RCA-010: AU-2 — renders RR ID in metadata when available for audit correlation", () => {
+  // The RR is already shown in the investigation header; avoid duplicating it
+  // in every RCA footer.
+  it("UT-CONSOLE-RCA-010: omits RR ID from metadata when available", () => {
     render(<RCACard rca={{ ...rca, rrId: "rr-9e1b7bf4140b-ed9f1796" }} />);
-    expect(screen.getByText(/rr-9e1b7bf4140b-ed9f1796/)).toBeInTheDocument();
+    expect(screen.queryByText(/rr-9e1b7bf4140b-ed9f1796/)).not.toBeInTheDocument();
   });
 
-  it("UT-CONSOLE-RCA-011: AU-2 — omits RR ID gracefully when not provided", () => {
+  it("UT-CONSOLE-RCA-011: omits RR ID gracefully when not provided", () => {
     render(<RCACard rca={rca} />);
     expect(screen.queryByText(/RR:/)).not.toBeInTheDocument();
   });
@@ -99,5 +105,31 @@ describe("RCACard", () => {
     expect(screen.getByTestId("rca-metadata")).toHaveTextContent("Confidence: 0.95");
     expect(screen.getByRole("status", { name: "Tool call count not yet available" })).toBeInTheDocument();
     expect(screen.getByRole("status", { name: "LLM turn count not yet available" })).toBeInTheDocument();
+  });
+
+  it("UT-CONSOLE-RCA-014: omits token usage when older artifacts do not provide token keys", () => {
+    const legacyRca = { ...rca };
+    delete legacyRca.tokenMetricsAvailable;
+    delete legacyRca.promptTokens;
+    delete legacyRca.completionTokens;
+    delete legacyRca.totalTokens;
+    render(<RCACard rca={legacyRca} />);
+    expect(screen.getByTestId("rca-metadata")).not.toHaveTextContent(/tokens/);
+    expect(screen.getByTestId("rca-metadata")).not.toHaveTextContent(/RR:/);
+  });
+
+  it("UT-CONSOLE-RCA-015: preserves explicit zero token values", () => {
+    render(<RCACard rca={{ ...rca, promptTokens: 0, completionTokens: 0, totalTokens: 0 }} />);
+    expect(screen.getByTestId("rca-metadata")).toHaveTextContent("0 tokens (0 in / 0 out)");
+  });
+
+  it("UT-CONSOLE-RCA-016: does not show cumulative tokens before workflow discovery completes", () => {
+    render(<RCACard rca={{ ...rca, metricsPending: true }} />);
+    expect(screen.getByTestId("rca-metadata")).not.toHaveTextContent(/tokens/);
+  });
+
+  it("UT-CONSOLE-RCA-017: does not show partial token metrics as a complete total", () => {
+    render(<RCACard rca={{ ...rca, tokenMetricsAvailable: false, completionTokens: 0, totalTokens: 0 }} />);
+    expect(screen.getByTestId("rca-metadata")).not.toHaveTextContent(/tokens/);
   });
 });
