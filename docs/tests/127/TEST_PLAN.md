@@ -10,6 +10,8 @@ Display server-computed cumulative investigation and workflow-discovery accounti
 
 The final workflow-selection payload includes `options`; its presence, including an empty array, proves discovery completed. An absent `options` key means discovery is pending or was not requested. RCA-only interactive flows must not claim combined discovery totals.
 
+Token fields are server-computed and optional on the wire. An RCA-only investigation may include token usage when LLM usage was recorded; missing fields mean the provider or backend did not expose usage. The console must not synthesize values.
+
 ## Pyramid Invariant
 
 Unit tests prove wire parsing, absence/zero semantics, completion gating, and footer formatting. Integration tests prove final artifact-to-`ChatMessage` wiring and DOM rendering through `useChat`.
@@ -31,6 +33,10 @@ Unit tests prove wire parsing, absence/zero semantics, completion gating, and fo
 |---|---|---|---|
 | IT-CONSOLE-RCA-127-001 | Final `investigation_summary` artifact with `options` and token keys | RCA DOM contains combined metrics and no RR footer | AU-2, AU-3, SI-4 |
 | IT-CONSOLE-RCA-127-002 | Final artifact with `options: []` | Metrics render and no-workflow state remains available | AU-3, SI-4 |
+
+## Live E2E Boundary
+
+The live-cluster contract suite uses real providers, so it does not assert exact token totals or require token fields to be present. Provider response metadata and backend versions can make those fields unavailable or change the totals between runs. It does assert stable RCA rendering invariants, including removal of the redundant `RR:` label. Exact token formatting is covered by deterministic standalone E2E with a controlled payload.
 
 ## Acceptance Criteria
 
