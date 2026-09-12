@@ -31,6 +31,7 @@ const mockSubscribeStatus = vi.mocked(subscribeRRStatus);
 
 beforeAll(() => {
   Element.prototype.scrollTo = vi.fn();
+  Element.prototype.scrollIntoView = vi.fn();
 });
 
 describe("ChatContainer Integration", () => {
@@ -225,6 +226,61 @@ describe("ChatContainer Integration", () => {
     await waitFor(() => {
       expect(screen.queryByText(/Executing in \d+s/)).not.toBeInTheDocument();
     });
+  });
+
+  it("IT-CONSOLE-RCA-SCROLL-001: anchors the viewport at a newly presented RCA while workflow discovery is pending", async () => {
+    vi.useRealTimers();
+    let emitEvent: ((event: unknown) => void) | undefined;
+    let releaseStream!: () => void;
+    const scrollIntoViewMock = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onEvent?: (event: unknown) => void; onComplete?: () => void }) => {
+      emitEvent = opts.onEvent;
+      await new Promise<void>((resolve) => { releaseStream = resolve; });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+
+    fireEvent.change(input, { target: { value: "Investigate this alert" } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+
+    await waitFor(() => expect(emitEvent).toBeDefined());
+
+    await act(async () => {
+      emitEvent?.({
+        kind: "status-update",
+        taskId: "task-rca-scroll",
+        contextId: "ctx-rca-scroll",
+        status: {
+          state: "input-required",
+          message: {
+            role: "agent",
+            parts: [{ kind: "text", text: JSON.stringify({
+              summary: "The workload is failing because its memory limit is too low.",
+              rca: {
+                severity: "high",
+                confidence: 0.9,
+                target: "Deployment/worker",
+                causal_chain: ["Memory limit exceeded"],
+                tool_calls_count: 5,
+                llm_turns: 3,
+              },
+            }) }],
+          },
+        },
+        metadata: { type: "decision", rr_id: "rr-rca-scroll" },
+        final: true,
+      });
+    });
+
+    expect(await screen.findByText("Root Cause Analysis")).toBeInTheDocument();
+    expect(screen.getByTestId("workflow-discovery-pending")).toBeInTheDocument();
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+
+    releaseStream();
   });
 
   it("IT-CONSOLE-RCA-127-002: renders metrics and escape hatches for options: []", async () => {
