@@ -48,6 +48,10 @@ export interface RCAData {
   target: string;
   toolCallsCount: number;
   llmTurns: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  tokenMetricsAvailable?: boolean;
   metricsPending?: boolean;
   summary: string;
   rrId?: string;
@@ -465,9 +469,16 @@ export function useChat() {
               payload.rca.namespace,
             );
 
+            const tokenMetricsPresent = payload.rca.prompt_tokens !== undefined
+              || payload.rca.completion_tokens !== undefined
+              || payload.rca.total_tokens !== undefined;
+            const tokenMetricsAvailable = payload.rca.prompt_tokens !== undefined
+              && payload.rca.completion_tokens !== undefined
+              && payload.rca.total_tokens !== undefined;
             const metricsPending = event.artifact.metadata?.schema === "early_rca"
               || payload.rca.tool_calls_count === undefined
               || payload.rca.llm_turns === undefined
+              || (tokenMetricsPresent && payload.options === undefined)
               // Older early-RCA payloads serialized unavailable counters as
               // zero instead of omitting them.
               || (payload.rca.tool_calls_count === 0 && payload.rca.llm_turns === 0
@@ -480,6 +491,10 @@ export function useChat() {
               target: payload.rca.target,
               toolCallsCount: payload.rca.tool_calls_count ?? 0,
               llmTurns: payload.rca.llm_turns ?? 0,
+              promptTokens: payload.rca.prompt_tokens ?? 0,
+              completionTokens: payload.rca.completion_tokens ?? 0,
+              totalTokens: payload.rca.total_tokens ?? 0,
+              tokenMetricsAvailable,
               metricsPending,
               summary: payload.summary || textFallback,
               rrId: payload.rr_id,
@@ -785,9 +800,16 @@ export function useChat() {
               parsed.namespace,
               parsed.rca.namespace,
             );
+            const tokenMetricsPresent = parsed.rca.prompt_tokens !== undefined
+              || parsed.rca.completion_tokens !== undefined
+              || parsed.rca.total_tokens !== undefined;
+            const tokenMetricsAvailable = parsed.rca.prompt_tokens !== undefined
+              && parsed.rca.completion_tokens !== undefined
+              && parsed.rca.total_tokens !== undefined;
             const metricsPending = event.metadata?.schema === "early_rca"
               || parsed.rca.tool_calls_count === undefined
               || parsed.rca.llm_turns === undefined
+              || (tokenMetricsPresent && parsed.options === undefined)
               || (parsed.rca.tool_calls_count === 0 && parsed.rca.llm_turns === 0
                 && (parsed.options === undefined || observedToolCallsRef.current > 0));
 
@@ -798,6 +820,10 @@ export function useChat() {
               target: parsed.rca.target,
               toolCallsCount: parsed.rca.tool_calls_count ?? 0,
               llmTurns: parsed.rca.llm_turns ?? 0,
+              promptTokens: parsed.rca.prompt_tokens ?? 0,
+              completionTokens: parsed.rca.completion_tokens ?? 0,
+              totalTokens: parsed.rca.total_tokens ?? 0,
+              tokenMetricsAvailable,
               metricsPending,
               summary: parsed.summary ?? "",
               signalName: parsed.signal_name,

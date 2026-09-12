@@ -163,6 +163,9 @@ test.describe("Standalone Mode E2E", () => {
           target: "demo-webui/v1/ConfigMap/app-config",
           tool_calls_count: 5,
           llm_turns: 3,
+          prompt_tokens: 1200,
+          completion_tokens: 450,
+          total_tokens: 1650,
         },
         summary: "Investigation complete",
         options: [{ workflow_id: "git-revert-v2", name: "git-revert-v2", description: "Revert commit", risk: "low", recommended: true }],
@@ -208,5 +211,7 @@ test.describe("Standalone Mode E2E", () => {
     // which triggers the status stream subscription.
     // The status stream returns phase transitions; banner should show "Verifying".
     await expect(page.locator(".kn-phase-label")).toHaveText("Verifying", { timeout: 15000 });
+    await expect(page.getByTestId("rca-metadata")).toContainText("1,650 tokens (1,200 in / 450 out)");
+    await expect(page.getByTestId("rca-metadata")).not.toContainText("RR:");
   });
 });

@@ -110,6 +110,9 @@ describe("ChatContainer Integration", () => {
                 target: "demo-webui/app-config",
                 tool_calls_count: 19,
                 llm_turns: 17,
+                prompt_tokens: 1200,
+                completion_tokens: 450,
+                total_tokens: 1650,
               },
               options: [
                 {
@@ -150,7 +153,7 @@ describe("ChatContainer Integration", () => {
    * IT-CONSOLE-JOURNEY-001 through IT-CONSOLE-JOURNEY-008
    * FedRAMP Controls: IR-4 (Incident Handling), AU-2 (Audit Events), SC-5 (DoS Protection)
    */
-  it("renders the full operator investigation journey through production dispatch path", async () => {
+  it("IT-CONSOLE-RCA-127-001: renders final cumulative metrics through production dispatch path", async () => {
     setupFullJourneyStream();
     setShowRawThinking(true);
     render(<ChatContainer />);
@@ -178,6 +181,8 @@ describe("ChatContainer Integration", () => {
     // IT-CONSOLE-JOURNEY-003: RCA Card renders after decision (IR-4)
     await waitFor(() => {
       expect(screen.getByText("Root Cause Analysis")).toBeInTheDocument();
+      expect(screen.getByTestId("rca-metadata")).toHaveTextContent("1,650 tokens (1,200 in / 450 out)");
+      expect(screen.getByTestId("rca-metadata")).not.toHaveTextContent(/RR:/);
     });
 
     // Severity badge
@@ -220,6 +225,59 @@ describe("ChatContainer Integration", () => {
     await waitFor(() => {
       expect(screen.queryByText(/Executing in \d+s/)).not.toBeInTheDocument();
     });
+  });
+
+  it("IT-CONSOLE-RCA-127-002: renders metrics and escape hatches for options: []", async () => {
+    vi.useRealTimers();
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onEvent?: (event: unknown) => void; onComplete?: () => void }) => {
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: "task-127-002",
+        contextId: "ctx-127-002",
+        artifact: {
+          artifactId: "artifact-127-002",
+          parts: [{
+            kind: "data",
+            data: {
+              type: "investigation_summary",
+              schema_version: "1.0",
+              rr_id: "rr-127-002",
+              summary: "No matching remediation workflow was found.",
+              rca: {
+                severity: "warning",
+                confidence: 0.82,
+                target: "Deployment/worker",
+                causal_chain: ["Resource is healthy"],
+                tool_calls_count: 4,
+                llm_turns: 2,
+                prompt_tokens: 100,
+                completion_tokens: 25,
+                total_tokens: 125,
+              },
+              options: [],
+            },
+            mediaType: "application/json",
+          }],
+          metadata: { schema: "investigation_summary" },
+        },
+        lastChunk: true,
+        append: false,
+      });
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "Investigate this alert" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("rca-metadata")).toHaveTextContent("125 tokens (100 in / 25 out)");
+    });
+    expect(screen.getByRole("button", { name: /no action needed/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /escalate to team/i })).toBeInTheDocument();
   });
 
   /**

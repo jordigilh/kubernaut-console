@@ -9,6 +9,9 @@ export interface InvestigationSummaryRCA {
   rca_summary?: string;
   tool_calls_count?: number;
   llm_turns?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
 }
 
 export interface InvestigationSummaryOption {
