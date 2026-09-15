@@ -4,7 +4,14 @@ import { mockStreamA2A } from "../lib/a2a-mock";
 import type { A2AEvent, DataPart, StatusUpdateEvent } from "../lib/a2a-types";
 import { AuthContext } from "../providers/auth";
 import { ConfigContext } from "../providers/config";
-import { clearSessionState, loadPersistedPhase, savePersistedPhase } from "../lib/session-state";
+import {
+  clearConsoleSessionState,
+  CONSOLE_CONTEXT_KEY,
+  CONSOLE_MESSAGES_KEY,
+  CONSOLE_PENDING_CONTEXT_KEY,
+  loadPersistedPhase,
+  savePersistedPhase,
+} from "../lib/session-state";
 import { maxChatPhase } from "../lib/phase-rank";
 import { isRecord } from "../lib/type-guards";
 import { isInvestigationSummary, type InvestigationSummary } from "../lib/schemas/investigation-summary";
@@ -195,13 +202,9 @@ export interface ChatMessage {
 
 export type ConnectionStatus = "idle" | "connected" | "reconnecting" | "lost" | "interrupted";
 
-const STORAGE_KEY = "kubernaut-console-messages"; // pre-commit:allow-sensitive (storage key name)
-const CONTEXT_KEY = "kubernaut-console-context"; // pre-commit:allow-sensitive (storage key name)
-const PENDING_CONTEXT_KEY = "kubernaut-pending-context"; // pre-commit:allow-sensitive (storage key name)
-
 function loadMessages(): ChatMessage[] {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(CONSOLE_MESSAGES_KEY);
     if (!raw) return [];
     return JSON.parse(raw);
   } catch {
@@ -216,7 +219,7 @@ function saveMessages(messages: ChatMessage[]) {
       isStreaming: false,
       thinking: m.thinking?.slice(-20),
     }));
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    sessionStorage.setItem(CONSOLE_MESSAGES_KEY, JSON.stringify(toSave));
   } catch {
     try {
       const trimmed = messages.slice(-10).map((m) => ({
@@ -224,7 +227,7 @@ function saveMessages(messages: ChatMessage[]) {
         isStreaming: false,
         thinking: undefined,
       }));
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+      sessionStorage.setItem(CONSOLE_MESSAGES_KEY, JSON.stringify(trimmed));
     } catch {
       // Storage completely unavailable
     }
@@ -232,12 +235,12 @@ function saveMessages(messages: ChatMessage[]) {
 }
 
 function loadContextId(): string | undefined {
-  return sessionStorage.getItem(CONTEXT_KEY) || undefined;
+  return sessionStorage.getItem(CONSOLE_CONTEXT_KEY) || undefined;
 }
 
 function saveContextId(id: string) {
   try {
-    sessionStorage.setItem(CONTEXT_KEY, id);
+    sessionStorage.setItem(CONSOLE_CONTEXT_KEY, id);
   } catch {
     // Storage unavailable
   }
@@ -245,7 +248,7 @@ function saveContextId(id: string) {
 
 function loadPendingContext(): string[] {
   try {
-    const raw = sessionStorage.getItem(PENDING_CONTEXT_KEY);
+    const raw = sessionStorage.getItem(CONSOLE_PENDING_CONTEXT_KEY);
     if (!raw) return [];
     return JSON.parse(raw);
   } catch {
@@ -256,9 +259,9 @@ function loadPendingContext(): string[] {
 function savePendingContext(entries: string[]) {
   try {
     if (entries.length === 0) {
-      sessionStorage.removeItem(PENDING_CONTEXT_KEY);
+      sessionStorage.removeItem(CONSOLE_PENDING_CONTEXT_KEY);
     } else {
-      sessionStorage.setItem(PENDING_CONTEXT_KEY, JSON.stringify(entries));
+      sessionStorage.setItem(CONSOLE_PENDING_CONTEXT_KEY, JSON.stringify(entries));
     }
   } catch {
     // Storage unavailable
@@ -1049,21 +1052,16 @@ export function useChat() {
   // session is still "active" for this user identity (rolling ~10min idle
   // window / 2h max TTL) -- so a user could click "New conversation" and
   // unknowingly resume an old investigation's backend context. resetContext()
-  // (already used for the terminal-completion case, SC-7) generates and
-  // sends an explicit non-empty contextId, which the interceptor never
-  // overrides -- so reusing it here closes that gap for the explicit-reset
-  // path too.
+  // clearConsoleSessionState() also rotates the context ID, so an explicit
+  // reset cannot be silently reattached to the prior user session.
   const clearHistory = useCallback(() => {
     setMessages([]);
     setCurrentPhase(undefined);
     setInvestigationStartTime(undefined);
     activeRrIdRef.current = undefined;
     pendingContextRef.current = [];
-    sessionStorage.removeItem(STORAGE_KEY);
-    sessionStorage.removeItem(PENDING_CONTEXT_KEY);
-    clearSessionState();
-    resetContext();
-  }, [resetContext]);
+    contextIdRef.current = clearConsoleSessionState();
+  }, []);
 
   return { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext };
 }

@@ -97,6 +97,11 @@ describe("KubernautChat", () => {
   });
 
   it("UT-CONSOLE-KC-004: auth context surfaces error when getUser rejects", async () => {
+    sessionStorage.setItem("kubernaut-console-messages", JSON.stringify([
+      { id: "old-message", role: "user", text: "private incident details", timestamp: 1 },
+    ]));
+    sessionStorage.setItem("kubernaut-console-context", "old-context");
+
     const failingProvider = makeMockAuthProvider({
       getUser: vi.fn().mockRejectedValue(new Error("token expired")),
     });
@@ -113,6 +118,8 @@ describe("KubernautChat", () => {
     });
     expect(screen.getByText("Authentication Error")).toBeInTheDocument();
     expect(screen.getByText("token expired")).toBeInTheDocument();
+    expect(sessionStorage.getItem("kubernaut-console-messages")).toBeNull();
+    expect(sessionStorage.getItem("kubernaut-console-context")).not.toBe("old-context");
   });
 
   it("UT-CONSOLE-KC-005: auth context exposes the authProvider instance", async () => {

@@ -2,6 +2,9 @@ import type { ChatMessage } from "../hooks/useChat";
 
 const PHASE_KEY = "kubernaut-console-phase"; // pre-commit:allow-sensitive (storage key name)
 const WORKFLOW_RESOLVED_KEY = "kubernaut-console-workflow-resolved"; // pre-commit:allow-sensitive (storage key name)
+export const CONSOLE_MESSAGES_KEY = "kubernaut-console-messages"; // pre-commit:allow-sensitive (storage key name)
+export const CONSOLE_CONTEXT_KEY = "kubernaut-console-context"; // pre-commit:allow-sensitive (storage key name)
+export const CONSOLE_PENDING_CONTEXT_KEY = "kubernaut-pending-context"; // pre-commit:allow-sensitive (storage key name)
 
 export function loadPersistedPhase(): ChatMessage["phase"] | undefined {
   try {
@@ -58,6 +61,31 @@ export function clearSessionState(): void {
   } catch {
     // Storage unavailable
   }
+}
+
+/**
+ * Ends the browser-side authenticated console session while retaining a
+ * non-empty context ID so AF cannot reattach the next session by user.
+ */
+export function clearConsoleSessionState(): string {
+  const freshContext = crypto.randomUUID();
+
+  try {
+    sessionStorage.removeItem(CONSOLE_MESSAGES_KEY);
+    sessionStorage.removeItem(CONSOLE_PENDING_CONTEXT_KEY);
+  } catch {
+    // Storage unavailable
+  }
+
+  clearSessionState();
+
+  try {
+    sessionStorage.setItem(CONSOLE_CONTEXT_KEY, freshContext);
+  } catch {
+    // Storage unavailable
+  }
+
+  return freshContext;
 }
 
 /** Phases where workflow execute/dismiss/escalate must not be offered. */
