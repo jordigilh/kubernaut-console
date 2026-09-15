@@ -86,7 +86,7 @@ export function RCACard({ rca }: Props) {
     ? <MetricSkeleton label="LLM turn count" />
     : rca.llmTurns;
   const tokenUsage = rca.tokenMetricsAvailable && !rca.metricsPending
-    ? <> | {formatMetric(rca.totalTokens ?? 0)} tokens ({formatMetric(rca.promptTokens ?? 0)} in / {formatMetric(rca.completionTokens ?? 0)} out)</>
+    ? <> | Tokens: {formatMetric(rca.totalTokens ?? 0)} ({formatMetric(rca.promptTokens ?? 0)} in / {formatMetric(rca.completionTokens ?? 0)} out)</>
     : null;
 
   return (
@@ -130,7 +130,7 @@ export function RCACard({ rca }: Props) {
         <Divider />
 
         <Content component={ContentVariants.small} data-testid="rca-metadata">
-          Target: {rca.target} | Confidence: {confidence} | {toolCalls} tool calls, {llmTurns} LLM turns{tokenUsage}
+          Target: {rca.target} | Confidence: {confidence} | Tool calls: {toolCalls} | LLM Turns: {llmTurns}{tokenUsage}
         </Content>
       </CardBody>
     </Card>

@@ -45,9 +45,9 @@ describe("RCACard", () => {
     render(<RCACard rca={rca} />);
     expect(screen.getByText(/ConfigMap\/app-config in demo-webui/)).toBeInTheDocument();
     expect(screen.getByText(/0\.95/)).toBeInTheDocument();
-    expect(screen.getByText(/19 tool calls/)).toBeInTheDocument();
-    expect(screen.getByText(/17 LLM turns/)).toBeInTheDocument();
-    expect(screen.getByText(/1,650 tokens \(1,200 in \/ 450 out\)/)).toBeInTheDocument();
+    expect(screen.getByTestId("rca-metadata")).toHaveTextContent("Tool calls: 19");
+    expect(screen.getByTestId("rca-metadata")).toHaveTextContent("LLM Turns: 17");
+    expect(screen.getByTestId("rca-metadata")).toHaveTextContent("Tokens: 1,650 (1,200 in / 450 out)");
     expect(screen.queryByText(/RR:/)).not.toBeInTheDocument();
   });
 
@@ -120,7 +120,7 @@ describe("RCACard", () => {
 
   it("UT-CONSOLE-RCA-015: preserves explicit zero token values", () => {
     render(<RCACard rca={{ ...rca, promptTokens: 0, completionTokens: 0, totalTokens: 0 }} />);
-    expect(screen.getByTestId("rca-metadata")).toHaveTextContent("0 tokens (0 in / 0 out)");
+    expect(screen.getByTestId("rca-metadata")).toHaveTextContent("Tokens: 0 (0 in / 0 out)");
   });
 
   it("UT-CONSOLE-RCA-016: does not show cumulative tokens before workflow discovery completes", () => {
