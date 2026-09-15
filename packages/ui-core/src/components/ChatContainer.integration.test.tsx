@@ -283,6 +283,37 @@ describe("ChatContainer Integration", () => {
     releaseStream();
   });
 
+  it("IT-CONSOLE-CHAT-SCROLL-002: keyboard submit re-anchors after the user scrolls up", async () => {
+    const scrollToMock = vi.fn();
+    Element.prototype.scrollTo = scrollToMock;
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onComplete?: () => void }) => {
+      opts.onComplete?.();
+    });
+
+    render(<ChatContainer />);
+    const main = screen.getByRole("log");
+    Object.defineProperty(main, "scrollHeight", { configurable: true, value: 1000 });
+    Object.defineProperty(main, "clientHeight", { configurable: true, value: 500 });
+    Object.defineProperty(main, "scrollTop", { configurable: true, value: 0, writable: true });
+
+    // Let the initial programmatic scroll guard expire, then simulate a user
+    // scrolling away from the live edge before submitting with Enter.
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+    fireEvent.scroll(main);
+    scrollToMock.mockClear();
+
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "follow up" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(50);
+    });
+
+    expect(scrollToMock).toHaveBeenCalledWith({ top: 1000, behavior: "smooth" });
+  });
+
   it("IT-CONSOLE-RCA-127-002: renders metrics and escape hatches for options: []", async () => {
     vi.useRealTimers();
     mockStreamA2A.mockImplementation(async (_req: unknown, opts: { onEvent?: (event: unknown) => void; onComplete?: () => void }) => {

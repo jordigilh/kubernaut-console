@@ -8,7 +8,7 @@ import { isInvestigationEngaged } from "../lib/query-intent";
 import { findApprovalMessageIndex } from "../lib/approval-dedup";
 import { maxChatPhase } from "../lib/phase-rank";
 import { buildDeferredContext } from "../lib/context-builder";
-import { shouldAnchorToNewRca } from "../lib/chat-scroll";
+import { shouldAnchorToNewRca, userScrolledUpAfterSubmit } from "../lib/chat-scroll";
 import { AuthContext } from "../providers/auth";
 import { ConfigContext } from "../providers/config";
 import { UserBubble } from "./UserBubble";
@@ -254,14 +254,11 @@ export function ChatContainer() {
     }
   }, [isTerminal, effectiveRrId, statusPhase, statusMetadata, addPendingContext, resetContext]);
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text) return;
+  const submitInput = (text: string) => {
     setInvestigationCancelled(false);
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto";
-    userScrolledUpRef.current = false;
+    userScrolledUpRef.current = userScrolledUpAfterSubmit(userScrolledUpRef.current, text);
     sendMessage(text);
     requestAnimationFrame(() => {
       const el = scrollRef.current;
@@ -269,15 +266,19 @@ export function ChatContainer() {
     });
   };
 
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text) return;
+    submitInput(text);
+  };
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       const text = input.trim();
       if (!text) return;
-      setInvestigationCancelled(false);
-      setInput("");
-      if (inputRef.current) inputRef.current.style.height = "auto";
-      sendMessage(text);
+      submitInput(text);
     }
   };
 
