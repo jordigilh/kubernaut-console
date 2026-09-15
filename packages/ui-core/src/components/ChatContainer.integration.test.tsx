@@ -182,7 +182,7 @@ describe("ChatContainer Integration", () => {
     // IT-CONSOLE-JOURNEY-003: RCA Card renders after decision (IR-4)
     await waitFor(() => {
       expect(screen.getByText("Root Cause Analysis")).toBeInTheDocument();
-      expect(screen.getByTestId("rca-metadata")).toHaveTextContent("1,650 tokens (1,200 in / 450 out)");
+      expect(screen.getByTestId("rca-metadata")).toHaveTextContent("Tokens: 1,650 (1,200 in / 450 out)");
       expect(screen.getByTestId("rca-metadata")).not.toHaveTextContent(/RR:/);
     });
 
@@ -330,7 +330,7 @@ describe("ChatContainer Integration", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("rca-metadata")).toHaveTextContent("125 tokens (100 in / 25 out)");
+      expect(screen.getByTestId("rca-metadata")).toHaveTextContent("Tokens: 125 (100 in / 25 out)");
     });
     expect(screen.getByRole("button", { name: /no action needed/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /escalate to team/i })).toBeInTheDocument();

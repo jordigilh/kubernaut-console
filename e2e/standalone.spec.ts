@@ -211,7 +211,7 @@ test.describe("Standalone Mode E2E", () => {
     // which triggers the status stream subscription.
     // The status stream returns phase transitions; banner should show "Verifying".
     await expect(page.locator(".kn-phase-label")).toHaveText("Verifying", { timeout: 15000 });
-    await expect(page.getByTestId("rca-metadata")).toContainText("1,650 tokens (1,200 in / 450 out)");
+    await expect(page.getByTestId("rca-metadata")).toContainText("Tokens: 1,650 (1,200 in / 450 out)");
     await expect(page.getByTestId("rca-metadata")).not.toContainText("RR:");
   });
 });
