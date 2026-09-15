@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldAnchorToNewRca } from "./chat-scroll";
+import { shouldAnchorToNewRca, userScrolledUpAfterSubmit } from "./chat-scroll";
 
 describe("shouldAnchorToNewRca", () => {
   it("UT-CONSOLE-CHAT-SCROLL-001: anchors when a new RCA appears while the user is at the live edge", () => {
@@ -16,5 +16,15 @@ describe("shouldAnchorToNewRca", () => {
 
   it("UT-CONSOLE-CHAT-SCROLL-004: does not anchor when no RCA is present", () => {
     expect(shouldAnchorToNewRca(undefined, undefined, false)).toBe(false);
+  });
+
+  it("UT-CONSOLE-CHAT-SCROLL-005: resumes following when a non-empty turn is submitted", () => {
+    expect(userScrolledUpAfterSubmit(true, "follow up")).toBe(false);
+    expect(userScrolledUpAfterSubmit(false, "follow up")).toBe(false);
+  });
+
+  it("UT-CONSOLE-CHAT-SCROLL-006: preserves scroll intent for empty input", () => {
+    expect(userScrolledUpAfterSubmit(true, "  ")).toBe(true);
+    expect(userScrolledUpAfterSubmit(false, "")).toBe(false);
   });
 });
