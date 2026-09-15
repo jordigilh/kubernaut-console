@@ -483,6 +483,10 @@ export function ChatContainer() {
     setError(null);
   }, [clearHistory, setError]);
 
+  const handleSignOut = useCallback(() => {
+    clearHistory();
+  }, [clearHistory]);
+
   return (
     <div className="kn-chat">
       <a href="#chat-input" className="kn-sr-only">
@@ -561,6 +565,7 @@ export function ChatContainer() {
         </button>
         <a
           href="/oauth2/sign_out"
+          onClick={handleSignOut}
           className="kn-header-avatar"
           title={user.name || user.email || "Sign out"}
           aria-label="Sign out"

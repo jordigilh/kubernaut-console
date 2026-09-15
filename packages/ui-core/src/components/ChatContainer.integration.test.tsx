@@ -1090,6 +1090,45 @@ describe("ChatContainer Integration", () => {
     expect(screen.queryByLabelText(/connection lost/i)).not.toBeInTheDocument();
   });
 
+  /**
+   * FedRAMP AC-12/SC-7 and OWASP ASVS V3.3: signing out must terminate the
+   * browser-side conversation boundary, not just navigate to OAuth2 Proxy.
+   */
+  it("IT-CONSOLE-AUTH-001 [FedRAMP AC-12, SC-7; OWASP ASVS V3.3]: sign out clears the transcript and shows the Welcome state", async () => {
+    sessionStorage.setItem("kubernaut-console-messages", JSON.stringify([
+      { id: "old-message", role: "user", text: "private incident details", timestamp: 1 },
+    ]));
+    sessionStorage.setItem("kubernaut-pending-context", JSON.stringify(["old investigation"]));
+    sessionStorage.setItem("kubernaut-console-context", "old-context");
+    sessionStorage.setItem("kubernaut-console-phase", "complete");
+    sessionStorage.setItem("kubernaut-console-workflow-resolved", JSON.stringify(["rr-old"]));
+
+    render(<ChatContainer />);
+    expect(screen.getByText("private incident details")).toBeInTheDocument();
+
+    const signOut = screen.getByRole("link", { name: "Sign out" });
+    signOut.addEventListener("click", (event) => event.preventDefault(), { once: true });
+    await act(async () => {
+      fireEvent.click(signOut);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("private incident details")).not.toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Kubernaut Agent" })).toBeInTheDocument();
+    });
+
+    const persistedMessages = sessionStorage.getItem("kubernaut-console-messages");
+    if (persistedMessages === null) {
+      expect(persistedMessages).toBeNull();
+    } else {
+      expect(JSON.parse(persistedMessages)).toEqual([]);
+    }
+    expect(sessionStorage.getItem("kubernaut-pending-context")).toBeNull();
+    expect(sessionStorage.getItem("kubernaut-console-phase")).toBeNull();
+    expect(sessionStorage.getItem("kubernaut-console-workflow-resolved")).toBeNull();
+    expect(sessionStorage.getItem("kubernaut-console-context")).not.toBe("old-context");
+  });
+
   it("IT-CONSOLE-UX-003: MessageBar is rendered", () => {
     mockStreamA2A.mockImplementation(async () => {});
 

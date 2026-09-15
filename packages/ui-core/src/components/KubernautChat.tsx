@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { AuthContext, type KubernautAuthProvider, type KubernautUser } from "../providers/auth";
 import { ConfigContext, type KubernautConfig } from "../providers/config";
 import { checkConsoleAccess } from "../lib/access-check";
+import { clearConsoleSessionState } from "../lib/session-state";
 import { ChatContainer } from "./ChatContainer";
 
 export interface KubernautChatProps {
@@ -39,6 +40,9 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
       try {
         resolvedUser = await authProvider.getUser();
       } catch (err) {
+        // Do not leave authenticated conversation data available when the
+        // provider sends the browser through a re-authentication flow.
+        clearConsoleSessionState();
         if (!cancelled) {
           setAuthError((err as Error).message);
           setPhase("auth-error");

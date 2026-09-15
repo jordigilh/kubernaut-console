@@ -24,6 +24,7 @@ export { WelcomeState } from "./components/WelcomeState";
 // Hooks
 export { useChat } from "./hooks/useChat";
 export { useUser } from "./hooks/useUser";
+export { clearConsoleSessionState } from "./lib/session-state";
 
 // Types
 export type {

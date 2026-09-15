@@ -44,6 +44,38 @@ test.describe("Standalone Mode E2E", () => {
     await expect(input).toHaveValue("Hello, Kubernaut!");
   });
 
+  // FedRAMP AC-12/SC-7 and OWASP ASVS V3.3: a new authenticated browser
+  // session must not render the prior tab's conversation after logout.
+  test("same-tab logout starts a blank authenticated conversation", async ({ page }) => {
+    const previousText = "private incident details";
+    await page.addInitScript(({ previousText }) => {
+      if (sessionStorage.getItem("console-auth-boundary-e2e-seeded")) return;
+      sessionStorage.setItem("console-auth-boundary-e2e-seeded", "true");
+      sessionStorage.setItem("kubernaut-console-messages", JSON.stringify([
+        { id: "old-message", role: "user", text: previousText, timestamp: 1 },
+      ]));
+      sessionStorage.setItem("kubernaut-console-context", "old-context");
+    }, { previousText });
+    await page.route("**/oauth2/sign_out", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<html><body>Signed out</body></html>",
+      });
+    });
+
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByText(previousText)).toBeVisible();
+
+    await page.getByRole("link", { name: "Sign out" }).click();
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    await expect(page.getByRole("heading", { name: "Kubernaut Agent" })).toBeVisible();
+    await expect(page.getByText(previousText)).not.toBeVisible();
+  });
+
   test("sending a message shows user bubble and triggers agent response", async ({
     page,
   }) => {
