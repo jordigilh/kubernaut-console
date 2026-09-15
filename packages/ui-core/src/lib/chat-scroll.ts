@@ -7,3 +7,8 @@ export function shouldAnchorToNewRca(
     && currentRcaMessageId !== undefined
     && previousRcaMessageId !== currentRcaMessageId;
 }
+
+/** A newly submitted turn takes precedence over the previous scroll intent. */
+export function userScrolledUpAfterSubmit(userScrolledUp: boolean, text: string): boolean {
+  return text.trim().length > 0 ? false : userScrolledUp;
+}
