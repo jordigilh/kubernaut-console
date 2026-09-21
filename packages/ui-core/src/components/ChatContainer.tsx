@@ -314,10 +314,7 @@ export function ChatContainer() {
     if (!effectiveRrId || cancellingInvestigation || investigationCancelled) return;
 
     setCancellingInvestigation(true);
-    const res = await callMcpTool("kubernaut_investigate", {
-      rr_id: effectiveRrId,
-      action: "cancel",
-    }, mcpOptions);
+    const res = await callMcpTool("kubernaut_cancel", { rr_id: effectiveRrId }, mcpOptions);
 
     if (res.error) {
       setError(res.error.message);
