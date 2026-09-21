@@ -32,12 +32,12 @@ kubernaut#2370 and is not a GA acceptance criterion for this issue.
 ## RED
 
 Add failing tests proving that the current Stop agent response action only
-aborts the stream and never calls `kubernaut_investigate(action=cancel)`.
+aborts the stream and never calls the backend cancellation tool.
 
 ## GREEN
 
 - Add an explicit Cancel investigation action.
-- Send `{ action: "cancel", rr_id }` through the authenticated MCP client.
+- Send `{ rr_id }` to `kubernaut_cancel` through the authenticated MCP client.
 - Clear local active-investigation state only after backend success.
 - Preserve the active state and show the error when cancellation fails.
 

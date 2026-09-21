@@ -114,8 +114,8 @@ describe("ChatContainer — Banner Status Stream Separation", () => {
     });
 
     expect(mockCallMcpTool).toHaveBeenCalledWith(
-      "kubernaut_investigate",
-      { rr_id: "rr-test-001", action: "cancel" },
+      "kubernaut_cancel",
+      { rr_id: "rr-test-001" },
       expect.any(Object),
     );
     expect(screen.queryByRole("button", { name: "Cancel investigation" })).not.toBeInTheDocument();
