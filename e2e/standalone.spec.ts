@@ -68,7 +68,7 @@ test.describe("Standalone Mode E2E", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByText(previousText)).toBeVisible();
 
-    await page.getByRole("link", { name: "Sign out" }).click();
+    await page.getByRole("link", { name: /sign out/i }).click();
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
