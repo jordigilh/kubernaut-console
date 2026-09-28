@@ -1137,7 +1137,7 @@ describe("ChatContainer Integration", () => {
     render(<ChatContainer />);
     expect(screen.getByText("private incident details")).toBeInTheDocument();
 
-    const signOut = screen.getByRole("link", { name: "Sign out" });
+    const signOut = screen.getByRole("link", { name: /sign out/i });
     signOut.addEventListener("click", (event) => event.preventDefault(), { once: true });
     await act(async () => {
       fireEvent.click(signOut);

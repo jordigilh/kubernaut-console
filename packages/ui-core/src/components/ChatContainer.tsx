@@ -9,6 +9,7 @@ import { findApprovalMessageIndex } from "../lib/approval-dedup";
 import { maxChatPhase } from "../lib/phase-rank";
 import { buildDeferredContext } from "../lib/context-builder";
 import { shouldAnchorToNewRca, userScrolledUpAfterSubmit } from "../lib/chat-scroll";
+import { formatUserIdentity } from "../lib/user-identity";
 import { AuthContext } from "../providers/auth";
 import { ConfigContext } from "../providers/config";
 import { UserBubble } from "./UserBubble";
@@ -76,6 +77,7 @@ export function ChatContainer() {
   const authCtx = useContext(AuthContext);
   const configCtx = useContext(ConfigContext);
   const user = authCtx?.user ?? { name: "", email: "", initials: "??" };
+  const userIdentity = formatUserIdentity(user.name, user.email);
   const mcpOptions: McpClientOptions = useMemo(() => ({
     baseUrl: configCtx?.backendUrl,
     getToken: authCtx?.provider ? () => authCtx.provider.getToken() : undefined,
@@ -565,8 +567,8 @@ export function ChatContainer() {
           href="/oauth2/sign_out"
           onClick={handleSignOut}
           className="kn-header-avatar"
-          title={user.name || user.email || "Sign out"}
-          aria-label="Sign out"
+          title={userIdentity}
+          aria-label={`Sign out as ${userIdentity}`}
         >
           {user.initials}
         </a>
