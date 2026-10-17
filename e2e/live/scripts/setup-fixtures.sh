@@ -33,7 +33,8 @@
 #
 # Prerequisites: KUBECONFIG pointed at the shared OpenShift dev cluster, and
 # a local checkout of kubernaut-demo-scenarios (see DEMO_SCENARIOS_DIR below)
-# for the crashloop and memory-escalation scenarios' manifests.
+# for the crashloop, memory-escalation, and statefulset-pvc-failure scenarios'
+# manifests.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -51,6 +52,9 @@ DEPLOYMENT_MANIFEST="$DEMO_SCENARIOS_DIR/scenarios/crashloop/manifests/deploymen
 PROMETHEUS_RULE_MANIFEST="$DEMO_SCENARIOS_DIR/scenarios/crashloop/manifests/prometheus-rule.yaml"
 MEMORY_DEPLOYMENT_MANIFEST="$DEMO_SCENARIOS_DIR/scenarios/memory-escalation/manifests/deployment.yaml"
 MEMORY_PROMETHEUS_RULE_MANIFEST="$DEMO_SCENARIOS_DIR/scenarios/memory-escalation/manifests/prometheus-rule.yaml"
+STATEFULSET_MANIFEST="$DEMO_SCENARIOS_DIR/scenarios/statefulset-pvc-failure/manifests/statefulset.yaml"
+STATEFULSET_NAMESPACE_MANIFEST="$DEMO_SCENARIOS_DIR/scenarios/statefulset-pvc-failure/manifests/namespace.yaml"
+STATEFULSET_PROMETHEUS_RULE_MANIFEST="$DEMO_SCENARIOS_DIR/scenarios/statefulset-pvc-failure/manifests/prometheus-rule.yaml"
 FIXTURES_LIST="$SCRIPT_DIR/fixtures.list"
 
 if ! command -v oc >/dev/null 2>&1; then
@@ -67,6 +71,11 @@ if [[ ! -f "$MEMORY_DEPLOYMENT_MANIFEST" || ! -f "$MEMORY_PROMETHEUS_RULE_MANIFE
   echo "       set KUBERNAUT_DEMO_SCENARIOS_DIR if your checkout lives elsewhere" >&2
   exit 1
 fi
+if [[ ! -f "$STATEFULSET_MANIFEST" || ! -f "$STATEFULSET_NAMESPACE_MANIFEST" || ! -f "$STATEFULSET_PROMETHEUS_RULE_MANIFEST" ]]; then
+  echo "error: kubernaut-demo-scenarios statefulset-pvc-failure manifests not found under $DEMO_SCENARIOS_DIR" >&2
+  echo "       set KUBERNAUT_DEMO_SCENARIOS_DIR if your checkout lives elsewhere" >&2
+  exit 1
+fi
 
 SUFFIX="${1:-$(openssl rand -hex 3 2>/dev/null || printf '%06x' "$RANDOM")}"
 echo "Fixture run suffix: $SUFFIX"
@@ -74,9 +83,10 @@ echo "Fixture run suffix: $SUFFIX"
 mkdir -p "$STATE_DIR"
 chmod 700 "$STATE_DIR"
 
-# Shared, cluster-wide PrometheusRule (openshift-monitoring) that fires
-# KubePodCrashLooping for every console-e2e-* namespace regardless of run
-# suffix. Idempotent/self-healing: re-sources its annotation text from
+# Shared, cluster-wide PrometheusRule (openshift-monitoring) that fires the
+# crashloop, OOM, and StatefulSet replica-mismatch alerts for every
+# console-e2e-* namespace regardless of run suffix. Idempotent/self-healing:
+# re-sources its annotation text from
 # kubernaut-demo-scenarios' own crashloop prometheus-rule.yaml on every run
 # instead of hand-copying it once, so it can never silently drift from the
 # text the golden transcripts were actually captured against.
@@ -93,11 +103,13 @@ chmod 700 "$STATE_DIR"
 # whether that specific text difference was the proximate cause. This
 # function is the fix: never hand-author this text again.
 ensure_console_e2e_alerts_rule() {
-  local crashloop_summary crashloop_description oom_summary oom_description
+  local crashloop_summary crashloop_description oom_summary oom_description stateful_summary stateful_description
   crashloop_summary=$(oc create --dry-run=client -f "$PROMETHEUS_RULE_MANIFEST" -o jsonpath='{.spec.groups[0].rules[0].annotations.summary}')
   crashloop_description=$(oc create --dry-run=client -f "$PROMETHEUS_RULE_MANIFEST" -o jsonpath='{.spec.groups[0].rules[0].annotations.description}')
   oom_summary=$(oc create --dry-run=client -f "$MEMORY_PROMETHEUS_RULE_MANIFEST" -o jsonpath='{.spec.groups[0].rules[0].annotations.summary}')
   oom_description=$(oc create --dry-run=client -f "$MEMORY_PROMETHEUS_RULE_MANIFEST" -o jsonpath='{.spec.groups[0].rules[0].annotations.description}')
+  stateful_summary=$(oc create --dry-run=client -f "$STATEFULSET_PROMETHEUS_RULE_MANIFEST" -o jsonpath='{.spec.groups[0].rules[0].annotations.summary}')
+  stateful_description=$(oc create --dry-run=client -f "$STATEFULSET_PROMETHEUS_RULE_MANIFEST" -o jsonpath='{.spec.groups[0].rules[0].annotations.description}')
   cat <<EOF | oc apply -f - >/dev/null
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -140,6 +152,23 @@ spec:
           $oom_summary
         description: |
           $oom_description
+    - alert: KubeStatefulSetReplicasMismatch
+      expr: |
+        kube_statefulset_status_replicas_ready{
+          namespace=~"console-e2e-.*"
+        }
+        <
+        kube_statefulset_replicas{
+          namespace=~"console-e2e-.*"
+        }
+      for: 30s
+      labels:
+        severity: critical
+      annotations:
+        summary: |
+          $stateful_summary
+        description: |
+          $stateful_description
 EOF
 }
 
@@ -236,6 +265,44 @@ setup_memory_eater() {
   sed "s/namespace: $src_ns/namespace: $ns/" "$MEMORY_DEPLOYMENT_MANIFEST" | oc apply -f - >/dev/null
 }
 
+# statefulset-pvc-failure: kubernaut-demo-scenarios' StatefulSet/PVC fixture,
+# retargeted per namespace and faulted with its canonical broken StorageClass
+# replacement. StatefulSet is a sensitive resource under the canonical policy,
+# so approval is required regardless of confidence or environment.
+setup_statefulset_pvc_failure() {
+  local ns="$1" src_ns namespace_src storage_size
+  create_namespace "$ns" "production"
+  src_ns=$(grep -m1 '^\s*namespace:' "$STATEFULSET_MANIFEST" | awk '{print $2}')
+  namespace_src=$(grep -m1 '^  name:' "$STATEFULSET_NAMESPACE_MANIFEST" | awk '{print $2}')
+  sed "s/name: $namespace_src/name: $ns/" "$STATEFULSET_NAMESPACE_MANIFEST" | oc apply -f - >/dev/null
+  sed "s/namespace: $src_ns/namespace: $ns/g" "$STATEFULSET_MANIFEST" | oc apply -f - >/dev/null
+  # The source PrometheusRule is harmless when present; the shared rule above
+  # is the portable rule that also covers the randomized console-e2e namespace.
+  sed "s/namespace: $src_ns/namespace: $ns/g" "$STATEFULSET_PROMETHEUS_RULE_MANIFEST" | oc apply -f - >/dev/null
+  oc rollout status statefulset/kv-store -n "$ns" --timeout=180s >/dev/null
+
+  storage_size=$(oc get pvc data-kv-store-2 -n "$ns" -o jsonpath='{.spec.resources.requests.storage}')
+  oc scale statefulset kv-store -n "$ns" --replicas=2 >/dev/null
+  oc rollout status statefulset/kv-store -n "$ns" --timeout=60s >/dev/null
+  oc delete pvc data-kv-store-2 -n "$ns" --wait=true --timeout=30s >/dev/null
+  oc create -f - >/dev/null <<EOF
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-kv-store-2
+  namespace: $ns
+  labels:
+    app: kv-store
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: broken-storage-class
+  resources:
+    requests:
+      storage: $storage_size
+EOF
+  oc scale statefulset kv-store -n "$ns" --replicas=3 >/dev/null
+}
+
 : > "$FIXTURES_ENV_FILE"
 echo "# Generated by setup-fixtures.sh on $(date -u +%FT%TZ). Namespace names only — no credentials." >> "$FIXTURES_ENV_FILE"
 echo "export LIVE_E2E_NS_SUFFIX=$SUFFIX" >> "$FIXTURES_ENV_FILE"
@@ -251,6 +318,10 @@ while IFS='|' read -r base type; do
     memory-eater)
       echo "Provisioning $ns (memory-eater)..."
       setup_memory_eater "$ns"
+      ;;
+    statefulset-pvc-failure)
+      echo "Provisioning $ns (statefulset-pvc-failure)..."
+      setup_statefulset_pvc_failure "$ns"
       ;;
     none)
       echo "Skipping $ns (no fixture needed, text-only reference)"

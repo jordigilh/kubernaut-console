@@ -8,13 +8,15 @@ import {
   REAL_EXECUTION_TIMEOUT_MS,
   oomkillTarget,
   oomkillInvestigateMessage,
-  crashloopTarget,
-  crashloopInvestigateMessage,
-  CRASHLOOP_WORKFLOW,
+  statefulsetPvcFailureTarget,
+  statefulsetPvcFailureInvestigateMessage,
+  STATEFULSET_PVC_WORKFLOW,
   fixtureNamespace,
   parseMcpResponseBody,
-  assertCrashloopWasRemediated,
-  getDeploymentRolloutRevisionCount,
+  assertStatefulSetPvcFailureWasRemediated,
+  getPersistentVolumeClaimState,
+  getWorkflowExecutionNamesForRemediationRequest,
+  getRemediationRequestForTarget,
   REAL_VERIFICATION_TIMEOUT_MS,
   startPeriodicScreenshots,
 } from "./helpers";
@@ -25,37 +27,21 @@ import {
 // would leave later tests investigating a resource whose state a prior test
 // already mutated, on top of the session/dedup collision risk.
 //
-// approve/decline use `crashloopTarget` (kubernaut-console#54), not
-// `oomkillTarget`: both tests need the LLM to reliably discover and select a
-// real workflow before an approval gate is even reachable, which real-LLM
-// runs against the synthetic memory-eater fixture do not guarantee (see
-// crashloopTarget's doc comment in helpers.ts). dismiss never reaches
-// workflow selection at all (see its test below), so the workflow-discovery
-// determinism crashloopTarget buys doesn't matter for it — kept on
-// `oomkillTarget` to minimize unrelated fixture churn.
+// approve/decline use the upstream StatefulSet/PVC fixture: StatefulSet is a
+// sensitive resource under the canonical policy, so approval is required
+// regardless of confidence or environment. dismiss never reaches workflow
+// selection (see its test below), so it remains on the memory-eater fixture.
 //
-// approve/decline's namespaces are additionally labeled
-// `kubernaut.ai/environment: production` (kubectl label namespace
-// console-e2e-approval[-2] kubernaut.ai/environment=production) — this
-// cluster's deployed OPA policy (aianalysis-policies ConfigMap,
-// package aianalysis.approval) only sets `require_approval` when
-// `input.environment == "production"`; input.environment itself is sourced
-// straight from `namespace.labels["kubernaut.ai/environment"]"]`
-// (signalprocessing-policy ConfigMap). Without this label, confidence and
-// namespace name alone are irrelevant to this deployed policy variant — it
-// has no confidence-threshold branch at all, unlike the richer
-// pkg/aianalysis/testdata fixture used by upstream's own unit tests. Labeling
-// the fixture namespace, not editing the deployed policy, keeps this
-// surgical: only these two namespaces gain an approval gate, every other
-// test in this suite keeps auto-approving. dismiss's namespace is
-// deliberately left unlabeled since it never reaches workflow selection.
+// The fixture setup retains the upstream production/business labels, but the
+// gate does not depend on them: the canonical policy's sensitive-resource
+// branch is unconditional for StatefulSet.
 // fixtureNamespace() appends LIVE_E2E_NS_SUFFIX (set by
 // scripts/setup-fixtures.sh) so repeated fixture-provisioning runs don't
 // trip RemediationOrchestrator's own circuit breakers on a stale, previously
 // remediated namespace — see fixtureNamespace's doc comment in helpers.ts.
 const TARGETS: Record<string, { kind: string; namespace: string; name: string }> = {
-  approve: crashloopTarget(fixtureNamespace("console-e2e-approval")),
-  decline: crashloopTarget(fixtureNamespace("console-e2e-approval-2")),
+  approve: statefulsetPvcFailureTarget(fixtureNamespace("console-e2e-approval")),
+  decline: statefulsetPvcFailureTarget(fixtureNamespace("console-e2e-approval-2")),
   dismiss: oomkillTarget(fixtureNamespace("console-e2e-approval-3")),
 };
 
@@ -70,7 +56,7 @@ function investigateMessageForTest(title: string): string {
   const target = targetForTest(title);
   // dismiss is the only test still on the synthetic memory-eater fixture —
   // see TARGETS' doc comment above.
-  return target.name === "memory-eater" ? oomkillInvestigateMessage(target) : crashloopInvestigateMessage(target);
+  return target.name === "memory-eater" ? oomkillInvestigateMessage(target) : statefulsetPvcFailureInvestigateMessage(target);
 }
 
 /**
@@ -148,14 +134,15 @@ test.describe("Approval gate — real MCP calls", () => {
   test("approve path: real kubernaut_approve executes and completes the remediation", async ({ page }) => {
     // See TARGETS' doc comment: this triggers the real kubernaut_select_workflow
     // call, which is what actually makes RO evaluate ApprovalRequired and
-    // (given this target's production label) create the RAR in the first
-    // place. Confirmed empirically (2026-08-02): RO's reconcile loop takes
-    // ~15s after the MCP call to create the RAR (kubectl timestamps: MCP call
-    // completed :36.189Z, RAR created :20:50Z) before AF's watch surfaces the
-    // approval_request SSE event to console — the default 5s isApprovalRequested
-    // timeout reads false here purely from checking too early, not from policy.
-    await clickExecuteWorkflow(page, CRASHLOOP_WORKFLOW);
-    test.skip(!(await assertApprovalGateReachable(page)), "This run's policy auto-approved — no approval gate to exercise.");
+    // place. RO's reconcile loop is asynchronous after the MCP call, before
+    // AF's watch surfaces the approval_request SSE event to the console — the
+    // default 5s isApprovalRequested timeout can read false if checked too
+    // early, not because the sensitive-resource policy was bypassed.
+    await clickExecuteWorkflow(page, STATEFULSET_PVC_WORKFLOW);
+    await expect(
+      await assertApprovalGateReachable(page),
+      "StatefulSet is a sensitive resource under the canonical policy and must reach AwaitingApproval; an auto-approved run is a policy or fixture regression.",
+    ).toBe(true);
 
     const mcpToolCall = page.waitForResponse(
       (res) => res.url().endsWith("/mcp") && res.request().postData()?.includes("kubernaut_approve") === true,
@@ -180,39 +167,53 @@ test.describe("Approval gate — real MCP calls", () => {
     await expect(page.locator(".kn-phase-label")).toHaveText("Complete", {
       timeout: REAL_VERIFICATION_TIMEOUT_MS,
     });
-    assertCrashloopWasRemediated(TARGETS.approve.namespace);
+    assertStatefulSetPvcFailureWasRemediated(TARGETS.approve.namespace);
   });
 
   test("decline path: real kubernaut_approve(Rejected) reaches a terminal state", async ({ page }) => {
-    // Baseline captured before the decline interaction, not assumed to be 1:
-    // provisioning this fixture (the bad-release patch that creates the very
-    // crashloop condition this test investigates) already produces 2
-    // rollout revisions — the initial deployment plus the injected fault —
-    // before the decline click ever happens. A hardcoded expectation of "1"
-    // fails on every run, fresh fixture or reused, regardless of whether
-    // decline behaved correctly (confirmed empirically 2026-08-08,
-    // kubernaut-console#64 follow-up: a fresh, never-before-tested fixture
-    // still starts at 2 revisions here).
-    const revisionsBefore = getDeploymentRolloutRevisionCount(TARGETS.decline.namespace, TARGETS.decline.name);
+    // Capture the injected broken PVC before the decline interaction. A
+    // decline must not let the workflow delete/recreate it or otherwise alter
+    // the real target state.
+    const pvcBefore = getPersistentVolumeClaimState(TARGETS.decline.namespace);
 
-    // See approve path's comment: RO's RAR creation is ~15s async after this click.
-    await clickExecuteWorkflow(page, CRASHLOOP_WORKFLOW);
-    test.skip(!(await assertApprovalGateReachable(page)), "This run's policy auto-approved — no approval gate to exercise.");
+    // See the approve path's comment: RO's RAR creation is asynchronous after
+    // this click.
+    await clickExecuteWorkflow(page, STATEFULSET_PVC_WORKFLOW);
+    await expect(
+      await assertApprovalGateReachable(page),
+      "StatefulSet is a sensitive resource under the canonical policy and must reach AwaitingApproval; an auto-approved run is a policy or fixture regression.",
+    ).toBe(true);
 
     await page.getByRole("button", { name: "Decline" }).click();
     await expect(page.getByText(/Declined by|Rejected/i)).toBeVisible({ timeout: 15_000 });
 
-    // A decline that the UI reports correctly but the backend executes
-    // anyway would be a serious safety regression a UI-text-only assertion
-    // can't catch — verify the real deployment actually stayed untouched
-    // (no *new* rollout revision beyond the pre-existing baseline) rather
-    // than trusting the "Declined" message alone.
-    const revisionsAfter = getDeploymentRolloutRevisionCount(TARGETS.decline.namespace, TARGETS.decline.name);
+    // The UI rejection is only an intermediate signal. Wait for the real RR
+    // to settle in the backend before checking that execution never started.
+    await expect
+      .poll(() => getRemediationRequestForTarget(TARGETS.decline.namespace), {
+        timeout: REAL_VERIFICATION_TIMEOUT_MS,
+        intervals: [1_000],
+        message: "declined StatefulSet remediation should reach Failed/Approval in the backend",
+      })
+      .toMatchObject({ phase: "Failed", failurePhase: "Approval" });
+
+    const declinedRr = getRemediationRequestForTarget(TARGETS.decline.namespace);
+    expect(declinedRr).not.toBeNull();
+    expect(declinedRr!.failureReason, "the declined RR should record an approval failure reason").not.toBe("");
     expect(
-      revisionsAfter,
-      `deployment/${TARGETS.decline.name} in ${TARGETS.decline.namespace} should have no new rollout revisions after a decline ` +
-        `(baseline was ${revisionsBefore})`,
-    ).toBe(revisionsBefore);
+      getWorkflowExecutionNamesForRemediationRequest(declinedRr!.name),
+      `RemediationRequest ${declinedRr!.name} was declined and must not create a WorkflowExecution`,
+    ).toEqual([]);
+
+    // A decline that the UI reports correctly but the backend executes anyway
+    // would be a serious safety regression a UI-text-only assertion can't
+    // catch — verify the PVC identity and state stayed untouched rather than
+    // trusting the "Declined" message alone.
+    const pvcAfter = getPersistentVolumeClaimState(TARGETS.decline.namespace);
+    expect(
+      pvcAfter,
+      `PVC data-kv-store-2 in ${TARGETS.decline.namespace} should remain broken after a decline`,
+    ).toEqual(pvcBefore);
   });
 
   test("dismiss path: real kubernaut_complete_no_action, no workflow executed", async ({ page }) => {

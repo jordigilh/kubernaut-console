@@ -8,31 +8,24 @@ import {
   REAL_EXECUTION_TIMEOUT_MS,
   REAL_VERIFICATION_TIMEOUT_MS,
   REAL_AUTONOMOUS_DECISION_TIMEOUT_MS,
-  crashloopTarget,
-  crashloopFixMessage,
+  statefulsetPvcFailureTarget,
+  statefulsetPvcFailureFixMessage,
   fixtureNamespace,
-  assertCrashloopWasRemediated,
+  assertStatefulSetPvcFailureWasRemediated,
   getRemediationRequestForTarget,
   hasInvestigationSessionForRR,
 } from "./helpers";
 
 // fixtureNamespace() appends LIVE_E2E_NS_SUFFIX (scripts/setup-fixtures.sh) —
 // see its doc comment in helpers.ts. scripts/fixtures.list provisions this
-// namespace as a `crashloop`-type fixture (worker Deployment, bad-release
-// fault), the same underlying scenario as full-remediation-lifecycle.spec.ts's
-// `fullLifecycle` target, so the RCA/workflow-selection outcome
-// (crashloop-rollback-v1) is the same golden-transcript-backed one, not a
-// newly invented scenario. `-3`, not `-1`/`-2`: `-1` (bare
-// `console-e2e-autonomous-fix`) hit a since-fixed test bug
-// (`assertApprovalGateReachable`'s old hardcoded 30s window, too short for
-// this path's ~3m autonomous RCA+discovery+selection) that left its RR
-// non-terminal; `-2` then passed cleanly end to end (2026-08-10, 5.6m,
-// confirmed via real backend state) but DD-WE-001's RecentlyRemediated
-// cooldown (5m) blocks re-running the same workflow against the same target
-// so soon after that success — `-3` sidesteps the wait, per this suite's
-// established convention (see `crashloopTarget`'s sibling namespaces' own
-// `-2`/`-3` history in helpers.ts/other spec files).
-const TARGET = crashloopTarget(fixtureNamespace("console-e2e-autonomous-fix-3"));
+// namespace as a `statefulset-pvc-failure` fixture (kv-store StatefulSet,
+// broken PVC fault), using the upstream scenario's golden transcript, so the
+// RCA/workflow-selection outcome (fix-statefulset-pvc-v1) is the same
+// golden-transcript-backed one, not a newly invented scenario. The `-3` base
+// name preserves this test's existing dedicated-target convention; the random
+// run suffix from fixtureNamespace() prevents RO cooldowns from making a
+// repeated live run look like a policy failure.
+const TARGET = statefulsetPvcFailureTarget(fixtureNamespace("console-e2e-autonomous-fix-3"));
 
 /**
  * Coverage for kubernaut-console#77: the console's chat-driven "fire-and-forget
@@ -62,29 +55,19 @@ const TARGET = crashloopTarget(fixtureNamespace("console-e2e-autonomous-fix-3"))
  * (ChatContainer.tsx lines ~123-199) that proactively calls
  * `kubernaut_get_approval_request` itself and renders a real ApprovalCard.
  *
- * Confirmed live, not just traced (2026-08-10, first run against this
- * fixture): approval *is* required here — the target's production label
- * means RO's policy requires manual approval unconditionally, the same as
- * `full-remediation-lifecycle.spec.ts`'s `fullLifecycle` target, regardless
- * of the 0.95 confidence RO/AIAnalysis actually computed (an earlier draft
- * of this comment incorrectly assumed high confidence alone auto-approves
- * production targets here — it does not). The console genuinely rendered a
- * real ApprovalCard for this session-less, autonomously-created RR via the
- * fallback path above — the architecture works as traced. What that first
- * run actually caught was a *test* bug, not a product one: this test's
- * approval-gate step used the same 30s window `full-remediation-lifecycle.spec.ts`
- * uses (safe there because that test's synchronous `clickExecuteWorkflow`
- * call is what triggers RO's approval evaluation in the first place, so
- * approval already exists by the time it checks) — but `kubernaut_remediate`
- * has no synchronous equivalent: RCA + discovery + selection all happen on
- * RO/KA's own schedule, well past 30s (measured: 3m6s). See
- * `REAL_AUTONOMOUS_DECISION_TIMEOUT_MS`'s doc comment in helpers.ts.
+ * Under the canonical policy, the target is a sensitive StatefulSet, so
+ * approval is required regardless of the selected workflow's confidence or
+ * namespace environment. The upstream scenario's golden transcript documents
+ * the expected `fix-statefulset-pvc-v1` selection and approval outcome. The
+ * autonomous path still needs the longer wait below because RCA, discovery,
+ * and selection happen on RO/KA's schedule after `kubernaut_remediate` returns;
+ * see `REAL_AUTONOMOUS_DECISION_TIMEOUT_MS`'s doc comment in helpers.ts.
  *
  * Can be run independently of kubernaut#2061 (found via the *interactive*
  * `list_available_actions`/`list_workflows` path) — see kubernaut-console#77
  * for the three possible informative outcomes if this shares that bug's root
- * cause. (This fixture's first run did not hit it: workflow selection
- * succeeded, `crashloop-rollback-v1` was correctly recommended.)
+ * cause. The fixture's expected workflow is documented by the upstream
+ * statefulset-pvc-failure golden transcript.
  *
  * `startPeriodicScreenshots` (2026-08-10, added after the `-2` run above
  * already passed before it existed): this spec's own on-failure-only
@@ -110,7 +93,7 @@ test.describe("Autonomous fire-and-forget fix — kubernaut_remediate, real clus
 });
 
 async function runAutonomousFix(page: Page): Promise<void> {
-  await sendChatMessage(page, crashloopFixMessage(TARGET));
+  await sendChatMessage(page, statefulsetPvcFailureFixMessage(TARGET));
 
   await test.step("console picks up rr_id from the confirmation reply and starts tracking real backend phase", async () => {
     // No investigation_summary/decision card is expected here (that's the
@@ -137,7 +120,7 @@ async function runAutonomousFix(page: Page): Promise<void> {
     ).not.toBeVisible({ timeout: 3_000 });
   });
 
-  await test.step("approval gate — production always requires it here, regardless of confidence", async () => {
+  await test.step("approval gate — sensitive StatefulSet always requires it, regardless of confidence", async () => {
     // Not a race against a synchronous trigger (unlike
     // full-remediation-lifecycle.spec.ts's clickExecuteWorkflow, which
     // *causes* RO's approval evaluation as part of its own call): this
@@ -149,11 +132,10 @@ async function runAutonomousFix(page: Page): Promise<void> {
     const requested = await assertApprovalGateReachable(page, REAL_AUTONOMOUS_DECISION_TIMEOUT_MS);
     expect(
       requested,
-      "no approval card appeared for this production-labeled target within " +
-        `${REAL_AUTONOMOUS_DECISION_TIMEOUT_MS}ms. Every sibling crashloopTarget spec in this suite ` +
-        "observes RO's policy requiring manual approval unconditionally for production, regardless of " +
-        "confidence — an auto-approval here would itself be a policy-evaluation regression worth " +
-        "investigating, not a silent pass.",
+      "no approval card appeared for this StatefulSet target within " +
+        `${REAL_AUTONOMOUS_DECISION_TIMEOUT_MS}ms. The canonical policy classifies StatefulSet as a ` +
+        "sensitive resource and requires approval regardless of confidence or environment — an " +
+        "auto-approval here would be a policy-evaluation regression, not a silent pass.",
     ).toBe(true);
     await page.getByRole("button", { name: "Approve" }).click();
   });
@@ -166,7 +148,7 @@ async function runAutonomousFix(page: Page): Promise<void> {
     await expect(page.locator(".kn-phase-label")).toHaveText("Complete", {
       timeout: REAL_VERIFICATION_TIMEOUT_MS,
     });
-    assertCrashloopWasRemediated(TARGET.namespace);
+    assertStatefulSetPvcFailureWasRemediated(TARGET.namespace);
   });
 
   await test.step("the RR was created without an InvestigationSession (confirms the autonomous, session-less path was actually exercised, not just a fast interactive one)", async () => {

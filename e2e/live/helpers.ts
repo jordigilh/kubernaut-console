@@ -215,10 +215,12 @@ export async function isApprovalDenied(page: Page, timeout = 5_000): Promise<boo
  * real RAR, but the console's `kubernaut_get_approval_request` fetch was
  * denied. Skipping silently in case (b) would hide a real bug behind a
  * misleading "auto-approved" message. Shared by approval-gate.spec.ts and
- * full-remediation-lifecycle.spec.ts (kubernaut-console#54): any
- * `crashloopTarget` in a `kubernaut.ai/environment=production` namespace
- * reaches this same gate, since the OPA policy requires approval
- * unconditionally for production regardless of which test triggered it.
+ * full-remediation-lifecycle.spec.ts (kubernaut-console#54): a
+ * `statefulsetPvcFailureTarget` reaches this gate deterministically: the
+ * canonical policy classifies StatefulSet as a sensitive resource and always
+ * requires approval, independently of confidence and environment. Production
+ * crashloop targets are intentionally not used for approval-gate coverage;
+ * canonical policy auto-approves high-confidence production incidents.
  *
  * Historical note (2026-08-08): this used to fire routinely on the `sre`
  * persona RBAC gap (jordigilh/kubernaut-operator#278, jordigilh/kubernaut#1869
@@ -539,6 +541,15 @@ export function crashloopTarget(namespace: string) {
   return { kind: "Deployment", namespace, name: "worker" } as const;
 }
 
+/**
+ * Mirrors kubernaut-demo-scenarios/scenarios/statefulset-pvc-failure. The
+ * fixture leaves kv-store-2 Pending because its PVC references a deliberately
+ * missing StorageClass; the selected FixStatefulSetPVC workflow repairs it.
+ */
+export function statefulsetPvcFailureTarget(namespace: string) {
+  return { kind: "StatefulSet", namespace, name: "kv-store" } as const;
+}
+
 export function crashloopInvestigateMessage(target: { kind: string; namespace: string; name: string }): string {
   return `The ${target.name} ${target.kind} in ${target.namespace} is in CrashLoopBackOff after a bad release, please investigate.${fleetClusterSuffix()}`;
 }
@@ -560,6 +571,16 @@ export function crashloopInvestigateMessage(target: { kind: string; namespace: s
 export function crashloopFixMessage(target: { kind: string; namespace: string; name: string }): string {
   return `Fix the ${target.name} ${target.kind} in ${target.namespace} — it's in CrashLoopBackOff after a bad release. Just fix it autonomously, I don't need to review or select anything.${fleetClusterSuffix()}`;
 }
+
+export function statefulsetPvcFailureInvestigateMessage(target: { kind: string; namespace: string; name: string }): string {
+  return `The ${target.name} ${target.kind} in ${target.namespace} has a replica stuck Pending because its PVC cannot bind; please investigate.${fleetClusterSuffix()}`;
+}
+
+export function statefulsetPvcFailureFixMessage(target: { kind: string; namespace: string; name: string }): string {
+  return `Fix the ${target.name} ${target.kind} in ${target.namespace} — one replica is Pending because its PVC cannot bind. Just fix it autonomously, I don't need to review or select anything.${fleetClusterSuffix()}`;
+}
+
+export const STATEFULSET_PVC_WORKFLOW = "fix-statefulset-pvc-v1";
 
 // crashloop-rollback-v1 is the only catalog workflow purpose-built for this
 // exact shape (CrashLoopBackOff from a pod-spec/command override on a
@@ -668,16 +689,19 @@ function execOc(args: string[]): string {
 
 interface RemediationRequestSummary {
   name: string;
+  createdAt: string;
   phase: string;
   outcome: string;
+  failurePhase: string;
+  failureReason: string;
 }
 
 /**
- * Mirrors validation-helper.sh's `_find_rr_name` priority order: prefer a
- * Completed+Remediated RR, then any Completed RR, then the oldest active
- * one — so a stale RR from an earlier retry against the same reused fixture
- * namespace (see fixtureNamespace's doc comment) doesn't shadow the current
- * run's real outcome.
+ * Selects the newest matching RemediationRequest by creation timestamp so a
+ * stale RR from an earlier retry against the same reused fixture namespace
+ * (see fixtureNamespace's doc comment) cannot shadow the current run's real
+ * outcome. This matters especially for decline: an older Completed RR must
+ * not be mistaken for the current RR that should settle in Failed/Approval.
  *
  * Queries spec.targetResource.namespace, not spec.signalLabels.namespace:
  * this suite's investigations are all chat-driven (kubernaut_investigate_alert,
@@ -693,29 +717,56 @@ interface RemediationRequestSummary {
  * assertCrashloopWasRemediated's ground-truth check on every run.
  */
 export function getRemediationRequestForTarget(namespace: string): RemediationRequestSummary | null {
-  const raw = execOc([
-    "get",
-    "remediationrequests",
-    "-n",
-    PLATFORM_NS,
-    "-o",
-    'jsonpath={range .items[*]}{.metadata.name}{"\\t"}{.spec.targetResource.namespace}{"\\t"}{.status.overallPhase}{"\\t"}{.status.outcome}{"\\n"}{end}',
-  ]);
-  const rows = raw
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      const [name, ns, phase, outcome] = line.split("\t");
-      return { name, ns, phase: phase ?? "", outcome: outcome ?? "" };
+  const raw = execOc(["get", "remediationrequests", "-n", PLATFORM_NS, "-o", "json"]);
+  const { items } = JSON.parse(raw) as {
+    items?: Array<{
+      metadata?: { name?: string; creationTimestamp?: string };
+      spec?: { targetResource?: { namespace?: string } };
+      status?: {
+        overallPhase?: string;
+        outcome?: string;
+        failurePhase?: string;
+        failureReason?: string;
+        completionStatus?: { outcome?: string; failurePhase?: string; failureReason?: string };
+      };
+    }>;
+  };
+  const rows = (items ?? [])
+    .map((item) => {
+      const status = item.status ?? {};
+      const completionStatus = status.completionStatus ?? {};
+      return {
+        name: item.metadata?.name ?? "",
+        createdAt: item.metadata?.creationTimestamp ?? "",
+        ns: item.spec?.targetResource?.namespace ?? "",
+        phase: status.overallPhase ?? "",
+        // Support both the current nested status shape and the older live
+        // release shape while this suite runs against v1.5/v1.6 clusters.
+        outcome: completionStatus.outcome ?? status.outcome ?? "",
+        failurePhase: completionStatus.failurePhase ?? status.failurePhase ?? "",
+        failureReason: completionStatus.failureReason ?? status.failureReason ?? "",
+      };
     })
+    .filter((r) => r.name !== "")
     .filter((r) => r.ns === namespace);
 
   if (rows.length === 0) return null;
 
-  const completedRemediated = rows.find((r) => r.phase === "Completed" && r.outcome === "Remediated");
-  const anyCompleted = rows.find((r) => r.phase === "Completed");
-  const chosen = completedRemediated ?? anyCompleted ?? rows[0];
-  return { name: chosen.name, phase: chosen.phase, outcome: chosen.outcome };
+  const chosen = rows.reduce((latest, row) => {
+    const latestTime = Date.parse(latest.createdAt);
+    const rowTime = Date.parse(row.createdAt);
+    if (Number.isNaN(latestTime)) return row;
+    if (Number.isNaN(rowTime)) return latest;
+    return rowTime > latestTime ? row : latest;
+  });
+  return {
+    name: chosen.name,
+    createdAt: chosen.createdAt,
+    phase: chosen.phase,
+    outcome: chosen.outcome,
+    failurePhase: chosen.failurePhase,
+    failureReason: chosen.failureReason,
+  };
 }
 
 /**
@@ -740,6 +791,23 @@ export function hasInvestigationSessionForRR(rrName: string): boolean {
     .map((s) => s.trim())
     .filter(Boolean)
     .includes(rrName);
+}
+
+/** Returns WorkflowExecutions that reference an RR, including executions whose
+ * phase has not been populated yet. This is intentionally distinct from
+ * getWorkflowExecutionPhase(), whose null result also covers a missing phase. */
+export function getWorkflowExecutionNamesForRemediationRequest(rrName: string): string[] {
+  const raw = execOc(["get", "workflowexecutions", "-n", PLATFORM_NS, "-o", "json"]);
+  const { items } = JSON.parse(raw) as {
+    items?: Array<{
+      metadata?: { name?: string };
+      spec?: { remediationRequestRef?: { name?: string } };
+    }>;
+  };
+  return (items ?? [])
+    .filter((item) => item.spec?.remediationRequestRef?.name === rrName)
+    .map((item) => item.metadata?.name)
+    .filter((name): name is string => Boolean(name));
 }
 
 export function getWorkflowExecutionPhase(rrName: string): string | null {
@@ -780,6 +848,23 @@ export function getPodHealthCounts(namespace: string): { healthy: number; crashi
     else if (pod.status?.phase === "Running") healthy++;
   }
   return { healthy, crashing };
+}
+
+export function getPersistentVolumeClaimState(
+  namespace: string,
+  pvcName = "data-kv-store-2",
+): { uid: string; phase: string; storageClass: string } {
+  const raw = execOc(["get", "pvc", pvcName, "-n", namespace, "-o", "json"]);
+  const pvc = JSON.parse(raw) as {
+    metadata?: { uid?: string };
+    status?: { phase?: string };
+    spec?: { storageClassName?: string };
+  };
+  return {
+    uid: pvc.metadata?.uid ?? "",
+    phase: pvc.status?.phase ?? "",
+    storageClass: pvc.spec?.storageClassName ?? "",
+  };
 }
 
 /**
@@ -827,4 +912,25 @@ export function assertCrashloopWasRemediated(namespace: string, deploymentName =
   if (healthy === 0) {
     throw new Error(`No healthy Running pod found in ${namespace} after remediation.`);
   }
+}
+
+/** Mirrors statefulset-pvc-failure/validate.sh: the real workflow repaired the
+ * broken PVC and all StatefulSet replicas recovered, not merely the UI phase. */
+export function assertStatefulSetPvcFailureWasRemediated(namespace: string): void {
+  const rr = getRemediationRequestForTarget(namespace);
+  if (!rr) throw new Error(`No RemediationRequest found for StatefulSet target in ${PLATFORM_NS}.`);
+  if (rr.phase !== "Completed" || rr.outcome !== "Remediated") {
+    throw new Error(`RemediationRequest ${rr.name} did not complete successfully: phase="${rr.phase}", outcome="${rr.outcome}".`);
+  }
+  const wfePhase = getWorkflowExecutionPhase(rr.name);
+  if (wfePhase !== "Completed") throw new Error(`WorkflowExecution we-${rr.name} did not complete: phase="${wfePhase ?? "<not found>"}".`);
+
+  const readyReplicas = execOc(["get", "statefulset", "kv-store", "-n", namespace, "-o", "jsonpath={.status.readyReplicas}"]).trim();
+  if (readyReplicas !== "3") throw new Error(`StatefulSet/kv-store in ${namespace} has ${readyReplicas || 0} ready replicas; expected 3.`);
+  const pvc = getPersistentVolumeClaimState(namespace);
+  if (pvc.phase !== "Bound" || pvc.storageClass === "broken-storage-class") {
+    throw new Error(`PVC data-kv-store-2 was not repaired: phase="${pvc.phase}", storageClass="${pvc.storageClass}".`);
+  }
+  const podPhase = execOc(["get", "pod", "kv-store-2", "-n", namespace, "-o", "jsonpath={.status.phase}"]).trim();
+  if (podPhase !== "Running") throw new Error(`Pod kv-store-2 in ${namespace} is ${podPhase || "missing"}; expected Running.`);
 }
