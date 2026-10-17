@@ -126,6 +126,31 @@ See `docs/migration/design.md` for the full design document and `docs/migration/
 
 ## Pull Request Process
 
+### GitHub Actions supply-chain updates
+
+Third-party actions in `.github/workflows/` are pinned to immutable full
+commit SHAs. When bumping one, resolve the intended release tag and verify
+that the SHA is the tag's dereferenced commit (for example, with
+`git ls-remote https://github.com/OWNER/REPO.git refs/tags/vX^{}`). Update the
+human-readable version comment on the same line, then run workflow YAML
+validation and the CI checks. Do not replace a SHA with a mutable major or
+version tag.
+
+Dependabot checks the npm workspace, GitHub Actions, and standalone
+`Containerfile` weekly. Each ecosystem is grouped into a single update PR;
+see `.github/dependabot.yml` before changing update scope or cadence.
+
+The CI security job scans a locally built `linux/amd64` standalone image for
+HIGH and CRITICAL OS and application-library vulnerabilities. This avoids
+requiring a registry image on pull requests. The scan fails on fixable HIGH or
+CRITICAL findings (`exit-code: 1`); `ignore-unfixed: true` is intentional so
+vendor-reported base-image or dependency findings with no available
+remediation do not make CI permanently unmergeable. Those findings remain an
+accepted-risk limitation until an upstream fix is available. Release CI
+separately scans the published multi-architecture image by immutable digest.
+The current exception record, including each accepted HIGH finding and its
+disposition, is [documented here](docs/security/standalone-image-scan-exceptions.md).
+
 1. **Branch from `main`** using the naming convention: `feat/`, `fix/`, `docs/`, `chore/`, `test/`
 2. **Write tests first** for any behavioral change (TDD preferred)
 3. **Run the full suite** before opening: `pnpm build && pnpm test && pnpm lint`

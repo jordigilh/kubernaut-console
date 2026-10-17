@@ -164,8 +164,12 @@ docker build -f packages/standalone/Containerfile -t kubernaut-console:latest .
 ```
 
 The multi-stage Containerfile uses:
-- **Build stage**: `registry.access.redhat.com/ubi9/nodejs-22-minimal:1` (pnpm install + pnpm build; digest-pinned in the Containerfile)
-- **Runtime stage**: `registry.access.redhat.com/ubi9/nginx-126:1` (serves static files; digest-pinned in the Containerfile)
+- **Build stage**: `registry.access.redhat.com/ubi9/nodejs-22-minimal:1-1791924375` (pnpm install + pnpm build)
+- **Runtime stage**: `registry.access.redhat.com/ubi9/nginx-126:1-1791969848` (serves static files)
+
+Both UBI images are pinned by manifest digest in `packages/standalone/Containerfile`;
+the timestamped tags above document the corresponding Red Hat releases. Bump
+the tag and digest together when refreshing the base images.
 
 #### Safely bumping base-image digests
 
