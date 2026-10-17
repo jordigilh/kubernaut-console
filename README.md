@@ -82,6 +82,7 @@ release therefore has a matching console release and image tag.
 
 | kubernaut-console | Compatible kubernaut / kubernaut-operator |
 |---|---|
+| `v1.6.0-rc24` | `v1.6.0-rc24` |
 | `v1.6.0-rc10` | `v1.6.0-rc10` |
 | `v1.5.7`, `v1.5.6`, `v1.5.0-rc1`–`v1.5.6-rc4` | Same version (1:1 aligned — legacy scheme) |
 | `v1.0.0` | `v1.0.0` |

@@ -204,7 +204,7 @@ This was the original draft of this ADR. Rejected after a preflight spike found 
 
 ### H. Stand up a real oauth2-proxy in front of the live-suite console instead of `LiveE2EAuthProvider`
 
-Considered while resolving §8. Would exercise the exact production auth path (cookie/session, `/oauth2/userinfo`, header injection) rather than a client-side bearer token — more faithful, but requires new console-side infrastructure (Dex client registration/redirect URIs, a session store) this ADR never scoped, to re-validate a code path (`ProxyAuthProvider`, oauth2-proxy session handling) that is already a distinct, already-tracked concern (issue #36) rather than something this suite's stated goal — validating the console's own A2A/MCP contract handling — needs. Deferred; revisit if oauth2-proxy's own behavior needs live-cluster coverage.
+Considered while resolving §8. Would exercise the exact production auth path (cookie/session, `/oauth2/userinfo`, header injection) rather than a client-side bearer token — more faithful, but requires new console-side infrastructure (Dex client registration/redirect URIs, a session store) this ADR never scoped, to re-validate a code path (`ProxyAuthProvider`, oauth2-proxy session handling) that is already a distinct, already-tracked concern (issue #91, superseding closed #36) rather than something this suite's stated goal — validating the console's own A2A/MCP contract handling — needs. Deferred; revisit if oauth2-proxy's own behavior needs live-cluster coverage.
 
 ## Consequences
 

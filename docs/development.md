@@ -298,8 +298,8 @@ consumed by kubernaut-operator and kubernaut's own chart instead.
 
 See [README.md § Compatibility](../README.md#compatibility) for how console
 version numbers relate to kubernaut/kubernaut-operator versions — since
-`v1.1.0` these are versioned independently, so a tag here does not need to
-match the upstream release it's cut alongside.
+`v1.6.0-rc10` they are aligned with the upstream release line (the current
+documented upstream target is `v1.6.0-rc24`).
 
 ## Pre-commit Hooks
 
