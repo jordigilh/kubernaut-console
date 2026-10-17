@@ -148,9 +148,20 @@ The multi-stage Containerfile uses:
 - **Build stage**: `registry.access.redhat.com/ubi9/nodejs-22-minimal:1-1791924375` (pnpm install + pnpm build)
 - **Runtime stage**: `registry.access.redhat.com/ubi9/nginx-126:1-1791969848` (serves static files)
 
-Both UBI images are pinned by digest in `packages/standalone/Containerfile`;
+Both UBI images are pinned by manifest digest in `packages/standalone/Containerfile`;
 the timestamped tags above document the corresponding Red Hat releases. Bump
 the tag and digest together when refreshing the base images.
+
+#### Safely bumping base-image digests
+
+When updating a Red Hat base image, use `docker buildx imagetools inspect` (or an
+equivalent registry manifest tool) to verify that the intended human-readable
+tag is the UBI Node.js or UBI Nginx image and that its manifest list includes
+both `linux/amd64` and `linux/arm64`. Update the tag and its `@sha256:` digest
+together in `packages/standalone/Containerfile`, using the manifest-list digest
+rather than an architecture-specific child digest. Then build the image and
+smoke-test `GET /` for a successful static response; retain `USER 1001` in the
+runtime stage.
 
 ### Registry
 

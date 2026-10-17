@@ -1,4 +1,6 @@
+# registry.access.redhat.com/ubi9/nodejs-22-minimal:1-1791924375 (linux/amd64, linux/arm64)
 FROM registry.access.redhat.com/ubi9/nodejs-22-minimal:1-1791924375@sha256:254080e3c058143c592f708e4ca78691449349fc79f03ee678c717aa4b6222b6 AS build
+# Root is limited to build-time dependency installation; the runtime stage is non-root.
 USER 0
 WORKDIR /build
 
@@ -15,6 +17,7 @@ COPY packages/standalone/ packages/standalone/
 RUN pnpm --filter @kubernaut/ui-core build \
     && pnpm --filter @kubernaut/standalone build
 
+# registry.access.redhat.com/ubi9/nginx-126:1-1791969848 (linux/amd64, linux/arm64)
 FROM registry.access.redhat.com/ubi9/nginx-126:1-1791969848@sha256:0c3626527f8172f2d54ff67bb25ee286640572ff90a0002bcbe926a9c85ed079
 COPY --from=build /build/packages/standalone/dist /opt/app-root/src
 
