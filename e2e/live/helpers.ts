@@ -215,10 +215,12 @@ export async function isApprovalDenied(page: Page, timeout = 5_000): Promise<boo
  * real RAR, but the console's `kubernaut_get_approval_request` fetch was
  * denied. Skipping silently in case (b) would hide a real bug behind a
  * misleading "auto-approved" message. Shared by approval-gate.spec.ts and
- * full-remediation-lifecycle.spec.ts (kubernaut-console#54): any
- * `crashloopTarget` in a `kubernaut.ai/environment=production` namespace
- * reaches this same gate, since the OPA policy requires approval
- * unconditionally for production regardless of which test triggered it.
+ * full-remediation-lifecycle.spec.ts (kubernaut-console#54): a
+ * `statefulsetPvcFailureTarget` reaches this gate deterministically: the
+ * canonical policy classifies StatefulSet as a sensitive resource and always
+ * requires approval, independently of confidence and environment. Production
+ * crashloop targets are intentionally not used for approval-gate coverage;
+ * canonical policy auto-approves high-confidence production incidents.
  *
  * Historical note (2026-08-08): this used to fire routinely on the `sre`
  * persona RBAC gap (jordigilh/kubernaut-operator#278, jordigilh/kubernaut#1869
@@ -539,6 +541,15 @@ export function crashloopTarget(namespace: string) {
   return { kind: "Deployment", namespace, name: "worker" } as const;
 }
 
+/**
+ * Mirrors kubernaut-demo-scenarios/scenarios/statefulset-pvc-failure. The
+ * fixture leaves kv-store-2 Pending because its PVC references a deliberately
+ * missing StorageClass; the selected FixStatefulSetPVC workflow repairs it.
+ */
+export function statefulsetPvcFailureTarget(namespace: string) {
+  return { kind: "StatefulSet", namespace, name: "kv-store" } as const;
+}
+
 export function crashloopInvestigateMessage(target: { kind: string; namespace: string; name: string }): string {
   return `The ${target.name} ${target.kind} in ${target.namespace} is in CrashLoopBackOff after a bad release, please investigate.${fleetClusterSuffix()}`;
 }
@@ -560,6 +571,16 @@ export function crashloopInvestigateMessage(target: { kind: string; namespace: s
 export function crashloopFixMessage(target: { kind: string; namespace: string; name: string }): string {
   return `Fix the ${target.name} ${target.kind} in ${target.namespace} — it's in CrashLoopBackOff after a bad release. Just fix it autonomously, I don't need to review or select anything.${fleetClusterSuffix()}`;
 }
+
+export function statefulsetPvcFailureInvestigateMessage(target: { kind: string; namespace: string; name: string }): string {
+  return `The ${target.name} ${target.kind} in ${target.namespace} has a replica stuck Pending because its PVC cannot bind; please investigate.${fleetClusterSuffix()}`;
+}
+
+export function statefulsetPvcFailureFixMessage(target: { kind: string; namespace: string; name: string }): string {
+  return `Fix the ${target.name} ${target.kind} in ${target.namespace} — one replica is Pending because its PVC cannot bind. Just fix it autonomously, I don't need to review or select anything.${fleetClusterSuffix()}`;
+}
+
+export const STATEFULSET_PVC_WORKFLOW = "fix-statefulset-pvc-v1";
 
 // crashloop-rollback-v1 is the only catalog workflow purpose-built for this
 // exact shape (CrashLoopBackOff from a pod-spec/command override on a
@@ -782,6 +803,12 @@ export function getPodHealthCounts(namespace: string): { healthy: number; crashi
   return { healthy, crashing };
 }
 
+export function getPersistentVolumeClaimState(namespace: string, pvcName = "data-kv-store-2"): { phase: string; storageClass: string } {
+  const raw = execOc(["get", "pvc", pvcName, "-n", namespace, "-o", "json"]);
+  const pvc = JSON.parse(raw) as { status?: { phase?: string }; spec?: { storageClassName?: string } };
+  return { phase: pvc.status?.phase ?? "", storageClass: pvc.spec?.storageClassName ?? "" };
+}
+
 /**
  * Asserts the crashloop fixture was genuinely remediated on the real
  * cluster — not merely that the console UI rendered a terminal-looking
@@ -827,4 +854,25 @@ export function assertCrashloopWasRemediated(namespace: string, deploymentName =
   if (healthy === 0) {
     throw new Error(`No healthy Running pod found in ${namespace} after remediation.`);
   }
+}
+
+/** Mirrors statefulset-pvc-failure/validate.sh: the real workflow repaired the
+ * broken PVC and all StatefulSet replicas recovered, not merely the UI phase. */
+export function assertStatefulSetPvcFailureWasRemediated(namespace: string): void {
+  const rr = getRemediationRequestForTarget(namespace);
+  if (!rr) throw new Error(`No RemediationRequest found for StatefulSet target in ${PLATFORM_NS}.`);
+  if (rr.phase !== "Completed" || rr.outcome !== "Remediated") {
+    throw new Error(`RemediationRequest ${rr.name} did not complete successfully: phase="${rr.phase}", outcome="${rr.outcome}".`);
+  }
+  const wfePhase = getWorkflowExecutionPhase(rr.name);
+  if (wfePhase !== "Completed") throw new Error(`WorkflowExecution we-${rr.name} did not complete: phase="${wfePhase ?? "<not found>"}".`);
+
+  const readyReplicas = execOc(["get", "statefulset", "kv-store", "-n", namespace, "-o", "jsonpath={.status.readyReplicas}"]).trim();
+  if (readyReplicas !== "3") throw new Error(`StatefulSet/kv-store in ${namespace} has ${readyReplicas || 0} ready replicas; expected 3.`);
+  const pvc = getPersistentVolumeClaimState(namespace);
+  if (pvc.phase !== "Bound" || pvc.storageClass === "broken-storage-class") {
+    throw new Error(`PVC data-kv-store-2 was not repaired: phase="${pvc.phase}", storageClass="${pvc.storageClass}".`);
+  }
+  const podPhase = execOc(["get", "pod", "kv-store-2", "-n", namespace, "-o", "jsonpath={.status.phase}"]).trim();
+  if (podPhase !== "Running") throw new Error(`Pod kv-store-2 in ${namespace} is ${podPhase || "missing"}; expected Running.`);
 }
