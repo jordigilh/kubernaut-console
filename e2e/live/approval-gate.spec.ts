@@ -15,6 +15,8 @@ import {
   parseMcpResponseBody,
   assertStatefulSetPvcFailureWasRemediated,
   getPersistentVolumeClaimState,
+  getWorkflowExecutionNamesForRemediationRequest,
+  getRemediationRequestForTarget,
   REAL_VERIFICATION_TIMEOUT_MS,
   startPeriodicScreenshots,
 } from "./helpers";
@@ -185,10 +187,28 @@ test.describe("Approval gate — real MCP calls", () => {
     await page.getByRole("button", { name: "Decline" }).click();
     await expect(page.getByText(/Declined by|Rejected/i)).toBeVisible({ timeout: 15_000 });
 
+    // The UI rejection is only an intermediate signal. Wait for the real RR
+    // to settle in the backend before checking that execution never started.
+    await expect
+      .poll(() => getRemediationRequestForTarget(TARGETS.decline.namespace), {
+        timeout: REAL_VERIFICATION_TIMEOUT_MS,
+        intervals: [1_000],
+        message: "declined StatefulSet remediation should reach Failed/Approval in the backend",
+      })
+      .toMatchObject({ phase: "Failed", failurePhase: "Approval" });
+
+    const declinedRr = getRemediationRequestForTarget(TARGETS.decline.namespace);
+    expect(declinedRr).not.toBeNull();
+    expect(declinedRr!.failureReason, "the declined RR should record an approval failure reason").not.toBe("");
+    expect(
+      getWorkflowExecutionNamesForRemediationRequest(declinedRr!.name),
+      `RemediationRequest ${declinedRr!.name} was declined and must not create a WorkflowExecution`,
+    ).toEqual([]);
+
     // A decline that the UI reports correctly but the backend executes anyway
     // would be a serious safety regression a UI-text-only assertion can't
-    // catch — verify the real PVC stayed untouched rather than trusting the
-    // "Declined" message alone.
+    // catch — verify the PVC identity and state stayed untouched rather than
+    // trusting the "Declined" message alone.
     const pvcAfter = getPersistentVolumeClaimState(TARGETS.decline.namespace);
     expect(
       pvcAfter,

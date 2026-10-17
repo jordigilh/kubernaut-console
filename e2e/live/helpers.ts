@@ -691,6 +691,8 @@ interface RemediationRequestSummary {
   name: string;
   phase: string;
   outcome: string;
+  failurePhase: string;
+  failureReason: string;
 }
 
 /**
@@ -714,21 +716,36 @@ interface RemediationRequestSummary {
  * assertCrashloopWasRemediated's ground-truth check on every run.
  */
 export function getRemediationRequestForTarget(namespace: string): RemediationRequestSummary | null {
-  const raw = execOc([
-    "get",
-    "remediationrequests",
-    "-n",
-    PLATFORM_NS,
-    "-o",
-    'jsonpath={range .items[*]}{.metadata.name}{"\\t"}{.spec.targetResource.namespace}{"\\t"}{.status.overallPhase}{"\\t"}{.status.outcome}{"\\n"}{end}',
-  ]);
-  const rows = raw
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      const [name, ns, phase, outcome] = line.split("\t");
-      return { name, ns, phase: phase ?? "", outcome: outcome ?? "" };
+  const raw = execOc(["get", "remediationrequests", "-n", PLATFORM_NS, "-o", "json"]);
+  const { items } = JSON.parse(raw) as {
+    items?: Array<{
+      metadata?: { name?: string };
+      spec?: { targetResource?: { namespace?: string } };
+      status?: {
+        overallPhase?: string;
+        outcome?: string;
+        failurePhase?: string;
+        failureReason?: string;
+        completionStatus?: { outcome?: string; failurePhase?: string; failureReason?: string };
+      };
+    }>;
+  };
+  const rows = (items ?? [])
+    .map((item) => {
+      const status = item.status ?? {};
+      const completionStatus = status.completionStatus ?? {};
+      return {
+        name: item.metadata?.name ?? "",
+        ns: item.spec?.targetResource?.namespace ?? "",
+        phase: status.overallPhase ?? "",
+        // Support both the current nested status shape and the older live
+        // release shape while this suite runs against v1.5/v1.6 clusters.
+        outcome: completionStatus.outcome ?? status.outcome ?? "",
+        failurePhase: completionStatus.failurePhase ?? status.failurePhase ?? "",
+        failureReason: completionStatus.failureReason ?? status.failureReason ?? "",
+      };
     })
+    .filter((r) => r.name !== "")
     .filter((r) => r.ns === namespace);
 
   if (rows.length === 0) return null;
@@ -736,7 +753,13 @@ export function getRemediationRequestForTarget(namespace: string): RemediationRe
   const completedRemediated = rows.find((r) => r.phase === "Completed" && r.outcome === "Remediated");
   const anyCompleted = rows.find((r) => r.phase === "Completed");
   const chosen = completedRemediated ?? anyCompleted ?? rows[0];
-  return { name: chosen.name, phase: chosen.phase, outcome: chosen.outcome };
+  return {
+    name: chosen.name,
+    phase: chosen.phase,
+    outcome: chosen.outcome,
+    failurePhase: chosen.failurePhase,
+    failureReason: chosen.failureReason,
+  };
 }
 
 /**
@@ -761,6 +784,23 @@ export function hasInvestigationSessionForRR(rrName: string): boolean {
     .map((s) => s.trim())
     .filter(Boolean)
     .includes(rrName);
+}
+
+/** Returns WorkflowExecutions that reference an RR, including executions whose
+ * phase has not been populated yet. This is intentionally distinct from
+ * getWorkflowExecutionPhase(), whose null result also covers a missing phase. */
+export function getWorkflowExecutionNamesForRemediationRequest(rrName: string): string[] {
+  const raw = execOc(["get", "workflowexecutions", "-n", PLATFORM_NS, "-o", "json"]);
+  const { items } = JSON.parse(raw) as {
+    items?: Array<{
+      metadata?: { name?: string };
+      spec?: { remediationRequestRef?: { name?: string } };
+    }>;
+  };
+  return (items ?? [])
+    .filter((item) => item.spec?.remediationRequestRef?.name === rrName)
+    .map((item) => item.metadata?.name)
+    .filter((name): name is string => Boolean(name));
 }
 
 export function getWorkflowExecutionPhase(rrName: string): string | null {
@@ -803,10 +843,21 @@ export function getPodHealthCounts(namespace: string): { healthy: number; crashi
   return { healthy, crashing };
 }
 
-export function getPersistentVolumeClaimState(namespace: string, pvcName = "data-kv-store-2"): { phase: string; storageClass: string } {
+export function getPersistentVolumeClaimState(
+  namespace: string,
+  pvcName = "data-kv-store-2",
+): { uid: string; phase: string; storageClass: string } {
   const raw = execOc(["get", "pvc", pvcName, "-n", namespace, "-o", "json"]);
-  const pvc = JSON.parse(raw) as { status?: { phase?: string }; spec?: { storageClassName?: string } };
-  return { phase: pvc.status?.phase ?? "", storageClass: pvc.spec?.storageClassName ?? "" };
+  const pvc = JSON.parse(raw) as {
+    metadata?: { uid?: string };
+    status?: { phase?: string };
+    spec?: { storageClassName?: string };
+  };
+  return {
+    uid: pvc.metadata?.uid ?? "",
+    phase: pvc.status?.phase ?? "",
+    storageClass: pvc.spec?.storageClassName ?? "",
+  };
 }
 
 /**
