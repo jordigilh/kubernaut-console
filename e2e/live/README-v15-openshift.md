@@ -135,11 +135,15 @@ to the repo checkout.
 
 Every test needs its own real, broken Kubernetes resource to investigate —
 either a `crashloop` scenario (from `kubernaut-demo-scenarios`, a real
-`worker` Deployment faulted with a bad-release command override) or a
-synthetic `memory-eater` Deployment (a throttled OOM loop). See
-`helpers.ts`'s `crashloopTarget`/`oomkillTarget` doc comments for why each
-test needs a *dedicated* target at all (KubernautAgent's per-target
-`session_active` dedup, AF's `SessionInterceptor` reattach window).
+`worker` Deployment faulted with a bad-release command override), the
+`statefulset-pvc-failure` scenario (a `kv-store` StatefulSet with a broken
+PVC), or a synthetic `memory-eater` Deployment (a throttled OOM loop). The
+approval-gate and autonomous-fix approval paths use the StatefulSet fixture:
+the canonical policy always requires approval for sensitive StatefulSets,
+unlike high-confidence production crashloops, which it may auto-approve.
+See `helpers.ts`'s target doc comments for why each test needs a *dedicated*
+target at all (KubernautAgent's per-target `session_active` dedup, AF's
+`SessionInterceptor` reattach window).
 
 **Why the namespace name itself must be fresh on every run**
 (`fixtureNamespace`'s doc comment in `helpers.ts` has the full detail):
@@ -178,8 +182,8 @@ if you add a new per-test target) under one shared random suffix, then
 writes that suffix to `~/.config/kubernaut-console-e2e/fixtures.env`
 (namespace names only, no credentials). Every spec file reads
 `LIVE_E2E_NS_SUFFIX` transparently via `helpers.ts`'s `fixtureNamespace()` —
-no test code needs to change. Takes roughly 3-5 minutes end to end (mostly
-waiting for `crashloop`'s two-replica rollout to become Ready per namespace).
+no test code needs to change. Takes roughly 5-10 minutes end to end (mostly
+waiting for StatefulSet PVCs to become Bound and for alert rules to settle).
 
 Omitting `setup-fixtures.sh` / `LIVE_E2E_NS_SUFFIX` entirely still works —
 every spec file falls back to its original hardcoded namespace literal — but
@@ -200,12 +204,15 @@ asynchronously.
 ## Other known cluster-level fixtures (already in place, no action needed)
 
 - **`console-e2e-alerts` `PrometheusRule`** (`openshift-monitoring`
-  namespace): fires `KubePodCrashLooping` for *any* namespace matching
-  `console-e2e-.*` — this regex already covers randomly-suffixed namespaces
-  with no changes needed. Required for AF's severity triage to resolve
+  namespace): fires the crashloop, OOM, and
+  `KubeStatefulSetReplicasMismatch` alerts for *any* namespace matching
+  `console-e2e-.*` — this regex covers randomly-suffixed namespaces. The
+  rule text is refreshed from the canonical demo-scenario manifests by
+  `setup-fixtures.sh`; it is required for AF's severity triage to resolve
   anything other than `ErrSeverityUndetermined` on these fixtures.
-- **`dev-worker-1` node avoidance**: both fixture types' pod specs carry a
-  `nodeAffinity` `NotIn` rule against `dev-worker-1.redhat-internal.com` —
+- **`dev-worker-1` node avoidance**: the crashloop and memory-eater fixture
+  pod specs carry a `nodeAffinity` `NotIn` rule against
+  `dev-worker-1.redhat-internal.com` —
   that node has a persistent CRI-O `CreateContainerError`/"broken pipe"
   issue unrelated to kubernaut, confirmed by direct reproduction
   (2026-08-02). Don't remove this affinity rule without re-verifying the
