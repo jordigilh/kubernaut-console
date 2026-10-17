@@ -689,6 +689,7 @@ function execOc(args: string[]): string {
 
 interface RemediationRequestSummary {
   name: string;
+  createdAt: string;
   phase: string;
   outcome: string;
   failurePhase: string;
@@ -696,11 +697,11 @@ interface RemediationRequestSummary {
 }
 
 /**
- * Mirrors validation-helper.sh's `_find_rr_name` priority order: prefer a
- * Completed+Remediated RR, then any Completed RR, then the oldest active
- * one — so a stale RR from an earlier retry against the same reused fixture
- * namespace (see fixtureNamespace's doc comment) doesn't shadow the current
- * run's real outcome.
+ * Selects the newest matching RemediationRequest by creation timestamp so a
+ * stale RR from an earlier retry against the same reused fixture namespace
+ * (see fixtureNamespace's doc comment) cannot shadow the current run's real
+ * outcome. This matters especially for decline: an older Completed RR must
+ * not be mistaken for the current RR that should settle in Failed/Approval.
  *
  * Queries spec.targetResource.namespace, not spec.signalLabels.namespace:
  * this suite's investigations are all chat-driven (kubernaut_investigate_alert,
@@ -719,7 +720,7 @@ export function getRemediationRequestForTarget(namespace: string): RemediationRe
   const raw = execOc(["get", "remediationrequests", "-n", PLATFORM_NS, "-o", "json"]);
   const { items } = JSON.parse(raw) as {
     items?: Array<{
-      metadata?: { name?: string };
+      metadata?: { name?: string; creationTimestamp?: string };
       spec?: { targetResource?: { namespace?: string } };
       status?: {
         overallPhase?: string;
@@ -736,6 +737,7 @@ export function getRemediationRequestForTarget(namespace: string): RemediationRe
       const completionStatus = status.completionStatus ?? {};
       return {
         name: item.metadata?.name ?? "",
+        createdAt: item.metadata?.creationTimestamp ?? "",
         ns: item.spec?.targetResource?.namespace ?? "",
         phase: status.overallPhase ?? "",
         // Support both the current nested status shape and the older live
@@ -750,11 +752,16 @@ export function getRemediationRequestForTarget(namespace: string): RemediationRe
 
   if (rows.length === 0) return null;
 
-  const completedRemediated = rows.find((r) => r.phase === "Completed" && r.outcome === "Remediated");
-  const anyCompleted = rows.find((r) => r.phase === "Completed");
-  const chosen = completedRemediated ?? anyCompleted ?? rows[0];
+  const chosen = rows.reduce((latest, row) => {
+    const latestTime = Date.parse(latest.createdAt);
+    const rowTime = Date.parse(row.createdAt);
+    if (Number.isNaN(latestTime)) return row;
+    if (Number.isNaN(rowTime)) return latest;
+    return rowTime > latestTime ? row : latest;
+  });
   return {
     name: chosen.name,
+    createdAt: chosen.createdAt,
     phase: chosen.phase,
     outcome: chosen.outcome,
     failurePhase: chosen.failurePhase,
