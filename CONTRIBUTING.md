@@ -148,6 +148,8 @@ vendor-reported base-image or dependency findings with no available
 remediation do not make CI permanently unmergeable. Those findings remain an
 accepted-risk limitation until an upstream fix is available. Release CI
 separately scans the published multi-architecture image by immutable digest.
+The current exception record, including each accepted HIGH finding and its
+disposition, is [documented here](docs/security/standalone-image-scan-exceptions.md).
 
 1. **Branch from `main`** using the naming convention: `feat/`, `fix/`, `docs/`, `chore/`, `test/`
 2. **Write tests first** for any behavioral change (TDD preferred)
