@@ -7,6 +7,7 @@ This document covers all deployment options for Kubernaut Console.
 | Method | Use Case | Prerequisites |
 |--------|----------|---------------|
 | **kubernaut-operator** | Production / OpenShift | `Kubernaut` CR, OIDC provider |
+| **kubernaut's Helm chart** | Production / vanilla Kubernetes | Kubernetes cluster, OIDC provider |
 | **Kind manifests** | Testing / local demos | Kind cluster, Kubernaut deployed |
 | **Vite dev server** | Frontend development | Node.js 22+, AF port-forwarded |
 
@@ -14,19 +15,23 @@ This document covers all deployment options for Kubernaut Console.
 
 ## Production Deployment
 
-This repository does not own the production console deployment or ship a
-production Helm chart. Production is deployed by
-[kubernaut-operator](https://github.com/jordigilh/kubernaut-operator): set
-`spec.console.enabled: true` (plus `spec.console.auth.*` for OIDC) on the
-cluster's `Kubernaut` CR. See the operator's own documentation for the full
-field reference.
+This repository does not own or ship either production deployment. For the
+upstream `kubernaut` `v1.6.0-rc24` platform release, use one of these paths:
+
+1. **`kubernaut-operator`** for OpenShift: set `spec.console.enabled: true`
+   (plus `spec.console.auth.*` for OIDC) on the cluster's `Kubernaut` CR. See
+   the [operator documentation](https://github.com/jordigilh/kubernaut-operator)
+   for the full field reference.
+2. **`kubernaut`'s Helm chart** for vanilla Kubernetes: set
+   `console.enabled: true` when installing the
+   [`v1.6.0-rc24` chart](https://github.com/jordigilh/kubernaut/tree/v1.6.0-rc24/charts/kubernaut).
 
 The manifests in this repository provide an easy deployment path for testing
 and local demos; they are not production deployment templates.
 
 The sections below (Nginx Configuration, Container Image, Health Checks)
 describe what's baked into this repo's own image and apply regardless of
-which operator configuration deployed it.
+which supported upstream deployment path deployed it.
 
 ### Production OAuth2 Proxy ownership
 
@@ -35,14 +40,17 @@ overlay. Do not promote `deploy/kind/oauth2-proxy.yaml`: it is a local HTTP
 demo and intentionally uses `--cookie-secure=false` plus oauth2-proxy's
 default encrypted-cookie session store.
 
-The production deployment owner must provide and validate the session-store
-configuration. In the current `kubernaut-operator` implementation,
-`--cookie-secure=true` is configured, but no
-`--session-store-type=redis` (or equivalent Redis/Valkey connection) is
-present yet in `internal/resources/console.go`. This repository does not own
-that deployment topology, its Redis/Valkey lifecycle, or its credentials, so
-it must not invent a production overlay that could contradict the operator.
-Track the production reference and revocation evidence
+The production deployment owners must provide and validate the session-store
+configuration. The current
+[`kubernaut-operator` implementation](https://github.com/jordigilh/kubernaut-operator/blob/main/internal/resources/console.go)
+and the upstream
+[`v1.6.0-rc24` Helm template](https://github.com/jordigilh/kubernaut/blob/v1.6.0-rc24/charts/kubernaut/templates/console/console.yaml)
+set `--cookie-secure=true`, but neither configures
+`--session-store-type=redis` (or an equivalent Redis/Valkey connection) yet.
+This repository does not own either deployment's topology, Redis/Valkey
+lifecycle, or credentials, so it must not invent a production overlay that
+could contradict the upstream owner. Track the production reference and
+revocation evidence
 in [kubernaut-console#91](https://github.com/jordigilh/kubernaut-console/issues/91);
 the earlier [#36](https://github.com/jordigilh/kubernaut-console/issues/36)
 consideration is closed and superseded by #91.
