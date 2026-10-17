@@ -206,7 +206,7 @@ Tags follow semver: `v0.5.12` → image tag `0.5.12`.
 
 ### Runtime
 
-No runtime environment variables are needed — all routing is handled by the nginx configuration baked into the container image. The OAuth2 Proxy is configured via its command-line flags by the `kubernaut-operator` in production or in the repository's Kind testing manifest.
+No runtime environment variables are needed — all routing is handled by the nginx configuration baked into the container image. The OAuth2 Proxy is configured via its command-line flags by the `kubernaut-operator` in production, the upstream [`kubernaut` v1.6.0-rc24 Helm chart](https://github.com/jordigilh/kubernaut/tree/v1.6.0-rc24/charts/kubernaut), or the repository's Kind testing manifest.
 
 ---
 
