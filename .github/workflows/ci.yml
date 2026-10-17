@@ -9,11 +9,11 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: pnpm
@@ -40,12 +40,13 @@ jobs:
   security-scan:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -53,8 +54,33 @@ jobs:
           output: trivy-fs.sarif
           severity: CRITICAL,HIGH
 
-      - name: Upload Trivy SARIF
-        uses: github/codeql-action/upload-sarif@v3
+      # Build the standalone artifact locally so pull requests do not depend
+      # on a registry tag or credentials. The release workflow separately
+      # scans its published multi-architecture image by immutable digest.
+      - name: Build standalone image for scanning
+        run: docker build --platform linux/amd64 --tag kubernaut-console:ci-scan --file packages/standalone/Containerfile .
+
+      - name: Run Trivy standalone image scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: kubernaut-console:ci-scan
+          format: sarif
+          output: trivy-image.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+
+      - name: Upload Trivy filesystem SARIF
+        # Fork PR tokens cannot write code-scanning results; the vulnerability
+        # gate still runs, but SARIF upload is only attempted where permitted.
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@ce5e7eeac396d720fe2d802714996c8ce561e311 # v3.39.0
         with:
           sarif_file: trivy-fs.sarif
-        if: always()
+
+      - name: Upload Trivy image SARIF
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@ce5e7eeac396d720fe2d802714996c8ce561e311 # v3.39.0
+        with:
+          sarif_file: trivy-image.sarif

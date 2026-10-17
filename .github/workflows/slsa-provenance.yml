@@ -54,7 +54,7 @@ jobs:
         # tag -- only full semver tags (v4.1.2, v4.1.1, ...) exist. `@v4` 404s
         # at run time (caught live via a throwaway spike run against this
         # repo, kubernaut-console#74).
-        uses: sigstore/cosign-installer@v4.1.2
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       # kubernaut#1109 spike finding: registry auth for push-to-registry: true
       # (and for consumers running `gh attestation verify oci://...` later)
@@ -69,7 +69,7 @@ jobs:
                        "${REGISTRY}"
 
       - name: SLSA build provenance attestation
-        uses: actions/attest-build-provenance@v4
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ inputs.image }}
           subject-digest: ${{ inputs.digest }}

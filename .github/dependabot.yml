@@ -1,0 +1,48 @@
+version: 2
+
+updates:
+  # The workspace shares one pnpm lockfile. Keep all workspace importers in
+  # one update definition so related npm changes are grouped into one PR.
+  - package-ecosystem: npm
+    directories:
+      - /
+      - /packages/standalone
+      - /packages/ui-core
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: deps
+    groups:
+      all-npm-deps:
+        patterns:
+          - '*'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+    groups:
+      all-actions:
+        patterns:
+          - '*'
+
+  # Dependabot supports Containerfile names in the Docker ecosystem. This
+  # keeps UBI base-image bumps grouped into one PR for the standalone image.
+  - package-ecosystem: docker
+    directory: /packages/standalone
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: docker
+    groups:
+      all-docker:
+        patterns:
+          - '*'
