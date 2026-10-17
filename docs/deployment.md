@@ -6,35 +6,54 @@ This document covers all deployment options for Kubernaut Console.
 
 | Method | Use Case | Prerequisites |
 |--------|----------|---------------|
-| **kubernaut-operator** | Production / OpenShift (recommended) | `Kubernaut` CR, OIDC provider |
-| **kubernaut's Helm chart** | Production, non-operator Helm installs | Kubernetes cluster, OIDC provider |
-| **Kind manifests** | Local development / demos | Kind cluster, Kubernaut deployed |
+| **kubernaut-operator** | Production / OpenShift | `Kubernaut` CR, OIDC provider |
+| **kubernaut's Helm chart** | Production / vanilla Kubernetes | Kubernetes cluster, OIDC provider |
+| **Kind manifests** | Testing / local demos | Kind cluster, Kubernaut deployed |
 | **Vite dev server** | Frontend development | Node.js 22+, AF port-forwarded |
 
 ---
 
 ## Production Deployment
 
-This repo does not ship its own Helm chart. The console is deployed as part
-of the Kubernaut platform via one of two officially-sanctioned paths, both
-of which provision the same shape described below (an OAuth2 Proxy sidecar
-handling OIDC on port 4180, in front of an Nginx container serving the SPA
-and proxying API requests on port 8080) using the same
-`quay.io/kubernaut-ai/kubernaut-console` image this repo builds and
-publishes:
+This repository does not own or ship either production deployment. For the
+upstream `kubernaut` `v1.6.0-rc24` platform release, use one of these paths:
 
-1. **`kubernaut-operator`** (recommended): set `spec.console.enabled: true`
+1. **`kubernaut-operator`** for OpenShift: set `spec.console.enabled: true`
    (plus `spec.console.auth.*` for OIDC) on the cluster's `Kubernaut` CR. See
-   [kubernaut-operator](https://github.com/jordigilh/kubernaut-operator)'s
-   own docs for the full field reference.
-2. **`kubernaut`'s Helm chart**: set `console.enabled: true` when installing
-   [kubernaut](https://github.com/jordigilh/kubernaut)'s chart directly
-   (`charts/kubernaut/`), for environments that install via plain Helm
-   instead of the operator/OLM.
+   the [operator documentation](https://github.com/jordigilh/kubernaut-operator)
+   for the full field reference.
+2. **`kubernaut`'s Helm chart** for vanilla Kubernetes: set
+   `console.enabled: true` when installing the
+   [`v1.6.0-rc24` chart](https://github.com/jordigilh/kubernaut/tree/v1.6.0-rc24/charts/kubernaut).
+
+The manifests in this repository provide an easy deployment path for testing
+and local demos; they are not production deployment templates.
 
 The sections below (Nginx Configuration, Container Image, Health Checks)
 describe what's baked into this repo's own image and apply regardless of
-which of the two paths above deployed it.
+which supported upstream deployment path deployed it.
+
+### Production OAuth2 Proxy ownership
+
+This repository does **not** provide a production OAuth2 Proxy manifest or
+overlay. Do not promote `deploy/kind/oauth2-proxy.yaml`: it is a local HTTP
+demo and intentionally uses `--cookie-secure=false` plus oauth2-proxy's
+default encrypted-cookie session store.
+
+The production deployment owners must provide and validate the session-store
+configuration. The current
+[`kubernaut-operator` implementation](https://github.com/jordigilh/kubernaut-operator/blob/main/internal/resources/console.go)
+and the upstream
+[`v1.6.0-rc24` Helm template](https://github.com/jordigilh/kubernaut/blob/v1.6.0-rc24/charts/kubernaut/templates/console/console.yaml)
+set `--cookie-secure=true`, but neither configures
+`--session-store-type=redis` (or an equivalent Redis/Valkey connection) yet.
+This repository does not own either deployment's topology, Redis/Valkey
+lifecycle, or credentials, so it must not invent a production overlay that
+could contradict the upstream owner. Track the production reference and
+revocation evidence
+in [kubernaut-console#91](https://github.com/jordigilh/kubernaut-console/issues/91);
+the earlier [#36](https://github.com/jordigilh/kubernaut-console/issues/36)
+consideration is closed and superseded by #91.
 
 ---
 
@@ -191,7 +210,7 @@ Tags follow semver: `v0.5.12` → image tag `0.5.12`.
 
 ### Runtime
 
-No runtime environment variables are needed — all routing is handled by the nginx configuration baked into the container image. The OAuth2 Proxy is configured via its command-line flags in whichever deployment path is used (kubernaut-operator, kubernaut's Helm chart, or the Kind manifest).
+No runtime environment variables are needed — all routing is handled by the nginx configuration baked into the container image. The OAuth2 Proxy is configured via its command-line flags by the `kubernaut-operator` in production, the upstream [`kubernaut` v1.6.0-rc24 Helm chart](https://github.com/jordigilh/kubernaut/tree/v1.6.0-rc24/charts/kubernaut), or the repository's Kind testing manifest.
 
 ---
 

@@ -1,3 +1,9 @@
+# DEV-ONLY KIND MANIFEST — NOT A PRODUCTION TEMPLATE.
+#
+# This manifest is for local HTTP demos only. It intentionally uses
+# --cookie-secure=false and the default encrypted-cookie session store; do not
+# copy it into a production deployment. Production console auth is owned by
+# kubernaut-operator (see docs/deployment.md).
 ---
 apiVersion: v1
 kind: Secret
