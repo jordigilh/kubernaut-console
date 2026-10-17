@@ -6,35 +6,46 @@ This document covers all deployment options for Kubernaut Console.
 
 | Method | Use Case | Prerequisites |
 |--------|----------|---------------|
-| **kubernaut-operator** | Production / OpenShift (recommended) | `Kubernaut` CR, OIDC provider |
-| **kubernaut's Helm chart** | Production, non-operator Helm installs | Kubernetes cluster, OIDC provider |
-| **Kind manifests** | Local development / demos | Kind cluster, Kubernaut deployed |
+| **kubernaut-operator** | Production / OpenShift | `Kubernaut` CR, OIDC provider |
+| **Kind manifests** | Testing / local demos | Kind cluster, Kubernaut deployed |
 | **Vite dev server** | Frontend development | Node.js 22+, AF port-forwarded |
 
 ---
 
 ## Production Deployment
 
-This repo does not ship its own Helm chart. The console is deployed as part
-of the Kubernaut platform via one of two officially-sanctioned paths, both
-of which provision the same shape described below (an OAuth2 Proxy sidecar
-handling OIDC on port 4180, in front of an Nginx container serving the SPA
-and proxying API requests on port 8080) using the same
-`quay.io/kubernaut-ai/kubernaut-console` image this repo builds and
-publishes:
+This repository does not own the production console deployment or ship a
+production Helm chart. Production is deployed by
+[kubernaut-operator](https://github.com/jordigilh/kubernaut-operator): set
+`spec.console.enabled: true` (plus `spec.console.auth.*` for OIDC) on the
+cluster's `Kubernaut` CR. See the operator's own documentation for the full
+field reference.
 
-1. **`kubernaut-operator`** (recommended): set `spec.console.enabled: true`
-   (plus `spec.console.auth.*` for OIDC) on the cluster's `Kubernaut` CR. See
-   [kubernaut-operator](https://github.com/jordigilh/kubernaut-operator)'s
-   own docs for the full field reference.
-2. **`kubernaut`'s Helm chart**: set `console.enabled: true` when installing
-   [kubernaut](https://github.com/jordigilh/kubernaut)'s chart directly
-   (`charts/kubernaut/`), for environments that install via plain Helm
-   instead of the operator/OLM.
+The manifests in this repository provide an easy deployment path for testing
+and local demos; they are not production deployment templates.
 
 The sections below (Nginx Configuration, Container Image, Health Checks)
 describe what's baked into this repo's own image and apply regardless of
-which of the two paths above deployed it.
+which operator configuration deployed it.
+
+### Production OAuth2 Proxy ownership
+
+This repository does **not** provide a production OAuth2 Proxy manifest or
+overlay. Do not promote `deploy/kind/oauth2-proxy.yaml`: it is a local HTTP
+demo and intentionally uses `--cookie-secure=false` plus oauth2-proxy's
+default encrypted-cookie session store.
+
+The production deployment owner must provide and validate the session-store
+configuration. In the current `kubernaut-operator` implementation,
+`--cookie-secure=true` is configured, but no
+`--session-store-type=redis` (or equivalent Redis/Valkey connection) is
+present yet in `internal/resources/console.go`. This repository does not own
+that deployment topology, its Redis/Valkey lifecycle, or its credentials, so
+it must not invent a production overlay that could contradict the operator.
+Track the production reference and revocation evidence
+in [kubernaut-console#91](https://github.com/jordigilh/kubernaut-console/issues/91);
+the earlier [#36](https://github.com/jordigilh/kubernaut-console/issues/36)
+consideration is closed and superseded by #91.
 
 ---
 
@@ -176,7 +187,7 @@ Tags follow semver: `v0.5.12` → image tag `0.5.12`.
 
 ### Runtime
 
-No runtime environment variables are needed — all routing is handled by the nginx configuration baked into the container image. The OAuth2 Proxy is configured via its command-line flags in whichever deployment path is used (kubernaut-operator, kubernaut's Helm chart, or the Kind manifest).
+No runtime environment variables are needed — all routing is handled by the nginx configuration baked into the container image. The OAuth2 Proxy is configured via its command-line flags by the `kubernaut-operator` in production or in the repository's Kind testing manifest.
 
 ---
 
