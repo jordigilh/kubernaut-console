@@ -14,7 +14,7 @@ env:
 jobs:
   update:
     runs-on: ubuntu-latest
-    container: mcr.microsoft.com/playwright:v1.61.0-noble
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
     permissions:
       contents: read
     steps:
