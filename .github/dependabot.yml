@@ -14,6 +14,12 @@ updates:
     open-pull-requests-limit: 10
     commit-message:
       prefix: deps
+    # TypeScript 7.0 has no stable JavaScript compiler API yet. Keep 7.0.x
+    # blocked, but let Dependabot surface 7.1.x for an explicit review.
+    ignore:
+      - dependency-name: typescript
+        versions:
+          - "7.0.x"
     groups:
       all-npm-deps:
         patterns:
