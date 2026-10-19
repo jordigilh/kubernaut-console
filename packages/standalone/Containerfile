@@ -18,7 +18,7 @@ RUN pnpm --filter @kubernaut/ui-core build \
     && pnpm --filter @kubernaut/standalone build
 
 # registry.access.redhat.com/ubi9/nginx-126:1-1791969848 (linux/amd64, linux/arm64)
-FROM registry.access.redhat.com/ubi9/nginx-126:1-1791969848@sha256:0c3626527f8172f2d54ff67bb25ee286640572ff90a0002bcbe926a9c85ed079
+FROM registry.access.redhat.com/ubi9/nginx-126:1792401459@sha256:6a5104dd37dff4ea6636eb4a991ae1446d53dbf5d0993d739d33b175dc1bc10e
 COPY --from=build /build/packages/standalone/dist /opt/app-root/src
 
 USER 1001
