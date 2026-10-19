@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: read
+
 env:
   REGISTRY: quay.io
   IMAGE_NAME: kubernaut-ai/kubernaut-console
@@ -198,4 +201,10 @@ jobs:
             release_args+=(--prerelease)
           fi
 
-          gh release create "$GITHUB_REF_NAME" "${release_args[@]}"
+          if ! gh release create "$GITHUB_REF_NAME" "${release_args[@]}"; then
+            if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "GitHub Release $GITHUB_REF_NAME was created concurrently"
+              exit 0
+            fi
+            exit 1
+          fi
