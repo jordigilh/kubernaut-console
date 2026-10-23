@@ -4,10 +4,11 @@
  * Tests that @patternfly/chatbot Message renders bot and user roles,
  * handles markdown content, timestamps, and loading states.
  */
-import { describe, it, expect } from "vitest";
+import { beforeAll, describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import Message from "@patternfly/chatbot/dist/dynamic/Message";
 import MessageBox from "@patternfly/chatbot/dist/dynamic/MessageBox";
+import { whenMarkdownRendererReady } from "@patternfly/chatbot/dist/dynamic/MarkdownContent";
 
 import "@patternfly/chatbot/dist/css/main.css";
 import "@patternfly/react-core/dist/styles/base.css";
@@ -16,7 +17,11 @@ describe("PF6 Message Component Spike", () => {
   const botAvatar = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>";
   const userAvatar = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>";
 
-  it("renders bot message with markdown content", () => {
+  beforeAll(async () => {
+    await whenMarkdownRendererReady();
+  });
+
+  it("renders bot message with markdown content", async () => {
     render(
       <Message
         role="bot"
@@ -26,11 +31,11 @@ describe("PF6 Message Component Spike", () => {
         timestamp="2:30 PM"
       />
     );
-    expect(screen.getByText("Root Cause")).toBeTruthy();
-    expect(screen.getByText(/OOM kill/)).toBeTruthy();
+    expect(await screen.findByText("Root Cause")).toBeTruthy();
+    expect(await screen.findByText(/OOM kill/)).toBeTruthy();
   });
 
-  it("renders user message with plain text", () => {
+  it("renders user message with plain text", async () => {
     render(
       <Message
         role="user"
@@ -40,7 +45,7 @@ describe("PF6 Message Component Spike", () => {
         timestamp="2:29 PM"
       />
     );
-    expect(screen.getByText(/Investigate the crashing pod/)).toBeTruthy();
+    expect(await screen.findByText(/Investigate the crashing pod/)).toBeTruthy();
   });
 
   it("shows loading state for streaming messages", () => {
@@ -68,7 +73,7 @@ describe("PF6 Message Component Spike", () => {
     expect(messageBox).toBeTruthy();
   });
 
-  it("renders message with complex markdown (lists, code blocks)", () => {
+  it("renders message with complex markdown (lists, code blocks)", async () => {
     const complexContent = `## Analysis
 - Pod \`api-gateway-xyz\` has been restarting
 - Last exit code: **137** (OOM killed)
@@ -85,8 +90,8 @@ kubectl get pod api-gateway-xyz -o yaml | grep -A 5 lastState
         content={complexContent}
       />
     );
-    expect(screen.getByText("Analysis")).toBeTruthy();
-    expect(screen.getByText(/137/)).toBeTruthy();
+    expect(await screen.findByText("Analysis")).toBeTruthy();
+    expect(await screen.findByText(/137/)).toBeTruthy();
   });
 
   it("renders message with timestamp prop", () => {
