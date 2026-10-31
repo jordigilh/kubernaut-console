@@ -5,6 +5,13 @@
 
 Real-time operator console for the [Kubernaut](https://github.com/jordigilh/kubernaut) autonomous remediation platform. Provides a chat-based interface for observing, approving, and guiding automated incident response in Kubernetes clusters.
 
+## Operational console design
+
+The version-controlled [design/DD handoff](docs/design/console/README.md) captures
+the accepted navigation, per-screen behavior and implementation gates for the
+future operational console. [Runnable mockups and visual references](mockups/console/README.md)
+are static offline studies, not changes to the current application or live API contracts.
+
 ## Features
 
 - **A2A Streaming** — Real-time Server-Sent Events from the Kubernaut Agent

@@ -1,0 +1,29 @@
+/* R1: desktop summary owns a constrained, independently scrollable flex child. */
+.prototype .case-details-disclosure[hidden]{display:none!important}
+@media(min-width:700px){
+  .prototype .rail-case-summary>.rail-summary-scroll{flex:1 1 0;min-height:0;overflow-y:auto}
+  .prototype .case-rr-reference{flex:0 0 auto}
+}
+@media(max-width:699px){
+  .prototype #rail-workspace{overflow-anchor:none}
+  /* R5: reserve >=200px for transcript plus 40px for its identity header,
+     even when a long draft grows the fixed composer. Context is not removed:
+     its labelled region scrolls while heading, RR and details trigger remain. */
+  .prototype .rail-case-summary{
+    display:flex;flex-direction:column;min-height:0;
+    max-height:min(300px,max(130px,calc(100svh - var(--mobile-composer-space,82px) - 240px)));
+  }
+  .prototype .rail-summary-heading,.prototype .case-rr-reference{flex:0 0 auto}
+  .prototype .mobile-case-strip{
+    flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+    scrollbar-gutter:stable;
+  }
+  .prototype .mobile-case-strip:focus-visible{outline:2px solid var(--info);outline-offset:-3px}
+  .prototype .case-details-disclosure{flex:0 0 auto}
+  /* R2: expanded details remain inline, reachable through normal page scroll. */
+  .prototype .rail-case-summary:has(.case-details-disclosure[open]){max-height:none}
+  .prototype .rail-case-summary:has(.case-details-disclosure[open]) .mobile-case-strip{overflow:visible;flex:none}
+  .prototype .case-details-disclosure[open]>#rail-summary-scroll{max-height:none;overflow:visible}
+  /* R4: no obsolete summary offset when expanded context scrolls away. */
+  .prototype .conversation-ai-header{top:var(--mobile-pinned-summary-height,0px)}
+}

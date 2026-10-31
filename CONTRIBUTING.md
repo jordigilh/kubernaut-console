@@ -103,6 +103,11 @@ npx playwright test e2e/visual.spec.ts        # Visual regression (needs Storybo
 
 ## Code Style
 
+The current runtime follows the conventions below. The future operational-console
+redesign follows the accepted [design/DD reference](docs/design/console/README.md)
+and [ADR-010](docs/adr/010-prototype-led-console-design.md), including its separate
+implementation and dependency gates; the static mockups do not change the runtime.
+
 - TypeScript strict mode
 - PatternFly 6 components (no Tailwind CSS)
 - React 19

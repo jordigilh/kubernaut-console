@@ -1,0 +1,39 @@
+/* User-directed single-chat revision. Actual V7.3 tokens; no operational integration. */
+.prototype #screen-investigation .workspace-conversation-card{min-height:560px}
+.prototype #screen-investigation #thread{gap:12px;padding-right:10px;overflow-anchor:none}
+.prototype #screen-investigation .summary-message{border:1px solid var(--edge);border-left:3px solid var(--primary);background:var(--surface);padding:14px;border-radius:7px}
+.prototype #screen-investigation .summary-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+.prototype #screen-investigation .summary-heading .speaker{margin:0}
+.prototype #screen-investigation .summary-message p{font-size:14px;line-height:1.65;margin:8px 0 12px}
+.prototype #screen-investigation .summary-recommendation{color:var(--text);overflow-wrap:anywhere}
+.prototype #screen-investigation .summary-message .summary-note{font-size:12px;color:var(--secondary);line-height:1.6}
+.prototype #screen-investigation .summary-details{margin-top:12px;border-top:1px solid var(--edge)}
+.prototype #screen-investigation .summary-details>summary{cursor:pointer;min-height:44px;align-content:center;padding:8px 0;font-size:14px;font-weight:600;line-height:1.6}
+.prototype #screen-investigation .summary-details[open]>summary{position:sticky;top:0;z-index:1;background:var(--surface);box-shadow:0 1px var(--edge)}
+.prototype #screen-investigation .summary-details>summary span{font-size:12px;font-weight:400;color:var(--secondary)}
+.prototype #screen-investigation .summary-section{margin:16px 0;padding-top:4px}
+.prototype #screen-investigation .summary-section h3{font-size:15px;margin:0 0 10px}
+.prototype #screen-investigation .summary-section h4{font-size:14px;margin:14px 0 8px}
+.prototype #screen-investigation .summary-section ul,.prototype #screen-investigation .summary-section ol{font-size:14px;line-height:1.7;padding-left:22px;margin:8px 0}
+.prototype #screen-investigation .summary-section li{margin:0 0 7px}
+.prototype #screen-investigation .summary-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0;padding:12px;border-radius:6px;background:var(--canvas)}
+.prototype #screen-investigation .summary-metrics dt{font-size:12px;color:var(--secondary);margin:0 0 4px}
+.prototype #screen-investigation .summary-metrics dd{font-size:17px;font-weight:650;margin:0;overflow-wrap:anywhere}
+.prototype #screen-investigation .summary-token-row{grid-column:1/-1;border-top:1px solid var(--edge);padding-top:10px}
+.prototype #screen-investigation .summary-token-row dd{font-size:14px}
+.prototype #screen-investigation .summary-workflow{padding:12px;border:1px solid var(--edge);border-radius:6px;margin:12px 0;background:var(--canvas)}
+.prototype #screen-investigation .summary-workflow h4{margin:0;font-size:14px;overflow-wrap:anywhere}
+.prototype #screen-investigation .summary-workflow[data-recommended=true]{border-left:3px solid var(--primary)}
+.prototype #screen-investigation .summary-workflow .summary-heading{margin:0 0 10px}
+.prototype #screen-investigation .summary-workflow-meta{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--secondary);line-height:1.6}
+.prototype #screen-investigation .summary-workflow-meta code{color:var(--text);overflow-wrap:anywhere}
+.prototype #screen-investigation .summary-parameters{margin:8px 0 0}
+.prototype #screen-investigation .summary-parameters>div{padding:8px 0;border-top:1px solid var(--edge)}
+.prototype #screen-investigation .summary-parameters dt{font-size:12px;color:var(--secondary);overflow-wrap:anywhere}
+.prototype #screen-investigation .summary-parameters dd{font-size:14px;margin:4px 0 0;overflow-wrap:anywhere}
+.prototype #screen-investigation .summary-message a{color:var(--primary-ink);text-decoration:underline;text-underline-offset:3px;display:inline-flex;align-items:center;min-height:44px;font-size:14px}
+.prototype #screen-investigation .summary-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.prototype #screen-investigation .summary-safety-warning{flex:0 0 auto;font-size:13px;line-height:1.6;padding:10px 12px;margin:0 0 12px;border-left:3px solid var(--warning);border-radius:5px;background:var(--warning-tint);color:var(--text)}
+.prototype #screen-investigation .summary-safety-warning[data-tone=error]{border-left-color:var(--danger);background:var(--danger-tint)}
+.prototype #screen-investigation :is(.summary-details>summary,.summary-message a){scroll-margin-block:10px}
+@media(max-width:620px){.prototype #screen-investigation .workspace-conversation-card{min-height:640px}.prototype #screen-investigation .summary-metrics{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.prototype #screen-investigation .summary-message{padding:12px}.prototype #screen-investigation .summary-safety-warning{max-height:140px;overflow:auto}}

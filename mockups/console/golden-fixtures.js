@@ -1,0 +1,813 @@
+window.KUBERNAUT_RECORDED_GOLDENS = {
+  "version": "golden-evidence-v1",
+  "authority": "Historical checked-in captures; not current live state",
+  "extraction": "Allowlist only; no traces, parameters, tool payloads, secrets, endpoints or raw reasoning",
+  "records": [
+    {
+      "fixtureId": "memory-leak",
+      "source": {
+        "repo": "kubernaut-demo-scenarios",
+        "path": "golden-transcripts/memory-leak.json",
+        "sha256": "976f276594d716c9220a678e26afd871dac01cebacaddd613db471baa320c9ce"
+      },
+      "capturedAt": "2026-10-01T23:10:01.507193Z",
+      "schemaVersion": 1,
+      "captureFleetMode": true,
+      "scenario": "memory-leak",
+      "rrId": "rr-d6544d3f583b-7d3041dd",
+      "rrPhase": "Completed",
+      "captureOutcome": "Inconclusive",
+      "signal": "ContainerMemoryExhaustionPredicted",
+      "severity": "warning",
+      "signalTarget": {
+        "kind": "Deployment",
+        "name": "data-service",
+        "namespace": "demo-telemetry"
+      },
+      "remediationTarget": {
+        "kind": "Deployment",
+        "name": "data-service",
+        "namespace": "demo-telemetry"
+      },
+      "recordedConclusion": "The data-processor sidecar continuously writes 1 MiB files every 5 seconds to a memory-backed emptyDir, causing unbounded memory-backed volume growth toward exhaustion. Deployment/data-service owns the pod-template configuration.",
+      "rcaSpecificConfidence": null,
+      "workflowId": "6ad7c705-7177-55cd-8c19-f687c26befea",
+      "workflowName": "graceful-restart-v1",
+      "workflowVersion": null,
+      "workflowConfidence": 0.86,
+      "workflowRationale": null,
+      "approvalRequired": false,
+      "approvalReason": "Policy evaluation does not require manual approval",
+      "needsHumanReview": false,
+      "humanReviewReason": null,
+      "executionPhase": "Completed",
+      "executionDuration": "31s",
+      "executionWorkflowName": "graceful-restart-v1",
+      "assessmentPhase": "Completed",
+      "assessmentReason": "Full",
+      "healthScore": 1,
+      "alertScore": 0,
+      "metricsScore": 0,
+      "effectivenessScore": null,
+      "signalResolved": null,
+      "interventionApplied": null,
+      "repeatEvidenceBasis": null,
+      "repeatPriorOutcomeRelevance": null,
+      "repeatExpectedMechanism": null,
+      "provenance": {
+        "capturedAt": {
+          "pointer": "/_metadata/captured_at",
+          "present": true
+        },
+        "schemaVersion": {
+          "pointer": "/schema_version",
+          "present": true
+        },
+        "captureFleetMode": {
+          "pointer": "/_metadata/fleetMode",
+          "present": true
+        },
+        "scenario": {
+          "pointer": "/scenario",
+          "present": true
+        },
+        "rrId": {
+          "pointer": "/remediationRequest/name",
+          "present": true
+        },
+        "rrPhase": {
+          "pointer": "/remediationRequest/phase",
+          "present": true
+        },
+        "captureOutcome": {
+          "pointer": "/remediationRequest/outcome",
+          "present": true
+        },
+        "signal": {
+          "pointer": "/analysis/signal/signalName",
+          "present": true
+        },
+        "severity": {
+          "pointer": "/analysis/signal/severity",
+          "present": true
+        },
+        "signalTarget": {
+          "pointer": "/analysis/signal/targetResource",
+          "present": true
+        },
+        "remediationTarget": {
+          "pointer": "/analysis/rootCauseAnalysis/remediationTarget",
+          "present": true
+        },
+        "recordedConclusion": {
+          "pointer": "/analysis/rootCauseSummary",
+          "present": true
+        },
+        "rcaSpecificConfidence": {
+          "pointer": "/analysis/rootCauseAnalysis/confidence",
+          "present": false
+        },
+        "workflowId": {
+          "pointer": "/analysis/selectedWorkflow/workflowId",
+          "present": true
+        },
+        "workflowName": {
+          "pointer": "/analysis/selectedWorkflow/workflowName",
+          "present": true
+        },
+        "workflowVersion": {
+          "pointer": "/analysis/selectedWorkflow/version",
+          "present": false
+        },
+        "workflowConfidence": {
+          "pointer": "/analysis/selectedWorkflow/confidence",
+          "present": true
+        },
+        "workflowRationale": {
+          "pointer": "/analysis/selectedWorkflow/rationale",
+          "present": false
+        },
+        "approvalRequired": {
+          "pointer": "/analysis/approvalRequired",
+          "present": true
+        },
+        "approvalReason": {
+          "pointer": "/analysis/approvalReason",
+          "present": true
+        },
+        "needsHumanReview": {
+          "pointer": "/analysis/needsHumanReview",
+          "present": true
+        },
+        "humanReviewReason": {
+          "pointer": "/analysis/humanReviewReason",
+          "present": false
+        },
+        "executionPhase": {
+          "pointer": "/workflowExecution/phase",
+          "present": true
+        },
+        "executionDuration": {
+          "pointer": "/workflowExecution/duration",
+          "present": true
+        },
+        "executionWorkflowName": {
+          "pointer": "/workflowExecution/workflowName",
+          "present": true
+        },
+        "assessmentPhase": {
+          "pointer": "/effectivenessAssessment/phase",
+          "present": true
+        },
+        "assessmentReason": {
+          "pointer": "/effectivenessAssessment/reason",
+          "present": true
+        },
+        "healthScore": {
+          "pointer": "/effectivenessAssessment/healthScore",
+          "present": true
+        },
+        "alertScore": {
+          "pointer": "/effectivenessAssessment/alertScore",
+          "present": true
+        },
+        "metricsScore": {
+          "pointer": "/effectivenessAssessment/metricsScore",
+          "present": true
+        },
+        "effectivenessScore": {
+          "pointer": "/effectivenessAssessment/effectivenessScore",
+          "present": false
+        },
+        "signalResolved": {
+          "pointer": "/effectivenessAssessment/signalResolved",
+          "present": false
+        },
+        "interventionApplied": {
+          "pointer": "/effectivenessAssessment/interventionApplied",
+          "present": false
+        },
+        "repeatEvidenceBasis": {
+          "pointer": null,
+          "present": false,
+          "reason": "Selected workflow keys inspected; no repeat explanation field exported. No current wire path inferred."
+        },
+        "repeatPriorOutcomeRelevance": {
+          "pointer": null,
+          "present": false,
+          "reason": "Selected workflow keys inspected; no repeat explanation field exported. No current wire path inferred."
+        },
+        "repeatExpectedMechanism": {
+          "pointer": null,
+          "present": false,
+          "reason": "Selected workflow keys inspected; no repeat explanation field exported. No current wire path inferred."
+        }
+      }
+    },
+    {
+      "fixtureId": "resource-quota-exhaustion",
+      "source": {
+        "repo": "kubernaut-demo-scenarios",
+        "path": "golden-transcripts/resource-quota-exhaustion.json",
+        "sha256": "b02b4a1ec8c63ae50fd67f10b2224205d33dc83cf5daf4bc9235c3b3c7ec401a"
+      },
+      "capturedAt": "2026-10-02T01:29:12.210549Z",
+      "schemaVersion": 1,
+      "captureFleetMode": true,
+      "scenario": "resource-quota-exhaustion",
+      "rrId": "rr-9a200a4bc21c-aee5cbe9",
+      "rrPhase": "Completed",
+      "captureOutcome": "ManualReviewRequired",
+      "signal": "KubeResourceQuotaExhausted",
+      "severity": "warning",
+      "signalTarget": {
+        "kind": "Deployment",
+        "name": "api-server",
+        "namespace": "demo-platform"
+      },
+      "remediationTarget": {
+        "kind": "ResourceQuota",
+        "name": "namespace-quota",
+        "namespace": "demo-platform"
+      },
+      "recordedConclusion": "The `api-server` Deployment cannot reach its desired 3 replicas because each pod requests and limits 256Mi memory while `demo-platform/namespace-quota` permits only 512Mi total, already fully consumed by the two existing pods.",
+      "rcaSpecificConfidence": null,
+      "workflowId": null,
+      "workflowName": null,
+      "workflowVersion": null,
+      "workflowConfidence": null,
+      "workflowRationale": null,
+      "approvalRequired": false,
+      "approvalReason": null,
+      "needsHumanReview": true,
+      "humanReviewReason": "no_matching_workflows",
+      "executionPhase": "NotCreated",
+      "executionDuration": null,
+      "executionWorkflowName": null,
+      "assessmentPhase": "NotCreated",
+      "assessmentReason": null,
+      "healthScore": null,
+      "alertScore": null,
+      "metricsScore": null,
+      "effectivenessScore": null,
+      "signalResolved": null,
+      "interventionApplied": null,
+      "repeatEvidenceBasis": null,
+      "repeatPriorOutcomeRelevance": null,
+      "repeatExpectedMechanism": null,
+      "provenance": {
+        "capturedAt": {
+          "pointer": "/_metadata/captured_at",
+          "present": true
+        },
+        "schemaVersion": {
+          "pointer": "/schema_version",
+          "present": true
+        },
+        "captureFleetMode": {
+          "pointer": "/_metadata/fleetMode",
+          "present": true
+        },
+        "scenario": {
+          "pointer": "/scenario",
+          "present": true
+        },
+        "rrId": {
+          "pointer": "/remediationRequest/name",
+          "present": true
+        },
+        "rrPhase": {
+          "pointer": "/remediationRequest/phase",
+          "present": true
+        },
+        "captureOutcome": {
+          "pointer": "/remediationRequest/outcome",
+          "present": true
+        },
+        "signal": {
+          "pointer": "/analysis/signal/signalName",
+          "present": true
+        },
+        "severity": {
+          "pointer": "/analysis/signal/severity",
+          "present": true
+        },
+        "signalTarget": {
+          "pointer": "/analysis/signal/targetResource",
+          "present": true
+        },
+        "remediationTarget": {
+          "pointer": "/analysis/rootCauseAnalysis/remediationTarget",
+          "present": true
+        },
+        "recordedConclusion": {
+          "pointer": "/analysis/rootCauseSummary",
+          "present": true
+        },
+        "rcaSpecificConfidence": {
+          "pointer": "/analysis/rootCauseAnalysis/confidence",
+          "present": false
+        },
+        "workflowId": {
+          "pointer": "/analysis/selectedWorkflow/workflowId",
+          "present": false
+        },
+        "workflowName": {
+          "pointer": "/analysis/selectedWorkflow/workflowName",
+          "present": false
+        },
+        "workflowVersion": {
+          "pointer": "/analysis/selectedWorkflow/version",
+          "present": false
+        },
+        "workflowConfidence": {
+          "pointer": "/analysis/selectedWorkflow/confidence",
+          "present": false
+        },
+        "workflowRationale": {
+          "pointer": "/analysis/selectedWorkflow/rationale",
+          "present": false
+        },
+        "approvalRequired": {
+          "pointer": "/analysis/approvalRequired",
+          "present": true
+        },
+        "approvalReason": {
+          "pointer": "/analysis/approvalReason",
+          "present": false
+        },
+        "needsHumanReview": {
+          "pointer": "/analysis/needsHumanReview",
+          "present": true
+        },
+        "humanReviewReason": {
+          "pointer": "/analysis/humanReviewReason",
+          "present": true
+        },
+        "executionPhase": {
+          "pointer": "/workflowExecution/phase",
+          "present": true
+        },
+        "executionDuration": {
+          "pointer": "/workflowExecution/duration",
+          "present": false
+        },
+        "executionWorkflowName": {
+          "pointer": "/workflowExecution/workflowName",
+          "present": false
+        },
+        "assessmentPhase": {
+          "pointer": "/effectivenessAssessment/phase",
+          "present": true
+        },
+        "assessmentReason": {
+          "pointer": "/effectivenessAssessment/reason",
+          "present": false
+        },
+        "healthScore": {
+          "pointer": "/effectivenessAssessment/healthScore",
+          "present": false
+        },
+        "alertScore": {
+          "pointer": "/effectivenessAssessment/alertScore",
+          "present": false
+        },
+        "metricsScore": {
+          "pointer": "/effectivenessAssessment/metricsScore",
+          "present": false
+        },
+        "effectivenessScore": {
+          "pointer": "/effectivenessAssessment/effectivenessScore",
+          "present": false
+        },
+        "signalResolved": {
+          "pointer": "/effectivenessAssessment/signalResolved",
+          "present": false
+        },
+        "interventionApplied": {
+          "pointer": "/effectivenessAssessment/interventionApplied",
+          "present": false
+        },
+        "repeatEvidenceBasis": {
+          "pointer": null,
+          "present": false,
+          "reason": "Selected workflow keys inspected; no repeat explanation field exported. No current wire path inferred."
+        },
+        "repeatPriorOutcomeRelevance": {
+          "pointer": null,
+          "present": false,
+          "reason": "Selected workflow keys inspected; no repeat explanation field exported. No current wire path inferred."
+        },
+        "repeatExpectedMechanism": {
+          "pointer": null,
+          "present": false,
+          "reason": "Selected workflow keys inspected; no repeat explanation field exported. No current wire path inferred."
+        }
+      }
+    },
+    {
+      "fixtureId": "operator-oomkill-informer",
+      "source": {
+        "repo": "kubernaut-demo-scenarios",
+        "path": "golden-transcripts/operator-oomkill-informer-kubepodcrashlooping.json",
+        "sha256": "64409b6c424025cc01c859d0b5c66a81188b6a89ae10992fbaed34d2ae4ca2d5"
+      },
+      "capturedAt": "2026-06-04T14:01:19Z",
+      "schemaVersion": 1,
+      "captureFleetMode": null,
+      "scenario": "operator-oomkill-informer",
+      "rrId": "rr-c855fdb5bc62-f609b632",
+      "rrPhase": "Completed",
+      "captureOutcome": "Remediated",
+      "signal": "KubePodCrashLooping",
+      "severity": "critical",
+      "signalTarget": {
+        "kind": "Deployment",
+        "name": "demo-controllers-controller",
+        "namespace": "demo-controllers"
+      },
+      "remediationTarget": {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "name": "demo-controllers-controller",
+        "namespace": "demo-controllers"
+      },
+      "recordedConclusion": "The demo-controllers-controller manager container is repeatedly OOMKilled because its memory limit of 128Mi is insufficient for the operator's working memory needs. The container's memory grows from ~15MB to ~93MB within 90 seconds at startup, reaching ~73% of the 128Mi limit before being killed (exit code 137). The container survives only ~5 seconds per restart cycle, causing CrashLoopBackOff.",
+      "rcaSpecificConfidence": null,
+      "workflowId": "7af4825d-11be-5ad6-a8da-682515474238",
+      "workflowName": null,
+      "workflowVersion": "1.5.0",
+      "workflowConfidence": 0.95,
+      "workflowRationale": "The root cause is definitively an undersized memory limit (128Mi) causing OOMKill on every pod start. The increase-memory-limits-v1 workflow is purpose-built for exactly this scenario: ContainerOOMKilling / OOMKilled termination reason where the memory limit is too low for the workload's requirements. The workflow doubles the current memory limit as a first-pass mitigation, buying time for the application team to investigate long-term memory requirements. The RollbackDeployment action type's own documentation explicitly excludes OOMKill scenarios and redirects to IncreaseMemoryLimits.",
+      "approvalRequired": false,
+      "approvalReason": "Auto-approved",
+      "needsHumanReview": false,
+      "humanReviewReason": null,
+      "executionPhase": null,
+      "executionDuration": null,
+      "executionWorkflowName": null,
+      "assessmentPhase": null,
+      "assessmentReason": null,
+      "healthScore": 1,
+      "alertScore": 1,
+      "metricsScore": 0,
+      "effectivenessScore": null,
+      "signalResolved": null,
+      "interventionApplied": null,
+      "repeatEvidenceBasis": null,
+      "repeatPriorOutcomeRelevance": null,
+      "repeatExpectedMechanism": null,
+      "provenance": {
+        "capturedAt": {
+          "pointer": "/_metadata/captured_at",
+          "present": true
+        },
+        "schemaVersion": {
+          "pointer": "/schema_version",
+          "present": true
+        },
+        "captureFleetMode": {
+          "pointer": "/_metadata/fleetMode",
+          "present": false
+        },
+        "scenario": {
+          "pointer": "/scenario",
+          "present": true
+        },
+        "rrId": {
+          "pointer": "/remediationRequest/name",
+          "present": true
+        },
+        "rrPhase": {
+          "pointer": "/remediationRequest/phase",
+          "present": true
+        },
+        "captureOutcome": {
+          "pointer": "/remediationRequest/outcome",
+          "present": true
+        },
+        "signal": {
+          "pointer": "/analysis/signal/signalName",
+          "present": true
+        },
+        "severity": {
+          "pointer": "/analysis/signal/severity",
+          "present": true
+        },
+        "signalTarget": {
+          "pointer": "/analysis/signal/targetResource",
+          "present": true
+        },
+        "remediationTarget": {
+          "pointer": "/analysis/rootCauseAnalysis/remediationTarget",
+          "present": true
+        },
+        "recordedConclusion": {
+          "pointer": "/analysis/rootCauseSummary",
+          "present": true
+        },
+        "rcaSpecificConfidence": {
+          "pointer": "/analysis/rootCauseAnalysis/confidence",
+          "present": false
+        },
+        "workflowId": {
+          "pointer": "/analysis/selectedWorkflow/workflowId",
+          "present": true
+        },
+        "workflowName": {
+          "pointer": "/analysis/selectedWorkflow/workflowName",
+          "present": false
+        },
+        "workflowVersion": {
+          "pointer": "/analysis/selectedWorkflow/version",
+          "present": true
+        },
+        "workflowConfidence": {
+          "pointer": "/analysis/selectedWorkflow/confidence",
+          "present": true
+        },
+        "workflowRationale": {
+          "pointer": "/analysis/selectedWorkflow/rationale",
+          "present": true
+        },
+        "approvalRequired": {
+          "pointer": "/analysis/approvalRequired",
+          "present": true
+        },
+        "approvalReason": {
+          "pointer": "/analysis/approvalReason",
+          "present": true
+        },
+        "needsHumanReview": {
+          "pointer": "/analysis/needsHumanReview",
+          "present": true
+        },
+        "humanReviewReason": {
+          "pointer": "/analysis/humanReviewReason",
+          "present": false
+        },
+        "executionPhase": {
+          "pointer": "/workflowExecution/phase",
+          "present": false
+        },
+        "executionDuration": {
+          "pointer": "/workflowExecution/duration",
+          "present": false
+        },
+        "executionWorkflowName": {
+          "pointer": "/workflowExecution/workflowName",
+          "present": false
+        },
+        "assessmentPhase": {
+          "pointer": "/effectivenessAssessment/phase",
+          "present": false
+        },
+        "assessmentReason": {
+          "pointer": "/effectivenessAssessment/reason",
+          "present": false
+        },
+        "healthScore": {
+          "pointer": "/effectivenessAssessment/healthScore",
+          "present": true
+        },
+        "alertScore": {
+          "pointer": "/effectivenessAssessment/alertScore",
+          "present": true
+        },
+        "metricsScore": {
+          "pointer": "/effectivenessAssessment/metricsScore",
+          "present": true
+        },
+        "effectivenessScore": {
+          "pointer": "/effectivenessAssessment/effectivenessScore",
+          "present": false
+        },
+        "signalResolved": {
+          "pointer": "/effectivenessAssessment/signalResolved",
+          "present": false
+        },
+        "interventionApplied": {
+          "pointer": "/effectivenessAssessment/interventionApplied",
+          "present": false
+        },
+        "repeatEvidenceBasis": {
+          "pointer": null,
+          "present": false,
+          "reason": "Selected workflow keys inspected; no repeat explanation field exported. No current wire path inferred."
+        },
+        "repeatPriorOutcomeRelevance": {
+          "pointer": null,
+          "present": false,
+          "reason": "Selected workflow keys inspected; no repeat explanation field exported. No current wire path inferred."
+        },
+        "repeatExpectedMechanism": {
+          "pointer": null,
+          "present": false,
+          "reason": "Selected workflow keys inspected; no repeat explanation field exported. No current wire path inferred."
+        }
+      }
+    },
+    {
+      "fixtureId": "statefulset-pvc-failure",
+      "source": {
+        "repo": "kubernaut-demo-scenarios",
+        "path": "golden-transcripts/statefulset-pvc-failure-kubestatefulsetreplicasmismatch.json",
+        "sha256": "e7d336f557b4cd5c4d674a61b4af5e2224007e787a704671363aa9b2c2c99396"
+      },
+      "capturedAt": "2026-10-02T18:51:12Z",
+      "schemaVersion": 1,
+      "captureFleetMode": null,
+      "scenario": "statefulset-pvc-failure",
+      "rrId": "rr-10a3e3419019-f32ca31b",
+      "rrPhase": "Completed",
+      "captureOutcome": "Remediated",
+      "signal": "KubeStatefulSetReplicasMismatch",
+      "severity": "critical",
+      "signalTarget": {
+        "kind": "StatefulSet",
+        "name": "kv-store",
+        "namespace": "demo-keystore"
+      },
+      "remediationTarget": {
+        "apiVersion": "v1",
+        "kind": "PersistentVolumeClaim",
+        "name": "data-kv-store-2",
+        "namespace": "demo-keystore"
+      },
+      "recordedConclusion": "StatefulSet replica kv-store-2 is unavailable because its replacement PVC data-kv-store-2 references nonexistent StorageClass broken-storage-class, leaving the PVC unbound and the pod unschedulable.",
+      "rcaSpecificConfidence": null,
+      "workflowId": "07ae06ef-0486-5a2b-823b-ba6790bf091b",
+      "workflowName": "fix-statefulset-pvc-v1",
+      "workflowVersion": "1.6.3",
+      "workflowConfidence": 0.86,
+      "workflowRationale": "The catalog's preferred CleanupPVC workflow is for reclaiming disk space and does not address provisioning failure. FixStatefulSetPVC is the only discovered workflow targeting an unbound StatefulSet PVC and a Pending pod. It can recreate the claim using the StatefulSet's volumeClaimTemplate, subject to preserving any required data and ensuring the template uses an available StorageClass.",
+      "approvalRequired": true,
+      "approvalReason": "Sensitive resource kind requires manual approval",
+      "needsHumanReview": false,
+      "humanReviewReason": null,
+      "executionPhase": null,
+      "executionDuration": null,
+      "executionWorkflowName": null,
+      "assessmentPhase": null,
+      "assessmentReason": null,
+      "healthScore": null,
+      "alertScore": 1,
+      "metricsScore": 0.25000000000000006,
+      "effectivenessScore": null,
+      "signalResolved": null,
+      "interventionApplied": null,
+      "repeatEvidenceBasis": null,
+      "repeatPriorOutcomeRelevance": null,
+      "repeatExpectedMechanism": null,
+      "provenance": {
+        "capturedAt": {
+          "pointer": "/_metadata/captured_at",
+          "present": true
+        },
+        "schemaVersion": {
+          "pointer": "/schema_version",
+          "present": true
+        },
+        "captureFleetMode": {
+          "pointer": "/_metadata/fleetMode",
+          "present": false
+        },
+        "scenario": {
+          "pointer": "/scenario",
+          "present": true
+        },
+        "rrId": {
+          "pointer": "/remediationRequest/name",
+          "present": true
+        },
+        "rrPhase": {
+          "pointer": "/remediationRequest/phase",
+          "present": true
+        },
+        "captureOutcome": {
+          "pointer": "/remediationRequest/outcome",
+          "present": true
+        },
+        "signal": {
+          "pointer": "/analysis/signal/signalName",
+          "present": true
+        },
+        "severity": {
+          "pointer": "/analysis/signal/severity",
+          "present": true
+        },
+        "signalTarget": {
+          "pointer": "/analysis/signal/targetResource",
+          "present": true
+        },
+        "remediationTarget": {
+          "pointer": "/analysis/rootCauseAnalysis/remediationTarget",
+          "present": true
+        },
+        "recordedConclusion": {
+          "pointer": "/analysis/rootCauseSummary",
+          "present": true
+        },
+        "rcaSpecificConfidence": {
+          "pointer": "/analysis/rootCauseAnalysis/confidence",
+          "present": false
+        },
+        "workflowId": {
+          "pointer": "/analysis/selectedWorkflow/workflowId",
+          "present": true
+        },
+        "workflowName": {
+          "pointer": "/analysis/selectedWorkflow/workflowName",
+          "present": true
+        },
+        "workflowVersion": {
+          "pointer": "/analysis/selectedWorkflow/version",
+          "present": true
+        },
+        "workflowConfidence": {
+          "pointer": "/analysis/selectedWorkflow/confidence",
+          "present": true
+        },
+        "workflowRationale": {
+          "pointer": "/analysis/selectedWorkflow/rationale",
+          "present": true
+        },
+        "approvalRequired": {
+          "pointer": "/analysis/approvalRequired",
+          "present": true
+        },
+        "approvalReason": {
+          "pointer": "/analysis/approvalReason",
+          "present": true
+        },
+        "needsHumanReview": {
+          "pointer": "/analysis/needsHumanReview",
+          "present": true
+        },
+        "humanReviewReason": {
+          "pointer": "/analysis/humanReviewReason",
+          "present": false
+        },
+        "executionPhase": {
+          "pointer": "/workflowExecution/phase",
+          "present": false
+        },
+        "executionDuration": {
+          "pointer": "/workflowExecution/duration",
+          "present": false
+        },
+        "executionWorkflowName": {
+          "pointer": "/workflowExecution/workflowName",
+          "present": false
+        },
+        "assessmentPhase": {
+          "pointer": "/effectivenessAssessment/phase",
+          "present": false
+        },
+        "assessmentReason": {
+          "pointer": "/effectivenessAssessment/reason",
+          "present": false
+        },
+        "healthScore": {
+          "pointer": "/effectivenessAssessment/healthScore",
+          "present": false
+        },
+        "alertScore": {
+          "pointer": "/effectivenessAssessment/alertScore",
+          "present": true
+        },
+        "metricsScore": {
+          "pointer": "/effectivenessAssessment/metricsScore",
+          "present": true
+        },
+        "effectivenessScore": {
+          "pointer": "/effectivenessAssessment/effectivenessScore",
+          "present": false
+        },
+        "signalResolved": {
+          "pointer": "/effectivenessAssessment/signalResolved",
+          "present": false
+        },
+        "interventionApplied": {
+          "pointer": "/effectivenessAssessment/interventionApplied",
+          "present": false
+        },
+        "repeatEvidenceBasis": {
+          "pointer": null,
+          "present": false,
+          "reason": "Selected workflow keys inspected; no repeat explanation field exported. No current wire path inferred."
+        },
+        "repeatPriorOutcomeRelevance": {
+          "pointer": null,
+          "present": false,
+          "reason": "Selected workflow keys inspected; no repeat explanation field exported. No current wire path inferred."
+        },
+        "repeatExpectedMechanism": {
+          "pointer": null,
+          "present": false,
+          "reason": "Selected workflow keys inspected; no repeat explanation field exported. No current wire path inferred."
+        }
+      }
+    }
+  ]
+};

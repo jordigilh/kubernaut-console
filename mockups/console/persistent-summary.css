@@ -1,0 +1,5 @@
+/* User correction: persistent right-hand summary, resizing only; no collapse/drawer. */
+.prototype .rail-workspace{grid-template-columns:minmax(0,1fr) minmax(180px,var(--rail-width,20%))}
+.prototype .rail-case-summary{position:relative;right:auto;top:auto;width:auto;box-shadow:none}
+.prototype #rail-resizer{display:block}
+@media(max-width:620px){.prototype .rail-workspace{grid-template-columns:minmax(0,1fr) minmax(140px,var(--rail-width,20%));gap:8px}.prototype .rail-summary-heading{padding:9px 8px}.prototype .rail-summary-scroll{padding:0 8px}}
