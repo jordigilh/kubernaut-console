@@ -19,7 +19,7 @@
 @media(max-width:699px){
   .prototype.rail-study-shell{display:block;overflow:visible;min-height:0}
   .prototype.rail-study-shell .app-header{position:static}
-  .prototype .mobile-menu-control,.prototype .sidebar[aria-expanded=true]{position:static;top:auto;z-index:auto;max-height:none}
+  .prototype .mobile-menu-control,.prototype .sidebar[data-mobile-expanded=true]{position:static;top:auto;z-index:auto;max-height:none}
   .prototype.rail-study-shell .main{overflow:visible;padding:8px 10px calc(var(--mobile-composer-space,82px) + 16px)}
   .prototype .rail-workspace{display:flex;flex-direction:column;height:auto;min-height:0;gap:10px}
   .prototype .rail-case-summary{position:sticky;top:0;z-index:4;display:block;height:auto;width:auto;min-width:0;box-shadow:none}

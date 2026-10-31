@@ -28,7 +28,7 @@ The user tested the priority navigation and confirmed it works: at≤699px, perm
 
 The first runtime delivery remains independent cross-operator RAR discovery/review/approve-or-reject without the originating chat or investigative rights. All-menu designs do not make inventory, dashboards, general audit, administration or parameter editing prerequisites.
 
-Full information/state/action parity, typed read projections, least-privilege grants, conditional decisions, browser ownership, supported browsers/AT and deployed acceptance remain explicitly gated. Current mockup check counts and historical review outcomes are not production test passes or a blanket independent audit. The publication changes documentation/mockups only, not application source, dependencies, auth, deployment or live state.
+Full information/state/action parity, typed read projections, least-privilege grants, conditional decisions, browser ownership, supported browsers/AT and deployed acceptance remain explicitly gated. Current mockup check counts and historical review outcomes are not production test passes or a blanket independent audit. The design handoff does not implement application behavior, change authentication or deploy live state. Accompanying runtime-base security maintenance is tracked separately in the [image scan record](../../security/standalone-image-scan-exceptions.md), not treated as authorization for the console redesign.
 
 ## Public reference boundary
 

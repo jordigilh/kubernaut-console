@@ -54,11 +54,14 @@ try {
     await page.waitForFunction(() => window.PriorityNavigation?.ready);
     assert.match(page.url(), /navigation\.html\?dataset=synthetic#approvals$/);
     assert.equal(await page.locator('#console-nav a').count(), 8);
+    assert.equal(await page.locator('#console-nav').getAttribute('aria-expanded'), null);
+    assert.equal(await page.locator('#console-nav').getAttribute('data-mobile-expanded'), 'false');
     assert.equal(await page.locator('#priority-more').isVisible(), false);
     assert(await page.locator('#brand-logo').evaluate(n => n.complete && n.naturalWidth > 0));
   });
   await check('Phone More, native keys and secondary route', async () => {
     await menu(390, 'dark'); await page.evaluate(() => scrollTo(0, 0));
+    assert.equal(await page.locator('#console-nav').getAttribute('aria-expanded'), null);
     await page.locator('#priority-more').click(); await page.keyboard.press('Tab');
     assert.equal(await page.locator(':focus').getAttribute('id'), 'nav-overview');
     await page.keyboard.press('Escape'); assert.equal(await page.locator(':focus').getAttribute('id'), 'priority-more');
@@ -82,10 +85,49 @@ try {
     assert.match(await page.locator('.main').innerText(), /not this operational read/);
     assert.equal(await page.locator('#nav-investigations').isVisible(), false);
   });
+  await check('Notification fixtures stay usable after nineteen minutes and scope changes', async () => {
+    await page.clock.install();
+    try {
+      await menu(1280);
+      await page.locator('#notification-demo > summary').click();
+      await page.locator('#notification-periodic').uncheck();
+      await page.clock.fastForward(19 * 60 * 1000);
+      await page.locator('#notification-investigation').click();
+      let state = await page.evaluate(() => window.KubernautNotificationStudy.store.snapshot());
+      const original = state.records.find(r => r.name === 'rar-demo-02');
+      assert.equal(original.decision, 'Pending');
+      assert.equal(await page.locator('#notification-toast').isVisible(), true);
+      assert.equal(await page.locator('#notification-count').innerText(), '1');
+      await page.evaluate(() => window.KubernautNotificationStudy.poll());
+      state = await page.evaluate(() => window.KubernautNotificationStudy.store.snapshot());
+      assert.equal(state.records.find(r => r.name === 'rar-demo-02').requiredBy, original.requiredBy);
+      assert.equal(await page.evaluate(() => window.KubernautNotificationStudy.stats().toastCount), 1);
+      await page.evaluate(() => window.KubernautNotificationStudy.queue());
+      await page.evaluate(() => window.KubernautNotificationStudy.poll());
+      state = await page.evaluate(() => window.KubernautNotificationStudy.store.snapshot());
+      assert.equal(state.records.find(r => r.name === 'rar-demo-03').decision, 'Pending');
+      assert.equal(await page.evaluate(() => window.KubernautNotificationStudy.stats().toastCount), 2);
+      await page.evaluate(() => window.KubernautNotificationStudy.resolve());
+      state = await page.evaluate(() => window.KubernautNotificationStudy.store.snapshot());
+      assert.equal(state.records.find(r => r.name === 'rar-demo-02').decision, 'Rejected');
+      assert.equal(state.records.find(r => r.name === 'rar-demo-02').requiredBy, original.requiredBy);
+      assert.equal(await page.evaluate(() => window.KubernautNotificationStudy.investigation()), false);
+      await page.locator('#access-preview').selectOption('approvals');
+      await page.evaluate(() => window.KubernautNotificationStudy.poll());
+      state = await page.evaluate(() => window.KubernautNotificationStudy.store.snapshot());
+      assert.equal(state.records.find(r => r.name === 'rar-demo-01').decision, 'Pending');
+      assert.equal(state.records.find(r => r.name === 'rar-demo-01').notified, false);
+      assert.equal(await page.locator('#notification-count').isVisible(), false);
+    } finally {
+      await page.clock.resume();
+    }
+  });
   await check('Standalone summary, Activity return and local draft', async () => {
     await page.setViewportSize({ width: 320, height: 568 });
     await page.goto(pathToFileURL(join(mock, 'navigation-investigation.html')).href);
     await page.waitForFunction(() => window.ProgressMock?.ready);
+    assert.equal(await page.locator('#console-nav').getAttribute('aria-expanded'), null);
+    assert.equal(await page.locator('#console-nav').getAttribute('data-mobile-expanded'), 'false');
     await page.locator('#prototype-controls>summary').click();
     await page.locator('#rail-preview-stage').selectOption('investigating');
     await page.locator('#prototype-controls>summary').click();
@@ -102,6 +144,10 @@ try {
     assert.equal(await page.locator('article:visible').count(), 6);
     assert(await page.locator('article img').first().evaluate(n => n.complete && n.naturalWidth > 0));
     await page.screenshot({ path: join(evidence, 'gallery.png') });
+    await page.locator('#set').selectOption('all');
+    await page.locator('#filter').fill('pending-audit-unavailable');
+    assert(await page.locator('article:visible').count() > 0, 'Capture state must be searchable');
+    assert(await page.locator('article:visible').filter({ hasText: 'rar-review-light-desktop' }).count() > 0);
   });
   result.passed = result.checks.every(v => v.passed) && !result.errors.length && !result.denied.length;
 } finally {

@@ -123,7 +123,7 @@
  document.addEventListener('click',e=>{
   const a=e.target.closest('a[href^="#"]');if(!a||!a.closest('#app')||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
     remember(a);pendingLink={href:a.getAttribute('href'),restore:a.dataset.restoreList==='true',restoreReview:a.dataset.restoreReview==='true',stamp:inputSequence};
-  if(a.closest('.sidebar')){$('mobile-menu').setAttribute('aria-expanded','false');$('console-nav').setAttribute('aria-expanded','false');}
+  if(a.closest('.sidebar')){$('mobile-menu').setAttribute('aria-expanded','false');$('console-nav').setAttribute('data-mobile-expanded','false');}
  },true);
  document.addEventListener('change',e=>{
    if(e.target.id&&e.target.closest('.preview-tools')&&e.target.id!=='ux-case-read'){focusedControl={id:e.target.id,stamp:inputSequence};}

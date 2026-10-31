@@ -405,7 +405,7 @@
   composer.addEventListener('input', () => { if (mobile) { composer.style.height = '40px'; composer.style.height = Math.min(96, Math.max(40, composer.scrollHeight)) + 'px'; syncSizes(); } });
   $('mobile-menu')?.addEventListener('click', event => {
     const expanded = event.currentTarget.getAttribute('aria-expanded') !== 'true';
-    event.currentTarget.setAttribute('aria-expanded', String(expanded)); $('console-nav')?.setAttribute('aria-expanded', String(expanded)); syncSizes();
+    event.currentTarget.setAttribute('aria-expanded', String(expanded)); $('console-nav')?.setAttribute('data-mobile-expanded', String(expanded)); syncSizes();
   });
   new ResizeObserver(syncSizes).observe(panel);
   new ResizeObserver(syncSizes).observe(document.querySelector('.composer'));

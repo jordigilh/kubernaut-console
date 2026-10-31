@@ -12,6 +12,12 @@
     'rar-demo-02': { name: 'rar-demo-02', namespace, decision: 'Pending', requiredBy: '2026-10-28T14:13:00Z' },
     'rar-demo-03': { name: 'rar-demo-03', namespace, decision: 'Pending', requiredBy: '2026-10-28T14:27:00Z' },
   };
+  const demoNow = () => demoStart + performance.now() - clockStart;
+  /** Give a newly introduced fixture its original validity window on the demo clock. */
+  function fresh(name) {
+    const fixture = fixtures[name];
+    return { ...fixture, requiredBy: new Date(demoNow() + Date.parse(fixture.requiredBy) - demoStart).toISOString() };
+  }
   const host = document.createElement('div'); host.className = 'notification-host';
   host.innerHTML = '<button class="notification-toggle" id="notification-toggle" type="button" aria-label="Notifications, no unread alerts" aria-expanded="false" aria-controls="notification-panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span id="notification-count" class="notification-count" hidden></span></button><section class="notification-panel" id="notification-panel" aria-labelledby="notification-heading" hidden><h2 id="notification-heading">Notifications</h2><p class="notification-note">This browser session · not an assignment or inbox total</p><p class="notification-empty" id="notification-empty">No new approval alerts in this session.</p><ul id="notification-list"></ul><div class="notification-inbox"><a href="#approvals" id="notification-inbox">Open Approvals inbox →</a></div></section>';
   app.querySelector('.app-header').append(host);
@@ -74,7 +80,7 @@
     live.textContent = `New approval request ${record.name}. Open Notifications or the Approvals inbox to review.`;
     toast.hidden = false; layout();
   }
-  const store = window.KubernautNotificationStore.createStore({ now: () => demoStart + performance.now() - clockStart, onChange: render, onNotify: notify });
+  const store = window.KubernautNotificationStore.createStore({ now: demoNow, onChange: render, onNotify: notify });
   function poll() {
     if (!allowed()) return Promise.resolve(false);
     const ticket = store.beginPoll(); if (!ticket) return Promise.resolve(false);
@@ -99,21 +105,22 @@
     }
     contextKey = activeContext(); dismissToast(); closePanel(); feed.clear();
     const ready = allowed();
-    if (ready) feed.set('rar-demo-01', { ...fixtures['rar-demo-01'] });
+    if (ready) feed.set('rar-demo-01', fresh('rar-demo-01'));
     store.setScope(ready ? { source, namespace, principal: 'synthetic-viewer:' + $('access-preview').value, session: 'prototype-epoch-' + (epoch + 1) } : null);
     lastMessage = ready ? 'Notification study active for this synthetic scope.' : 'Alerts disabled: signed out, historical dataset, or unavailable topology.';
     if (ready) poll(); timer(); demoStatus();
   }
   function investigation() {
     if (!allowed() || $('access-preview').value !== 'operations') return false;
-    const record = { ...fixtures['rar-demo-02'], name: namespace + '/rar-demo-02' };
-    feed.set('rar-demo-02', { ...fixtures['rar-demo-02'] });
-    const accepted = store.observe(record, store.capture(), 'investigation'); lastMessage = 'Investigation signal handled; an eventual poll uses the same RAR key.'; demoStatus(); return accepted;
+    const base = fresh('rar-demo-02');
+    const record = { ...base, name: namespace + '/rar-demo-02' };
+    feed.set('rar-demo-02', base);
+    const accepted = store.observe(record, store.capture(), 'investigation'); lastMessage = accepted ? 'Investigation signal handled; an eventual poll uses the same RAR key.' : 'Signal ignored: this example is already resolved in the notification scope.'; demoStatus(); return accepted;
   }
-  function queue() { if (!allowed()) return; feed.set('rar-demo-03', { ...fixtures['rar-demo-03'] }); lastMessage = 'Another operator’s example RAR is queued for the next fixture poll.'; demoStatus(); }
+  function queue() { if (!allowed()) return; feed.set('rar-demo-03', fresh('rar-demo-03')); lastMessage = 'Another operator’s example RAR is queued for the next fixture poll.'; demoStatus(); }
   function resolve() {
     if (!allowed()) return;
-    const record = { ...fixtures['rar-demo-02'], decision: 'Rejected' }; feed.set('rar-demo-02', record);
+    const record = { ...(feed.get('rar-demo-02') || fresh('rar-demo-02')), decision: 'Rejected' }; feed.set('rar-demo-02', record);
     // Reuse the baseline's existing concurrent-decision fixture, not a new decision implementation.
     window.KubernautClearDecision?.(); reviewStates['rar-demo-02'] = 'conflict';
     if (activeScreen === 'review' && activeCase === 'rar-demo-02') updateReviewState();
