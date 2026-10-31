@@ -11,6 +11,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Verify console design references
+        run: python3 scripts/check-console-design.py
+
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -60,6 +63,17 @@ jobs:
       - name: Build standalone image for scanning
         run: docker build --platform linux/amd64 --tag kubernaut-console:ci-scan --file packages/standalone/Containerfile .
 
+      - name: Smoke-test standalone image
+        timeout-minutes: 1
+        run: |
+          test "$(docker image inspect --format '{{.Config.User}}' kubernaut-console:ci-scan)" = "1001"
+          container=$(docker run --detach --rm --publish 127.0.0.1::8080 kubernaut-console:ci-scan)
+          trap 'docker rm --force "$container" >/dev/null' EXIT
+          address=$(docker port "$container" 8080/tcp)
+          curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 \
+            --retry-max-time 30 "http://$address/" --output "$RUNNER_TEMP/console-index.html"
+          grep -q '<div id="root"></div>' "$RUNNER_TEMP/console-index.html"
+
       - name: Run Trivy standalone image scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -75,14 +89,14 @@ jobs:
         # Fork PR tokens cannot write code-scanning results; the vulnerability
         # gate still runs, but SARIF upload is only attempted where permitted.
         if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: trivy-fs.sarif
           category: trivy-fs
 
       - name: Upload Trivy image SARIF
         if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: trivy-image.sarif
           category: trivy-image

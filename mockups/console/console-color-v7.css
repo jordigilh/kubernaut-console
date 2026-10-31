@@ -1,0 +1,56 @@
+/* Approved richer color direction. Offline presentation only; no operational state is inferred. */
+.prototype#app[data-theme=light],.key-panel.key-panel[data-theme=light]{
+ --canvas:#F4F7FB;--surface:#FFFFFF;--text:#172B3A;--secondary:#526575;--edge:#D9E2EE;
+ --primary:#087F8C;--primary-ink:#06636D;--on-primary:#FFFFFF;--primary-tint:#E4F7F7;
+ --info:#245DD8;--info-tint:#EAF1FF;--full-fill:#245DD8;--on-full:#FFFFFF;
+ --success:#146D3E;--success-tint:#E2F6EB;--remediated-fill:#146D3E;--on-remediated:#FFFFFF;--warning:#825000;--warning-tint:#FFF0CB;--danger:#B62231;--danger-tint:#FDE8EA;
+ --neutral-tint:#EBF0F6;--lifecycle-fill:#E5E7EB;--on-lifecycle:#3F3F46;--missing-text:#4B5563;--missing-border:#6B7280;--tint:14%;
+}
+.prototype#app[data-theme=dark],.key-panel.key-panel[data-theme=dark]{
+ --canvas:#0F1724;--surface:#182334;--text:#E8F0F9;--secondary:#A5B5CA;--edge:#2D4057;
+ --primary:#4DD0CD;--primary-ink:#79E1DB;--on-primary:#09292A;--primary-tint:#153C43;
+ --info:#86B5FF;--info-tint:#203752;--full-fill:#2D61D2;--on-full:#FFFFFF;
+ --success:#5DE0A2;--success-tint:#173C32;--remediated-fill:#5DE0A2;--on-remediated:#09292A;--warning:#FFD46C;--warning-tint:#42361F;--danger:#FF9A9A;--danger-tint:#492930;
+ --neutral-tint:#29354A;--lifecycle-fill:#3F3F46;--on-lifecycle:#F4F4F5;--missing-text:#CBD5E1;--missing-border:#94A3B8;--tint:20%;
+}
+.prototype .nav-link[aria-current=page]{color:var(--primary-ink);background:var(--primary-tint);box-shadow:inset 3px 0 var(--primary);font-weight:650}
+.prototype .app-header{border-bottom:2px solid var(--primary)}
+.prototype .button.primary{color:var(--on-primary);background:var(--primary);border-color:var(--primary)}
+.prototype .ux-workspace-action{color:var(--primary-ink)!important;background:var(--primary-tint);border-color:var(--primary)!important}
+.prototype :is(.study-queue,.study-context,.scope-links,.view-subnav) a:not(.button){color:var(--primary-ink)}
+.prototype .tab[aria-selected=true]{color:var(--primary-ink);background:var(--primary-tint);border-color:var(--primary)}
+.prototype .phase-strip strong{color:var(--primary-ink);background:var(--primary-tint)}
+.prototype .ux-identity{border-left-color:var(--primary)}
+.prototype :is(a,button,input,select,textarea,[tabindex]):focus-visible{outline-color:var(--info)}
+.ux-status.ux-status{--status-ink:var(--secondary);--status-fill:var(--neutral-tint);color:var(--status-ink)!important;background:var(--status-fill)!important;border:1px solid transparent;padding:5px 9px;white-space:normal;line-height:1.5}
+.ux-status.ux-status[data-status-kind=info]{--status-ink:var(--info);--status-fill:var(--info-tint)}
+.ux-status.ux-status[data-status-kind=success]{--status-ink:var(--success);--status-fill:var(--success-tint)}
+.ux-status.ux-status[data-status-kind=warning]{--status-ink:var(--warning);--status-fill:var(--warning-tint)}
+.ux-status.ux-status[data-status-kind=danger]{--status-ink:var(--danger);--status-fill:var(--danger-tint)}
+.ux-status.ux-status[data-status-kind=scope]{--status-ink:var(--primary-ink);--status-fill:var(--primary-tint)}
+.ux-status.ux-status[data-status-treatment=completeness]{--status-ink:var(--on-full);--status-fill:var(--full-fill);border-color:var(--full-fill)}
+.ux-status.ux-status[data-status-treatment=lifecycle]{--status-ink:var(--on-lifecycle);--status-fill:var(--lifecycle-fill)}
+.ux-status.ux-status[data-status-treatment=positive-outcome]{--status-ink:var(--on-remediated);--status-fill:var(--remediated-fill);border-color:var(--remediated-fill)}
+.ux-status.ux-status[data-status-treatment=missing]{--status-ink:var(--missing-text);--status-fill:transparent;border:2px dashed var(--missing-border);padding:4px 8px}
+.ux-status .ux-status-icon .silhouette{fill:currentColor;stroke:none}
+.ux-status .ux-status-icon .mark{stroke:var(--status-fill)}
+.ux-status[data-status-treatment=completeness] .ux-status-icon .silhouette,.ux-status[data-status-treatment=lifecycle] .ux-status-icon .silhouette,.ux-status[data-status-treatment=missing] .ux-status-icon .silhouette{fill:none;stroke:currentColor}
+.ux-status[data-status-treatment=completeness] .ux-status-icon .mark,.ux-status[data-status-treatment=lifecycle] .ux-status-icon .mark,.ux-status[data-status-treatment=missing] .ux-status-icon .mark{stroke:currentColor}
+.ux-status[data-status-kind=restricted] .ux-status-icon .silhouette{fill:none;stroke:currentColor}
+.ux-status[data-status-kind=restricted] .ux-status-icon .mark{stroke:currentColor}
+.key-row .key-dimension{display:block;font-size:12px;color:var(--secondary);margin:0 0 7px}
+body:has(#key-panels),body:has(#gallery){background:#F4F7FB;color:#172B3A}
+body:has(#key-panels) .toolbar button,body:has(#gallery) :is(select,button){background:#FFFFFF;color:#172B3A;border-color:#526575}
+body:has(#key-panels) a,body:has(#gallery) a{color:#06636D}
+body:has(#gallery) .tile{background:#FFFFFF;border-color:#D9E2EE}
+body:has(#gallery) .status{color:#06636D;background:#E4F7F7;border-color:#087F8C}
+/* V7.3: keep native date controls legible without glyph inversion or a custom picker. */
+.prototype[data-theme=light] input[type=date]{color-scheme:light}
+.prototype[data-theme=dark] input[type=date]{color-scheme:dark}
+/* The confirmation displays the existing immutable snapshot, never live mutable lookup text. */
+#decision-dialog{max-height:calc(100dvh - 32px);max-width:min(420px,calc(100vw - 32px));overflow-y:auto;overflow-wrap:anywhere}
+#decision-dialog .dialog-context{display:grid;gap:12px;margin:16px 0;padding:16px;border:1px solid var(--edge);border-radius:8px;background:var(--canvas)}
+#decision-dialog .dialog-context>div{display:grid;grid-template-columns:100px minmax(0,1fr);gap:12px;align-items:start}
+#decision-dialog .dialog-context dt{font-size:12px;line-height:1.6;color:var(--secondary)}
+#decision-dialog .dialog-context dd{margin:0;font-size:14px;line-height:1.6;overflow-wrap:anywhere}
+#decision-dialog #dialog-reason{font-size:14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}

@@ -1,0 +1,24 @@
+/* First investigation presentation pass. Actual V7.3 shell/tokens; no runtime or action migration. */
+.prototype #screen-investigation .workspace-layout{grid-template-columns:minmax(0,1fr) 272px}
+.prototype #screen-investigation .workspace-back-nav{margin:0 0 10px;display:flex;justify-content:flex-start}
+.prototype #screen-investigation .workspace-back-nav a{display:inline-flex;align-items:center;min-height:44px;font-size:14px;color:var(--primary-ink);text-underline-offset:3px}
+.prototype #screen-investigation h1{scroll-margin-top:calc(var(--ux-header-height,68px) + var(--ux-mobile-nav-offset,0px) + 72px)}
+.prototype #screen-investigation dl.ux-identity-facts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr) minmax(0,1fr) minmax(0,.8fr);gap:12px 18px;width:100%;margin:0}
+.prototype #screen-investigation .ux-identity-facts dt{margin:0 0 4px}
+.prototype #screen-investigation .ux-identity-facts dd{margin:0;font-size:14px;font-weight:600;line-height:1.6;overflow-wrap:anywhere}
+.prototype #screen-investigation .workspace-conversation-card{display:flex;flex-direction:column;height:var(--workspace-panel-height,min(680px,70dvh));min-height:420px;min-width:0}
+.prototype #screen-investigation .workspace-conversation-card>h2{margin:0 0 8px}
+.prototype #screen-investigation .workspace-conversation-card>.tiny{margin:0 0 16px}
+.prototype #screen-investigation #thread{display:flex;flex-direction:column;gap:16px;flex:1 1 auto;min-height:100px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:3px 10px 10px 3px;margin-bottom:16px}
+.prototype #screen-investigation #thread .message{flex:0 0 auto;overflow-wrap:anywhere}
+.prototype #screen-investigation .composer{flex:0 0 auto;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
+.prototype #screen-investigation .workspace-composer-label{grid-column:1/-1;font-size:14px;font-weight:600}
+.prototype #screen-investigation #composer{min-height:84px;max-height:160px;width:100%;min-width:0;resize:vertical;font-size:14px;line-height:1.6}
+.prototype #screen-investigation .workspace-composer-help{grid-column:1/-1;margin:0;font-size:12px;line-height:1.6;color:var(--secondary)}
+.prototype #screen-investigation .workspace-layout-sample .speaker{color:var(--secondary)}
+.prototype #screen-investigation #workspace-state-note{margin:0 0 16px;padding:10px 12px;background:var(--neutral-tint);color:var(--secondary);border-left-color:var(--edge)}
+.prototype #screen-investigation #workspace-state-note[data-mode=streaming]{background:var(--info-tint);border-left-color:var(--info)}
+.prototype #screen-investigation #workspace-state-note:is([data-mode=disconnected],[data-mode=terminal]){background:var(--warning-tint);border-left-color:var(--warning)}
+.prototype #screen-investigation .workspace-record-link{margin-top:12px}
+@media(max-width:1000px){.prototype #screen-investigation .workspace-layout{grid-template-columns:minmax(0,1fr)}.prototype #screen-investigation dl.ux-identity-facts{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media(max-width:620px){.prototype #screen-investigation dl.ux-identity-facts{grid-template-columns:minmax(0,1fr)}.prototype #screen-investigation .workspace-conversation-card{min-height:440px}.prototype #screen-investigation .composer{grid-template-columns:minmax(0,1fr)}.prototype #screen-investigation #send-message{justify-self:end}}

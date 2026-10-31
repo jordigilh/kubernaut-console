@@ -1,0 +1,2063 @@
+{
+  "status": "Current six captures plus historical state references; current written contracts override old chrome; captures are not test pass counts",
+  "captures": [
+    {
+      "file": "screenshots/preview-final-phone-light-closed.png",
+      "sha256": "cf48388520c6a91fbed7e362f7a1432e7e1531aad7b34c7d796c3a43e23da5ae",
+      "id": "current-closed-light",
+      "route": "navigation-investigation.html",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 700
+      },
+      "state": "closed",
+      "dataset": "synthetic",
+      "authority": "current accepted navigation/investigation presentation"
+    },
+    {
+      "file": "screenshots/preview-final-phone-light-open.png",
+      "sha256": "48c0cad23408d60143e4d83561ac8c6dfcae754a2e688959c50241a629221618",
+      "id": "current-open-light",
+      "route": "navigation-investigation.html",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 700
+      },
+      "state": "open",
+      "dataset": "synthetic",
+      "authority": "current accepted navigation/investigation presentation"
+    },
+    {
+      "file": "screenshots/preview-final-desktop-light-sidebar.png",
+      "sha256": "1fc20e988c4dc6becad5b40efb25b6d794d4aa5fac8a7b2b881d701d4a0c964f",
+      "id": "current-sidebar-light",
+      "route": "navigation-investigation.html",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 850
+      },
+      "state": "sidebar",
+      "dataset": "synthetic",
+      "authority": "current accepted navigation/investigation presentation"
+    },
+    {
+      "file": "screenshots/preview-final-phone-dark-closed.png",
+      "sha256": "333e10d4060e868980660a0f4983fd3ae3882f338f9a6bd5453a000f651cc98d",
+      "id": "current-closed-dark",
+      "route": "navigation-investigation.html",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 700
+      },
+      "state": "closed",
+      "dataset": "synthetic",
+      "authority": "current accepted navigation/investigation presentation"
+    },
+    {
+      "file": "screenshots/preview-final-phone-dark-open.png",
+      "sha256": "dafa4355c4535e08aefcfeaf9ac771b7a4c98d2aac8de9fbc011188ee02057d0",
+      "id": "current-open-dark",
+      "route": "navigation-investigation.html",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 700
+      },
+      "state": "open",
+      "dataset": "synthetic",
+      "authority": "current accepted navigation/investigation presentation"
+    },
+    {
+      "file": "screenshots/preview-final-desktop-dark-sidebar.png",
+      "sha256": "fb7612e20c1845842d1f25806e38c9dff5555af667ab6cf0ccb39a73f8efaac4",
+      "id": "current-sidebar-dark",
+      "route": "navigation-investigation.html",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 850
+      },
+      "state": "sidebar",
+      "dataset": "synthetic",
+      "authority": "current accepted navigation/investigation presentation"
+    },
+    {
+      "file": "screenshots/approvals-inbox-light-desktop.png",
+      "sha256": "810578ff2720b467f6c26f6581337ed4f67fdb598b25952ceb1b8455a8001fcc",
+      "id": "approvals-inbox-light-desktop",
+      "route": "#approvals",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/rar-review-light-desktop.png",
+      "sha256": "df786e9e4a989bc87406a0d50ab1a019b2afdf6b55048f8519d8d30273e20046",
+      "id": "rar-review-light-desktop",
+      "route": "#review/rar-demo-02",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "pending-audit-unavailable",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/investigations-list-light-desktop.png",
+      "sha256": "3a196d522bb5c2ba849dc852dd42db2db02df4356de88390ce98157c43ae7c05",
+      "id": "investigations-list-light-desktop",
+      "route": "#investigations",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/interactive-workspace-light-desktop.png",
+      "sha256": "1960d78e310231e2857aa61b06655e9bad559450eb12ae5246400a8c2840dffe",
+      "id": "interactive-workspace-light-desktop",
+      "route": "#investigation/rr-demo-02",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/dock-companion-light-desktop.png",
+      "sha256": "68a40b222a64c95b45493d6e2618b5fe1a0eac4280630de3fe82e6d38ff0b7ef",
+      "id": "dock-companion-light-desktop",
+      "route": "#approvals",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/workflow-catalog-light-desktop.png",
+      "sha256": "af5c2600f48366be4d755843fd3bcb22754342c30bba4742e5ee59461b78ef9c",
+      "id": "workflow-catalog-light-desktop",
+      "route": "#workflows",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/workflow-detail-summary-light-desktop.png",
+      "sha256": "327727720d71b2e7877e1fe3a450c6fca12d02b43e5aec3ccf99e253687fac9f",
+      "id": "workflow-detail-summary-light-desktop",
+      "route": "#workflow/wf-demo-01",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/workflow-detail-proposed-light-desktop.png",
+      "sha256": "843ad15a36b65279e574fb9c6e9bf61872aa3cc71ce97a9f28d36382cfafd0da",
+      "id": "workflow-detail-proposed-light-desktop",
+      "route": "#workflow/wf-demo-01",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resources-managed-light-desktop.png",
+      "sha256": "cfbb228941fc797a6779123689b22c7c7f1581f1e29cd01e0b479574daa441fb",
+      "id": "resources-managed-light-desktop",
+      "route": "#resources",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resources-all-scope-light-desktop.png",
+      "sha256": "f36aba775391ae18ebb3c6ca986e57a76af4895bdfa2f5446466127aaa08b1e0",
+      "id": "resources-all-scope-light-desktop",
+      "route": "#resources",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resource-explicit-exclusion-light-desktop.png",
+      "sha256": "b1f54a6bdea5055c3e21f0aea15017c9efc823d97fc66068e6e8e65119c005ef",
+      "id": "resource-explicit-exclusion-light-desktop",
+      "route": "#resource/res-spoke-b-orders",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resource-unknown-scope-light-desktop.png",
+      "sha256": "685aff9d8413955aea1838cdcab249290b2902dba1dc82efa48dbc96f4dde27c",
+      "id": "resource-unknown-scope-light-desktop",
+      "route": "#resource/res-spoke-b-metrics",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resources-shared-filter-light-desktop.png",
+      "sha256": "3d8a988fcbaffc6a13b7ee102f07fd72218cf4372636f25a7f40ec4867ba2e99",
+      "id": "resources-shared-filter-light-desktop",
+      "route": "#resources?cluster=spoke-a",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resource-detail-light-desktop.png",
+      "sha256": "5411ef9467ae89d77318574d7078cbb4fe36fb83f528182aeaaa71c4252502d6",
+      "id": "resource-detail-light-desktop",
+      "route": "#resource/res-spoke-a-operator",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resource-out-of-scope-light-desktop.png",
+      "sha256": "5f7b8f1ee0000aff1903289c67d9d27738dd1fe092cee831a9e1790844d6fbfd",
+      "id": "resource-out-of-scope-light-desktop",
+      "route": "#resource/no-such-id",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "missing-or-out-of-scope",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/clusters-light-desktop.png",
+      "sha256": "4071d26cb5740026c5c5066d1a3c65175e95b751761911393dd81743531b8ca3",
+      "id": "clusters-light-desktop",
+      "route": "#clusters",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/clusters-one-visible-light-desktop.png",
+      "sha256": "62155332d560d1d35091146ef72d34e49be0ab37e0f5c256500a85f9abad5d64",
+      "id": "clusters-one-visible-light-desktop",
+      "route": "#clusters",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/cluster-detail-light-desktop.png",
+      "sha256": "f1751128940add1e29f8e5aa3702319ba27d4dfab7d62b48d1ba2c3e51502c68",
+      "id": "cluster-detail-light-desktop",
+      "route": "#cluster/spoke-a",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resources-local-light-desktop.png",
+      "sha256": "21550fc201ff7cf2d6f8d71e9c35fbd43d5df505e292a945bd0a3b99f2516cdd",
+      "id": "resources-local-light-desktop",
+      "route": "#resources",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resource-local-light-desktop.png",
+      "sha256": "8d17a577b29cd5f2fa5fdfa1c3674fbdcd6bc50ddd15b283805562b7c3c01b73",
+      "id": "resource-local-light-desktop",
+      "route": "#resource/res-local-operator",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resources-topology-unavailable-light-desktop.png",
+      "sha256": "6c4d6608941dd655a6f84ea02c454d59a5b7be03eb64b2316477cb73c42b6c91",
+      "id": "resources-topology-unavailable-light-desktop",
+      "route": "#resources",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "unknown-topology",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resources-loading-light-desktop.png",
+      "sha256": "377f3a3d4096c4a7d848d8e3b592e445c211983aafdb05fc57022e215066af0d",
+      "id": "resources-loading-light-desktop",
+      "route": "#resources",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "loading",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resources-empty-light-desktop.png",
+      "sha256": "4497eb4b283897866b7d19c33d19171281f93683c9d49b174d3d54606d55c46f",
+      "id": "resources-empty-light-desktop",
+      "route": "#resources",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "empty",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resources-unavailable-light-desktop.png",
+      "sha256": "70d7d96db34b13bb32c09ca79cf1ee9e75ce05c947a0128178a3eab6f35e4d8c",
+      "id": "resources-unavailable-light-desktop",
+      "route": "#resources",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "unavailable",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resources-forbidden-light-desktop.png",
+      "sha256": "96ab96f8c99874b5bb95bec63bdc16cde73695b0cece4759a34cfa0137238c3b",
+      "id": "resources-forbidden-light-desktop",
+      "route": "#resources",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "forbidden",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resources-partial-light-desktop.png",
+      "sha256": "dbe7758f70a0d5d245c8ab02eb90f5cbbcb9b3de3fd89cfb4a3bdfc797bfaa1b",
+      "id": "resources-partial-light-desktop",
+      "route": "#resources",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "partial",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resources-stale-light-desktop.png",
+      "sha256": "a3c0f1b6d1f8944a06bb0dc5c07c124b300f0a1cf704955986400fe247c808b3",
+      "id": "resources-stale-light-desktop",
+      "route": "#resources",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "stale",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/approvals-inbox-dark-desktop.png",
+      "sha256": "8f4e1307e9f21babe6b1eb663f82d0d1a8eba76ec3688a5f2c9980672599e0c6",
+      "id": "approvals-inbox-dark-desktop",
+      "route": "#approvals",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/rar-review-dark-desktop.png",
+      "sha256": "99f4bb210d8a758e4c68e32f273fabcabe445ebf78bef2bc581941b0584dff3e",
+      "id": "rar-review-dark-desktop",
+      "route": "#review/rar-demo-02",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/investigations-list-dark-desktop.png",
+      "sha256": "6b579f1171f2d501dc5f9dc4c2f8d8bb2a7fb82307a620dfe0927a4a78c08dbb",
+      "id": "investigations-list-dark-desktop",
+      "route": "#investigations",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/interactive-workspace-dark-desktop.png",
+      "sha256": "60858493253d82a5e1b6f395d1264423e1d75700fe7ed2d9821dd486f0eb2a56",
+      "id": "interactive-workspace-dark-desktop",
+      "route": "#investigation/rr-demo-02",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/workflow-catalog-dark-desktop.png",
+      "sha256": "ba06f9a454b690a0d59953b064583447120c8afc4f63e57e0b003b96447ceee9",
+      "id": "workflow-catalog-dark-desktop",
+      "route": "#workflows",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/workflow-detail-summary-dark-desktop.png",
+      "sha256": "c7d891c767667a0c6bb87374cf8e5245f9ccaab80e57fe6a9a928b415a7afad3",
+      "id": "workflow-detail-summary-dark-desktop",
+      "route": "#workflow/wf-demo-01",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resources-managed-dark-desktop.png",
+      "sha256": "c1c6de7039e6425807285dcc461edf63f17be51fe6b7bea6dbaf7a7db4b9f671",
+      "id": "resources-managed-dark-desktop",
+      "route": "#resources",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resource-detail-dark-desktop.png",
+      "sha256": "4471a82eb9d01167f1fec0989588c694e4064bd158b1dddec0e32fd26902a111",
+      "id": "resource-detail-dark-desktop",
+      "route": "#resource/res-spoke-a-operator",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/clusters-dark-desktop.png",
+      "sha256": "6d8efda1046ac1fc27faae5f5e2fd8c39f8bad32623b5bf6da9d9644f2261e9e",
+      "id": "clusters-dark-desktop",
+      "route": "#clusters",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/cluster-detail-dark-desktop.png",
+      "sha256": "1e0cc2a7d6f6c442a7e0fe90466a803cd9781af0198fd84c2a21a654a55e06a4",
+      "id": "cluster-detail-dark-desktop",
+      "route": "#cluster/spoke-a",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/approvals-inbox-dark-mobile.png",
+      "sha256": "948640f87f3e1a563e9943dbca6bfc595499cd369154255311f8feba7646ac8b",
+      "id": "approvals-inbox-dark-mobile",
+      "route": "#approvals",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/rar-review-dark-mobile.png",
+      "sha256": "75bef70a3143bc7eb87c75c723ae05e9959ac27581b40904f81c0e3e209bf594",
+      "id": "rar-review-dark-mobile",
+      "route": "#review/rar-demo-02",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/interactive-workspace-dark-mobile.png",
+      "sha256": "4fd423da8b6d4de8ef17f04e4310087932b6a1ab4741dd8fd55ddf1b33413fc1",
+      "id": "interactive-workspace-dark-mobile",
+      "route": "#investigation/rr-demo-02",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/workflow-catalog-dark-mobile.png",
+      "sha256": "73717a7c9e516c897c04c2c39fe53ebd33092651bde3a0565fe0af4b063aeac7",
+      "id": "workflow-catalog-dark-mobile",
+      "route": "#workflows",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/workflow-detail-dark-mobile.png",
+      "sha256": "f1a8f03b2e79771ea3f691b384b7fe45665d0a83bcba58165f73b375fba41da5",
+      "id": "workflow-detail-dark-mobile",
+      "route": "#workflow/wf-demo-01",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resources-dark-mobile.png",
+      "sha256": "f567553e076fda016beec04500444f145ebcab8b6d874b7d7c6dabf6a2cf5800",
+      "id": "resources-dark-mobile",
+      "route": "#resources",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resource-detail-dark-mobile.png",
+      "sha256": "f926a6235e85049981a9228fd52d282a777d82f6f697176914c436beceb86746",
+      "id": "resource-detail-dark-mobile",
+      "route": "#resource/res-spoke-a-operator",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/clusters-dark-mobile.png",
+      "sha256": "ccc2a3c899c705a289bbe5d2733b1c789243512aed2e9a9ff5544b3f37cf2916",
+      "id": "clusters-dark-mobile",
+      "route": "#clusters",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/cluster-detail-dark-mobile.png",
+      "sha256": "60f986c6025434b46865f407ea2098d54c00ea7d7c0d5f1e259c852bd5db6abb",
+      "id": "cluster-detail-dark-mobile",
+      "route": "#cluster/spoke-a",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/resources-light-mobile-360.png",
+      "sha256": "c9aacd2c32c84809b2264b30b845f529f4624377624c4dce0d84e53d9ebc6347",
+      "id": "resources-light-mobile-360",
+      "route": "#resources",
+      "theme": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/overview-fleet-light-desktop.png",
+      "sha256": "0600883594fa625b2726cb4ded783503f973b1f442960ba0c32e0dc651939f3e",
+      "id": "overview-fleet-light-desktop",
+      "route": "#overview",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/recorded-case-light-desktop.png",
+      "sha256": "a930974a0843488c25620dd00a7772f687c4d25da8acd44568fe3b684b1bfa4c",
+      "id": "recorded-case-light-desktop",
+      "route": "#case/rr-demo-02",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/execution-history-light-desktop.png",
+      "sha256": "c773e5a140d589fd25b76ccace32a1aa79fce105a8b1111f0eb5d8fd1e75a1d7",
+      "id": "execution-history-light-desktop",
+      "route": "#executions",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/execution-detail-light-desktop.png",
+      "sha256": "eff1e2631aedbc190b8f9843e6e42b9ff0e341162887f781ca6d48ae9f01b04a",
+      "id": "execution-detail-light-desktop",
+      "route": "#execution/we-demo-01",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/verification-outcome-light-desktop.png",
+      "sha256": "36a55fea1238f2f92b4fcfd05a3805679a56c33a09e37064c234a57dcd3b0991",
+      "id": "verification-outcome-light-desktop",
+      "route": "#verification/ea-demo-01",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/policy-list-light-desktop.png",
+      "sha256": "da5f3bf4cefa823fc1a40889502a36e223eaedb0bd5f8c76074b3cfa296d86f1",
+      "id": "policy-list-light-desktop",
+      "route": "#policies",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/approval-policy-light-desktop.png",
+      "sha256": "59c2571b32a3f8003ef3f8df8c4d914b184e0fd280960c18ac37fca8888528d4",
+      "id": "approval-policy-light-desktop",
+      "route": "#policy/approval",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/management-scope-policy-light-desktop.png",
+      "sha256": "0fceb4b7dd96b776068cd7ed533966b44a9196f5d67fc5dde444d597aa828198",
+      "id": "management-scope-policy-light-desktop",
+      "route": "#policy/scope",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/audit-list-light-desktop.png",
+      "sha256": "d4840918e98bda0c6168eb54efd52cd425d86b8d4c4c69aed92f053880d815cb",
+      "id": "audit-list-light-desktop",
+      "route": "#audit",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/audit-event-attribution-light-desktop.png",
+      "sha256": "3c0180055df155e0bf6fa470adae4718b6f273ae142965379f49bd139077c982",
+      "id": "audit-event-attribution-light-desktop",
+      "route": "#event/evt-demo-decision",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/administration-light-desktop.png",
+      "sha256": "6a31cd48a6e35c6fd5f90cee7d15a922d777303580558c883d9b43ff287e3607",
+      "id": "administration-light-desktop",
+      "route": "#administration",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/console-preferences-light-desktop.png",
+      "sha256": "290008b138588545f4e884fc370ded8ee8d7d77eaba0570ffbb803966186dc16",
+      "id": "console-preferences-light-desktop",
+      "route": "#settings/console",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/platform-ownership-light-desktop.png",
+      "sha256": "a49df75199c76a56be83d8fb907da215c165f035e8f5a7bfedfafac2f67f658d",
+      "id": "platform-ownership-light-desktop",
+      "route": "#settings/platform",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/identity-access-light-desktop.png",
+      "sha256": "b47ca5ad88a8edd064babc54b8428a35de6862176d829ffb82b6ba72799262e2",
+      "id": "identity-access-light-desktop",
+      "route": "#settings/access",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/overview-fleet-dark-desktop.png",
+      "sha256": "7a985a9fe119cb75fbf7e3611b5eaaf8e227db5279486d37639d91c1f2ccf8a7",
+      "id": "overview-fleet-dark-desktop",
+      "route": "#overview",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/recorded-case-dark-desktop.png",
+      "sha256": "1980cf3aad2ca8600b8ea36678f60a00159bcb357ecc6728e32313a61e0b7acb",
+      "id": "recorded-case-dark-desktop",
+      "route": "#case/rr-demo-02",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/execution-history-dark-desktop.png",
+      "sha256": "c74e5bcb252e4cf208f49177695d001640f3a69d66c763fe5d4db64bf0cc344e",
+      "id": "execution-history-dark-desktop",
+      "route": "#executions",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/execution-detail-dark-desktop.png",
+      "sha256": "e1482a431176baa00f213a03f37f882b6303190b73d0fbe2f602171e5048d704",
+      "id": "execution-detail-dark-desktop",
+      "route": "#execution/we-demo-01",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/verification-outcome-dark-desktop.png",
+      "sha256": "6c507cfa8f7fe406fffebca28c9ff8f5d8db28ac3262aa126e38567c7ac30dda",
+      "id": "verification-outcome-dark-desktop",
+      "route": "#verification/ea-demo-01",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/policy-list-dark-desktop.png",
+      "sha256": "2dc38dfa1ddae88cfbab5f07711cc8e3a3c9da27900b7227e2795e4189c2562f",
+      "id": "policy-list-dark-desktop",
+      "route": "#policies",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/approval-policy-dark-desktop.png",
+      "sha256": "4e8f2523b73cca8124a2ef85811105ef6054ecb9c0f8eda124dc14beafb8a7dd",
+      "id": "approval-policy-dark-desktop",
+      "route": "#policy/approval",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/management-scope-policy-dark-desktop.png",
+      "sha256": "704e41f8c13dacf7142f23c38b424ed2d863111e49500812950f0e98d73aebc4",
+      "id": "management-scope-policy-dark-desktop",
+      "route": "#policy/scope",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/audit-list-dark-desktop.png",
+      "sha256": "5ed251eb80b1de76a39dbc6cc4c9d0f9577720b7096ced01ec850ed1a98fd2bc",
+      "id": "audit-list-dark-desktop",
+      "route": "#audit",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/audit-event-attribution-dark-desktop.png",
+      "sha256": "ee44370732731c5ce92d89046a4beac7e8eb6da5687decccfcbb365f43cc1564",
+      "id": "audit-event-attribution-dark-desktop",
+      "route": "#event/evt-demo-decision",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/administration-dark-desktop.png",
+      "sha256": "58120ce437566363fdf1dad9ed502f652448d7ef3d6502390fae644a20dd00e7",
+      "id": "administration-dark-desktop",
+      "route": "#administration",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/console-preferences-dark-desktop.png",
+      "sha256": "3f4f598c0a2776c1f5c8434bf1bd214260d46dd55250e8add1570df2d0e06098",
+      "id": "console-preferences-dark-desktop",
+      "route": "#settings/console",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/platform-ownership-dark-desktop.png",
+      "sha256": "3cd115f0e04eff25ee14facfab9e1d6fdde35b964a4385455c3b73247a553ed0",
+      "id": "platform-ownership-dark-desktop",
+      "route": "#settings/platform",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/identity-access-dark-desktop.png",
+      "sha256": "4b4f16b5e1f7fd7d461bacc5059f52f3b2de56db579da73a0afc0d088e01d55b",
+      "id": "identity-access-dark-desktop",
+      "route": "#settings/access",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/overview-local-light-desktop.png",
+      "sha256": "48c45466d718351a976a845d8830d487e8fb5f195f3312638dc1e4092fd959dd",
+      "id": "overview-local-light-desktop",
+      "route": "#overview",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/overview-local-dark-desktop.png",
+      "sha256": "6133dea4c639b1f8b846b17c3a06dbc6bf9e28abe1f5da6e98b33dd289acf1a1",
+      "id": "overview-local-dark-desktop",
+      "route": "#overview",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/overview-unknown-topology-dark-desktop.png",
+      "sha256": "33b8e90bf74fa8872db088ae61d3e72ee972b4a84ab92c48a31bc124d340c661",
+      "id": "overview-unknown-topology-dark-desktop",
+      "route": "#overview",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "unknown-topology",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/execution-history-workflow-filter-light-desktop.png",
+      "sha256": "5ca787775659dc66151e559c61a6d459117f95cdc4e60c6d65057e2a503c6c01",
+      "id": "execution-history-workflow-filter-light-desktop",
+      "route": "#executions?workflow=wf-demo-01",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/execution-running-light-desktop.png",
+      "sha256": "4881ad7d18580b4b636a146e5726c4cce79c38c8c0886dd70f4967f944155785",
+      "id": "execution-running-light-desktop",
+      "route": "#execution/we-demo-02",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "running-outcome-unknown",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/execution-failed-light-desktop.png",
+      "sha256": "002428a2007dda57cec028df20d0e14edcca8c68173dba262f7a479461772e05",
+      "id": "execution-failed-light-desktop",
+      "route": "#execution/we-demo-03",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "pre-execution-failure",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/verification-partial-light-desktop.png",
+      "sha256": "4f1c25497e90036a77cea0dd8070042c9690f4a49bad46a24b1c5b42d39955df",
+      "id": "verification-partial-light-desktop",
+      "route": "#verification/ea-demo-01",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "partial",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/verification-in_progress-light-desktop.png",
+      "sha256": "e52c61b7d29ef2fee35b9306eb43bf80e148316bc7730e45c36af68a7695f8aa",
+      "id": "verification-in_progress-light-desktop",
+      "route": "#verification/ea-demo-01",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "in_progress",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/verification-no_data-light-desktop.png",
+      "sha256": "90e2cb0ebf8d5d0610324284d5cf51c0befe56964f26b5d9e6a1451f52759da1",
+      "id": "verification-no_data-light-desktop",
+      "route": "#verification/ea-demo-01",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "no_data",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/verification-SpecDrift-light-desktop.png",
+      "sha256": "07553951a42ab882d9d35754c0d4d91ee68a0a4c2995b159037a6085f550dfd4",
+      "id": "verification-SpecDrift-light-desktop",
+      "route": "#verification/ea-demo-01",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "SpecDrift",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/verification-Expired-light-desktop.png",
+      "sha256": "137f06e63ad77d785f7fbc64762d48ddcd99456de390a7e443299e3fdca6fe07",
+      "id": "verification-Expired-light-desktop",
+      "route": "#verification/ea-demo-01",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "Expired",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/audit-read-loading-light-desktop.png",
+      "sha256": "22bbcc23cb5761a110f1bd6ca06bac2abed32ddb44092559755fed8454c823a4",
+      "id": "audit-read-loading-light-desktop",
+      "route": "#audit",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "loading",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/audit-read-empty-light-desktop.png",
+      "sha256": "2caa6a1d0d91aeeb7a3a9bc5477dfaad5d161347565dc332eeff3eb03151eb2d",
+      "id": "audit-read-empty-light-desktop",
+      "route": "#audit",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "empty",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/audit-read-unavailable-light-desktop.png",
+      "sha256": "31cd276f1f16e9146811767e634a93cc39e74a7f902733a0d4dab39bf7424e18",
+      "id": "audit-read-unavailable-light-desktop",
+      "route": "#audit",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "unavailable",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/audit-read-forbidden-light-desktop.png",
+      "sha256": "36a2d308f2e424f19b33de437e887da17e76e629c3c5dcb9cfd25232cb03dbd1",
+      "id": "audit-read-forbidden-light-desktop",
+      "route": "#audit",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "forbidden",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/audit-read-partial-light-desktop.png",
+      "sha256": "ad9d8fa3c4ef6b615a3562a2a8aafdaa7f6e061fcad02590c0ec715f01f80641",
+      "id": "audit-read-partial-light-desktop",
+      "route": "#audit",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "partial",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/audit-read-stale-light-desktop.png",
+      "sha256": "07336454bb0e76dabc290cdbb52181b9873ee371d7b25f57ef59e50e79222165",
+      "id": "audit-read-stale-light-desktop",
+      "route": "#audit",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "stale",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/audit-event-permission-denied-light-desktop.png",
+      "sha256": "b45a3fd9026da924430357fb45c101e61501b053cd9d205fc99da78557c219cc",
+      "id": "audit-event-permission-denied-light-desktop",
+      "route": "#event/evt-demo-decision",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "forbidden",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/approval-only-protected-deep-link-light-desktop.png",
+      "sha256": "b389033f7a40d3e2b620f2a894f483906b18dc065c61124d18dc347fa25f018b",
+      "id": "approval-only-protected-deep-link-light-desktop",
+      "route": "#event/evt-demo-decision",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "approval-only-denied",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/rar-approval-only-related-audit-denied-light-desktop.png",
+      "sha256": "a7cb9ea4b6d23f8df142d8e5e6968dd61ce4a58ae4833e42ee58e8cb40de6f68",
+      "id": "rar-approval-only-related-audit-denied-light-desktop",
+      "route": "#review/rar-demo-02",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "pending-audit-forbidden",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/overview-approval-only-light-desktop.png",
+      "sha256": "f0a0df3a3cd7250254a6a51e7b1b19857319970ea96a7cf65e59ba72e1e864fc",
+      "id": "overview-approval-only-light-desktop",
+      "route": "#overview",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "approval-only",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/workspace-streaming-light-desktop.png",
+      "sha256": "9338c0e13c524fc67d8a0331f28aa711f91a3a2540e11fb18a2e2fc05e47f27d",
+      "id": "workspace-streaming-light-desktop",
+      "route": "#investigation/rr-demo-02",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "streaming",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/workspace-backgrounded-light-desktop.png",
+      "sha256": "d957bad63e8b0de0575944610c751664c0b4770aa07fb3c313da6d3686113334",
+      "id": "workspace-backgrounded-light-desktop",
+      "route": "#investigation/rr-demo-02",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "backgrounded",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/workspace-disconnected-light-desktop.png",
+      "sha256": "ce49fbdd4f4ce6175383d1b470d530ccae2c04d3e2d34a4864ee4e2b2480a097",
+      "id": "workspace-disconnected-light-desktop",
+      "route": "#investigation/rr-demo-02",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "disconnected",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/workspace-terminal-light-desktop.png",
+      "sha256": "ffa6a276539841fbb53057a9eb070db7daa383be9d34d3cedc430444a4f82c49",
+      "id": "workspace-terminal-light-desktop",
+      "route": "#investigation/rr-demo-02",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "terminal",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/overview-fleet-dark-mobile.png",
+      "sha256": "7c6220659c46f7f235fefc91e7247a514956ad0faaffeea221c71a8bfa4cb1f0",
+      "id": "overview-fleet-dark-mobile",
+      "route": "#overview",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/recorded-case-dark-mobile.png",
+      "sha256": "9ae6ed4bf9fd355326e7ecf320e5636cb95e9f2d562e1c0f780934496f1b20b5",
+      "id": "recorded-case-dark-mobile",
+      "route": "#case/rr-demo-02",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/execution-history-dark-mobile.png",
+      "sha256": "5a5079d16acbfad6979d95f553d9b4ce2f64922cc095c1b119c8193f9e3cd209",
+      "id": "execution-history-dark-mobile",
+      "route": "#executions",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/execution-detail-dark-mobile.png",
+      "sha256": "06e6fad25ab5e4d9240a9f67ebcac8698639425de889bca456b920e9e864eaa7",
+      "id": "execution-detail-dark-mobile",
+      "route": "#execution/we-demo-01",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/verification-outcome-dark-mobile.png",
+      "sha256": "d4bc8863706407118f819d10a840eb2b6d4d671cc0a29a45cef391a417e130a0",
+      "id": "verification-outcome-dark-mobile",
+      "route": "#verification/ea-demo-01",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/policy-list-dark-mobile.png",
+      "sha256": "72dd7bac8da2ad1718daaf92f65e9b61f0bda07022a7e97437095e4ad4addc3c",
+      "id": "policy-list-dark-mobile",
+      "route": "#policies",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/approval-policy-dark-mobile.png",
+      "sha256": "d02b57d5cd63a4c513ed4c588ac6d9d99d128f373868ea40bfde180db15f3dc2",
+      "id": "approval-policy-dark-mobile",
+      "route": "#policy/approval",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/management-scope-policy-dark-mobile.png",
+      "sha256": "c54f4a65ce378cae2e8b1b830cf0b4603dbc5d4aefe68109e36cedaffab9aad7",
+      "id": "management-scope-policy-dark-mobile",
+      "route": "#policy/scope",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/audit-list-dark-mobile.png",
+      "sha256": "c8fecbb3eb789f95ac8987308e07acd72d78e384c5c7f7d16e71d744e7e8bce6",
+      "id": "audit-list-dark-mobile",
+      "route": "#audit",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/audit-event-attribution-dark-mobile.png",
+      "sha256": "b62dfbc89d4b820cfd2964d2f7b75b6b6e5a99bbaca7d03f1209bbe4fa2a6cb6",
+      "id": "audit-event-attribution-dark-mobile",
+      "route": "#event/evt-demo-decision",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/administration-dark-mobile.png",
+      "sha256": "0ce620d9ab94fbbe60b653fc6624dd04dbbde70f33ddebee86e19de6b760198a",
+      "id": "administration-dark-mobile",
+      "route": "#administration",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/console-preferences-dark-mobile.png",
+      "sha256": "e6d1a61df45831a49a8b7a095236808c8ac899db93b31d9f0640ee33c34ae2d5",
+      "id": "console-preferences-dark-mobile",
+      "route": "#settings/console",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/platform-ownership-dark-mobile.png",
+      "sha256": "654082ce8ffa6fcbb789543e6552d6378347e5ccec075d9be90acb83a41017fd",
+      "id": "platform-ownership-dark-mobile",
+      "route": "#settings/platform",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/identity-access-dark-mobile.png",
+      "sha256": "866bc06cdf6676217d5b4af518f42b02c834ae97e2e6e14c5d5ab38a3a630d07",
+      "id": "identity-access-dark-mobile",
+      "route": "#settings/access",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/mobile-navigation-expanded-dark.png",
+      "sha256": "23a4803ff2a526afc50b5991985b3aef24e9c8858c0975c0d69279bddf4cb4e8",
+      "id": "mobile-navigation-expanded-dark",
+      "route": "#settings/access",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "navigation-expanded",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/overview-light-mobile-360.png",
+      "sha256": "f9788f8fff0497a20545db631e30306116d1bfdaf73b74906e16100f1f80cb4b",
+      "id": "overview-light-mobile-360",
+      "route": "#overview",
+      "theme": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/verification-light-mobile-360.png",
+      "sha256": "c0b12082cee9ff363cea8b0391757a8cff7d8bee40cea4087ecffbfd41289d99",
+      "id": "verification-light-mobile-360",
+      "route": "#verification/ea-demo-01",
+      "theme": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/audit-light-mobile-360.png",
+      "sha256": "e2b40be3360b3c3aa1ddc2ea73697f55e74018e30ed0e589d36ec39ccc82914c",
+      "id": "audit-light-mobile-360",
+      "route": "#audit",
+      "theme": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/settings-light-mobile-360.png",
+      "sha256": "5e2bb87984d3907418f95d3e85db0be6b6bc086ef315eeec329f8812ca3e5143",
+      "id": "settings-light-mobile-360",
+      "route": "#settings/platform",
+      "theme": "light",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "state": "ready",
+      "dataset": "synthetic",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-overview-light-desktop.png",
+      "sha256": "3ac03c697a953abd595084f862721ee22cf85379ea14c794860e7c18e6be5b08",
+      "id": "golden-overview-light-desktop",
+      "route": "#overview",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-memory-leak-case-light-desktop.png",
+      "sha256": "d5c5effb7587e85d7700ecfcda164a80ae177db3b386c4904193ae45c3aa62b4",
+      "id": "golden-memory-leak-case-light-desktop",
+      "route": "#case/rr-d6544d3f583b-7d3041dd",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-resource-quota-exhaustion-case-light-desktop.png",
+      "sha256": "838d9ee4f26b9f94158a8fbe767f1f8ef9bfc6d629d9a35f02daf55dad05b846",
+      "id": "golden-resource-quota-exhaustion-case-light-desktop",
+      "route": "#case/rr-9a200a4bc21c-aee5cbe9",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-operator-oomkill-informer-case-light-desktop.png",
+      "sha256": "2e83529ee102347a22d650ad6789e50f18a4467a9681d72a6003dda2291ba1fc",
+      "id": "golden-operator-oomkill-informer-case-light-desktop",
+      "route": "#case/rr-c855fdb5bc62-f609b632",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-statefulset-pvc-failure-case-light-desktop.png",
+      "sha256": "bcd15f4a3a3f90b4745b940f9b32bccd536c9eed12bc309ed7f176c08ca5e9b1",
+      "id": "golden-statefulset-pvc-failure-case-light-desktop",
+      "route": "#case/rr-10a3e3419019-f32ca31b",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-execution-history-light-desktop.png",
+      "sha256": "d8c01d78939894ac7402513ed855db287348536d0a97cac8da8617d8ce9eb0d1",
+      "id": "golden-execution-history-light-desktop",
+      "route": "#executions",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-memory-execution-light-desktop.png",
+      "sha256": "1491fb9df108972dbba4c27cb56ddd933e82d8c1806f6043167bb0abdc55abb6",
+      "id": "golden-memory-execution-light-desktop",
+      "route": "#execution/golden-memory-leak",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-memory-assessment-light-desktop.png",
+      "sha256": "b60b70440fa6ce0963c4d887b3c3c53a08dda5172982c796070e0723279e677b",
+      "id": "golden-memory-assessment-light-desktop",
+      "route": "#verification/golden-memory-leak",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-overview-dark-desktop.png",
+      "sha256": "edcf76e10d0e2e5c763d6409c31a95c75e05b1d8fe2cba7aba149608d216191f",
+      "id": "golden-overview-dark-desktop",
+      "route": "#overview",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-memory-leak-case-dark-desktop.png",
+      "sha256": "4667a62753bfb1706f2a059b428de4b8a198434ec1afbd11da0e5f3e5ffc4ae9",
+      "id": "golden-memory-leak-case-dark-desktop",
+      "route": "#case/rr-d6544d3f583b-7d3041dd",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-resource-quota-exhaustion-case-dark-desktop.png",
+      "sha256": "23f6160fddebbc1f38294f9ec673c73cf3814179bca593dc4ade41c10f9b6a96",
+      "id": "golden-resource-quota-exhaustion-case-dark-desktop",
+      "route": "#case/rr-9a200a4bc21c-aee5cbe9",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-operator-oomkill-informer-case-dark-desktop.png",
+      "sha256": "931ab85fc9f8c8ac78f88c1d809420a6a0216d005c6bb2191f9b45e89e95a773",
+      "id": "golden-operator-oomkill-informer-case-dark-desktop",
+      "route": "#case/rr-c855fdb5bc62-f609b632",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-statefulset-pvc-failure-case-dark-desktop.png",
+      "sha256": "f2868b19034b66be5774fa8cfffe9020c9a279dc40fc06c00e19b1c7a1537227",
+      "id": "golden-statefulset-pvc-failure-case-dark-desktop",
+      "route": "#case/rr-10a3e3419019-f32ca31b",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-execution-history-dark-desktop.png",
+      "sha256": "4f16f4f76d911e5994902b92e7efe039004ce23304640e8c4f6e45102ed3042e",
+      "id": "golden-execution-history-dark-desktop",
+      "route": "#executions",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-memory-execution-dark-desktop.png",
+      "sha256": "3ef519868e82f9225ed5e5339c0c38359f0421cb719311a4c56d2b749cafbaf5",
+      "id": "golden-memory-execution-dark-desktop",
+      "route": "#execution/golden-memory-leak",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-memory-assessment-dark-desktop.png",
+      "sha256": "dbd77960cc64527cf18f3d633b9d0323462270b6c0fbdb183a9db10ecbff707c",
+      "id": "golden-memory-assessment-dark-desktop",
+      "route": "#verification/golden-memory-leak",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-quota-no-execution-light-desktop.png",
+      "sha256": "ec9b9881d4766519b0158490f15e387e19bf683cc1a3835d03872cafeec8fb47",
+      "id": "golden-quota-no-execution-light-desktop",
+      "route": "#execution/golden-resource-quota-exhaustion",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-no-inventory-export-light-desktop.png",
+      "sha256": "89d011051edb4200b728f8afa6e7857da57f350e2458c3a90fc1f0f3d716b8b9",
+      "id": "golden-no-inventory-export-light-desktop",
+      "route": "#resources",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "state": "not-exported-not-empty",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-overview-dark-mobile.png",
+      "sha256": "12a47d3fa68e4c6f5a508722e1c921df016d57d743c01db300067fd68365bb0e",
+      "id": "golden-overview-dark-mobile",
+      "route": "#overview",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-memory-case-dark-mobile.png",
+      "sha256": "596edba8203ff289b907a8eeeb2534fea8eada3bf116abe8bff73701cc004eab",
+      "id": "golden-memory-case-dark-mobile",
+      "route": "#case/rr-d6544d3f583b-7d3041dd",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-memory-assessment-dark-mobile.png",
+      "sha256": "5645c6716424f5a7d0554fd8b51db3d6c429d67cc31df679617e517726976849",
+      "id": "golden-memory-assessment-dark-mobile",
+      "route": "#verification/golden-memory-leak",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    },
+    {
+      "file": "screenshots/golden-executions-dark-mobile.png",
+      "sha256": "9cfe595a01145f52ad8eda031cc1630a50e491a9ca3dea6d4805aec2d6945a42",
+      "id": "golden-executions-dark-mobile",
+      "route": "#executions",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "state": "historical-capture",
+      "dataset": "recorded",
+      "authority": "historical per-state reference; current written/nav/investigation amendments override old chrome"
+    }
+  ]
+}
