@@ -1,0 +1,9 @@
+/* Signal severity belongs to case/alert context, not an AI RCA judgment. */
+.prototype #screen-investigation #compact-rca{border-left:1px solid var(--edge)}
+.prototype .case-signal-severity.ux-status{display:inline-flex;align-items:center;gap:5px;margin:6px 0 0;font-size:12px;line-height:1.5}
+.prototype .mobile-signal-severity.ux-status{display:none}
+@media(max-width:699px){
+  .prototype .rail-summary-heading{gap:5px}
+  .prototype .mobile-signal-severity.ux-status{display:inline-flex;align-items:center;gap:4px;margin:0;padding:2px 5px;font-size:11px;line-height:1.4;white-space:nowrap}
+  .prototype .mobile-signal-severity .ux-status-icon{width:13px;height:13px}
+}

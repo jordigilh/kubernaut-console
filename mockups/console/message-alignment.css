@@ -1,0 +1,22 @@
+/* Restore existing-console speaker placement; leave card widths and content intact. */
+.prototype #screen-investigation #thread .message.user{
+  align-self:flex-end;
+  width:fit-content;
+  max-width:85%;
+  box-sizing:border-box;
+  margin-left:auto;
+  margin-right:0;
+  text-align:left;
+}
+.prototype #screen-investigation #thread .gitops-agent-message,
+.prototype #screen-investigation #thread .rail-investigating{
+  align-self:flex-start;
+  width:100%;
+  box-sizing:border-box;
+  margin-left:0;
+  margin-right:0;
+  text-align:left;
+}
+@media(max-width:699px){
+  .prototype #screen-investigation #thread .message.user{max-width:calc(100% - 12px)}
+}

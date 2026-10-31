@@ -1,0 +1,30 @@
+/* Decision-focused hierarchy taken from RCACard/WorkflowCards and the supplied video. */
+body{margin:0}.gitops-preview-tools{font:14px system-ui,sans-serif;display:flex;justify-content:flex-end;gap:8px;padding:8px 12px;color:#526575;background:#F4F7FB}.gitops-preview-tools label{display:flex;align-items:center;gap:8px}
+.prototype #screen-investigation .page-heading{margin-bottom:16px}.prototype #screen-investigation #ux-record-identity{margin-bottom:16px}
+.prototype #screen-investigation .workspace-conversation-card{height:var(--workspace-panel-height,700px);min-height:560px;max-height:none}
+.prototype #screen-investigation .gitops-agent-message{flex:0 0 auto;min-width:0}
+.prototype #screen-investigation #thread{gap:14px;padding-bottom:10px}
+.prototype #screen-investigation .gitops-rca,.prototype #screen-investigation .gitops-workflow{border:1px solid var(--edge);border-radius:7px;background:var(--surface);padding:14px;margin:0 0 12px}
+.prototype #screen-investigation .gitops-rca{border-left:3px solid var(--danger)}
+.prototype #screen-investigation .gitops-card-heading{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;margin:0 0 8px;min-width:0}
+.prototype #screen-investigation .gitops-card-heading h3,.prototype #screen-investigation .gitops-workflow-name{font-size:15px;font-weight:650;line-height:1.5;margin:0;overflow-wrap:anywhere}
+.prototype #screen-investigation .gitops-rca p,.prototype #screen-investigation .gitops-workflow p,.prototype #screen-investigation .gitops-option-description{font-size:14px;line-height:1.65;margin:8px 0 12px}
+.prototype #screen-investigation .gitops-version{font-size:12px;line-height:1.6;color:var(--secondary);margin-left:auto}
+.prototype #screen-investigation .gitops-workflow.recommended{border-left:3px solid var(--primary)}
+.prototype #screen-investigation .gitops-metadata{display:flex;flex-wrap:wrap;gap:3px 14px;border-top:1px solid var(--edge);padding-top:8px;margin-top:10px;font-size:12px;line-height:1.6;color:var(--secondary)}
+.prototype #screen-investigation .gitops-metadata span{font-weight:400}
+.prototype #screen-investigation .gitops-rca summary,.prototype #screen-investigation .gitops-reference-details>summary{font-size:13px;color:var(--secondary);cursor:pointer;min-height:44px;align-content:center;line-height:1.6}
+.prototype #screen-investigation .gitops-evidence-body{font-size:14px;line-height:1.65}.prototype #screen-investigation .gitops-evidence-body ol{max-height:180px;overflow:auto;padding-left:22px}.prototype #screen-investigation .gitops-evidence-body li{margin-bottom:6px}
+.prototype #screen-investigation .gitops-workflow.alternative{padding:0}.prototype #screen-investigation .gitops-workflow.alternative>summary{cursor:pointer;padding:14px;list-style:none;min-height:44px}
+.prototype #screen-investigation .gitops-workflow.alternative>summary::-webkit-details-marker{display:none}
+.prototype #screen-investigation .gitops-workflow.alternative .gitops-workflow-name::before{content:'▸';color:var(--secondary);margin-right:7px}.prototype #screen-investigation .gitops-workflow.alternative[open] .gitops-workflow-name::before{content:'▾'}
+.prototype #screen-investigation .gitops-option-description{display:block;margin:0}.prototype #screen-investigation .gitops-alternative-body{padding:0 14px 14px}
+.prototype #screen-investigation .gitops-option-warning{padding:9px 10px;border-left:3px solid var(--warning);background:var(--warning-tint);border-radius:4px}
+.prototype #screen-investigation .gitops-execute{display:block;width:100%;margin-top:8px}
+.prototype #screen-investigation .gitops-escape-hatches,.prototype #screen-investigation .gitops-alternative-actions{display:flex;flex-wrap:wrap;gap:8px}.prototype #screen-investigation .gitops-escape-hatches>.button{flex:1}
+.prototype #screen-investigation .gitops-fine{font-size:12px;color:var(--secondary)}.prototype #screen-investigation code{overflow-wrap:anywhere}
+.prototype #screen-investigation .gitops-parameters{font-size:12px;line-height:1.6}.prototype #screen-investigation .gitops-parameters>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;padding:5px 0}.prototype #screen-investigation .gitops-parameters dt{color:var(--secondary);overflow-wrap:anywhere}.prototype #screen-investigation .gitops-parameters dd{margin:0;overflow-wrap:anywhere}
+.prototype #screen-investigation .gitops-phase{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:12px;color:var(--secondary);margin:0 0 10px;flex:0 0 auto}.prototype #screen-investigation .gitops-phase-dot{width:7px;height:7px;background:var(--warning);border-radius:50%}
+.prototype #screen-investigation #composer{min-height:52px;max-height:120px}
+.prototype #screen-investigation .workspace-layout>aside .button{margin:4px 0 8px}
+@media(max-width:620px){.prototype #screen-investigation .workspace-conversation-card{min-height:640px}.prototype #screen-investigation .gitops-version{margin-left:0}.prototype #screen-investigation .gitops-card-heading{gap:7px}.prototype #screen-investigation .gitops-parameters>div{grid-template-columns:minmax(0,1fr)}}

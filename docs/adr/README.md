@@ -13,3 +13,4 @@ This directory contains Architecture Decision Records (ADRs) for Kubernaut Conso
 | [007](007-multi-platform-plugin-architecture.md) | Multi-platform plugin architecture | Accepted | 2026-06-19 |
 | [008](008-session-awareness-after-mcp.md) | Session awareness after MCP actions | Accepted | 2026-06-25 |
 | [009](009-live-e2e-real-cluster-strategy.md) | Real-cluster (live) E2E test strategy | Proposed | 2026-07-31 |
+| [010](010-prototype-led-console-design.md) | Prototype-led operational console design authority | Accepted design; implementation gated | 2026-10-31 |

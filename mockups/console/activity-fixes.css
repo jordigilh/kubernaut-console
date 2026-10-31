@@ -1,0 +1,9 @@
+/* Compact public task/timing and a named return remain outside transcript scroll. */
+.prototype .frame-activity{display:flex;align-items:center;justify-content:space-between;gap:6px 12px;flex:1 1 100%;min-width:0;color:var(--secondary)}
+.prototype #frame-activity-context{font-size:11px;line-height:1.5;font-weight:400;overflow-wrap:anywhere;min-width:0}
+.prototype #activity-return{flex:0 0 auto;font:inherit;font-size:12px;line-height:1.4;min-height:44px;padding:7px 10px;border:1px solid var(--edge);border-radius:5px;background:var(--surface);color:var(--primary-ink);cursor:pointer}
+.prototype #activity-return:focus-visible,.prototype #rail-investigating-message:focus{outline:2px solid var(--info);outline-offset:2px}
+@media(max-width:699px){
+  .prototype #thread :is(summary,a,button,[tabindex]){scroll-margin-top:calc(var(--mobile-pinned-summary-height,0px) + var(--mobile-identity-space,33px) + 8px);scroll-margin-bottom:calc(var(--mobile-composer-space,82px) + 8px)}
+  .prototype .frame-activity{gap:6px}
+}

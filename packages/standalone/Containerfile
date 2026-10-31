@@ -17,8 +17,14 @@ COPY packages/standalone/ packages/standalone/
 RUN pnpm --filter @kubernaut/ui-core build \
     && pnpm --filter @kubernaut/standalone build
 
-# registry.access.redhat.com/ubi9/nginx-126:1-1792454849 (linux/amd64, linux/arm64)
-FROM registry.access.redhat.com/ubi9/nginx-126:1-1792454849@sha256:c9d399b0bded6388a54addc7f3f4096f84bfff9f49790393acf23e6f8569db78
+# registry.access.redhat.com/ubi9/nginx-126:1-1793251909 (linux/amd64, linux/arm64)
+FROM registry.access.redhat.com/ubi9/nginx-126:1-1793251909@sha256:afe4a17857e88905b559b28d61bfa6dd4169a79bde381b4c5dec3cf46608dd70
+# The vendor image predates the curl advisory fix. Patch only these two RPMs
+# at image build time; the running container remains USER 1001 below.
+USER 0
+RUN dnf -y upgrade --refresh curl-minimal-7.76.1-40.el9_8.9 libcurl-minimal-7.76.1-40.el9_8.9 \
+    && rpm -q curl-minimal libcurl-minimal \
+    && dnf clean all
 COPY --from=build /build/packages/standalone/dist /opt/app-root/src
 
 USER 1001

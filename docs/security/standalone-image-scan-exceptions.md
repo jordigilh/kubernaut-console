@@ -1,5 +1,63 @@
 # Standalone image scan exception record
 
+## Current review — 2026-10-31
+
+PR #160 refreshes the runtime base to
+`registry.access.redhat.com/ubi9/nginx-126:1-1793251909` at manifest-list digest
+`sha256:afe4a17857e88905b559b28d61bfa6dd4169a79bde381b4c5dec3cf46608dd70`.
+The timestamped tag and digest were independently resolved from the Red Hat
+registry; the manifest list includes both `linux/amd64` and `linux/arm64`.
+The build-stage pin, runtime `USER 1001`, and CI/release scan policies are unchanged.
+
+Local Trivy 0.72.0 scans of that exact base on both architectures report **zero
+fixable HIGH or CRITICAL findings** under the existing PR gate. This is base-image
+evidence, not a deployed qualification or a claim that the image has no known
+vulnerabilities. CI separately builds and scans the complete application image.
+With the same local database, the preceding runtime digest
+`sha256:c9d399b0bded6388a54addc7f3f4096f84bfff9f49790393acf23e6f8569db78`
+reports 11 fixable package findings (10 HIGH and 1 CRITICAL across 8 CVEs).
+CI also asserts runtime user `1001` and checks that `GET /` serves the built
+application entry point before scanning the complete image.
+
+The refreshed vendor image still contains two fixable MEDIUM package findings
+for `CVE-2026-8932`: `curl-minimal` and `libcurl-minimal` at
+`7.76.1-40.el9_8.8`. The Containerfile therefore upgrades only those RPMs to the
+verified `7.76.1-40.el9_8.9` builds, available in the public UBI BaseOS repositories
+for both x86_64 and aarch64. The patch runs as root only during image construction;
+the final runtime user remains `1001`.
+
+Why the MEDIUM findings also fail CI: the pinned Trivy action
+`ed142fd0673e97e23eac54620cfb913e5ce36c25` unsets `TRIVY_SEVERITY` when generating
+SARIF unless `limit-severities-for-sarif` is enabled. Thus the current image gate
+includes all severities despite its HIGH/CRITICAL input. This fix preserves that
+stricter behavior and remediates the two findings; it does not hide them by
+changing the report/severity settings. Base-only HIGH/CRITICAL results are not
+substitutes for the complete CI image scan.
+
+The unfiltered `linux/amd64` HIGH/CRITICAL scan still reports **39 HIGH package
+findings across 10 CVEs, zero CRITICAL**, all without a supplied fixed version:
+
+| CVE | Affected package(s) | Current disposition |
+|---|---|---|
+| CVE-2026-43961 | `vim-filesystem`, `vim-minimal` | Existing unfixed exception, pending upstream fix. |
+| CVE-2026-53613 | `util-linux` and its libraries | Existing unfixed exception, pending upstream fix. |
+| CVE-2026-53615 | `util-linux` and its libraries | Existing unfixed exception, pending upstream fix. |
+| CVE-2026-57585 | `python3-pip-wheel` | Existing unfixed exception, pending upstream fix. |
+| CVE-2026-76641 | `expat` | Existing unfixed exception, pending upstream fix. |
+| CVE-2026-97205 | `nginx` and its modules | Existing unfixed exception, pending upstream fix. |
+| CVE-2026-15176 | `nginx` and its modules | Newly observed unfixed risk; maintainer disposition required. |
+| CVE-2026-114613 | `python3-pip-wheel` | Newly observed unfixed risk; maintainer disposition required. |
+| CVE-2026-119373 | `sqlite-libs` | Newly observed unfixed risk; maintainer disposition required. |
+| CVE-2026-119586 | `sqlite-libs` | Newly observed unfixed risk; maintainer disposition required. |
+
+The unchanged `ignore-unfixed` policy is not a new approval of those newly
+observed risks. Review them on the existing weekly cadence and when upstream
+fixes become available. Do not add ignores, reduce severity, disable scanners or
+relax the fixable-vulnerability gate. The original snapshot below remains as
+historical evidence; its resolved entries are not claims about the current base.
+
+## Historical exception snapshot — 2026-10-17
+
 **Record:** `SEC-EXC-2026-10-17-UBI-001`
 **Status:** Accepted, pending upstream fixes
 **Owner:** Kubernaut Console maintainers
@@ -10,7 +68,9 @@
 
 The CI pull-request scan builds the standalone image from
 `packages/standalone/Containerfile` and runs Trivy against the local
-`linux/amd64` artifact. It blocks fixable `HIGH` and `CRITICAL` findings. The
+`linux/amd64` artifact. It blocks fixable `HIGH` and `CRITICAL` findings, and the
+current SARIF action behavior also blocks fixable lower-severity findings as
+explained above. The
 workflow's `ignore-unfixed: true` setting applies only to this local PR gate;
 it does not suppress findings from the unchanged release digest scan.
 

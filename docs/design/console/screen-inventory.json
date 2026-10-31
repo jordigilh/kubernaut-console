@@ -1,0 +1,705 @@
+{
+  "status": "Design-reference inventory, not implementation/API acceptance",
+  "screens": [
+    {
+      "screenId": "overview",
+      "menu": "Overview",
+      "prototypeRouteTemplate": "#overview",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Overview",
+      "purpose": "Loaded scoped attention/recorded work; no global health/KPI claim",
+      "sourceBoundary": "RR/RAR/registry projections",
+      "actions": "read links",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "approvals.inbox",
+      "menu": "Approvals",
+      "prototypeRouteTemplate": "#approvals",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Approvals",
+      "purpose": "Independent pending-request discovery",
+      "sourceBoundary": "RAR list; target/source enrichment remains gated",
+      "actions": "filter loaded records; open review",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied",
+      "firstRuntimeSlice": true
+    },
+    {
+      "screenId": "approvals.review",
+      "menu": "Approvals",
+      "prototypeRouteTemplate": "#review/{rarId}",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Review remediation",
+      "purpose": "Independent recorded review; one ledger/decision form",
+      "sourceBoundary": "RAR detail plus authorized related review evidence",
+      "actions": "reason; confirm Approve/Reject; targeted evidence retry",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied",
+      "firstRuntimeSlice": true
+    },
+    {
+      "screenId": "investigations.list",
+      "menu": "Investigations",
+      "prototypeRouteTemplate": "#investigations",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Recorded remediation cases",
+      "purpose": "Recorded cases; direct workspace only for explicit relationship",
+      "sourceBoundary": "RR list/recorded goldens; typed case read",
+      "actions": "search/filter/read; open verified existing workspace",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "investigations.case",
+      "menu": "Investigations",
+      "prototypeRouteTemplate": "#case/{rrId}",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Recorded case",
+      "purpose": "Lifecycle/attribution, independent review link, separate optional workspace",
+      "sourceBoundary": "RR plus scoped lifecycle/history joins",
+      "actions": "read related records; no implicit start",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "investigations.workspace",
+      "menu": "Investigations",
+      "prototypeRouteTemplate": "#investigation/{rrId}",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Interactive workspace",
+      "purpose": "Preserve current chat capabilities in accepted presentation; source parity gates open",
+      "sourceBoundary": "A2A/MCP/SSE owner/typed public projection",
+      "actions": "explicit supported chat/workflow actions after guards; no RAR in conversation",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied",
+      "visualAuthority": "../../../mockups/console/navigation-investigation.html",
+      "relationshipWarning": "GitOps rr-layout fixture is separate from legacy rr-demo-02 and recorded goldens; do not alias/join them."
+    },
+    {
+      "screenId": "workflows.catalog",
+      "menu": "Workflows",
+      "prototypeRouteTemplate": "#workflows",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Workflows",
+      "purpose": "Read-only catalog, not execution permission",
+      "sourceBoundary": "Existing summary shape; scoped list contract",
+      "actions": "browse/filter; no Run/Select",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "workflows.detail",
+      "menu": "Workflows",
+      "prototypeRouteTemplate": "#workflow/{workflowId}?version={version}",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Workflow detail",
+      "purpose": "Exact ID/version; contextual Back",
+      "sourceBoundary": "Versioned definition is authored fixture; real detail projection gated",
+      "actions": "read/back; no override or parameter edit",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "workflows.executions",
+      "menu": "Workflows",
+      "prototypeRouteTemplate": "#executions?workflow={workflowId}",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Execution history",
+      "purpose": "Recorded history separate from current recommendation",
+      "sourceBoundary": "WE scoped list and exact relationships",
+      "actions": "loaded search/filter/detail only",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "executions.detail",
+      "menu": "Workflows",
+      "prototypeRouteTemplate": "#execution/{executionId}",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Execution detail",
+      "purpose": "Immutable execution workflow snapshot; application/effectiveness separate",
+      "sourceBoundary": "WE plus authorized assessment/provenance",
+      "actions": "read related outcome; no Retry/Run",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "outcomes.verification",
+      "menu": "Workflows",
+      "prototypeRouteTemplate": "#verification/{assessmentId}",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Verification & outcome",
+      "purpose": "Completeness, score, signal and recovery remain separate",
+      "sourceBoundary": "EA plus nullable DS score/source detail",
+      "actions": "read; no browser score computation",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "resources.list",
+      "menu": "Managed resources",
+      "prototypeRouteTemplate": "#resources?cluster={clusterId}",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Managed resources",
+      "purpose": "One shared effective-scope inventory",
+      "sourceBoundary": "MCP effective managed scope; typed inventory/provenance read",
+      "actions": "loaded search/filter/detail; no label writes",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "resources.detail",
+      "menu": "Managed resources",
+      "prototypeRouteTemplate": "#resource/{resourceId}",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Resource detail",
+      "purpose": "Separate identity, effective scope and provenance",
+      "sourceBoundary": "Authorized resource metadata/scope relationship",
+      "actions": "read related supplied records only",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "clusters.list",
+      "menu": "Clusters",
+      "prototypeRouteTemplate": "#clusters",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Clusters",
+      "purpose": "Fleet-only even with one visible cluster",
+      "sourceBoundary": "Authoritative topology plus scoped registry read",
+      "actions": "list/detail; no health inference",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local-denied",
+        "unknown-no-fallback"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "clusters.detail",
+      "menu": "Clusters",
+      "prototypeRouteTemplate": "#cluster/{clusterId}",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Cluster context",
+      "purpose": "Registry identity is not health",
+      "sourceBoundary": "Scoped registry plus shared inventory relation",
+      "actions": "open same filtered inventory",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local-denied",
+        "unknown-no-fallback"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "governance.policies",
+      "menu": "Policies & audit",
+      "prototypeRouteTemplate": "#policies",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Policies & audit",
+      "purpose": "Read-only current/recorded ownership context",
+      "sourceBoundary": "Effective sanitized config/evaluation projection gated",
+      "actions": "read policy/audit links; no edit/test/deploy",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "policies.approval",
+      "menu": "Policies & audit",
+      "prototypeRouteTemplate": "#policy/approval",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Policy context",
+      "purpose": "Historical policy evaluation distinct from current revision",
+      "sourceBoundary": "Recorded policy/hash and authorized effective config",
+      "actions": "read only",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "policies.scope",
+      "menu": "Policies & audit",
+      "prototypeRouteTemplate": "#policy/scope",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Policy context",
+      "purpose": "Effective managed-scope precedence/provenance",
+      "sourceBoundary": "Server-derived inclusion/exclusion context",
+      "actions": "read shared inventory; no mutation",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "governance.audit",
+      "menu": "Policies & audit",
+      "prototypeRouteTemplate": "#audit?case={rrId}",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Audit trail",
+      "purpose": "Authorized sanitized bounded records, not global approval entitlement",
+      "sourceBoundary": "DS filters exist; scoped browser read/detail gated",
+      "actions": "loaded search/filter/read; no raw export",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "audit.event",
+      "menu": "Policies & audit",
+      "prototypeRouteTemplate": "#event/{eventId}",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Audit event",
+      "purpose": "Actor vs initiator vs reviewer, typed event context",
+      "sourceBoundary": "Sanitized versioned event/relationship read",
+      "actions": "return to scoped list; no arbitrary payload viewer",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "administration",
+      "menu": "Administration",
+      "prototypeRouteTemplate": "#administration",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Administration",
+      "purpose": "Ownership overview, not a write surface",
+      "sourceBoundary": "Effective preferences/platform/access context gated",
+      "actions": "read detail destinations",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "settings.console",
+      "menu": "Administration",
+      "prototypeRouteTemplate": "#settings/console",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Settings detail",
+      "purpose": "Local appearance preview; persistence policy not assumed",
+      "sourceBoundary": "Browser preference contract",
+      "actions": "theme preview; no platform write",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "settings.platform",
+      "menu": "Administration",
+      "prototypeRouteTemplate": "#settings/platform",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Settings detail",
+      "purpose": "Operator/GitOps ownership and unknown effective values",
+      "sourceBoundary": "Authorized sanitized effective config read",
+      "actions": "read only; no endpoints/secrets/restart/test/save",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    },
+    {
+      "screenId": "settings.access",
+      "menu": "Administration",
+      "prototypeRouteTemplate": "#settings/access",
+      "routeKind": "offline hash study, not mandated production URL/API",
+      "headingHint": "Settings detail",
+      "purpose": "Trusted identity/capabilities, not display-name authority",
+      "sourceBoundary": "Host auth scope/tool authorization projection",
+      "actions": "read only; no role assignment/token management",
+      "normativeSpec": "screen-contracts.md",
+      "menuReference": "../../../mockups/console/navigation.html",
+      "topologyVariants": [
+        "fleet",
+        "local",
+        "unknown"
+      ],
+      "access": "Per existing backend capability; selector is fixture-only",
+      "readStates": [
+        "loading",
+        "ready",
+        "successful-empty",
+        "partial",
+        "stale",
+        "unavailable",
+        "permission-denied",
+        "missing-or-out-of-scope"
+      ],
+      "acceptance": "Navigation accepted; per-screen runtime/AT/backend acceptance not implied"
+    }
+  ]
+}

@@ -165,11 +165,18 @@ docker build -f packages/standalone/Containerfile -t kubernaut-console:latest .
 
 The multi-stage Containerfile uses:
 - **Build stage**: `registry.access.redhat.com/ubi9/nodejs-22-minimal:1-1791924375` (pnpm install + pnpm build)
-- **Runtime stage**: `registry.access.redhat.com/ubi9/nginx-126:1-1792454849` (serves static files)
+- **Runtime stage**: `registry.access.redhat.com/ubi9/nginx-126:1-1793251909` (serves static files)
 
 Both UBI images are pinned by manifest digest in `packages/standalone/Containerfile`;
 the timestamped tags above document the corresponding Red Hat releases. Bump
 the tag and digest together when refreshing the base images.
+
+The runtime stage also applies the pinned Red Hat `curl-minimal` and
+`libcurl-minimal` `7.76.1-40.el9_8.9` RPM fixes, which postdate that vendor image.
+Only this build-time patch uses root; the final image still runs as `USER 1001`.
+Revalidate both architecture repositories and the image scan when changing these
+RPM pins; do not remove the patches just because the base-image HIGH/CRITICAL
+scan passes.
 
 #### Safely bumping base-image digests
 
