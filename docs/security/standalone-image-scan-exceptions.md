@@ -19,6 +19,21 @@ reports 11 fixable package findings (10 HIGH and 1 CRITICAL across 8 CVEs).
 CI also asserts runtime user `1001` and checks that `GET /` serves the built
 application entry point before scanning the complete image.
 
+The refreshed vendor image still contains two fixable MEDIUM package findings
+for `CVE-2026-8932`: `curl-minimal` and `libcurl-minimal` at
+`7.76.1-40.el9_8.8`. The Containerfile therefore upgrades only those RPMs to the
+verified `7.76.1-40.el9_8.9` builds, available in the public UBI BaseOS repositories
+for both x86_64 and aarch64. The patch runs as root only during image construction;
+the final runtime user remains `1001`.
+
+Why the MEDIUM findings also fail CI: the pinned Trivy action
+`ed142fd0673e97e23eac54620cfb913e5ce36c25` unsets `TRIVY_SEVERITY` when generating
+SARIF unless `limit-severities-for-sarif` is enabled. Thus the current image gate
+includes all severities despite its HIGH/CRITICAL input. This fix preserves that
+stricter behavior and remediates the two findings; it does not hide them by
+changing the report/severity settings. Base-only HIGH/CRITICAL results are not
+substitutes for the complete CI image scan.
+
 The unfiltered `linux/amd64` HIGH/CRITICAL scan still reports **39 HIGH package
 findings across 10 CVEs, zero CRITICAL**, all without a supplied fixed version:
 
@@ -53,7 +68,9 @@ historical evidence; its resolved entries are not claims about the current base.
 
 The CI pull-request scan builds the standalone image from
 `packages/standalone/Containerfile` and runs Trivy against the local
-`linux/amd64` artifact. It blocks fixable `HIGH` and `CRITICAL` findings. The
+`linux/amd64` artifact. It blocks fixable `HIGH` and `CRITICAL` findings, and the
+current SARIF action behavior also blocks fixable lower-severity findings as
+explained above. The
 workflow's `ignore-unfixed: true` setting applies only to this local PR gate;
 it does not suppress findings from the unchanged release digest scan.
 

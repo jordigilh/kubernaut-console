@@ -146,9 +146,11 @@ Dependabot checks the npm workspace, GitHub Actions, and standalone
 see `.github/dependabot.yml` before changing update scope or cadence.
 
 The CI security job scans a locally built `linux/amd64` standalone image for
-HIGH and CRITICAL OS and application-library vulnerabilities. This avoids
-requiring a registry image on pull requests. The scan fails on fixable HIGH or
-CRITICAL findings (`exit-code: 1`); `ignore-unfixed: true` is intentional so
+OS and application-library vulnerabilities. HIGH and CRITICAL are the configured
+minimum, but the pinned action expands SARIF output to all severities and also
+fails on fixable lower-severity findings; see the current image scan record below.
+This avoids requiring a registry image on pull requests. The scan fails on
+fixable findings (`exit-code: 1`); `ignore-unfixed: true` is intentional so
 vendor-reported base-image or dependency findings with no available
 remediation do not make CI permanently unmergeable. Those findings remain an
 accepted-risk limitation until an upstream fix is available. Release CI

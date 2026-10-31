@@ -13,10 +13,14 @@
     'rar-demo-03': { name: 'rar-demo-03', namespace, decision: 'Pending', requiredBy: '2026-10-28T14:27:00Z' },
   };
   const demoNow = () => demoStart + performance.now() - clockStart;
-  /** Give a newly introduced fixture its original validity window on the demo clock. */
+  /** Introduce one immutable deadline per fixture identity within this demo scope. */
   function fresh(name) {
+    if (feed.has(name)) return feed.get(name);
     const fixture = fixtures[name];
-    return { ...fixture, requiredBy: new Date(demoNow() + Date.parse(fixture.requiredBy) - demoStart).toISOString() };
+    const record = { ...fixture, requiredBy: new Date(demoNow() + Date.parse(fixture.requiredBy) - demoStart).toISOString() };
+    feed.set(name, record);
+    projectDeadline(record);
+    return record;
   }
   const host = document.createElement('div'); host.className = 'notification-host';
   host.innerHTML = '<button class="notification-toggle" id="notification-toggle" type="button" aria-label="Notifications, no unread alerts" aria-expanded="false" aria-controls="notification-panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span id="notification-count" class="notification-count" hidden></span></button><section class="notification-panel" id="notification-panel" aria-labelledby="notification-heading" hidden><h2 id="notification-heading">Notifications</h2><p class="notification-note">This browser session · not an assignment or inbox total</p><p class="notification-empty" id="notification-empty">No new approval alerts in this session.</p><ul id="notification-list"></ul><div class="notification-inbox"><a href="#approvals" id="notification-inbox">Open Approvals inbox →</a></div></section>';
@@ -31,6 +35,29 @@
   const activeContext = () => [$('evidence-dataset')?.value, $('access-preview')?.value, $('topology')?.value].join('|');
   const allowed = () => signedIn && $('evidence-dataset')?.value === 'synthetic' && ['operations', 'approvals'].includes($('access-preview')?.value) && ['fleet', 'local'].includes($('topology')?.value);
   const hrefFor = record => record.source === source && record.namespace === namespace && Object.hasOwn(fixtures, record.name) ? '#review/' + record.name : null;
+  /** Project the same offline record into the existing inbox and confirmation source. */
+  function projectDeadline(record) {
+    if (!allowed()) return;
+    const deadline = new Date(record.requiredBy).toISOString().slice(11, 16) + ' UTC';
+    cases[record.name].deadline = deadline;
+    const cell = document.querySelector(`tr[data-request^="${record.name} "]`)?.cells[4];
+    if (cell) {
+      const remaining = document.createElement('span');
+      remaining.textContent = Math.max(0, Math.ceil((Date.parse(record.requiredBy) - demoNow()) / 60000)) + ' min';
+      if (record.name === 'rar-demo-02') remaining.className = 'pill warning';
+      const due = document.createElement('small'); due.textContent = 'Due ' + deadline;
+      cell.dataset.requiredBy = record.requiredBy;
+      cell.replaceChildren(remaining, due);
+    }
+    if (activeScreen === 'review' && activeCase === record.name && $('review-deadline').textContent !== deadline) {
+      window.KubernautClearDecision?.();
+      $('review-deadline').textContent = deadline;
+      window.KubernautUX.schedule();
+    }
+  }
+  function projectScopeDeadlines() {
+    for (const fixture of Object.values(fixtures)) projectDeadline(feed.get(fixture.name) || fixture);
+  }
   function layout() {
     const header = app.querySelector('.app-header').getBoundingClientRect(), box = app.getBoundingClientRect();
     app.style.setProperty('--ux-header-height', header.height + 'px');
@@ -105,7 +132,9 @@
     }
     contextKey = activeContext(); dismissToast(); closePanel(); feed.clear();
     const ready = allowed();
-    if (ready) feed.set('rar-demo-01', fresh('rar-demo-01'));
+    if (ready) fresh('rar-demo-01');
+    projectScopeDeadlines();
+    requestAnimationFrame(projectScopeDeadlines);
     store.setScope(ready ? { source, namespace, principal: 'synthetic-viewer:' + $('access-preview').value, session: 'prototype-epoch-' + (epoch + 1) } : null);
     lastMessage = ready ? 'Notification study active for this synthetic scope.' : 'Alerts disabled: signed out, historical dataset, or unavailable topology.';
     if (ready) poll(); timer(); demoStatus();
@@ -113,14 +142,13 @@
   function investigation() {
     if (!allowed() || $('access-preview').value !== 'operations') return false;
     const base = fresh('rar-demo-02');
-    const record = { ...base, name: namespace + '/rar-demo-02' };
-    feed.set('rar-demo-02', base);
+    const record = { ...base, name: namespace + '/rar-demo-02', decision: 'Pending' };
     const accepted = store.observe(record, store.capture(), 'investigation'); lastMessage = accepted ? 'Investigation signal handled; an eventual poll uses the same RAR key.' : 'Signal ignored: this example is already resolved in the notification scope.'; demoStatus(); return accepted;
   }
-  function queue() { if (!allowed()) return; feed.set('rar-demo-03', fresh('rar-demo-03')); lastMessage = 'Another operator’s example RAR is queued for the next fixture poll.'; demoStatus(); }
+  function queue() { if (!allowed()) return; fresh('rar-demo-03'); lastMessage = 'Another operator’s example RAR is queued; repeated detections retain its deadline.'; demoStatus(); }
   function resolve() {
     if (!allowed()) return;
-    const record = { ...(feed.get('rar-demo-02') || fresh('rar-demo-02')), decision: 'Rejected' }; feed.set('rar-demo-02', record);
+    const record = { ...fresh('rar-demo-02'), decision: 'Rejected' }; feed.set('rar-demo-02', record);
     // Reuse the baseline's existing concurrent-decision fixture, not a new decision implementation.
     window.KubernautClearDecision?.(); reviewStates['rar-demo-02'] = 'conflict';
     if (activeScreen === 'review' && activeCase === 'rar-demo-02') updateReviewState();

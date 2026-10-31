@@ -171,6 +171,13 @@ Both UBI images are pinned by manifest digest in `packages/standalone/Containerf
 the timestamped tags above document the corresponding Red Hat releases. Bump
 the tag and digest together when refreshing the base images.
 
+The runtime stage also applies the pinned Red Hat `curl-minimal` and
+`libcurl-minimal` `7.76.1-40.el9_8.9` RPM fixes, which postdate that vendor image.
+Only this build-time patch uses root; the final image still runs as `USER 1001`.
+Revalidate both architecture repositories and the image scan when changing these
+RPM pins; do not remove the patches just because the base-image HIGH/CRITICAL
+scan passes.
+
 #### Safely bumping base-image digests
 
 When updating a Red Hat base image, use `docker buildx imagetools inspect` (or an

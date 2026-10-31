@@ -17,6 +17,8 @@ Current source assets, exact logo and paired colors are retained from the accept
 
 PR review corrections keep disclosure state on navigation buttons (with a data-only sidebar styling hook), refresh newly introduced notification-fixture deadlines on the same demo clock, and include capture state in gallery search. These are offline-study repairs, not new permissions, a live notification source or changes to the accepted navigation/layout. The notification store still deduplicates both sources and refuses to reopen terminal records; changing scope establishes a quiet baseline.
 
+Within a scope, a fixture receives its deadline only on first introduction; repeated investigation or queue detections reuse it rather than extending expiry. That same record projects the displayed inbox/review deadline and immutable confirmation source. A newly projected deadline invalidates any open confirmation for that request without clearing the reason draft. This remains synthetic presentation, not an authoritative live decision/expiry implementation.
+
 ## Checks
 
 From repository root:

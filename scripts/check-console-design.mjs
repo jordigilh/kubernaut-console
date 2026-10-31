@@ -98,14 +98,21 @@ try {
       assert.equal(original.decision, 'Pending');
       assert.equal(await page.locator('#notification-toast').isVisible(), true);
       assert.equal(await page.locator('#notification-count').innerText(), '1');
+      await page.clock.fastForward(60 * 1000);
+      await page.evaluate(() => window.KubernautNotificationStudy.investigation());
       await page.evaluate(() => window.KubernautNotificationStudy.poll());
       state = await page.evaluate(() => window.KubernautNotificationStudy.store.snapshot());
       assert.equal(state.records.find(r => r.name === 'rar-demo-02').requiredBy, original.requiredBy);
       assert.equal(await page.evaluate(() => window.KubernautNotificationStudy.stats().toastCount), 1);
       await page.evaluate(() => window.KubernautNotificationStudy.queue());
       await page.evaluate(() => window.KubernautNotificationStudy.poll());
+      const queued = await page.evaluate(() => window.KubernautNotificationStudy.store.snapshot().records.find(r => r.name === 'rar-demo-03'));
+      await page.clock.fastForward(60 * 1000);
+      await page.evaluate(() => window.KubernautNotificationStudy.queue());
+      await page.evaluate(() => window.KubernautNotificationStudy.poll());
       state = await page.evaluate(() => window.KubernautNotificationStudy.store.snapshot());
       assert.equal(state.records.find(r => r.name === 'rar-demo-03').decision, 'Pending');
+      assert.equal(state.records.find(r => r.name === 'rar-demo-03').requiredBy, queued.requiredBy);
       assert.equal(await page.evaluate(() => window.KubernautNotificationStudy.stats().toastCount), 2);
       await page.evaluate(() => window.KubernautNotificationStudy.resolve());
       state = await page.evaluate(() => window.KubernautNotificationStudy.store.snapshot());
@@ -118,6 +125,30 @@ try {
       assert.equal(state.records.find(r => r.name === 'rar-demo-01').decision, 'Pending');
       assert.equal(state.records.find(r => r.name === 'rar-demo-01').notified, false);
       assert.equal(await page.locator('#notification-count').isVisible(), false);
+      const baseline = state.records.find(r => r.name === 'rar-demo-01');
+      const baselineDeadline = new Date(baseline.requiredBy).toISOString().slice(11, 16) + ' UTC';
+      assert.match(await page.locator('tr[data-request^="rar-demo-01 "] td').nth(4).innerText(), new RegExp(baselineDeadline));
+    } finally {
+      await page.clock.resume();
+    }
+  });
+  await check('Notification expiry matches inbox, review ledger and confirmation', async () => {
+    try {
+      await menu(1280);
+      await page.locator('#notification-demo > summary').click();
+      await page.locator('#notification-periodic').uncheck();
+      await page.clock.fastForward(19 * 60 * 1000);
+      await page.locator('#notification-investigation').click();
+      const record = await page.evaluate(() => window.KubernautNotificationStudy.store.snapshot().records.find(r => r.name === 'rar-demo-02'));
+      const deadline = new Date(record.requiredBy).toISOString().slice(11, 16) + ' UTC';
+      assert.match(await page.locator('tr[data-request^="rar-demo-02 "] td').nth(4).innerText(), new RegExp(deadline));
+      await page.locator('#notification-toast-link').click(); await wait();
+      assert.equal(await page.locator('#review-deadline').innerText(), deadline);
+      assert.match(await page.locator('#ux-record-identity').innerText(), new RegExp(deadline));
+      await page.locator('#decision-reason').fill('Controlled-clock deadline review');
+      await page.locator('[data-decision="Approve"]').click();
+      assert.equal(await page.locator('#dialog-deadline').innerText(), deadline);
+      await page.locator('#cancel-decision').click();
     } finally {
       await page.clock.resume();
     }
