@@ -15,6 +15,21 @@ export { AgentBubble } from "./components/AgentBubble";
 export { UserBubble } from "./components/UserBubble";
 export { WorkflowCards } from "./components/WorkflowCards";
 export { ApprovalCard } from "./components/ApprovalCard";
+export { ApprovalConsole } from "./components/ApprovalConsole";
+export { ApprovalDecisionConfirmation } from "./components/ApprovalDecisionConfirmation";
+export { ApprovalReadStatePanel } from "./components/ApprovalReadState";
+export { ConsoleShell, FixtureApprovalWorkspace, ReadStatePanel } from "./console/foundation";
+export type { ConsoleShellProps, ConsoleReadState, ReadProvenance, ReadStatus } from "./console/foundation";
+export { navigationFor, screenIds } from "./console/registry";
+export type { NavigationId, NavigationItem, ScreenId, Topology } from "./console/registry";
+export { FixtureInvestigations } from "./console/fixture-investigations";
+export type { FixtureInvestigationsProps } from "./console/fixture-investigations";
+export { FixtureWorkflows } from "./console/fixture-workflows";
+export type { FixtureWorkflowsProps, FixtureWorkflowScreen } from "./console/fixture-workflows";
+export { FixtureScope } from "./console/fixture-scope";
+export type { FixtureScopeProps, FixtureScopeScreen } from "./console/fixture-scope";
+export { FixtureGovernance } from "./console/fixture-governance";
+export type { FixtureGovernanceProps, FixtureGovernanceScreen, FixtureGovernanceCapability } from "./console/fixture-governance";
 export { RCACard } from "./components/RCACard";
 export { VerificationTimer } from "./components/VerificationTimer";
 export { InvestigationContext } from "./components/InvestigationContext";
@@ -25,6 +40,15 @@ export { WelcomeState } from "./components/WelcomeState";
 export { useChat } from "./hooks/useChat";
 export { useUser } from "./hooks/useUser";
 export { clearConsoleSessionState } from "./lib/session-state";
+export { ApprovalsPage } from "./pages/ApprovalsPage";
+export { ApprovalReviewPage } from "./pages/ApprovalReviewPage";
+export {
+  FIXTURE_REVIEWER,
+  createApprovalFixtureAdapter,
+  formatApprovalTimestamp,
+  formatTarget,
+  formatUnknown,
+} from "./lib/approval-review";
 
 // Types
 export type {
@@ -43,3 +67,23 @@ export type {
   ConnectionStatus,
 } from "./hooks/useChat";
 export type { McpClientOptions } from "./lib/mcp-client";
+export type {
+  ApprovalActor,
+  ApprovalDataState,
+  ApprovalDecision,
+  ApprovalDecisionInput,
+  ApprovalDecisionReceipt,
+  ApprovalDecisionResult,
+  ApprovalDecisionSnapshot,
+  ApprovalDecisionState,
+  ApprovalEvidenceItem,
+  ApprovalFixtureAdapterOptions,
+  ApprovalLifecycleStatus,
+  ApprovalListItem,
+  ApprovalReadState,
+  ApprovalReview,
+  ApprovalReviewAdapter,
+  ApprovalSource,
+  ApprovalTarget,
+  ApprovalWorkflowReference,
+} from "./lib/approval-review";

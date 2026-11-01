@@ -9,6 +9,22 @@ This directory is the version-controlled design and implementation handoff for t
 3. [Implementation readiness](implementation-readiness.md) and [acceptance/delivery](acceptance-and-delivery.md).
 4. [New-session prompt](new-session-prompt.md) for implementation handover.
 
+The current fixture-backed source-only correction is mapped in
+[approval-first-source-only.md](approval-first-source-only.md). Its limitations
+are explicit; it is not a live-readiness claim.
+The [RAR contract seam](rar-live-contract-seam.md) maps that fixture model to
+current upstream source and the unresolved live-read requirements.
+The [Stage 3 matrix](rar-stage-3-matrix.md) connects those gaps to owners,
+decision states and RAR-01–08 evidence without authorizing live wiring.
+The [Stage 4 matrix](investigation-stage-4-matrix.md) maps investigation/chat
+source, proposed read-only seams and open ownership/acceptance gates.
+The [Stage 5 workflow fixture note](workflow-stage-5-fixtures.md) records the
+first read-only workflow/verification wave and remaining module handoff.
+The [Stage 5 scope fixture note](scope-stage-5-fixtures.md) covers the
+separate Overview, Managed Resources and Clusters fixture wave.
+The [Stage 5 governance fixture note](governance-stage-5-fixtures.md) covers
+the remaining Policies & Audit and Administration fixture presentations.
+
 Written current contracts govern behavior. The current mockups govern demonstrated visual composition; historical screenshots do not reinstate superseded chrome. Actual source/API/permission contracts constrain what can be wired, but do not silently override an approved UX correction. If a required behavior is unsupported, identify the contract gap rather than inventing data, expanding privileges or redesigning it without review.
 
 ## Open the mockups

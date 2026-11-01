@@ -1,0 +1,666 @@
+.kn-approval-console {
+  --kn-approval-canvas: #F4F7FB;
+  --kn-approval-surface: #FFFFFF;
+  --kn-approval-text: #172B3A;
+  --kn-approval-muted: #526575;
+  --kn-approval-border: #D9E2EE;
+  --kn-approval-primary: #087F8C;
+  --kn-approval-info: #245DD8;
+  --kn-approval-success: #146D3E;
+  --kn-approval-warning: #825000;
+  --kn-approval-danger: #B62231;
+  --kn-approval-input-background: #FFFFFF;
+  --kn-approval-input-foreground: #172B3A;
+  min-height: 100%;
+  background: var(--kn-approval-canvas);
+  color: var(--kn-approval-text);
+  font-family: var(--kn-font-body, "Red Hat Text", system-ui, sans-serif);
+  line-height: 1.5;
+}
+
+.kn-approval-console *,
+.kn-approval-console *::before,
+.kn-approval-console *::after {
+  box-sizing: border-box;
+}
+
+.kn-approval-console button,
+.kn-approval-console input,
+.kn-approval-console select,
+.kn-approval-console textarea {
+  font: inherit;
+}
+
+.kn-approval-console button {
+  border: 1px solid var(--kn-approval-border);
+  border-radius: 5px;
+  background: var(--kn-approval-surface);
+  color: var(--kn-approval-text);
+  cursor: pointer;
+  padding: 0.55rem 0.8rem;
+}
+
+.kn-approval-console button:hover:not(:disabled) {
+  border-color: var(--kn-approval-primary);
+}
+
+.kn-approval-console button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.kn-approval-console button:focus-visible,
+.kn-approval-console input:focus-visible,
+.kn-approval-console select:focus-visible,
+.kn-approval-console textarea:focus-visible {
+  outline: 2px solid var(--kn-approval-info);
+  outline-offset: 2px;
+}
+
+.kn-approval-header {
+  align-items: center;
+  background: var(--kn-approval-surface);
+  border-bottom: 1px solid var(--kn-approval-border);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1rem 1.35rem;
+}
+
+.kn-approval-header > div:first-child {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.kn-approval-brand {
+  align-items: center;
+  display: flex;
+  gap: 0.65rem;
+}
+
+.kn-approval-brand > div {
+  align-items: baseline;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.kn-approval-logo {
+  border-radius: 6px;
+  height: 28px;
+  width: 28px;
+}
+
+.kn-approval-header strong {
+  font-size: 1.15rem;
+}
+
+.kn-approval-header span,
+.kn-approval-muted,
+.kn-approval-identity small,
+.kn-approval-table small,
+.kn-approval-metrics small,
+.kn-approval-console p {
+  color: var(--kn-approval-muted);
+}
+
+.kn-approval-identity {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85rem;
+}
+
+.kn-approval-shell {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  min-height: 42rem;
+}
+
+.kn-approval-nav {
+  background: var(--kn-approval-surface);
+  border-right: 1px solid var(--kn-approval-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 1.2rem 0.8rem;
+}
+
+.kn-approval-nav-priority {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.kn-approval-nav-deferred {
+  color: var(--kn-approval-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.55rem 0.8rem;
+}
+
+.kn-approval-nav-deferred small {
+  font-size: 0.7rem;
+}
+
+.kn-approval-more-toggle {
+  margin-top: 0.35rem;
+}
+
+.kn-approval-more {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.kn-approval-more section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.kn-approval-more h2 {
+  color: var(--kn-approval-muted);
+  font-size: 0.72rem;
+  margin: 0 0 0.25rem;
+  padding: 0 0.8rem;
+  text-transform: uppercase;
+}
+
+.kn-approval-more[data-open="false"] {
+  display: none;
+}
+
+.kn-approval-nav button[aria-current="page"] {
+  background: color-mix(in srgb, var(--kn-approval-primary) 12%, var(--kn-approval-surface));
+  border-color: var(--kn-approval-primary);
+  color: var(--kn-approval-primary);
+  font-weight: 650;
+}
+
+.kn-approval-nav-deferred {
+  color: var(--kn-approval-muted);
+  font-size: 0.78rem;
+  padding: 0.55rem 0.8rem;
+}
+
+.kn-approval-main {
+  margin: 0 auto;
+  max-width: 1180px;
+  padding: 1.5rem;
+  width: 100%;
+}
+
+.kn-approval-fixture-banner {
+  background: color-mix(in srgb, var(--kn-approval-info) 9%, var(--kn-approval-surface));
+  border-left: 3px solid var(--kn-approval-info);
+  color: var(--kn-approval-text);
+  font-size: 0.8rem;
+  margin-bottom: 1.2rem;
+  padding: 0.65rem 0.8rem;
+}
+
+.kn-approval-page-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1.2rem;
+}
+
+.kn-approval-page-heading h1 {
+  font-size: 1.8rem;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.kn-approval-page-heading p {
+  margin: 0.4rem 0 0;
+}
+
+.kn-approval-badge {
+  border: 1px solid var(--kn-approval-border);
+  border-radius: 999px;
+  color: var(--kn-approval-muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  padding: 0.25rem 0.65rem;
+  white-space: nowrap;
+}
+
+.kn-approval-metrics {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 1rem;
+}
+
+.kn-approval-metrics > div,
+.kn-approval-panel,
+.kn-approval-read-state,
+.kn-approval-decision-result,
+.kn-approval-evidence-warning {
+  background: var(--kn-approval-surface);
+  border: 1px solid var(--kn-approval-border);
+  border-radius: 7px;
+  padding: 1rem;
+}
+
+.kn-approval-metrics > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.kn-approval-metrics strong {
+  font-size: 1.45rem;
+}
+
+.kn-approval-panel h2,
+.kn-approval-panel h3 {
+  margin-top: 0;
+}
+
+.kn-approval-toolbar {
+  align-items: end;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.kn-approval-toolbar label,
+.kn-approval-decision-form label {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  font-size: 0.8rem;
+  font-weight: 650;
+  gap: 0.35rem;
+}
+
+.kn-approval-toolbar input,
+.kn-approval-toolbar select,
+.kn-approval-decision-form textarea {
+  background: var(--kn-approval-input-background);
+  border: 1px solid var(--kn-approval-border);
+  border-radius: 5px;
+  color: var(--kn-approval-input-foreground);
+  padding: 0.6rem 0.7rem;
+  width: 100%;
+}
+
+.kn-approval-toolbar input::placeholder,
+.kn-approval-decision-form textarea::placeholder {
+  color: var(--kn-approval-muted);
+}
+
+.kn-approval-table-wrap {
+  overflow-x: auto;
+}
+
+.kn-approval-table {
+  border-collapse: collapse;
+  min-width: 700px;
+  width: 100%;
+}
+
+.kn-approval-table caption {
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+}
+
+.kn-approval-table th,
+.kn-approval-table td {
+  border-bottom: 1px solid var(--kn-approval-border);
+  padding: 0.8rem 0.55rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.kn-approval-table th {
+  color: var(--kn-approval-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+
+.kn-approval-table td strong,
+.kn-approval-table td small {
+  display: block;
+}
+
+.kn-approval-table td small {
+  font-size: 0.72rem;
+  margin-top: 0.2rem;
+}
+
+.kn-approval-read-state {
+  margin-bottom: 1rem;
+}
+
+.kn-approval-read-state--notice {
+  border-left: 3px solid var(--kn-approval-warning);
+}
+
+.kn-approval-read-state strong,
+.kn-approval-evidence-warning strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.kn-approval-read-state p,
+.kn-approval-evidence-warning p {
+  margin: 0.25rem 0 0.75rem;
+}
+
+.kn-approval-ledger {
+  background: var(--kn-approval-surface);
+  border: 1px solid var(--kn-approval-border);
+  border-radius: 7px;
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 1.2rem;
+  padding: 1rem;
+}
+
+.kn-approval-ledger dt {
+  color: var(--kn-approval-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+
+.kn-approval-ledger dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.kn-approval-review-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+}
+
+.kn-approval-review-grid .kn-approval-panel {
+  height: 100%;
+}
+
+.kn-approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.kn-approval-actions button:last-child {
+  background: var(--kn-approval-primary);
+  border-color: var(--kn-approval-primary);
+  color: #FFFFFF;
+}
+
+.kn-approval-decision-form {
+  border-top: 1px solid var(--kn-approval-border);
+  margin-top: 1.2rem;
+  padding-top: 1.2rem;
+}
+
+.kn-approval-decision-result {
+  border-left: 3px solid var(--kn-approval-success);
+  margin-top: 1.2rem;
+}
+
+.kn-approval-decision-result strong {
+  color: var(--kn-approval-success);
+  font-size: 1.1rem;
+}
+
+.kn-approval-decision-result p {
+  margin: 0.3rem 0 0;
+}
+
+.kn-approval-error {
+  background: color-mix(in srgb, var(--kn-approval-danger) 8%, var(--kn-approval-surface));
+  border-left: 3px solid var(--kn-approval-danger);
+  color: var(--kn-approval-danger);
+  margin: 0.75rem 0;
+  padding: 0.65rem 0.8rem;
+}
+
+.kn-approval-guard-list {
+  list-style: none;
+  padding-left: 0.8rem;
+}
+
+.kn-approval-guard-list li {
+  margin: 0.25rem 0;
+}
+
+.kn-approval-decision-outcome button {
+  margin-top: 0.35rem;
+}
+
+.kn-approval-status {
+  border: 1px solid var(--kn-approval-border);
+  border-radius: 999px;
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 650;
+  padding: 0.2rem 0.55rem;
+  white-space: nowrap;
+}
+
+.kn-approval-evidence-warning {
+  border-left: 3px solid var(--kn-approval-warning);
+}
+
+.kn-approval-evidence-warning button {
+  margin-top: 0.35rem;
+}
+
+.kn-approval-evidence-warning ul,
+.kn-approval-panel ul {
+  padding-left: 1.2rem;
+}
+
+.kn-approval-panel li {
+  margin: 0.65rem 0;
+}
+
+.kn-approval-panel li small {
+  color: var(--kn-approval-muted);
+}
+
+.kn-approval-confirmation {
+  background: color-mix(in srgb, var(--kn-approval-text) 35%, transparent);
+  inset: 0;
+  overflow: auto;
+  padding: 2rem 1rem;
+  position: fixed;
+  z-index: 10;
+}
+
+.kn-approval-confirmation__body {
+  background: var(--kn-approval-surface);
+  border: 1px solid var(--kn-approval-border);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--kn-approval-text) 22%, transparent);
+  margin: auto;
+  max-width: 560px;
+  padding: 1.25rem;
+}
+
+.kn-approval-confirmation__body h2 {
+  margin-top: 0;
+}
+
+.kn-approval-ledger--confirmation {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.kn-approval-visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+@media (min-width: 700px) {
+  .kn-approval-more-toggle {
+    display: none;
+  }
+
+  .kn-approval-more,
+  .kn-approval-more[data-open="false"] {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr;
+    margin-top: 1rem;
+  }
+}
+
+@media (max-width: 699px) {
+  .kn-approval-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .kn-approval-nav {
+    border-bottom: 1px solid var(--kn-approval-border);
+    border-right: 0;
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .kn-approval-nav-priority {
+    flex-direction: row;
+  }
+
+  .kn-approval-nav-deferred {
+    min-width: max-content;
+  }
+
+  .kn-approval-more-toggle {
+    margin-top: 0;
+    min-width: max-content;
+  }
+
+  .kn-approval-more[data-open="true"] {
+    background: var(--kn-approval-surface);
+    border: 1px solid var(--kn-approval-border);
+    border-radius: 7px;
+    flex-direction: row;
+    margin-top: 0;
+    padding: 0.65rem;
+  }
+
+  .kn-approval-more[data-open="true"] section {
+    flex: 1;
+    min-width: 10rem;
+  }
+
+  .kn-approval-more[data-open="true"] h2,
+  .kn-approval-more[data-open="true"] .kn-approval-nav-deferred {
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+
+  .kn-approval-review-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .kn-approval-header,
+  .kn-approval-page-heading,
+  .kn-approval-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .kn-approval-main {
+    padding: 1rem;
+  }
+
+  .kn-approval-metrics,
+  .kn-approval-ledger,
+  .kn-approval-ledger--confirmation {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .kn-approval-console {
+    --kn-approval-canvas: #0F1724;
+    --kn-approval-surface: #182334;
+    --kn-approval-text: #E8F0F9;
+    --kn-approval-muted: #A5B5CA;
+    --kn-approval-border: #3A4A5F;
+    --kn-approval-primary: #4DD0CD;
+    --kn-approval-info: #86B5FF;
+    --kn-approval-success: #5DE0A2;
+    --kn-approval-warning: #FFD46C;
+    --kn-approval-danger: #FF9A9A;
+    --kn-approval-input-background: #0F1724;
+    --kn-approval-input-foreground: #E8F0F9;
+    color-scheme: dark;
+  }
+
+  .kn-approval-actions button:last-child {
+    color: #09292A;
+  }
+}
+
+.kn-foundation[data-theme="light"] .kn-approval-console {
+  --kn-approval-canvas: #F4F7FB;
+  --kn-approval-surface: #FFFFFF;
+  --kn-approval-text: #172B3A;
+  --kn-approval-muted: #526575;
+  --kn-approval-border: #D9E2EE;
+  --kn-approval-primary: #087F8C;
+  --kn-approval-info: #245DD8;
+  --kn-approval-success: #146D3E;
+  --kn-approval-warning: #825000;
+  --kn-approval-danger: #B62231;
+  --kn-approval-input-background: #FFFFFF;
+  --kn-approval-input-foreground: #172B3A;
+  color-scheme: light;
+}
+
+.kn-foundation[data-theme="light"] .kn-approval-actions button:last-child {
+  color: #FFFFFF;
+}
+
+.kn-foundation[data-theme="dark"] .kn-approval-console {
+  --kn-approval-canvas: #0F1724;
+  --kn-approval-surface: #182334;
+  --kn-approval-text: #E8F0F9;
+  --kn-approval-muted: #A5B5CA;
+  --kn-approval-border: #3A4A5F;
+  --kn-approval-primary: #4DD0CD;
+  --kn-approval-info: #86B5FF;
+  --kn-approval-success: #5DE0A2;
+  --kn-approval-warning: #FFD46C;
+  --kn-approval-danger: #FF9A9A;
+  --kn-approval-input-background: #0F1724;
+  --kn-approval-input-foreground: #E8F0F9;
+  color-scheme: dark;
+}
+
+.kn-foundation[data-theme="dark"] .kn-approval-actions button:last-child {
+  color: #09292A;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kn-approval-console * {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
