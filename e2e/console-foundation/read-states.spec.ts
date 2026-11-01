@@ -18,7 +18,7 @@ for (const status of ["ready", "partial", "stale"] as const) {
     await page.goto(fixture);
     await page.getByLabel("Read state").selectOption(status);
     await expect(page.getByText("Authorized fixture data")).toBeVisible();
-    await expect(page.getByText(/Source: Fixture source · Observed: 2026-01-01/)).toBeVisible();
+    await expect(page.getByText("Source: Fixture source · Observed: 2026-01-01", { exact: true })).toBeVisible();
     if (status !== "ready") await expect(page.locator(`[data-read-state="${status}"] [role=status]`)).toBeVisible();
   });
 }

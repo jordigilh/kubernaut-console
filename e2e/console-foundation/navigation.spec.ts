@@ -120,7 +120,7 @@ test("fixture approvals open a review without backend requests", async ({ page }
   await page.goto(`${fixture}?view=approvals`);
   await expect(page.getByText("Fixture preview — no live decision is submitted")).toBeVisible();
   await page.getByRole("button", { name: "Review rar-demo-02" }).click();
-  await expect(page.getByText("Deployment/demo-operator")).toBeVisible();
+  await expect(page.getByText("Deployment/demo-operator", { exact: true })).toBeVisible();
   await noOverflow(page);
   expect(unexpected).toEqual([]);
 });

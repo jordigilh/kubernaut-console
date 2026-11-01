@@ -3,11 +3,30 @@ import { describe, expect, it } from "vitest";
 import { ApprovalConsole } from "./ApprovalConsole";
 import { FIXTURE_REVIEWER, createApprovalFixtureAdapter } from "../lib/approval-review";
 
+async function createOpenDecisionAdapter() {
+  const base = createApprovalFixtureAdapter();
+  const current = await base.read("rar-demo-02");
+  if (current.status !== "ready") throw new Error("Fixture read was not ready.");
+
+  return createApprovalFixtureAdapter({
+    reviewStates: {
+      "rar-demo-02": {
+        ...current,
+        data: {
+          ...current.data,
+          deadline: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        },
+      },
+    },
+  });
+}
+
 describe("ApprovalConsole fixture journey", () => {
   it("takes operator B from the inbox to an immutable confirmation and an Approved result", async () => {
+    const adapter = await createOpenDecisionAdapter();
     render(
       <ApprovalConsole
-        adapter={createApprovalFixtureAdapter()}
+        adapter={adapter}
         reviewer={FIXTURE_REVIEWER}
       />,
     );
@@ -113,9 +132,10 @@ describe("ApprovalConsole fixture journey", () => {
   });
 
   it("records a Rejected result through the same confirmation boundary", async () => {
+    const adapter = await createOpenDecisionAdapter();
     render(
       <ApprovalConsole
-        adapter={createApprovalFixtureAdapter()}
+        adapter={adapter}
         reviewer={FIXTURE_REVIEWER}
         initialRequestId="rar-demo-02"
       />,

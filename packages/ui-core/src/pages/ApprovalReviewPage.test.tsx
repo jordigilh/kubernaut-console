@@ -329,6 +329,29 @@ describe("ApprovalReviewPage scope fencing", () => {
     expect(screen.getByText(/event identifier is not supplied/i)).toBeInTheDocument();
   });
 
+  it("does not reread when an equal reviewer object is replaced", async () => {
+    const base = createApprovalFixtureAdapter();
+    const read = vi.fn(base.read.bind(base));
+    const adapter: ApprovalReviewAdapter = { ...base, read };
+    const view = renderReview(adapter);
+
+    expect(await screen.findByText("Deployment/demo-operator")).toBeInTheDocument();
+    expect(read).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByLabelText("Decision reason"), { target: { value: "Keep this draft." } });
+
+    view.rerender(
+      <ApprovalReviewPage
+        adapter={adapter}
+        requestId="rar-demo-02"
+        reviewer={{ ...FIXTURE_REVIEWER }}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("Decision reason")).toHaveValue("Keep this draft.");
+  });
+
   it("clears draft and confirmation when the reviewer scope changes", async () => {
     const adapter = createApprovalFixtureAdapter();
     const view = renderReview(adapter, "rar-demo-02");

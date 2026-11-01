@@ -173,6 +173,10 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
   useLayoutEffect(() => {
     scopeRef.current = scope;
   }, [scope]);
+  const reviewerRef = useRef(reviewer);
+  useLayoutEffect(() => {
+    reviewerRef.current = reviewer;
+  }, [reviewer]);
 
   const [readState, setReadState] = useState<ApprovalReadState<ApprovalReview>>({ status: "loading" });
   const readStateRef = useRef(readState);
@@ -225,7 +229,7 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
       readStateRef.current = next;
       setReadState(next);
       setLoadedScope(readScope);
-      setDecisionGate(isDecisionEligible(next, readScope.requestId, reviewer) ? "ready" : "blocked");
+      setDecisionGate(isDecisionEligible(next, readScope.requestId, reviewerRef.current) ? "ready" : "blocked");
     }).catch(() => {
       const next: ApprovalReadState<ApprovalReview> = {
         status: "unavailable",
@@ -240,7 +244,7 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
     return () => {
       active = false;
     };
-  }, [scope, reviewer]);
+  }, [scope]);
 
   const rereadCurrentReview = async () => {
     if (submissionState === "reconciling") return;
