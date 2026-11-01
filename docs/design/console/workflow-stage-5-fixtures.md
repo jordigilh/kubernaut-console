@@ -21,11 +21,10 @@ Workflow and assessment schemas here are fixture models, not upstream contracts.
 ## Remaining handoff
 
 The subsequent [scope fixture wave](scope-stage-5-fixtures.md) covers Overview,
-Managed Resources and Clusters. Later Stage 5 waves still need fixture/read-only
-work for Policies & Audit and Administration/settings. Each needs
-its own scoped presentation, negative states and explicitly reviewed source
-boundaries. No general audit, SRE, catalog or execution grant follows from a
-fixture link. Parameter editing, overrides, #2570 and V8 remain on hold.
+Managed Resources and Clusters. The [governance fixture wave](governance-stage-5-fixtures.md)
+covers Policies & Audit and Administration/settings as synthetic presentation.
+No general audit, SRE, catalog or execution grant follows from a fixture link.
+Parameter editing, overrides, #2570 and V8 remain on hold.
 
 Live Stage 3 RAR remains parked on #2564/#2565, reviewed binding and evidence
 contracts, authorization, ownership, logout and concurrency evidence. G1–G5,

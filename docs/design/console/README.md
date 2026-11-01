@@ -22,6 +22,8 @@ The [Stage 5 workflow fixture note](workflow-stage-5-fixtures.md) records the
 first read-only workflow/verification wave and remaining module handoff.
 The [Stage 5 scope fixture note](scope-stage-5-fixtures.md) covers the
 separate Overview, Managed Resources and Clusters fixture wave.
+The [Stage 5 governance fixture note](governance-stage-5-fixtures.md) covers
+the remaining Policies & Audit and Administration fixture presentations.
 
 Written current contracts govern behavior. The current mockups govern demonstrated visual composition; historical screenshots do not reinstate superseded chrome. Actual source/API/permission contracts constrain what can be wired, but do not silently override an approved UX correction. If a required behavior is unsupported, identify the contract gap rather than inventing data, expanding privileges or redesigning it without review.
 

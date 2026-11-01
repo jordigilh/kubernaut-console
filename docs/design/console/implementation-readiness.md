@@ -46,7 +46,9 @@ The [Stage 5 workflow fixture wave](workflow-stage-5-fixtures.md) provides
 five isolated source-only synthetic views, not production routes or qualified
 live reads. The [scope fixture wave](scope-stage-5-fixtures.md) likewise covers
 Overview, Managed Resources and Clusters only as synthetic presentation.
-Policies & Audit and Administration remain future Stage 5 waves.
+The [governance fixture wave](governance-stage-5-fixtures.md) covers Policies &
+Audit and Administration as synthetic presentation only. Live contracts and
+acceptance for all Stage 5 screens remain open.
 
 Parameter editing/#2570/V8 remain deferred. A core parameter override and interactive driver-bound selection are not interchangeable with independent RAR approval. No parameter editor, new transcript store, replay/resume API, platform write, role/credential management or operational probe is authorized by this documentation.
 

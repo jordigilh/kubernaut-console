@@ -16,8 +16,8 @@ fixture inventory, not a new source. Registry identities do not establish health
 provider, version, nodes, last-seen or operational status. All eight read states
 are available; inaccessible and mismatched direct views withhold data and source.
 
-This wave does not implement Policies & Audit or Administration/settings; those
-remain later Stage 5 waves. Live Stage 3 remains blocked on #2564/#2565, reviewed
+The separate [governance fixture wave](governance-stage-5-fixtures.md) covers
+Policies & Audit and Administration/settings. Live Stage 3 remains blocked on #2564/#2565, reviewed
 binding/evidence, auth, ownership, logout and concurrency. G1–G5, NAV, RAR,
 investigation/ownership and deployed/browser/device/AT acceptance stay open.
 Parameter editing, workflow overrides, #2570 and V8 remain on hold. Fixture
