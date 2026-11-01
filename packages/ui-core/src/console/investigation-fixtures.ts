@@ -43,7 +43,7 @@ export const investigationFixtures: FixtureInvestigationData = {
 export function findFixtureCase(data: FixtureInvestigationData, scope: string, id: string): FixtureCase | undefined {
   if (!scope.trim() || scope !== data.sourceScope || !id.trim()) return undefined;
   const matches = data.cases.filter((item) => item.id === id);
-  return matches.length === 1 ? matches[0] : undefined;
+  return matches.length === 1 && matches[0].sourceScope === scope ? matches[0] : undefined;
 }
 
 /** A fixture assertion only: no identity, authorization or driver is established. */

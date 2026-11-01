@@ -18,6 +18,8 @@ describe("fixture investigation identity boundaries", () => {
     expect(findFixtureCase(duplicate, scope, caseId)).toBeUndefined();
     const crossScopeDuplicate = { ...investigationFixtures, cases: [investigationFixtures.cases[0], { ...investigationFixtures.cases[0], sourceScope: "other" }] };
     expect(findFixtureCase(crossScopeDuplicate, scope, caseId)).toBeUndefined();
+    const wrongScope = { ...investigationFixtures, cases: [{ ...investigationFixtures.cases[0], sourceScope: "other" }, investigationFixtures.cases[1]] };
+    expect(findFixtureCase(wrongScope, scope, caseId)).toBeUndefined();
   });
 
   it("requires one exact verified relationship within the same source scope", () => {
