@@ -18,6 +18,8 @@ The [Stage 3 matrix](rar-stage-3-matrix.md) connects those gaps to owners,
 decision states and RAR-01–08 evidence without authorizing live wiring.
 The [Stage 4 matrix](investigation-stage-4-matrix.md) maps investigation/chat
 source, proposed read-only seams and open ownership/acceptance gates.
+The [Stage 5 workflow fixture note](workflow-stage-5-fixtures.md) records the
+first read-only workflow/verification wave and remaining module handoff.
 
 Written current contracts govern behavior. The current mockups govern demonstrated visual composition; historical screenshots do not reinstate superseded chrome. Actual source/API/permission contracts constrain what can be wired, but do not silently override an approved UX correction. If a required behavior is unsupported, identify the contract gap rather than inventing data, expanding privileges or redesigning it without review.
 

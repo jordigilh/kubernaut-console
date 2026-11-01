@@ -24,6 +24,8 @@ export { navigationFor, screenIds } from "./console/registry";
 export type { NavigationId, NavigationItem, ScreenId, Topology } from "./console/registry";
 export { FixtureInvestigations } from "./console/fixture-investigations";
 export type { FixtureInvestigationsProps } from "./console/fixture-investigations";
+export { FixtureWorkflows } from "./console/fixture-workflows";
+export type { FixtureWorkflowsProps, FixtureWorkflowScreen } from "./console/fixture-workflows";
 export { RCACard } from "./components/RCACard";
 export { VerificationTimer } from "./components/VerificationTimer";
 export { InvestigationContext } from "./components/InvestigationContext";

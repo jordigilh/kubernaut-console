@@ -42,6 +42,11 @@ The accepted offline studies are not full React renderer parity. Preserve Markdo
 
 Inventory, registry, policy, general audit, settings and overview require authorized sanitized projections and honest freshness/paging/unknowns. Schema/filter presence is not a browser grant, global health/count API or runtime qualification. Execution/application/assessment/effectiveness/signal/recovery remain distinct; the browser does not compute overall effectiveness.
 
+The [Stage 5 workflow fixture wave](workflow-stage-5-fixtures.md) provides
+five isolated source-only synthetic views, not production routes or qualified
+live reads. Overview, Managed Resources, Clusters, Policies & Audit and
+Administration remain future Stage 5 waves.
+
 Parameter editing/#2570/V8 remain deferred. A core parameter override and interactive driver-bound selection are not interchangeable with independent RAR approval. No parameter editor, new transcript store, replay/resume API, platform write, role/credential management or operational probe is authorized by this documentation.
 
 Select an explicitly authorized implementation slice, register its actual requirement/test mappings and resolve applicable contracts before wiring live actions. Source-only frontend components/tests may use clearly separated typed fixtures while upstream contracts are unresolved, but must not be presented as live-ready. Real-device/virtual-keyboard/AT, alternate-browser, cross-user and deployed acceptance need their own evidence.
