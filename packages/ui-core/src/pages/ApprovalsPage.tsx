@@ -25,9 +25,25 @@ function renderSubmitter(item: ApprovalListItem): string {
   return item.submitter?.displayName ?? "Unknown";
 }
 
+function renderStatus(status: ApprovalListItem["status"]): string {
+  switch (status) {
+    case "approved":
+      return "Approved";
+    case "rejected":
+      return "Rejected";
+    case "expired":
+      return "Expired";
+    case "decided-elsewhere":
+      return "Decided elsewhere";
+    default:
+      return "Pending";
+  }
+}
+
 export function ApprovalsPage({ adapter, onOpenRequest, refreshToken = 0 }: Props) {
   const [readState, setReadState] = useState<ApprovalReadState<readonly ApprovalListItem[]>>({ status: "loading" });
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"pending" | "all">("pending");
   const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
@@ -54,6 +70,7 @@ export function ApprovalsPage({ adapter, onOpenRequest, refreshToken = 0 }: Prop
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const rows = readState.data.filter((item) => {
+    if (statusFilter === "pending" && item.status !== "pending") return false;
     if (!normalizedQuery) return true;
     return [
       item.id,
@@ -98,6 +115,17 @@ export function ApprovalsPage({ adapter, onOpenRequest, refreshToken = 0 }: Prop
                 placeholder="Request, target, source or submitter"
               />
             </label>
+            <label>
+              Approval status
+              <select
+                aria-label="Approval status filter"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as "pending" | "all")}
+              >
+                <option value="pending">Pending</option>
+                <option value="all">All loaded</option>
+              </select>
+            </label>
             <button type="button" onClick={retry}>Refresh fixture list</button>
           </div>
           {rows.length === 0 ? (
@@ -116,6 +144,7 @@ export function ApprovalsPage({ adapter, onOpenRequest, refreshToken = 0 }: Prop
                     <th>Source cluster</th>
                     <th>Initiated by</th>
                     <th>Deadline</th>
+                    <th>Status</th>
                     <th><span className="kn-approval-visually-hidden">Action</span></th>
                   </tr>
                 </thead>
@@ -133,6 +162,7 @@ export function ApprovalsPage({ adapter, onOpenRequest, refreshToken = 0 }: Prop
                       <td>{item.source.clusterId ?? "Unknown"}</td>
                       <td>{renderSubmitter(item)}</td>
                       <td>{formatApprovalTimestamp(item.deadline)}</td>
+                      <td><span className="kn-approval-status" data-status={item.status}>{renderStatus(item.status)}</span></td>
                       <td>
                         <button type="button" onClick={() => onOpenRequest(item.id)} aria-label={`Review ${item.id}`}>
                           Review

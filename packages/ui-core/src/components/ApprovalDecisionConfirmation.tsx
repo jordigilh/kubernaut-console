@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { ApprovalDecision, ApprovalDecisionSnapshot } from "../lib/approval-review";
 import { formatApprovalTimestamp, formatTarget, formatUnknown } from "../lib/approval-review";
 
@@ -16,13 +17,71 @@ export function ApprovalDecisionConfirmation({
   onCancel,
   onConfirm,
 }: Props) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCancelRef = useRef(onCancel);
+  const isSubmittingRef = useRef(isSubmitting);
+
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+    isSubmittingRef.current = isSubmitting;
+  }, [isSubmitting, onCancel]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previousFocusRef.current = previouslyFocused;
+    const getFocusable = () => Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ));
+    getFocusable()[0]?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (!isSubmittingRef.current) {
+          event.preventDefault();
+          onCancelRef.current();
+        }
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = getFocusable();
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
+      const nextIndex = currentIndex < 0
+        ? (event.shiftKey ? focusable.length - 1 : 0)
+        : (currentIndex + (event.shiftKey ? -1 : 1) + focusable.length) % focusable.length;
+      event.preventDefault();
+      focusable[nextIndex].focus();
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      if (!dialog.contains(event.target as Node)) getFocusable()[0]?.focus();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("focusin", handleFocusIn);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("focusin", handleFocusIn);
+      if (previouslyFocused && previouslyFocused !== document.body && previouslyFocused.isConnected) previouslyFocused.focus();
+    };
+  }, []);
+
   return (
     <div
       className="kn-approval-confirmation"
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="approval-confirmation-title"
       aria-describedby="approval-confirmation-description"
+      tabIndex={-1}
     >
       <div className="kn-approval-confirmation__body">
         <h2 id="approval-confirmation-title">Confirm {decision}</h2>

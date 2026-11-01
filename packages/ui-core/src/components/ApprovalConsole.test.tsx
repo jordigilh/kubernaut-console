@@ -111,4 +111,86 @@ describe("ApprovalConsole fixture journey", () => {
     });
     expect(screen.queryByText(/Rejected by Morgan Lee/)).not.toBeInTheDocument();
   });
+
+  it("records a Rejected result through the same confirmation boundary", async () => {
+    render(
+      <ApprovalConsole
+        adapter={createApprovalFixtureAdapter()}
+        reviewer={FIXTURE_REVIEWER}
+        initialRequestId="rar-demo-02"
+      />,
+    );
+
+    expect(await screen.findByText("Deployment/demo-operator")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Decision reason"), { target: { value: "Rejecting the recorded proposal." } });
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Confirm Rejected");
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Rejected" }));
+
+    expect(await screen.findByText("Rejected by Morgan Lee")).toBeInTheDocument();
+  });
+
+  it("starts on pending requests, shows status, and keeps resolved rows behind an explicit filter", async () => {
+    render(
+      <ApprovalConsole
+        adapter={createApprovalFixtureAdapter({
+          listState: {
+            status: "ready",
+            observedAt: "2026-10-31T14:00:00Z",
+            data: [
+              {
+                id: "rar-pending",
+                parentRequestId: "rr-pending",
+                target: { kind: "Deployment", name: "pending-api", namespace: "payments" },
+                source: { clusterId: "spoke-a", environment: "Production" },
+                submitter: null,
+                createdAt: "2026-10-31T13:00:00Z",
+                deadline: "2026-10-31T15:00:00Z",
+                status: "pending",
+              },
+              {
+                id: "rar-approved",
+                parentRequestId: "rr-approved",
+                target: { kind: "Deployment", name: "approved-api", namespace: "payments" },
+                source: { clusterId: "spoke-a", environment: "Production" },
+                submitter: null,
+                createdAt: "2026-10-31T12:00:00Z",
+                deadline: "2026-10-31T13:00:00Z",
+                status: "approved",
+              },
+            ],
+          },
+        })}
+      />,
+    );
+
+    expect(await screen.findByRole("combobox", { name: "Approval status filter" })).toHaveValue("pending");
+    expect(screen.getByText("rar-pending")).toBeInTheDocument();
+    expect(screen.getByText("Pending", { selector: "span" })).toBeInTheDocument();
+    expect(screen.queryByText("rar-approved")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Approval status filter" }), { target: { value: "all" } });
+    expect(screen.getByText("rar-approved")).toBeInTheDocument();
+    expect(screen.getByText("Approved", { selector: "span" })).toBeInTheDocument();
+  });
+
+  it("keeps the accepted priority navigation and deferred More destinations explicit", async () => {
+    render(<ApprovalConsole adapter={createApprovalFixtureAdapter()} />);
+
+    expect(screen.getByRole("img", { name: "Kubernaut" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approvals" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByText("Investigations")).toHaveAttribute("aria-disabled", "true");
+
+    const more = screen.getByRole("button", { name: "More" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(more);
+    expect(more).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("heading", { name: "Explore" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Manage" })).toBeInTheDocument();
+    expect(screen.getAllByText("Deferred in fixture preview").length).toBeGreaterThan(0);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    expect(more).toHaveFocus();
+  });
 });

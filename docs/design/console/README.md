@@ -9,6 +9,10 @@ This directory is the version-controlled design and implementation handoff for t
 3. [Implementation readiness](implementation-readiness.md) and [acceptance/delivery](acceptance-and-delivery.md).
 4. [New-session prompt](new-session-prompt.md) for implementation handover.
 
+The current fixture-backed source-only correction is mapped in
+[approval-first-source-only.md](approval-first-source-only.md). Its limitations
+are explicit; it is not a live-readiness claim.
+
 Written current contracts govern behavior. The current mockups govern demonstrated visual composition; historical screenshots do not reinstate superseded chrome. Actual source/API/permission contracts constrain what can be wired, but do not silently override an approved UX correction. If a required behavior is unsupported, identify the contract gap rather than inventing data, expanding privileges or redesigning it without review.
 
 ## Open the mockups
