@@ -139,6 +139,7 @@ describe("approval review fixture model", () => {
           data: { ...current.data, deadline: "2026-10-31T14:05:00Z" },
         },
       },
+      now: () => Date.now(),
     });
     const result = await adapter.decide({
       requestId: "rar-demo-02",

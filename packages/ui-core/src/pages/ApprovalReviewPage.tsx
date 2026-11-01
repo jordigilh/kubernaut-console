@@ -104,17 +104,21 @@ function hasRequestUid(review: ApprovalReview): boolean {
   return Boolean(review.uid?.trim());
 }
 
-function hasOpenDeadline(deadline: string | null, observedAt: string): boolean {
+function hasOpenDeadline(deadline: string | null, now: number): boolean {
   if (!deadline) return false;
   const deadlineTime = Date.parse(deadline);
-  const observedTime = Date.parse(observedAt);
-  return Number.isFinite(deadlineTime) && Number.isFinite(observedTime) && deadlineTime > observedTime;
+  return Number.isFinite(deadlineTime) && Number.isFinite(now) && deadlineTime > now;
+}
+
+function adapterNow(adapter: ApprovalReviewAdapter): number {
+  return adapter.now?.() ?? Date.now();
 }
 
 function isDecisionEligible(
   state: ApprovalReadState<ApprovalReview>,
   requestId: string,
   reviewer: ApprovalActor,
+  now: number,
 ): boolean {
   if (state.status !== "ready") return false;
   return (
@@ -124,7 +128,7 @@ function isDecisionEligible(
     Boolean(state.data.reviewedContentVersion.trim()) &&
     hasReviewerIdentity(reviewer) &&
     hasExactWorkflow(state.data) &&
-    hasOpenDeadline(state.data.deadline, state.observedAt)
+    hasOpenDeadline(state.data.deadline, now)
   );
 }
 
@@ -147,6 +151,7 @@ function getDecisionGuardMessages(
   state: ApprovalReadState<ApprovalReview>,
   requestId: string,
   reviewer: ApprovalActor,
+  now: number,
 ): string[] {
   if (!isDataState(state)) return [];
   const messages: string[] = [];
@@ -159,7 +164,7 @@ function getDecisionGuardMessages(
     messages.push("Approval deadline is unknown.");
   } else if (!Number.isFinite(Date.parse(state.data.deadline))) {
     messages.push("Approval deadline is invalid.");
-  } else if (!hasOpenDeadline(state.data.deadline, state.observedAt)) {
+  } else if (!hasOpenDeadline(state.data.deadline, now)) {
     messages.push("Approval deadline has passed.");
   }
   if (!state.data.reviewedContentVersion.trim()) messages.push("The reviewed content version is unknown.");
@@ -229,7 +234,7 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
       readStateRef.current = next;
       setReadState(next);
       setLoadedScope(readScope);
-      setDecisionGate(isDecisionEligible(next, readScope.requestId, reviewerRef.current) ? "ready" : "blocked");
+      setDecisionGate(isDecisionEligible(next, readScope.requestId, reviewerRef.current, adapterNow(readScope.adapter)) ? "ready" : "blocked");
     }).catch(() => {
       const next: ApprovalReadState<ApprovalReview> = {
         status: "unavailable",
@@ -262,7 +267,7 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
       readStateRef.current = next;
       setReadState(next);
       setLoadedScope(readScope);
-      setDecisionGate(isDecisionEligible(next, readScope.requestId, reviewer) ? "ready" : "blocked");
+      setDecisionGate(isDecisionEligible(next, readScope.requestId, reviewer, adapterNow(readScope.adapter)) ? "ready" : "blocked");
       setSubmissionState("error");
     } catch {
       const next: ApprovalReadState<ApprovalReview> = {
@@ -310,10 +315,11 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
   const currentReviewState = scopedReadState;
   const review = isDataState(currentReviewState) ? currentReviewState.data : null;
   const isPending = review?.decision.status === "pending";
-  const guardMessages = isPending ? getDecisionGuardMessages(currentReviewState, requestId, reviewer) : [];
+  const now = adapterNow(adapter);
+  const guardMessages = isPending ? getDecisionGuardMessages(currentReviewState, requestId, reviewer, now) : [];
   const canDecide = Boolean(
     review &&
-      isDecisionEligible(currentReviewState, requestId, reviewer) &&
+      isDecisionEligible(currentReviewState, requestId, reviewer, now) &&
       decisionGate === "ready" &&
       submissionState !== "submitting" &&
       submissionState !== "reconciling",

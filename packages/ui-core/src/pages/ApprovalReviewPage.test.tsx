@@ -201,6 +201,24 @@ describe("ApprovalReviewPage decision boundaries", () => {
     expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
   });
 
+  it("uses the adapter clock instead of the historical read observation for expiry", async () => {
+    const review = await readFixtureReview("rar-demo-02");
+    const adapter = createApprovalFixtureAdapter({
+      reviewStates: {
+        [review.id]: {
+          status: "ready",
+          data: review,
+          observedAt: "2026-10-31T14:00:00Z",
+        },
+      },
+      now: () => Date.parse("2026-10-31T14:14:00Z"),
+    });
+
+    renderReview(adapter, review.id);
+    expect(await screen.findByText(/deadline has passed/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+  });
+
   it("renders supplied workflow parameters as read-only values", async () => {
     const review = await readFixtureReview("rar-demo-02");
     review.workflow = {

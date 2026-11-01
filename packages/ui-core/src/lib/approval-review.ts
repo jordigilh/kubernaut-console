@@ -138,6 +138,8 @@ export type ApprovalDecisionResult =
   | { status: "unknown"; message: string };
 
 export interface ApprovalReviewAdapter {
+  /** Optional decision clock; adapters without one use the browser clock. */
+  now?: () => number;
   list(): Promise<ApprovalReadState<readonly ApprovalListItem[]>>;
   read(requestId: string): Promise<ApprovalReadState<ApprovalReview>>;
   retryEvidence(requestId: string): Promise<ApprovalReadState<readonly ApprovalEvidenceItem[]>>;
@@ -148,6 +150,8 @@ export interface ApprovalFixtureAdapterOptions {
   listState?: ApprovalReadState<readonly ApprovalListItem[]>;
   reviewStates?: Partial<Record<string, ApprovalReadState<ApprovalReview>>>;
   evidenceStates?: Partial<Record<string, ApprovalReadState<readonly ApprovalEvidenceItem[]>>>;
+  /** Defaults to the historical fixture observation time for deterministic preview decisions. */
+  now?: () => number;
   decide?: (input: ApprovalDecisionInput) => Promise<ApprovalDecisionResult>;
 }
 
@@ -176,6 +180,9 @@ const FIXTURE_INITIATOR_JORDAN: ApprovalActor = {
 };
 
 const OBSERVED_AT = "2026-10-31T14:00:00Z";
+// Historical fixture timestamps are intentional. The preview uses the recorded
+// observation as its deterministic clock; tests can inject wall-clock time.
+const DEFAULT_FIXTURE_NOW = Date.parse(OBSERVED_AT);
 
 const FIXTURE_EVIDENCE: Record<string, readonly ApprovalEvidenceItem[]> = {
   "rar-demo-01": [
@@ -376,9 +383,11 @@ export function createApprovalFixtureAdapter(options: ApprovalFixtureAdapterOpti
   }
 
   const configuredListState = options.listState;
+  const configuredNow = options.now ?? (() => DEFAULT_FIXTURE_NOW);
   const configuredDecision = options.decide;
 
   return {
+    now: configuredNow,
     async list() {
       if (configuredListState) return configuredListState;
 
@@ -442,7 +451,7 @@ export function createApprovalFixtureAdapter(options: ApprovalFixtureAdapterOpti
         return { status: "unknown", message: "A decision reason is required." };
       }
       const deadlineTime = current.data.deadline ? Date.parse(current.data.deadline) : Number.NaN;
-      if (Number.isFinite(deadlineTime) && deadlineTime <= Date.now()) {
+      if (Number.isFinite(deadlineTime) && deadlineTime <= configuredNow()) {
         return { status: "expired", message: "This fixture approval has expired." };
       }
 
