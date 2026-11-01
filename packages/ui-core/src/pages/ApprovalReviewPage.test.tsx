@@ -133,6 +133,16 @@ describe("ApprovalReviewPage decision boundaries", () => {
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
   });
 
+  it("does not enable decisions when the server-issued RAR UID is unknown", async () => {
+    const review = await readFixtureReview("rar-demo-02");
+    review.uid = "  ";
+    const adapter = adapterWithReview(review);
+
+    renderReview(adapter, review.id);
+    expect(await screen.findByText(/server-issued RAR UID is unknown/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+  });
+
   it("does not enable decisions when the deadline was already past at read observation", async () => {
     const review = await readFixtureReview("rar-demo-02");
     review.deadline = "2026-10-31T13:59:00Z";
@@ -209,6 +219,7 @@ describe("ApprovalReviewPage scope fencing", () => {
       status: "accepted",
       receipt: {
         requestId: "rar-demo-02",
+        requestUid: "rar-demo-02-uid",
         decision: "Approved",
         actor: FIXTURE_REVIEWER,
         reason: "Keep this draft scoped.",

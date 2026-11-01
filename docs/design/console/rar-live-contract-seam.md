@@ -62,10 +62,14 @@ existing chat consumers; preserve that public boundary when evolving it.
 
 The current interface is **not** the live seam as-is:
 
-1. `ApprovalReview.uid` is nullable, `reviewedContentVersion` is a fixture
-   string, and `ApprovalDecisionInput` sends no UID. A live decision must carry
-   whatever server-issued binding #2564 approves; check both UID and content,
-   and retain the scoped immutable confirmation until resolution.
+1. `ApprovalReview.uid` is still nullable at the read boundary, but the
+   source-only decision model now carries the server-issued RAR UID through the
+   immutable confirmation snapshot, decision input and receipt, and rejects a
+   mismatched UID as stale before accepting the fixture write. This is a local
+   binding regression guard, not proof of a live conditional-write contract. A
+   live decision must carry whatever server-issued binding #2564 approves;
+   check both UID and content, and retain the scoped immutable confirmation
+   until resolution.
 2. `ApprovalDecisionInput.reviewer` and `FIXTURE_REVIEWER` are browser-supplied.
    They are display/test context only, never wire authority. Identity and any
    intermediary are authenticated and recorded by the authoritative service;

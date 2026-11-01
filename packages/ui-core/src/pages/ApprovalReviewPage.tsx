@@ -95,6 +95,10 @@ function hasExactWorkflow(review: ApprovalReview): boolean {
   return Boolean(review.workflow?.id.trim() && review.workflow.version.trim());
 }
 
+function hasRequestUid(review: ApprovalReview): boolean {
+  return Boolean(review.uid?.trim());
+}
+
 function hasOpenDeadline(deadline: string | null, observedAt: string): boolean {
   if (!deadline) return false;
   const deadlineTime = Date.parse(deadline);
@@ -111,6 +115,7 @@ function isDecisionEligible(
   return (
     state.data.id === requestId &&
     state.data.decision.status === "pending" &&
+    hasRequestUid(state.data) &&
     Boolean(state.data.reviewedContentVersion.trim()) &&
     hasReviewerIdentity(reviewer) &&
     hasExactWorkflow(state.data) &&
@@ -143,6 +148,7 @@ function getDecisionGuardMessages(
   if (state.status !== "ready") messages.push("The current review read is not fresh enough for a decision.");
   if (state.data.id !== requestId) messages.push("The current read does not match this request.");
   if (!hasReviewerIdentity(reviewer)) messages.push("A non-blank reviewer identity is required before deciding.");
+  if (!hasRequestUid(state.data)) messages.push("The server-issued RAR UID is unknown.");
   if (!hasExactWorkflow(state.data)) messages.push("Exact workflow ID and version are unknown.");
   if (!state.data.deadline) {
     messages.push("Approval deadline is unknown.");
@@ -311,6 +317,7 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
       scope: decisionScope,
       snapshot: Object.freeze({
         requestId: review.id,
+        requestUid: review.uid!,
         target: Object.freeze({ ...review.target }),
         source: Object.freeze({ ...review.source }),
         deadline: review.deadline,
@@ -333,6 +340,7 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
     try {
       result = await decisionScope.adapter.decide({
         requestId: snapshot.requestId,
+        requestUid: snapshot.requestUid,
         decision,
         reason: snapshot.reason,
         reviewedContentVersion: snapshot.reviewedContentVersion,
@@ -428,6 +436,7 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
       <ApprovalReadStatePanel state={currentReviewState} label="RAR review">
         <dl className="kn-approval-ledger" aria-label="Recorded request ledger">
           <div><dt>Request</dt><dd>{review.id}</dd></div>
+          <div><dt>RAR UID</dt><dd>{formatUnknown(review.uid)}</dd></div>
           <div><dt>Parent request</dt><dd>{formatUnknown(review.parentRequestId)}</dd></div>
           <div><dt>Recorded target</dt><dd>{formatTarget(review.target)}</dd></div>
           <div><dt>Namespace</dt><dd>{formatUnknown(review.target.namespace)}</dd></div>

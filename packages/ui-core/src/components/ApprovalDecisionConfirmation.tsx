@@ -94,6 +94,10 @@ export function ApprovalDecisionConfirmation({
             <dd>{snapshot.requestId}</dd>
           </div>
           <div>
+            <dt>RAR UID</dt>
+            <dd>{formatUnknown(snapshot.requestUid)}</dd>
+          </div>
+          <div>
             <dt>Target</dt>
             <dd>{formatTarget(snapshot.target)}</dd>
           </div>

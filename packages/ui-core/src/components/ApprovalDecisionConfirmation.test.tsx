@@ -5,6 +5,7 @@ import { FIXTURE_REVIEWER, type ApprovalDecisionSnapshot } from "../lib/approval
 
 const snapshot: ApprovalDecisionSnapshot = {
   requestId: "rar-demo-02",
+  requestUid: "rar-demo-02-uid",
   target: { kind: "Deployment", name: "demo-operator", namespace: "demo-operator" },
   source: { clusterId: "spoke-a", environment: "Production" },
   deadline: "2026-10-31T14:13:00Z",
@@ -34,6 +35,7 @@ describe("ApprovalDecisionConfirmation", () => {
 
     const cancel = screen.getByRole("button", { name: "Cancel" });
     const confirm = screen.getByRole("button", { name: "Confirm Approved" });
+    expect(screen.getByText("rar-demo-02-uid")).toBeInTheDocument();
     expect(cancel).toHaveFocus();
 
     fireEvent.keyDown(document, { key: "Tab" });

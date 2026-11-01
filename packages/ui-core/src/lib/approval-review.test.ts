@@ -54,6 +54,7 @@ describe("approval review fixture model", () => {
     const adapter = createApprovalFixtureAdapter();
     const input: ApprovalDecisionInput = {
       requestId: "rar-demo-02",
+      requestUid: "rar-demo-02-uid",
       decision: "Rejected",
       reason: "The recorded evidence is insufficient for this change.",
       reviewedContentVersion: "rar-demo-02/review-v1",
@@ -66,6 +67,7 @@ describe("approval review fixture model", () => {
     if (result.status !== "accepted") return;
     expect(result.receipt).toMatchObject({
       requestId: "rar-demo-02",
+      requestUid: "rar-demo-02-uid",
       decision: "Rejected",
       actor: FIXTURE_REVIEWER,
       reason: input.reason,
@@ -86,6 +88,7 @@ describe("approval review fixture model", () => {
     const adapter = createApprovalFixtureAdapter();
     const input: ApprovalDecisionInput = {
       requestId: "rar-demo-01",
+      requestUid: "rar-demo-01-uid",
       decision: "Approved",
       reason: "Approved after reviewing the recorded proposal.",
       reviewedContentVersion: "rar-demo-01/review-v1",
@@ -96,6 +99,23 @@ describe("approval review fixture model", () => {
     const second = await adapter.decide({ ...input, decision: "Rejected" });
 
     expect(second.status).toBe("conflict");
+  });
+
+  it("rejects a decision bound to a different server-issued RAR UID", async () => {
+    const adapter = createApprovalFixtureAdapter();
+    const result = await adapter.decide({
+      requestId: "rar-demo-02",
+      requestUid: "rar-demo-02-other-uid",
+      decision: "Approved",
+      reason: "The reviewed proposal is acceptable.",
+      reviewedContentVersion: "rar-demo-02/review-v1",
+      reviewer: FIXTURE_REVIEWER,
+    });
+
+    expect(result).toEqual({
+      status: "stale",
+      message: "The RAR identity is stale. Re-read before deciding.",
+    });
   });
 
   it("keeps the review model independent from chat approval types", async () => {

@@ -101,6 +101,7 @@ export interface ApprovalReview {
 
 export interface ApprovalDecisionInput {
   requestId: string;
+  requestUid: string;
   decision: ApprovalDecision;
   reason: string;
   reviewedContentVersion: string;
@@ -109,6 +110,7 @@ export interface ApprovalDecisionInput {
 
 export interface ApprovalDecisionSnapshot {
   requestId: string;
+  requestUid: string;
   target: ApprovalTarget;
   source: ApprovalSource;
   deadline: string | null;
@@ -119,6 +121,7 @@ export interface ApprovalDecisionSnapshot {
 
 export interface ApprovalDecisionReceipt {
   requestId: string;
+  requestUid: string;
   decision: ApprovalDecision;
   actor: ApprovalActor;
   reason: string;
@@ -429,6 +432,9 @@ export function createApprovalFixtureAdapter(options: ApprovalFixtureAdapterOpti
       if (current.data.decision.status !== "pending") {
         return { status: "conflict", message: "This fixture request was already decided elsewhere." };
       }
+      if (current.data.uid !== input.requestUid) {
+        return { status: "stale", message: "The RAR identity is stale. Re-read before deciding." };
+      }
       if (current.data.reviewedContentVersion !== input.reviewedContentVersion) {
         return { status: "stale", message: "The reviewed fixture content is stale. Re-read before deciding." };
       }
@@ -439,6 +445,7 @@ export function createApprovalFixtureAdapter(options: ApprovalFixtureAdapterOpti
       const decidedAt = new Date().toISOString();
       const receipt: ApprovalDecisionReceipt = {
         requestId: input.requestId,
+        requestUid: input.requestUid,
         decision: input.decision,
         actor: input.reviewer,
         reason: input.reason,
