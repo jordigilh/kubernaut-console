@@ -12,6 +12,8 @@ This directory is the version-controlled design and implementation handoff for t
 The current fixture-backed source-only correction is mapped in
 [approval-first-source-only.md](approval-first-source-only.md). Its limitations
 are explicit; it is not a live-readiness claim.
+The [RAR contract seam](rar-live-contract-seam.md) maps that fixture model to
+current upstream source and the unresolved live-read requirements.
 
 Written current contracts govern behavior. The current mockups govern demonstrated visual composition; historical screenshots do not reinstate superseded chrome. Actual source/API/permission contracts constrain what can be wired, but do not silently override an approved UX correction. If a required behavior is unsupported, identify the contract gap rather than inventing data, expanding privileges or redesigning it without review.
 
