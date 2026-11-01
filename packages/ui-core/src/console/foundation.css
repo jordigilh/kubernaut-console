@@ -29,6 +29,7 @@
   .kn-foundation-priority { display: flex; flex: 1; }
   .kn-foundation-priority h2 { display: none; }
   .kn-foundation-more { display: block; min-height: 44px; color: var(--kn-text); background: var(--kn-surface); border: 1px solid var(--kn-edge); font: inherit; }
+  .kn-foundation-more[data-current="true"] { color: var(--kn-link); border-color: var(--kn-primary); background: var(--kn-tint); font-weight: 700; }
   .kn-foundation-secondary { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kn-foundation-secondary[data-open="false"] { display: none; }
   .kn-foundation-main { padding: 1rem; }

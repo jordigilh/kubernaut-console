@@ -33,7 +33,9 @@ export interface ConsoleShellProps {
 export function ConsoleShell({ access, topology, current, hrefs, theme = "light", children }: ConsoleShellProps) {
   const [open, setOpen] = useState(false);
   const more = useRef<HTMLButtonElement>(null);
+  const moreWasFocused = useRef(false);
   const nav = useRef<HTMLElement>(null);
+  const main = useRef<HTMLElement>(null);
   const id = useId();
   useEffect(() => {
     if (!open) return;
@@ -41,8 +43,42 @@ export function ConsoleShell({ access, topology, current, hrefs, theme = "light"
     document.addEventListener("pointerdown", closeOutside);
     return () => document.removeEventListener("pointerdown", closeOutside);
   }, [open]);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const breakpoint = window.matchMedia("(max-width: 699px)");
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target !== more.current) moreWasFocused.current = false;
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      moreWasFocused.current = event.target === more.current;
+    };
+    const onChange = (event: MediaQueryListEvent) => {
+      const focused = document.activeElement;
+      if (event.matches) {
+        if (focused instanceof HTMLElement && focused.closest(".kn-foundation-secondary") && nav.current?.contains(focused)) setOpen(true);
+      } else {
+        setOpen(false);
+        if (focused === more.current || (focused === document.body && moreWasFocused.current && document.hasFocus())) {
+          const destination = nav.current?.querySelector<HTMLAnchorElement>('a[aria-current="page"]')
+            ?? nav.current?.querySelector<HTMLAnchorElement>("a[href]")
+            ?? main.current;
+          destination?.focus();
+        }
+        moreWasFocused.current = false;
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("focusin", onFocusIn, true);
+    breakpoint.addEventListener("change", onChange);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("focusin", onFocusIn, true);
+      breakpoint.removeEventListener("change", onChange);
+    };
+  }, []);
   const items = navigationFor(access, topology);
   const secondary = items.filter((item) => item.group !== "Operate");
+  const currentSecondary = secondary.find((item) => item.id === current);
   function renderItem(item: NavigationItem) {
     const href = item.availability === "available" ? hrefs[item.id] : undefined;
     return href ? <a key={item.id} href={href} aria-current={current === item.id ? "page" : undefined} onClick={(event) => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) setOpen(false); }}>{item.label}</a> : <span key={item.id} className="kn-foundation-deferred">{item.label}<small>{item.availability === "topology-unknown" ? "Topology unavailable" : "Deferred"}</small></span>;
@@ -52,10 +88,10 @@ export function ConsoleShell({ access, topology, current, hrefs, theme = "light"
     <div className="kn-foundation-layout">
       <nav ref={nav} aria-label="Console navigation" className="kn-foundation-nav" onKeyDown={(event) => { if (event.key === "Escape" && open) { event.preventDefault(); setOpen(false); more.current?.focus(); } }} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
         <div className="kn-foundation-priority"><h2>Operate</h2>{items.filter((item) => item.group === "Operate").map(renderItem)}</div>
-        {secondary.length > 0 && <><button ref={more} type="button" className="kn-foundation-more" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>More</button>
+        {secondary.length > 0 && <><button ref={more} type="button" className="kn-foundation-more" aria-expanded={open} aria-controls={id} aria-label={currentSecondary ? `More, current section: ${currentSecondary.label}` : undefined} title={currentSecondary ? `Current section: ${currentSecondary.label}` : undefined} data-current={Boolean(currentSecondary)} onClick={() => setOpen(!open)}>More</button>
           <div id={id} className="kn-foundation-secondary" data-open={open}>{(["Explore", "Manage"] as const).map((group) => { const groupItems = secondary.filter((item) => item.group === group); return groupItems.length ? <section key={group}><h2>{group}</h2>{groupItems.map(renderItem)}</section> : null; })}</div></>}
       </nav>
-      <main className="kn-foundation-main">{children}</main>
+      <main ref={main} className="kn-foundation-main" tabIndex={-1}>{children}</main>
     </div>
   </div>;
 }
