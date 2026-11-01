@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   FIXTURE_REVIEWER,
   createApprovalFixtureAdapter,
@@ -8,6 +8,15 @@ import {
 } from "./approval-review";
 
 describe("approval review fixture model", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-31T14:05:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("keeps every read state explicit instead of collapsing failures into empty data", () => {
     const states: Array<ApprovalReadState<readonly string[]>> = [
       { status: "loading" },
@@ -116,6 +125,66 @@ describe("approval review fixture model", () => {
       status: "stale",
       message: "The RAR identity is stale. Re-read before deciding.",
     });
+  });
+
+  it("returns expired when a finite deadline is at or before the decision time", async () => {
+    const base = createApprovalFixtureAdapter();
+    const current = await base.read("rar-demo-02");
+    if (current.status !== "ready") throw new Error("Fixture read was not ready.");
+
+    const adapter = createApprovalFixtureAdapter({
+      reviewStates: {
+        "rar-demo-02": {
+          ...current,
+          data: { ...current.data, deadline: "2026-10-31T14:05:00Z" },
+        },
+      },
+    });
+    const result = await adapter.decide({
+      requestId: "rar-demo-02",
+      requestUid: "rar-demo-02-uid",
+      decision: "Approved",
+      reason: "The recorded proposal is acceptable.",
+      reviewedContentVersion: "rar-demo-02/review-v1",
+      reviewer: FIXTURE_REVIEWER,
+    });
+
+    expect(result).toEqual({
+      status: "expired",
+      message: "This fixture approval has expired.",
+    });
+    const reread = await adapter.read("rar-demo-02");
+    expect(reread.status).toBe("ready");
+    if (reread.status !== "ready") return;
+    expect(reread.data.decision.status).toBe("pending");
+  });
+
+  it.each([
+    ["missing", null],
+    ["invalid", "not-a-date"],
+  ] as const)("preserves fixture decision behavior for a %s deadline", async (_label, deadline) => {
+    const base = createApprovalFixtureAdapter();
+    const current = await base.read("rar-demo-02");
+    if (current.status !== "ready") throw new Error("Fixture read was not ready.");
+
+    const adapter = createApprovalFixtureAdapter({
+      reviewStates: {
+        "rar-demo-02": {
+          ...current,
+          data: { ...current.data, deadline },
+        },
+      },
+    });
+    const result = await adapter.decide({
+      requestId: "rar-demo-02",
+      requestUid: "rar-demo-02-uid",
+      decision: "Approved",
+      reason: "The recorded proposal is acceptable.",
+      reviewedContentVersion: "rar-demo-02/review-v1",
+      reviewer: FIXTURE_REVIEWER,
+    });
+
+    expect(result.status).toBe("accepted");
   });
 
   it("keeps the review model independent from chat approval types", async () => {

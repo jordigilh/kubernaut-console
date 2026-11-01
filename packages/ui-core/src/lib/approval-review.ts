@@ -441,6 +441,10 @@ export function createApprovalFixtureAdapter(options: ApprovalFixtureAdapterOpti
       if (!input.reason.trim()) {
         return { status: "unknown", message: "A decision reason is required." };
       }
+      const deadlineTime = current.data.deadline ? Date.parse(current.data.deadline) : Number.NaN;
+      if (Number.isFinite(deadlineTime) && deadlineTime <= Date.now()) {
+        return { status: "expired", message: "This fixture approval has expired." };
+      }
 
       const decidedAt = new Date().toISOString();
       const receipt: ApprovalDecisionReceipt = {
