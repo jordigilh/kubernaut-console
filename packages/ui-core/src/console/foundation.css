@@ -22,6 +22,10 @@
 .kn-foundation-more { display: none; }
 .kn-foundation-main { min-width: 0; width: 100%; max-width: 1180px; margin: 0 auto; padding: 1.5rem; }
 .kn-foundation-read { overflow-wrap: anywhere; }
+.kn-investigation-fixture li { margin-block: 1rem; }
+.kn-investigation-fixture button { margin: .25rem; padding: .5rem; font: inherit; }
+.kn-investigation-fixture dd { margin: 0 0 .5rem; }
+.kn-investigation-fixture dt { font-weight: 700; }
 .kn-foundation :focus-visible { outline: 2px solid var(--kn-focus); outline-offset: 2px; }
 @media (max-width: 699px) {
   .kn-foundation-layout { display: block; }

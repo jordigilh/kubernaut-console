@@ -22,6 +22,8 @@ export { ConsoleShell, FixtureApprovalWorkspace, ReadStatePanel } from "./consol
 export type { ConsoleShellProps, ConsoleReadState, ReadProvenance, ReadStatus } from "./console/foundation";
 export { navigationFor, screenIds } from "./console/registry";
 export type { NavigationId, NavigationItem, ScreenId, Topology } from "./console/registry";
+export { FixtureInvestigations } from "./console/fixture-investigations";
+export type { FixtureInvestigationsProps } from "./console/fixture-investigations";
 export { RCACard } from "./components/RCACard";
 export { VerificationTimer } from "./components/VerificationTimer";
 export { InvestigationContext } from "./components/InvestigationContext";

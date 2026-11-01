@@ -1,8 +1,8 @@
 # Stage 4 — investigation and chat source-only readiness
 
-**Status: design and source mapping only.** No investigation component, live
-adapter, production route, owner refactor or acceptance gate is implemented by
-this document. The rollout plan's Stage 4 remains open. Live RAR Stage 3 is
+**Status: source mapping plus a fixture-only recorded presentation.** No live
+adapter, production route, owner refactor or acceptance gate is implemented.
+The rollout plan's Stage 4 remains open. Live RAR Stage 3 is
 parked pending upstream qualification; the Stage 4 work does not resolve its
 UID/content-binding contract conflict. Local labels below are handoff labels,
 not registered business requirements or passing tests.
@@ -39,7 +39,23 @@ gate. Auth/further CR changes and #2570/parameter editing/V8 remain held.
 | Browser state | `useChat.ts` loads JSON messages from a tab-global session key; its save path clears `isStreaming`, limits thinking on normal save and falls back to the last ten messages on storage failure. `lib/session-state.ts` manages global phase/context/workflow keys and rotates context on cleanup. | These are existing behaviors, not validated multi-owner snapshots or logout fences. Stored text is not a live stream/driver; a fresh context alone does not prove isolation. |
 | Field shapes | `useChat.ts` `ChatMessage` contains RR, Alert-like scope, RCA, workflow and verification data; `RCAData` has separate optional scope and metrics, while `WorkflowOption` has no version field. | Do not join Alert and RCA scope, infer an absent version, conflate missing metrics with zero or expose raw thinking. These types are not an approved recorded-case projection. |
 
-## Smallest proposed seam — not yet code or a live contract
+## Fixture implementation and proposed live seam
+
+`FixtureInvestigations` is exported from `@kubernaut/ui-core` for isolated
+synthetic presentation. It accepts only a fixture scope, an initial screen and
+a synthetic read state, not a data adapter or operation handler. Its private
+fixture records and relationship checks are in
+`packages/ui-core/src/console/investigation-fixtures.ts`; presentation and
+focused tests are in `fixture-investigations.tsx` and
+`fixture-investigations.test.tsx`. The component reuses `ReadStatePanel` and
+does not mount in standalone. Its list, case and recorded-workspace context are
+in-memory component states, not production routes or browser history. It has no
+transcript, draft, storage, network, operational action, or live chat owner.
+Displayed workspace eligibility is a synthetic fixture assertion only. The
+presenter does not implement the accepted live workspace layout or chat parity.
+Use `@kubernaut/ui-core/styles/console-foundation.css` for the fixture shell.
+Fixture tests cover the local ID/scope/read-state/relationship presentation
+boundaries only, not authorization or the G1–G5/INV/OWN/SAFE exit gates.
 
 1. Reuse `screenIds` and `ReadStatePanel` for a fixture-only recorded list and
    exact case view. Keep fixture provenance and dataset/source scope explicit;
@@ -71,9 +87,9 @@ gate. Auth/further CR changes and #2570/parameter editing/V8 remain held.
    data only until server filtering/paging is qualified. No implicit start,
    claim, reconnect, selection, approval, cancellation or execution on navigation.
 
-Pure fixture tests can eventually exercise exact IDs, denial, provenance, read
-states and relationship absence without importing chat or asserting identity
-security. Any implementation of actual owner, snapshot, auth or logout behavior
+Pure fixture tests exercise exact IDs, denial, provenance, read states and
+relationship absence without importing chat or asserting identity security.
+Any implementation of actual owner, snapshot, auth or logout behavior
 requires the private evidence and reviewed host contracts first. No fixture
 model in this slice is exported as a future live adapter.
 
