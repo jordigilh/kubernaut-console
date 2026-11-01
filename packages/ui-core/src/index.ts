@@ -26,6 +26,8 @@ export { FixtureInvestigations } from "./console/fixture-investigations";
 export type { FixtureInvestigationsProps } from "./console/fixture-investigations";
 export { FixtureWorkflows } from "./console/fixture-workflows";
 export type { FixtureWorkflowsProps, FixtureWorkflowScreen } from "./console/fixture-workflows";
+export { FixtureScope } from "./console/fixture-scope";
+export type { FixtureScopeProps, FixtureScopeScreen } from "./console/fixture-scope";
 export { RCACard } from "./components/RCACard";
 export { VerificationTimer } from "./components/VerificationTimer";
 export { InvestigationContext } from "./components/InvestigationContext";

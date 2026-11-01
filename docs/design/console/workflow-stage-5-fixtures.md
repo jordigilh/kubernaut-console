@@ -20,8 +20,9 @@ Workflow and assessment schemas here are fixture models, not upstream contracts.
 
 ## Remaining handoff
 
-Later Stage 5 waves still need fixture/read-only work for Overview; Managed
-Resources; Clusters; Policies & Audit; and Administration/settings. Each needs
+The subsequent [scope fixture wave](scope-stage-5-fixtures.md) covers Overview,
+Managed Resources and Clusters. Later Stage 5 waves still need fixture/read-only
+work for Policies & Audit and Administration/settings. Each needs
 its own scoped presentation, negative states and explicitly reviewed source
 boundaries. No general audit, SRE, catalog or execution grant follows from a
 fixture link. Parameter editing, overrides, #2570 and V8 remain on hold.
