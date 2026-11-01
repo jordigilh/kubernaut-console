@@ -16,6 +16,8 @@ describe("fixture investigation identity boundaries", () => {
     }
     const duplicate = { ...investigationFixtures, cases: [investigationFixtures.cases[0], investigationFixtures.cases[0]] };
     expect(findFixtureCase(duplicate, scope, caseId)).toBeUndefined();
+    const crossScopeDuplicate = { ...investigationFixtures, cases: [investigationFixtures.cases[0], { ...investigationFixtures.cases[0], sourceScope: "other" }] };
+    expect(findFixtureCase(crossScopeDuplicate, scope, caseId)).toBeUndefined();
   });
 
   it("requires one exact verified relationship within the same source scope", () => {
@@ -28,6 +30,7 @@ describe("fixture investigation identity boundaries", () => {
       { ...investigationFixtures, relationships: [{ ...link, sourceScope: "other" }] },
       { ...investigationFixtures, relationships: [{ ...link, caseId: "other" }] },
       { ...investigationFixtures, relationships: [{ ...link, workspaceId: " " }] },
+      { ...investigationFixtures, relationships: [link, { ...link, caseId: "rr-fixture-02" }] },
     ];
     expect(findFixtureWorkspace(investigationFixtures, scope, caseId)?.workspaceId).toBe(workspaceId);
     expect(findFixtureWorkspace(investigationFixtures, scope, "rr-fixture-02")).toBeUndefined();

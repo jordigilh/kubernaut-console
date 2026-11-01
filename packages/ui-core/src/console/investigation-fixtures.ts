@@ -42,7 +42,7 @@ export const investigationFixtures: FixtureInvestigationData = {
 /** Reject duplicates, blank identifiers and scope mismatches rather than choosing a row. */
 export function findFixtureCase(data: FixtureInvestigationData, scope: string, id: string): FixtureCase | undefined {
   if (!scope.trim() || scope !== data.sourceScope || !id.trim()) return undefined;
-  const matches = data.cases.filter((item) => item.id === id && item.sourceScope === scope);
+  const matches = data.cases.filter((item) => item.id === id);
   return matches.length === 1 ? matches[0] : undefined;
 }
 
@@ -52,5 +52,7 @@ export function findFixtureWorkspace(data: FixtureInvestigationData, scope: stri
   const matches = data.relationships.filter((item) => item.caseId === caseId);
   if (matches.length !== 1) return undefined;
   const relation = matches[0];
-  return relation.sourceScope === scope && relation.verification === "verified" && relation.workspaceId.trim() ? relation : undefined;
+  if (relation.sourceScope !== scope || relation.verification !== "verified" || !relation.workspaceId.trim()) return undefined;
+  const workspaceMatches = data.relationships.filter((item) => item.workspaceId === relation.workspaceId);
+  return workspaceMatches.length === 1 ? relation : undefined;
 }

@@ -8,6 +8,7 @@ import {
   type ApprovalActor,
   type ApprovalDataState,
   type ApprovalDecision,
+  type ApprovalDecisionReceipt,
   type ApprovalDecisionResult,
   type ApprovalDecisionSnapshot,
   type ApprovalReadState,
@@ -85,6 +86,10 @@ function reviewFingerprint(review: ApprovalReview): string {
     review.target.namespace ?? "",
     review.reviewedContentVersion,
   ].join("\u0000");
+}
+
+function receiptMatchesSnapshot(receipt: ApprovalDecisionReceipt, snapshot: ApprovalDecisionSnapshot): boolean {
+  return receipt.requestId === snapshot.requestId && receipt.requestUid === snapshot.requestUid;
 }
 
 function hasReviewerIdentity(reviewer: ApprovalActor): boolean {
@@ -221,6 +226,16 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
       setReadState(next);
       setLoadedScope(readScope);
       setDecisionGate(isDecisionEligible(next, readScope.requestId, reviewer) ? "ready" : "blocked");
+    }).catch(() => {
+      const next: ApprovalReadState<ApprovalReview> = {
+        status: "unavailable",
+        message: "The current fixture review could not be read.",
+      };
+      if (!active || !isCurrentExternalScope(readScope)) return;
+      readStateRef.current = next;
+      setReadState(next);
+      setLoadedScope(readScope);
+      setDecisionGate("blocked");
     });
     return () => {
       active = false;
@@ -350,6 +365,13 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
       result = { status: "unknown", message: "The fixture decision outcome is unknown." };
     }
     if (!isCurrentReviewScope(decisionScope)) return;
+    if (result.status === "accepted" && !receiptMatchesSnapshot(result.receipt, snapshot)) {
+      await reconcileDecision(
+        { status: "unknown", message: "The decision receipt did not match the reviewed request." },
+        decisionScope,
+      );
+      return;
+    }
     if (result.status !== "accepted") {
       await reconcileDecision({ status: result.status, message: result.message }, decisionScope);
       return;

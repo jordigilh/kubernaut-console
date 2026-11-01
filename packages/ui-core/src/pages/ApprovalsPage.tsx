@@ -51,6 +51,13 @@ export function ApprovalsPage({ adapter, onOpenRequest, refreshToken = 0 }: Prop
     setReadState({ status: "loading" });
     adapter.list().then((next) => {
       if (active) setReadState(next);
+    }).catch(() => {
+      if (active) {
+        setReadState({
+          status: "unavailable",
+          message: "The approval request list could not be read.",
+        });
+      }
     });
     return () => {
       active = false;

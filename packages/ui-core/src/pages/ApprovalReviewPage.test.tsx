@@ -13,10 +13,12 @@ import {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((nextResolve) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
     resolve = nextResolve;
+    reject = nextReject;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 async function readFixtureReview(requestId: string): Promise<ApprovalReview> {
@@ -114,6 +116,52 @@ describe("ApprovalReviewPage decision boundaries", () => {
     expect(screen.getByTestId("approval-decision-outcome")).toHaveAttribute("data-outcome", "unknown");
   });
 
+  it.each([
+    ["request ID", { requestId: "rar-demo-03", requestUid: "rar-demo-02-uid" }],
+    ["request UID", { requestId: "rar-demo-02", requestUid: "different-uid" }],
+  ] as const)("does not apply an accepted receipt with a mismatched %s", async (_field, receiptIdentity) => {
+    const base = createApprovalFixtureAdapter();
+    const read = vi.fn(base.read.bind(base));
+    const adapter: ApprovalReviewAdapter = {
+      ...base,
+      read,
+      decide: vi.fn(async (): Promise<ApprovalDecisionResult> => ({
+        status: "accepted",
+        receipt: {
+          ...receiptIdentity,
+          decision: "Approved",
+          actor: FIXTURE_REVIEWER,
+          reason: "Keep this receipt scoped.",
+          decidedAt: "2026-10-31T14:05:00Z",
+          source: "fixture",
+        },
+      })),
+    };
+
+    renderReview(adapter);
+    expect(await screen.findByText("Deployment/demo-operator")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Decision reason"), { target: { value: "Keep this receipt scoped." } });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm Approved" }));
+
+    await waitFor(() => expect(screen.getByTestId("approval-decision-outcome")).toHaveAttribute("data-outcome", "unknown"));
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Approved by Morgan Lee")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+  });
+
+  it("shows unavailable when the initial review read rejects", async () => {
+    const base = createApprovalFixtureAdapter();
+    const adapter: ApprovalReviewAdapter = {
+      ...base,
+      read: vi.fn().mockRejectedValue(new Error("read failed")),
+    };
+
+    renderReview(adapter);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("approval request rar-demo-02 is unavailable");
+  });
+
   it("gates blank reviewer identity, whitespace workflow references, and past deadlines", async () => {
     const blankReviewer: ApprovalActor = { displayName: "  ", principal: "  ", role: "reviewer" };
     const blankReviewerAdapter = createApprovalFixtureAdapter();
@@ -193,6 +241,31 @@ describe("ApprovalReviewPage scope fencing", () => {
     expect(await screen.findByText("StatefulSet/orders-db")).toBeInTheDocument();
     await act(async () => read02.resolve(await base.read("rar-demo-02")));
     expect(screen.queryByText("Deployment/demo-operator")).not.toBeInTheDocument();
+  });
+
+  it("ignores a late rejected initial read after the request scope changes", async () => {
+    const base = createApprovalFixtureAdapter();
+    const read02 = deferred<ApprovalReadState<ApprovalReview>>();
+    const read03 = deferred<ApprovalReadState<ApprovalReview>>();
+    const adapter: ApprovalReviewAdapter = {
+      ...base,
+      read: vi.fn((requestId) => requestId === "rar-demo-02" ? read02.promise : read03.promise),
+    };
+    const view = renderReview(adapter, "rar-demo-02");
+
+    view.rerender(
+      <ApprovalReviewPage
+        adapter={adapter}
+        requestId="rar-demo-03"
+        reviewer={FIXTURE_REVIEWER}
+        onBack={vi.fn()}
+      />,
+    );
+    await act(async () => read03.resolve(await base.read("rar-demo-03")));
+    expect(await screen.findByText("StatefulSet/orders-db")).toBeInTheDocument();
+    await act(async () => read02.reject(new Error("stale read failed")));
+    expect(screen.queryByText(/stale read failed/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("approval request rar-demo-03 is unavailable")).not.toBeInTheDocument();
   });
 
   it("ignores a late decision receipt after request scope changes", async () => {
