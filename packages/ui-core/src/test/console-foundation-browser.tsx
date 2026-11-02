@@ -2,6 +2,7 @@
 import { createRoot } from "react-dom/client";
 import { useState } from "react";
 import { ConsoleShell, FixtureApprovalWorkspace, ReadStatePanel, type ReadStatus } from "../console/foundation";
+import { FixtureConsole } from "../console/fixture-console";
 import type { Topology } from "../console/registry";
 import "../console/foundation.css";
 import "../styles/approval-console.css";
@@ -28,7 +29,7 @@ export function ReadStatesFixture() {
 }
 
 createRoot(document.getElementById("root")!).render(
-  params.get("view") === "read-states" ? <ReadStatesFixture /> : params.get("view") === "approvals" ? <FixtureApprovalWorkspace /> : (
+  params.get("view") === "routing" ? <FixtureConsole topology={topologyParam === null ? "fleet" : topology} theme={theme} /> : params.get("view") === "read-states" ? <ReadStatesFixture /> : params.get("view") === "approvals" ? <FixtureApprovalWorkspace /> : (
     <ConsoleShell
       access={["approvals", "investigations", "overview", "workflows", "resources", "clusters", "policies", "administration"]}
       topology={topology}
