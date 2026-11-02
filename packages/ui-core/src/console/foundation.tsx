@@ -24,14 +24,16 @@ export function ReadStatePanel({ state, label, onRetry, children }: { state: Con
 export interface ConsoleShellProps {
   access: readonly NavigationId[];
   topology: Topology;
-  current: NavigationId;
+  current?: NavigationId;
   /** Host-supplied URLs; no production URL scheme is assumed. */
   hrefs: Partial<Record<NavigationId, string>>;
   theme?: "light" | "dark";
+  /** Only for the isolated synthetic preview; never enables production routes. */
+  fixtureNavigation?: boolean;
   children: ReactNode;
 }
 
-export function ConsoleShell({ access, topology, current, hrefs, theme = "light", children }: ConsoleShellProps) {
+export function ConsoleShell({ access, topology, current, hrefs, theme = "light", fixtureNavigation = false, children }: ConsoleShellProps) {
   const [open, setOpen] = useState(false);
   const more = useRef<HTMLButtonElement>(null);
   const moreWasFocused = useRef(false);
@@ -81,7 +83,7 @@ export function ConsoleShell({ access, topology, current, hrefs, theme = "light"
   const secondary = items.filter((item) => item.group !== "Operate");
   const currentSecondary = secondary.find((item) => item.id === current);
   function renderItem(item: NavigationItem) {
-    const href = item.availability === "available" ? hrefs[item.id] : undefined;
+    const href = item.availability === "available" || (fixtureNavigation && item.availability === "deferred") ? hrefs[item.id] : undefined;
     return href ? <a key={item.id} href={href} aria-current={current === item.id ? "page" : undefined} onClick={(event) => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) setOpen(false); }}>{item.label}</a> : <span key={item.id} className="kn-foundation-deferred">{item.label}<small>{item.availability === "topology-unknown" ? "Topology unavailable" : "Deferred"}</small></span>;
   }
   return <div className="kn-foundation" data-theme={theme}>
@@ -97,13 +99,18 @@ export function ConsoleShell({ access, topology, current, hrefs, theme = "light"
   </div>;
 }
 
+/** Removes the fixture's own chrome only when composed by the isolated preview. */
+export function FixtureShell({ embedded, children, ...props }: ConsoleShellProps & { embedded?: boolean }) {
+  return embedded ? <>{children}</> : <ConsoleShell {...props}>{children}</ConsoleShell>;
+}
+
 /** Explicit fixture composition; no live adapter can be supplied. */
-export function FixtureApprovalWorkspace({ initialRequestId }: { initialRequestId?: string }) {
+export function FixtureApprovalWorkspace({ initialRequestId, embedded = false }: { initialRequestId?: string; embedded?: boolean }) {
   const adapter = useMemo(() => createApprovalFixtureAdapter(), []);
   const [requestId, setRequestId] = useState<string | null>(initialRequestId ?? null);
   const [refresh, setRefresh] = useState(0);
   const back = () => { setRequestId(null); setRefresh((value) => value + 1); };
-  return <ConsoleShell access={["approvals", "investigations", "overview", "workflows", "resources", "clusters", "policies", "administration"]} topology="unknown" current="approvals" hrefs={{}}>
+  return <FixtureShell embedded={embedded} access={["approvals", "investigations", "overview", "workflows", "resources", "clusters", "policies", "administration"]} topology="unknown" current="approvals" hrefs={{}}>
     <div className="kn-approval-console" data-fixture="true"><div role="note" className="kn-approval-fixture-banner">Fixture preview — no live decision is submitted</div>{requestId ? <ApprovalReviewPage adapter={adapter} reviewer={FIXTURE_REVIEWER} requestId={requestId} onBack={back} /> : <ApprovalsPage adapter={adapter} onOpenRequest={setRequestId} refreshToken={refresh} />}</div>
-  </ConsoleShell>;
+  </FixtureShell>;
 }

@@ -55,6 +55,15 @@ function renderReview(
 }
 
 describe("ApprovalReviewPage decision boundaries", () => {
+  it("keeps the decision form ahead of supporting evidence with distinct action styles", async () => {
+    renderReview(createApprovalFixtureAdapter());
+    const decision = await screen.findByRole("heading", { name: "Review and decide" });
+    const evidence = screen.getByRole("heading", { name: "Related recorded evidence" });
+    expect(decision.compareDocumentPosition(evidence) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Approve" })).toHaveClass("kn-approval-approve");
+    expect(screen.getByRole("button", { name: "Reject" })).toHaveClass("kn-approval-reject");
+  });
+
   it("does not send twice when confirmation is activated twice before a render", async () => {
     const decision = deferred<ApprovalDecisionResult>();
     const decide = vi.fn(() => decision.promise);
