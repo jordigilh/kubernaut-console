@@ -20,6 +20,13 @@ describe("governance fixture relationships", () => {
 });
 
 describe("read-only governance screens", () => {
+  it("separates administration ownership destinations into labeled cards", () => {
+    render(<FixtureGovernance initialScreen={{ screen: "administration" }} embedded />);
+    expect(screen.getByRole("heading", { name: "Console preferences" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Platform configuration" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Identity & access" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open platform settings" }).closest("section")).toHaveClass("kn-governance-card");
+  });
   it.each(["loading", "empty", "unavailable", "forbidden", "missing"] as const)("withholds content and provenance for %s", (status) => {
     render(<FixtureGovernance status={status} initialScreen={{ screen: "audit.event", eventId: "event-fixture-1" }} />);
     expect(screen.queryByText(/fixture-service|Synthetic governance fixture|Completeness:/)).not.toBeInTheDocument();
