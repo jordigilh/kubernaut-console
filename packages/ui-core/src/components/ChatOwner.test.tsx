@@ -57,3 +57,27 @@ it("keeps the existing chat and status owners alive when the presenter is hidden
   expect(stream?.signal?.aborted).toBe(true);
   expect(status?.signal?.aborted).toBe(true);
 });
+
+it("restores the reader's position after updates while the presenter is hidden", async () => {
+  let stream: Parameters<typeof streamA2A>[1] | undefined;
+  vi.mocked(streamA2A).mockImplementation((_request, options) => { stream = options; return new Promise(() => {}); });
+  const { rerender } = render(<ChatOwnerProvider><ChatPresenter /></ChatOwnerProvider>);
+  const input = screen.getByRole("textbox", { name: /type your message/i });
+  fireEvent.change(input, { target: { value: "Investigate" } });
+  fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+  await waitFor(() => expect(stream).toBeDefined());
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 450)); });
+  const oldLog = screen.getByRole("log", { name: "Conversation" });
+  Object.defineProperties(oldLog, { scrollHeight: { configurable: true, value: 1200 }, clientHeight: { configurable: true, value: 300 } });
+  oldLog.scrollTop = 320;
+  fireEvent.scroll(oldLog);
+  rerender(<ChatOwnerProvider>{null}</ChatOwnerProvider>);
+  act(() => stream?.onEvent({ kind: "artifact-update", taskId: "task", contextId: "context", lastChunk: false, artifact: { artifactId: "artifact", parts: [{ kind: "text", text: "Update while hidden" }] } }));
+  rerender(<ChatOwnerProvider><ChatPresenter /></ChatOwnerProvider>);
+  const restored = screen.getByRole("log", { name: "Conversation" });
+  expect(restored).not.toBe(oldLog);
+  expect(restored.scrollTop).toBe(320);
+  expect(screen.getByText("Update while hidden")).toBeInTheDocument();
+  expect(streamA2A).toHaveBeenCalledTimes(1);
+  expect(stream?.signal?.aborted).toBe(false);
+});

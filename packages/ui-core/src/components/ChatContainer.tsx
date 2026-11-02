@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { useChat, type ChatMessage, type ApprovalRequest } from "../hooks/useChat";
 import { useRRStatus } from "../hooks/useRRStatus";
 import { callMcpTool, isPermissionDeniedError, type McpClientOptions } from "../lib/mcp-client";
@@ -86,6 +86,7 @@ function useChatOwner() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const userScrolledUpRef = useRef(false);
+  const savedScrollTopRef = useRef(0);
   const programmaticScrollRef = useRef(false);
   const lastRcaMessageId = messages.findLast(m => m.role === "agent" && m.rca)?.id;
   const rcaAnchorRef = useRef<HTMLDivElement>(null);
@@ -115,6 +116,7 @@ function useChatOwner() {
     const threshold = 80;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
     userScrolledUpRef.current = !nearBottom;
+    savedScrollTopRef.current = el.scrollTop;
   };
 
   const [approvalDenied, setApprovalDenied] = useState(false);
@@ -470,7 +472,7 @@ function useChatOwner() {
     messages, isStreaming, error, connectionStatus, cancelStream, investigationStartTime,
     currentPhase, investigationEngaged, rrId, effectiveRrId, statusConnection, statusMetadata,
     bannerPhase, alertName, namespace, resource, cluster, recoverySignal, user, userIdentity,
-    input, setInput, scrollRef, inputRef, lastRcaMessageId, rcaAnchorRef, handleScroll, userScrolledUpRef, programmaticScrollRef,
+    input, setInput, scrollRef, inputRef, lastRcaMessageId, rcaAnchorRef, handleScroll, userScrolledUpRef, savedScrollTopRef, programmaticScrollRef,
     clearConfirmOpen, setClearConfirmOpen, cancellingInvestigation, rawThinkingEnabled,
     showRawThinkingToggle, showRawThinking, handleToggleRawThinking, approvalDenied,
     handleSubmit, handleKeyDown, handleSuggest, handleFillTemplate, canCancelInvestigation,
@@ -496,7 +498,7 @@ export function ChatPresenter() {
     messages, isStreaming, error, connectionStatus, cancelStream, investigationStartTime,
     currentPhase, investigationEngaged, rrId, effectiveRrId, statusConnection, statusMetadata,
     bannerPhase, alertName, namespace, resource, cluster, recoverySignal, user, userIdentity,
-    input, setInput, scrollRef, inputRef, lastRcaMessageId, rcaAnchorRef, handleScroll, userScrolledUpRef, programmaticScrollRef,
+    input, setInput, scrollRef, inputRef, lastRcaMessageId, rcaAnchorRef, handleScroll, userScrolledUpRef, savedScrollTopRef, programmaticScrollRef,
     clearConfirmOpen, setClearConfirmOpen, cancellingInvestigation, rawThinkingEnabled,
     showRawThinkingToggle, showRawThinking, handleToggleRawThinking, approvalDenied,
     handleSubmit, handleKeyDown, handleSuggest, handleFillTemplate, canCancelInvestigation,
@@ -505,6 +507,11 @@ export function ChatPresenter() {
     handleSignOut,
   } = owner;
   const previousRcaMessageIdRef = useRef(lastRcaMessageId);
+  useLayoutEffect(() => {
+    if (userScrolledUpRef.current && scrollRef.current) {
+      scrollRef.current.scrollTop = savedScrollTopRef.current;
+    }
+  }, [scrollRef, savedScrollTopRef, userScrolledUpRef]);
   useEffect(() => {
     const newRcaPresented = shouldAnchorToNewRca(previousRcaMessageIdRef.current, lastRcaMessageId, userScrolledUpRef.current);
     previousRcaMessageIdRef.current = lastRcaMessageId;

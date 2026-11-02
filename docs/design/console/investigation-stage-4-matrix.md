@@ -19,8 +19,8 @@ The new shell does not yet mount this presenter. Existing browser/session and
 MCP state behavior is unchanged; all applicable ownership, logout, transport,
 semantic-projection and acceptance gates remain open.
 
-At this source-only checkpoint, the full UI-core suite reported 731 tests passed.
-A six-test-file coverage run applied thresholds to the **aggregate of two
+At the review-evidence checkpoint before the scroll-position follow-up, the full
+UI-core suite reported 731 tests passed. A six-test-file coverage run applied thresholds to the **aggregate of two
 included files**, not to each file: `ChatContainer.tsx` measured 76.78%
 statements, 79.66% functions and 78.36% lines; the boundary measured 100%
 statements, functions and lines. This is neither a per-file 80% pass nor
