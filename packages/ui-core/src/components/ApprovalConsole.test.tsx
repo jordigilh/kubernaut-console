@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import consoleLogo from "../assets/console-logo.svg";
 import { ApprovalConsole } from "./ApprovalConsole";
 import { FIXTURE_REVIEWER, createApprovalFixtureAdapter } from "../lib/approval-review";
 
@@ -197,7 +198,7 @@ describe("ApprovalConsole fixture journey", () => {
   it("keeps the accepted priority navigation and deferred More destinations explicit", async () => {
     render(<ApprovalConsole adapter={createApprovalFixtureAdapter()} />);
 
-    expect(screen.getByRole("img", { name: "Kubernaut" }).getAttribute("src")).not.toBe("/logo.svg");
+    expect(screen.getByRole("img", { name: "Kubernaut" })).toHaveAttribute("src", consoleLogo);
     expect(screen.getByRole("button", { name: "Approvals" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByText("Investigations")).toHaveAttribute("aria-disabled", "true");
 
