@@ -41,6 +41,13 @@ jobs:
         env:
           CI: true
 
+      - name: Run source-only console foundation E2E
+        id: console-foundation
+        run: npx playwright test --config playwright.console-foundation.config.ts
+        env:
+          CI: true
+          CONSOLE_FOUNDATION_OUTPUT_DIR: ${{ runner.temp }}/console-foundation-e2e
+
       - name: Bundle size check
         run: ./scripts/bundle-size.sh
 
@@ -58,4 +65,13 @@ jobs:
         with:
           name: console-design-smoke
           path: ${{ runner.temp }}/console-design-smoke/
+          retention-days: 7
+
+      - name: Upload console foundation failure traces
+        if: failure() && steps.console-foundation.outcome == 'failure'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: console-foundation-e2e
+          path: ${{ runner.temp }}/console-foundation-e2e/
+          if-no-files-found: ignore
           retention-days: 7

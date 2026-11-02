@@ -18,7 +18,9 @@
       "types": "./dist/index.d.ts"
     },
     "./styles": "./src/index.css",
-    "./styles/kubernaut-chat.css": "./src/styles/kubernaut-chat.css"
+    "./styles/kubernaut-chat.css": "./src/styles/kubernaut-chat.css",
+    "./styles/approval-console.css": "./src/styles/approval-console.css",
+    "./styles/console-foundation.css": "./src/console/foundation.css"
   },
   "scripts": {
     "build": "vite build",

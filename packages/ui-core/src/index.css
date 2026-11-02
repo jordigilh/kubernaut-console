@@ -1,2 +1,3 @@
 @import "@patternfly/react-core/dist/styles/base.css";
 @import "./styles/kubernaut-chat.css";
+@import "./styles/approval-console.css";
