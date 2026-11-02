@@ -197,7 +197,7 @@ describe("ApprovalConsole fixture journey", () => {
   it("keeps the accepted priority navigation and deferred More destinations explicit", async () => {
     render(<ApprovalConsole adapter={createApprovalFixtureAdapter()} />);
 
-    expect(screen.getByRole("img", { name: "Kubernaut" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Kubernaut" }).getAttribute("src")).not.toBe("/logo.svg");
     expect(screen.getByRole("button", { name: "Approvals" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByText("Investigations")).toHaveAttribute("aria-disabled", "true");
 

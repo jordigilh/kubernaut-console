@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { ConsoleShell, FixtureApprovalWorkspace, ReadStatePanel } from "./foundation";
 import { navigationFor } from "./registry";
 import { screenIds } from "./registry";
@@ -8,6 +9,13 @@ import inventory from "../../../../docs/design/console/screen-inventory.json";
 
 describe("source-only console foundation", () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it("bundles the accepted logo instead of requesting a host-root asset", () => {
+    const logo = readFileSync("src/assets/console-logo.svg");
+    expect(createHash("sha256").update(logo).digest("hex")).toBe("dd6b0084c5e4dc3e4748df48c39d989e2321134c42540f8fe46d99465812e147");
+    render(<ConsoleShell access={["approvals"]} topology="unknown" current="approvals" hrefs={{}}><h1>Fixture</h1></ConsoleShell>);
+    expect(screen.getByRole("img", { name: "Kubernaut" }).getAttribute("src")).not.toBe("/logo.svg");
+  });
 
   it("does not mount the fixture workspace in the standalone app", () => {
     const app = readFileSync("../standalone/src/App.tsx", "utf8");

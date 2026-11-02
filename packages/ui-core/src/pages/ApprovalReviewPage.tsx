@@ -36,6 +36,7 @@ interface ScopeToken {
   adapter: ApprovalReviewAdapter;
   requestId: string;
   reviewerKey: string;
+  generation: object;
 }
 
 interface ReviewScopeToken extends ScopeToken {
@@ -72,7 +73,7 @@ function reviewerScopeKey(reviewer: ApprovalActor): string {
 }
 
 function sameScope(left: ScopeToken, right: ScopeToken): boolean {
-  return left.adapter === right.adapter && left.requestId === right.requestId && left.reviewerKey === right.reviewerKey;
+  return left.generation === right.generation;
 }
 
 function reviewFingerprint(review: ApprovalReview): string {
@@ -173,10 +174,13 @@ function getDecisionGuardMessages(
 
 export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Props) {
   const reviewerKey = reviewerScopeKey(reviewer);
-  const scope = useMemo<ScopeToken>(() => ({ adapter, requestId, reviewerKey }), [adapter, requestId, reviewerKey]);
-  const scopeRef = useRef<ScopeToken>(scope);
+  const scope = useMemo<ScopeToken>(() => ({ adapter, requestId, reviewerKey, generation: {} }), [adapter, requestId, reviewerKey]);
+  const scopeRef = useRef<ScopeToken | null>(scope);
   useLayoutEffect(() => {
     scopeRef.current = scope;
+    return () => {
+      if (scopeRef.current === scope) scopeRef.current = null;
+    };
   }, [scope]);
   const reviewerRef = useRef(reviewer);
   useLayoutEffect(() => {
@@ -194,6 +198,10 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   const [submissionState, setSubmissionState] = useState<SubmissionState>("idle");
+  const submissionLock = useRef<ScopeToken | null>(null);
+  useLayoutEffect(() => {
+    if (submissionState !== "submitting" || (submissionLock.current && !sameScope(submissionLock.current, scope))) submissionLock.current = null;
+  }, [scope, submissionState]);
   const [decisionGate, setDecisionGate] = useState<"blocked" | "ready">("blocked");
   const [decisionOutcome, setDecisionOutcome] = useState<DecisionOutcome | null>(null);
   const [evidenceRetrying, setEvidenceRetrying] = useState(false);
@@ -209,7 +217,7 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
     : null;
 
   const isCurrentExternalScope = (candidate: ScopeToken): boolean =>
-    sameScope(scopeRef.current, candidate);
+    scopeRef.current !== null && sameScope(scopeRef.current, candidate);
 
   const isCurrentReviewScope = (candidate: ReviewScopeToken): boolean =>
     isCurrentExternalScope(candidate) &&
@@ -346,7 +354,7 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
         target: Object.freeze({ ...review.target }),
         source: Object.freeze({ ...review.source }),
         deadline: review.deadline,
-        reviewer,
+        reviewer: Object.freeze({ ...reviewer }),
         reason: currentReason.trim(),
         reviewedContentVersion: review.reviewedContentVersion,
       }),
@@ -354,12 +362,14 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
   };
 
   const confirmDecision = async () => {
-    if (!visiblePendingConfirmation || submissionState === "submitting" || submissionState === "reconciling") return;
+    if (!visiblePendingConfirmation || submissionLock.current || submissionState === "submitting" || submissionState === "reconciling") return;
     const { decision, snapshot, scope: decisionScope } = visiblePendingConfirmation;
-    if (!isCurrentReviewScope(decisionScope)) {
+    if (!isCurrentReviewScope(decisionScope) || !isDecisionEligible(readStateRef.current, decisionScope.requestId, reviewerRef.current, adapterNow(decisionScope.adapter))) {
       setPendingConfirmation(null);
+      setDecisionGate("blocked");
       return;
     }
+    submissionLock.current = decisionScope;
     setSubmissionState("submitting");
     let result: ApprovalDecisionResult;
     try {
