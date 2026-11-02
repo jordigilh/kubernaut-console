@@ -31,3 +31,18 @@ test("mobile navigation exposes fixture screens without mounting a second shell"
   await expect(page.getByRole("navigation", { name: "Console navigation" })).toHaveCount(1);
   await expect(page.getByRole("button", { name: /More, current section: Administration/ })).toHaveAttribute("aria-expanded", "false");
 });
+
+test("administration theme preview updates the shell and survives section changes", async ({ page }) => {
+  await page.goto("/e2e/console-foundation/fixture.html?view=routing&theme=dark#fixture/administration");
+  const shell = page.locator(".kn-foundation");
+  await page.getByRole("button", { name: "Open console settings" }).click();
+  await expect(page.getByText("Theme preview: dark")).toBeVisible();
+  await page.getByRole("button", { name: "Preview light theme" }).click();
+  await expect(shell).toHaveAttribute("data-theme", "light");
+  await page.getByRole("link", { name: "Workflows" }).click();
+  await expect(shell).toHaveAttribute("data-theme", "light");
+  await page.getByRole("link", { name: "Administration" }).click();
+  await page.getByRole("button", { name: "Open console settings" }).click();
+  await page.getByRole("button", { name: "Preview dark theme" }).click();
+  await expect(shell).toHaveAttribute("data-theme", "dark");
+});

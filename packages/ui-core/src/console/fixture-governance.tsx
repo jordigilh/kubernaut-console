@@ -13,15 +13,22 @@ export type FixtureGovernanceCapability = "policy" | "audit" | "administration";
 export interface FixtureGovernanceProps {
   scope?: string; initialScreen?: FixtureGovernanceScreen; status?: ReadStatus;
   access?: readonly FixtureGovernanceCapability[]; embedded?: boolean;
+  theme?: "light" | "dark"; onThemeChange?: (theme: "light" | "dark") => void;
 }
 
 function Field({ label, value }: { label: string; value?: string }) { return <p>{label}: {value || "Unknown"}</p>; }
 function EventFields({ event }: { event: GovernanceEvent }) {
   return <><Field label="Event ID" value={event.id} /><Field label="Event version" value={event.version} /><Field label="Time" value={event.time} /><Field label="Category" value={event.category} /><Field label="Action" value={event.action} /><Field label="Outcome" value={event.outcome} /><Field label="Actor kind" value={event.actor.kind} /><Field label="Actor" value={event.actor.name} /><Field label="Case ID" value={event.caseId} /><Field label="Related resource" value={event.resource} /></>;
 }
-function FixtureView({ scope, initialScreen, status, access, embedded }: Required<FixtureGovernanceProps>) {
+function FixtureView({ scope, initialScreen, status, access, embedded, theme: controlledTheme, onThemeChange }: Required<Omit<FixtureGovernanceProps, "theme" | "onThemeChange">> & Pick<FixtureGovernanceProps, "theme" | "onThemeChange">) {
   const [view, setView] = useState(initialScreen);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [localTheme, setLocalTheme] = useState<"light" | "dark">("light");
+  const theme = onThemeChange ? controlledTheme ?? localTheme : localTheme;
+  const changeTheme = () => {
+    const next = theme === "light" ? "dark" : "light";
+    if (onThemeChange) onThemeChange(next);
+    else setLocalTheme(next);
+  };
   const [search, setSearch] = useState("");
   const [outcome, setOutcome] = useState("");
   const data = governanceFixtures;
@@ -51,7 +58,7 @@ function FixtureView({ scope, initialScreen, status, access, embedded }: Require
       {view.screen === "governance.audit" && <><Field label="Retention" value={data.retention} /><p>Loaded records only; no global audit entitlement.</p>{caseId !== undefined && <Field label="Case filter" value={caseId} />}<label>Search loaded events <input value={search} onChange={(e) => setSearch(e.target.value)} /></label><label>Outcome <select value={outcome} onChange={(e) => setOutcome(e.target.value)}><option value="">All loaded outcomes</option>{Array.from(new Set(events.map((item) => item.outcome))).map((value) => <option key={value} value={value}>{value}</option>)}</select></label>{visibleEvents.length === 0 && <p>No matching loaded events.</p>}<ul>{visibleEvents.map((item) => <li key={item.id}><EventFields event={item} /><button type="button" onClick={() => setView({ screen: "audit.event", eventId: item.id, caseId })}>Open event {item.id}</button></li>)}</ul></>}
       {view.screen === "audit.event" && event && <><button type="button" onClick={() => setView({ screen: "governance.audit", caseId })}>Back to audit trail</button><EventFields event={event} /><Field label="Initiator" value={event.initiator} /><Field label="Reviewer" value={event.reviewer} />{event.reason && <Field label="Reason" value={event.reason} />}{event.policy && <Field label="Policy" value={event.policy} />}</>}
       {view.screen === "administration" && <><p>Browser preferences, operator/platform configuration and trusted access context have separate owners.</p><div className="kn-governance-grid"><section className="kn-governance-card"><h2>Console preferences</h2><p>Appearance is a browser-only preview.</p><button type="button" onClick={() => setView({ screen: "settings.console" })}>Open console settings</button></section><section className="kn-governance-card"><h2>Platform configuration</h2><p>Inspect sanitized configuration ownership.</p><button type="button" onClick={() => setView({ screen: "settings.platform", settingId: "platform-fixture" })}>Open platform settings</button></section><section className="kn-governance-card"><h2>Identity &amp; access</h2><p>Inspect the recorded access context.</p><button type="button" onClick={() => setView({ screen: "settings.access", settingId: "access-fixture" })}>Open access context</button></section></div></>}
-      {view.screen === "settings.console" && <><button type="button" onClick={() => setView({ screen: "administration" })}>Back to administration</button><p>Browser-only preview; no persistence policy is assumed.</p><p>Theme preview: {theme}</p><button type="button" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>Preview {theme === "light" ? "dark" : "light"} theme</button><p>UTC and reduced-motion preferences: not recorded.</p></>}
+      {view.screen === "settings.console" && <><button type="button" onClick={() => setView({ screen: "administration" })}>Back to administration</button><p>Browser-only preview; no persistence policy is assumed.</p>{embedded && !onThemeChange ? <p>Theme preview unavailable in this host.</p> : <><p>Theme preview: {theme}</p><button type="button" onClick={changeTheme}>Preview {theme === "light" ? "dark" : "light"} theme</button></>}<p>UTC and reduced-motion preferences: not recorded.</p></>}
       {view.screen === "settings.platform" && setting && <><button type="button" onClick={() => setView({ screen: "administration" })}>Back to administration</button><Field label="Setting ID" value={setting.id} /><Field label="Ownership source" value={setting.owner} /><Field label="Effective sanitized value" value={setting.value} /></>}
       {view.screen === "settings.access" && setting && <><button type="button" onClick={() => setView({ screen: "administration" })}>Back to administration</button><Field label="Ownership source" value={setting.owner} /><p>Trusted principal: Unknown</p><p>Trusted capabilities: Unknown</p><p>Display name, avatar and email are not trusted identity or capability evidence.</p><p>Authentication and logout behavior are not implemented by this fixture.</p></>}
     </ReadStatePanel>
@@ -59,6 +66,6 @@ function FixtureView({ scope, initialScreen, status, access, embedded }: Require
 }
 
 /** Isolated in-memory presentation; fixture access is not authorization. */
-export function FixtureGovernance({ scope = "fixture-scope-a", initialScreen = { screen: "governance.policies" }, status = "ready", access = ["policy", "audit", "administration"], embedded = false }: FixtureGovernanceProps) {
-  return <FixtureView key={JSON.stringify([scope, initialScreen, status, access])} scope={scope} initialScreen={initialScreen} status={status} access={access} embedded={embedded} />;
+export function FixtureGovernance({ scope = "fixture-scope-a", initialScreen = { screen: "governance.policies" }, status = "ready", access = ["policy", "audit", "administration"], embedded = false, theme, onThemeChange }: FixtureGovernanceProps) {
+  return <FixtureView key={JSON.stringify([scope, initialScreen, status, access])} scope={scope} initialScreen={initialScreen} status={status} access={access} embedded={embedded} theme={theme} onThemeChange={onThemeChange} />;
 }

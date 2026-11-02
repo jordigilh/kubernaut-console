@@ -17,6 +17,7 @@ function sectionFromHash(hash: string): NavigationId | null {
 /** Isolated synthetic browser preview; hashes are not production routes or access controls. */
 export function FixtureConsole({ topology = "fleet", theme = "light" }: { topology?: Topology; theme?: "light" | "dark" }) {
   const [hash, setHash] = useState(() => window.location.hash);
+  const [previewTheme, setPreviewTheme] = useState(theme);
   const routeContent = useRef<HTMLDivElement>(null);
   const previousHash = useRef(hash);
   useEffect(() => {
@@ -40,10 +41,10 @@ export function FixtureConsole({ topology = "fleet", theme = "light" }: { topolo
     case "overview": content = <FixtureScope embedded topology={topology} initialScreen={{ screen: "overview" }} />; break;
     case "resources": content = <FixtureScope embedded topology={topology} initialScreen={{ screen: "resources.list" }} />; break;
     case "clusters": content = <FixtureScope embedded topology={topology} initialScreen={{ screen: "clusters.list" }} />; break;
-    case "policies": content = <FixtureGovernance embedded initialScreen={{ screen: "governance.policies" }} />; break;
-    case "administration": content = <FixtureGovernance embedded initialScreen={{ screen: "administration" }} />; break;
+    case "policies": content = <FixtureGovernance embedded theme={previewTheme} onThemeChange={setPreviewTheme} initialScreen={{ screen: "governance.policies" }} />; break;
+    case "administration": content = <FixtureGovernance embedded theme={previewTheme} onThemeChange={setPreviewTheme} initialScreen={{ screen: "administration" }} />; break;
   }
-  return <ConsoleShell access={sections} topology={topology} current={section ?? undefined} hrefs={hrefs} theme={theme} fixtureNavigation>
+  return <ConsoleShell access={sections} topology={topology} current={section ?? undefined} hrefs={hrefs} theme={previewTheme} fixtureNavigation>
     <p role="note">Fixture-only preview — synthetic data; not connected to the standalone application or live services.</p>
     <div ref={routeContent} tabIndex={-1} aria-label="Fixture section">{content}</div>
   </ConsoleShell>;

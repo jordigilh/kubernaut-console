@@ -48,6 +48,22 @@ describe("fixture-only console routing", () => {
     expect(screen.getAllByRole("navigation", { name: "Console navigation" })).toHaveLength(1);
   });
 
+  it("updates the routed shell theme and retains it across fixture sections", () => {
+    window.history.replaceState(null, "", "#fixture/administration");
+    const { container } = render(<FixtureConsole theme="dark" />);
+    fireEvent.click(screen.getByRole("button", { name: "Open console settings" }));
+    expect(screen.getByText("Theme preview: dark")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Preview light theme" }));
+    expect(container.querySelector(".kn-foundation")).toHaveAttribute("data-theme", "light");
+    route("#fixture/workflows");
+    expect(container.querySelector(".kn-foundation")).toHaveAttribute("data-theme", "light");
+    route("#fixture/administration");
+    fireEvent.click(screen.getByRole("button", { name: "Open console settings" }));
+    expect(screen.getByText("Theme preview: light")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Preview dark theme" }));
+    expect(container.querySelector(".kn-foundation")).toHaveAttribute("data-theme", "dark");
+  });
+
   it("does not mount the fixture console in standalone", () => {
     expect(readFileSync("../standalone/src/App.tsx", "utf8")).not.toMatch(/FixtureConsole/);
   });
