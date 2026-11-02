@@ -1,11 +1,111 @@
 # Stage 4 — investigation and chat source-only readiness
 
-**Status: source mapping plus a fixture-only recorded presentation.** No live
-adapter, production route, owner refactor or acceptance gate is implemented.
+**Status: source mapping, fixture-only recorded presentation, and a bounded
+single-chat owner/presenter extraction.** No live adapter, production route,
+multi-investigation owner or acceptance gate is implemented.
 The rollout plan's Stage 4 remains open. Live RAR Stage 3 is
 parked pending upstream qualification; the Stage 4 work does not resolve its
 UID/content-binding contract conflict. Local labels below are handoff labels,
 not registered business requirements or passing tests.
+
+The existing `ChatContainer` now composes an internal `ChatOwnerProvider` and
+`ChatPresenter`, retaining the existing standalone entry point. In a controlled
+component test, keeping the provider mounted while hiding the presenter retains
+the draft and accepts a synthetic stream and status update without an additional
+send, status subscription, cancellation or MCP call. Disposing the provider
+aborts its subscriptions. This is a single-owner structural seam, not scoped
+identity, multi-investigation isolation, live concurrency, or recovery evidence.
+The new shell does not yet mount this presenter. Existing browser/session and
+MCP state behavior is unchanged; all applicable ownership, logout, transport,
+semantic-projection and acceptance gates remain open.
+
+### Delivery options and current progress
+
+**User decision:** start with the page-lifetime, memory-only owner. The
+long-term goal remains browser-owned conversation restoration across reloads
+once verified scope, retention and safety contracts are qualified. Neither
+approach is complete or approved for live deployment.
+
+| | Page-lifetime, memory-only owner | Verified-scope, reload-capable owner |
+| --- | --- | --- |
+| Intended behavior | Keep the active conversation and draft while navigating within one authenticated page lifetime. Do not promise recovery after reload or logout. | Restore bounded browser-owned snapshots after the host verifies the applicable source, identity and session. Restored content is disconnected, not a live stream or driver. |
+| Completed evidence | Single-owner/presenter extraction and controlled hide/show test; an independent in-memory lease primitive and synthetic tests. Neither is wired to the new shell. | Host requirements proposal and source preflight only. No qualified identity/session source or scoped snapshot implementation exists. |
+| Next implementation work | Explicitly disable or isolate the existing tab-global transcript/context/phase/pending/workflow storage for this mode; isolate MCP by source and auth lifetime; fence stream, status, action and storage callbacks. Invalidate and abort before clearing or allowing a successor. | Qualify the host contract below; approve legacy-cache handling, retention and privacy policy; implement bounded, validated scoped snapshots, unique IDs, safe storage-failure handling and async write fencing. |
+| Required evidence | Auth/loading/logout/source-change and delayed-callback tests, same-user re-login, MCP initialization/retry isolation and no implicit actions on view changes. Test the integrated owner, not just the lease primitive. | All memory-only evidence, plus cross-user/session/source/conversation isolation, reload and partial-stream restore, legacy-cache rejection/migration, quota/denial, stale writes and separately qualified deployed concurrency. |
+
+The first option still requires a trustworthy way to detect authentication and
+source transitions for its page lifetime; a local generation is not proof of
+identity or server authorization. Existing global persistence and MCP state
+must not silently remain in use under a memory-only label. Both options retain
+the existing OAuth2 Proxy/JWT boundary; neither authorizes exposing credentials,
+replaying actions, creating a backend transcript store, or treating a snapshot
+as a recovered live investigation. Full G1–G5 and release gates stay open.
+
+### Proposed source-only identity/lifecycle boundary
+
+`chat-owner-boundary.ts` defines an in-memory, single-owner fencing primitive;
+it is not wired into the existing owner or production host. The host contract
+must supply a verified canonical source, issuer, immutable subject, nonsecret
+authenticated-session generation and browser-local conversation ID. Display
+name/email, an RR, MCP session, A2A task or driver is not a substitute for any
+of these fields. Missing or invalid scope does not create an owner. Auth loading
+is distinct from explicit logout and must not itself invalidate an active owner.
+
+On explicit logout or scope replacement, the boundary invalidates the old
+generation before aborting it. A stale lease cannot perform a guarded synchronous
+write or invalidate a newer generation. Async work must re-check after every
+await; a guarded function does not protect work it schedules for later. This
+primitive has no authority to authenticate its input, clear storage, fence the
+existing callbacks, isolate MCP sessions, or revoke server-side work. Those
+integrations and their negative tests remain required before live use; the
+current provider supplies display fields rather than a qualified scope.
+
+### Host contract proposal — not yet supplied or approved
+
+Source checked at console `82761210e57fcb70fef06a4d2d0fa4fd862e2847`:
+`KubernautAuthProvider` returns a token and display-only `KubernautUser`;
+the standalone `ProxyAuthProvider` maps `/oauth2/userinfo` to name, email and
+initials. It exposes no qualified issuer/subject or authenticated-session
+generation to the chat owner. OAuth2 Proxy's
+[v7.15.3 UserInfo handler](https://github.com/oauth2-proxy/oauth2-proxy/blob/v7.15.3/oauthproxy.go)
+returns user, email, groups, preferred username and optional additional claims;
+that source does not establish this deployment's claim mappings, issuer or a
+browser-safe session generation. Do not assume `user` or additional claims are
+verified `sub`, or that the deployed proxy matches this reference version.
+
+Before wiring the owner, an owning host/security team must qualify an
+authenticated, same-origin, non-cacheable scope source with these properties:
+
+1. **Principal and source:** explicit verified issuer and immutable subject,
+   plus canonical backend/source identity. The host establishes these from its
+   validated authentication boundary; client-supplied display fields, raw
+   headers and unverified token decoding are not proof.
+2. **Session generation:** an opaque **noncredential** identifier, stable for
+   the supported continuity interval and different after logout, replacement or
+   a new login. Define refresh, expiry, cross-tab, server restart, replay and
+   revocation behavior. It must not be a cookie, bearer token, token hash, MCP
+   session, A2A context, RR or driver ID. Do not expose secrets to the SPA.
+3. **Authentication states:** distinguish loading, verified, explicit logout,
+   unauthenticated and error. Fail closed on absent, ambiguous or malformed
+   scope; loading alone does not clear an active owner. Invalidation precedes
+   any cleanup; stale completions cannot clear or revive a successor. Logout
+   locks owner activation before abort callbacks and only a separately verified
+   new authenticated transition may unlock it.
+4. **Privacy and storage:** subject and session values are sensitive identifiers,
+   not authorization grants. Define storage representation, retention, size,
+   deletion, storage-denial behavior and cross-tab isolation before persistence.
+   Unowned legacy cache must not be adopted as another user's data; deletion or
+   migration requires an explicit policy. Never persist credentials or handles.
+5. **Integration evidence:** test host claim provenance and the full auth/load/
+   logout/re-login sequence; stale stream, status, action, approval and storage
+   callbacks; and scope-specific MCP initialization and retry. Browser guards
+   cannot revoke an already-dispatched backend mutation. Verify protected links,
+   transport behavior and deployed AF/KA concurrency separately.
+
+This is a requirements proposal, not a claim that a new endpoint, proxy feature,
+deployment configuration or provider contract exists. The local boundary test
+checks the synchronous lock only; it cannot verify an authenticated transition.
+Source of the generation and its lifetime across page reload remain unresolved.
 
 ## Evidence boundary
 
