@@ -19,6 +19,34 @@ destinations are explicit deferred presentation, including an unknown-topology
 state rather than a local fallback. The fixture's inbox/review transition is
 component state, not a browser route or a direct-link contract.
 
+## Connected fixture preview
+
+The isolated browser harness also offers `fixture.html?view=routing`. It uses
+`#fixture/<section>` for the eight navigation sections and composes the existing
+synthetic views inside one shell. The prefix is a preview-only address, not a
+production URL scheme or an authorization boundary. Unknown hashes show a
+not-found state; fleet-only Clusters is unavailable for local or unknown
+topology. `?topology=local` or `?topology=unknown` selects those synthetic
+variants. The default is synthetic fleet; `?theme=dark` selects dark chrome.
+To review it locally with dependencies installed, run from the repository root:
+
+```sh
+NODE_PATH="$PWD/packages/ui-core/node_modules:$PWD/node_modules" node ./packages/ui-core/node_modules/vite/bin/vite.js --host 127.0.0.1 --port 43871 --strictPort
+```
+
+Then open `http://127.0.0.1:43871/e2e/console-foundation/fixture.html?view=routing`.
+Stop that server before running the isolated Playwright suite on the same port.
+
+Browser Back/Forward navigate between sections. Detail screens, filters and
+approval drafts remain each fixture's local state; leaving a section resets that
+state and detail transitions do not create browser history. Some scope-fixture
+controls move within that fixture, so the selected shell section continues to
+represent the entry route. No cross-fixture record relationship is inferred.
+This preview never mounts in standalone and does not connect adapters, chat,
+authorization, storage, network requests or live operational actions. Its
+approval decisions are in-memory fixture simulations only. It does not close
+protected-link, ownership, navigation, live or accessibility acceptance gates.
+
 `ReadStatePanel` distinguishes the eight handoff read states, renders children
 only for ready/partial/stale, and offers an explicitly supplied retry only for
 unavailable reads. It neither performs reads nor fences async work. Callers must

@@ -1,0 +1,15 @@
+.kn-scope-visual { color: var(--kn-text, #172b3a); }
+.kn-scope-visual [role="note"] { margin: 0 0 1.25rem; padding: .8rem 1rem; border-left: 3px solid var(--kn-primary, #087f8c); border-radius: .25rem; background: var(--kn-tint, #e4f7f7); }
+.kn-scope-heading { margin-bottom: 1.5rem; }
+.kn-scope-heading h1 { margin: 0 0 .4rem; font-size: 1.8rem; line-height: 1.2; }
+.kn-scope-heading p, .kn-scope-visual .kn-foundation-read > p { color: var(--kn-muted, #526575); }
+.kn-scope-visual .kn-foundation-read > p { font-size: .9rem; }
+.kn-scope-card, .kn-scope-records > li { min-width: 0; margin: 1rem 0; padding: 1.25rem; border: 1px solid var(--kn-edge, #d9e2ee); border-radius: .5rem; background: var(--kn-surface, #fff); }
+.kn-scope-card h2, .kn-scope-records h2 { margin: 0 0 .8rem; font-size: 1.1rem; overflow-wrap: anywhere; }
+.kn-scope-records, .kn-scope-attention { list-style: none; padding: 0; }
+.kn-scope-attention li { padding: .75rem; border-left: 3px solid var(--kn-primary, #087f8c); background: var(--kn-tint, #e4f7f7); }
+.kn-scope-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 0 1rem; }
+.kn-scope-fields p { margin: 0; padding: .65rem 0; border-bottom: 1px solid var(--kn-edge, #d9e2ee); overflow-wrap: anywhere; }
+.kn-scope-visual button { min-height: 44px; border: 1px solid var(--kn-edge, #d9e2ee); border-radius: .3rem; background: var(--kn-surface, #fff); color: var(--kn-link, #06636d); cursor: pointer; }
+.kn-scope-visual button:hover { border-color: var(--kn-primary, #087f8c); background: var(--kn-tint, #e4f7f7); }
+@media (max-width: 600px) { .kn-scope-card, .kn-scope-records > li { padding: 1rem; } .kn-scope-heading h1 { font-size: 1.5rem; } }

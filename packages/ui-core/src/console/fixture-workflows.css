@@ -1,0 +1,20 @@
+.kn-workflow-fixture { min-width: 0; color: var(--kn-text, #172B3A); }
+.kn-workflow-fixture .kn-wf-notice { padding: .85rem 1rem; border-left: 3px solid #825000; border-radius: 5px; background: var(--kn-tint, #E4F7F7); font-size: .8rem; }
+.kn-workflow-fixture h1 { margin: 1.2rem 0 .4rem; font-size: 1.75rem; line-height: 1.2; }
+.kn-workflow-fixture .kn-wf-intro { margin: 0 0 1.25rem; color: var(--kn-muted, #526575); font-size: .875rem; }
+.kn-workflow-fixture .kn-foundation-read { min-width: 0; padding: 1.25rem; border: 1px solid var(--kn-edge, #D9E2EE); border-radius: 8px; background: var(--kn-surface, #fff); }
+.kn-workflow-fixture .kn-foundation-read > p { color: var(--kn-muted, #526575); font-size: .8rem; }
+.kn-workflow-fixture .kn-wf-table-scroll { width: 100%; overflow-x: auto; }
+.kn-workflow-fixture table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: .875rem; text-align: left; }
+.kn-workflow-fixture th, .kn-workflow-fixture td { padding: .9rem .65rem; border-bottom: 1px solid var(--kn-edge, #D9E2EE); vertical-align: top; }
+.kn-workflow-fixture thead { color: var(--kn-muted, #526575); background: var(--kn-canvas, #F4F7FB); font-size: .75rem; }
+.kn-workflow-fixture th p, .kn-workflow-fixture td small, .kn-workflow-fixture th small { display: block; margin: .4rem 0 0; color: var(--kn-muted, #526575); font-size: .75rem; font-weight: 400; }
+.kn-workflow-fixture button { min-height: 44px; padding: .55rem .75rem; border: 1px solid var(--kn-edge, #D9E2EE); border-radius: 5px; color: var(--kn-link, #06636D); background: var(--kn-surface, #fff); font: inherit; cursor: pointer; }
+.kn-workflow-fixture button:hover { background: var(--kn-tint, #E4F7F7); }
+.kn-workflow-fixture button:focus-visible { outline: 2px solid var(--kn-focus, #245DD8); outline-offset: 2px; }
+.kn-workflow-fixture .kn-wf-back { margin-top: .5rem; }
+.kn-workflow-fixture .kn-wf-phase { display: inline-block; padding: .3rem .5rem; border-radius: 4px; background: var(--kn-canvas, #F4F7FB); font-weight: 700; }
+.kn-workflow-fixture .kn-foundation-read > section { margin: 1rem 0; padding: 1rem; border: 1px solid var(--kn-edge, #D9E2EE); border-radius: 6px; overflow-wrap: anywhere; }
+.kn-workflow-fixture .kn-foundation-read > section h2 { margin: 0 0 .75rem; font-size: 1rem; }
+.kn-workflow-fixture .kn-foundation-read > section p { margin: .5rem 0; font-size: .875rem; }
+@media (max-width: 699px) { .kn-workflow-fixture .kn-foundation-read { padding: .85rem; } .kn-workflow-fixture h1 { font-size: 1.5rem; } }

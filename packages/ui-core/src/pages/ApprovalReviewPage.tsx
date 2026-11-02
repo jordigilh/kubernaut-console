@@ -466,13 +466,13 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
 
   return (
     <section aria-labelledby="approval-review-heading">
-      <button type="button" onClick={onBack}>← Back to Approvals</button>
+      <button type="button" className="kn-approval-back" onClick={onBack}>← Back to Approvals</button>
       <div className="kn-approval-page-heading">
         <div>
           <h1 id="approval-review-heading">Review remediation</h1>
           <p>{review.id} · Submitted by {review.submitter?.displayName ?? "Unknown"}</p>
         </div>
-        <span className="kn-approval-badge">{decisionLabel(review.decision.status)}</span>
+        <span className="kn-approval-badge" data-status={review.decision.status}>{decisionLabel(review.decision.status)}</span>
       </div>
 
       <ApprovalReadStatePanel state={currentReviewState} label="RAR review">
@@ -550,8 +550,8 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
                     </ul>
                   )}
                   <div className="kn-approval-actions">
-                    <button type="button" onClick={() => selectDecision("Approved")} disabled={!canDecide}>Approve</button>
-                    <button type="button" onClick={() => selectDecision("Rejected")} disabled={!canDecide}>Reject</button>
+                    <button type="button" className="kn-approval-approve" onClick={() => selectDecision("Approved")} disabled={!canDecide}>Approve</button>
+                    <button type="button" className="kn-approval-reject" onClick={() => selectDecision("Rejected")} disabled={!canDecide}>Reject</button>
                   </div>
                   {submissionState === "submitting" && <p role="status">Recording fixture decision…</p>}
                   {submissionState === "reconciling" && <p role="status">Re-reading the current fixture review…</p>}

@@ -112,6 +112,7 @@ export function ApprovalsPage({ adapter, onOpenRequest, refreshToken = 0 }: Prop
         </div>
 
         <div className="kn-approval-panel">
+          <h2 className="kn-approval-list-heading">Approval requests</h2>
           <div className="kn-approval-toolbar">
             <label>
               Filter loaded fixture requests
@@ -181,7 +182,7 @@ export function ApprovalsPage({ adapter, onOpenRequest, refreshToken = 0 }: Prop
               </table>
             </div>
           )}
-          <p className="kn-approval-muted">Fixture data only. List filtering is local to the loaded rows.</p>
+          <p className="kn-approval-muted kn-approval-list-footnote">Showing {rows.length} of {readState.data.length} loaded fixture requests. Filtering is local to the loaded rows.</p>
         </div>
       </ApprovalReadStatePanel>
     </section>

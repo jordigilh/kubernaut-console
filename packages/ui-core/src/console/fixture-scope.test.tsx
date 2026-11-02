@@ -20,6 +20,13 @@ describe("fixture scope identity", () => {
 });
 
 describe("scope fixture presentation", () => {
+  it("groups resource identity and scope in responsive fixture cards", () => {
+    render(<FixtureScope topology="fleet" initialScreen={{ screen: "resources.list" }} embedded />);
+    expect(screen.getByRole("heading", { name: "checkout" })).toBeInTheDocument();
+    expect(screen.getByText("Resource ID: resource-fixture-1")).toBeInTheDocument();
+    expect(screen.getByText("Scope provenance: Fixture records namespace inheritance")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open resource checkout" }).closest("ul")).toHaveClass("kn-scope-records");
+  });
   it.each(["fleet", "local", "unknown"] as const)("retains %s topology", (topology) => {
     render(<FixtureScope topology={topology} />);
     expect(screen.getByText(`Fixture topology: ${topology}`)).toBeInTheDocument();

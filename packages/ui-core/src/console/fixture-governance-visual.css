@@ -1,0 +1,19 @@
+.kn-governance-visual { color: var(--kn-text, #172b3a); }
+.kn-governance-visual [role="note"] { margin: 0 0 1.25rem; padding: .8rem 1rem; border-left: 3px solid var(--kn-primary, #087f8c); border-radius: .25rem; background: var(--kn-tint, #e4f7f7); }
+.kn-governance-heading { margin-bottom: 1.5rem; }
+.kn-governance-heading h1 { margin: 0 0 .4rem; font-size: 1.8rem; line-height: 1.2; }
+.kn-governance-heading p, .kn-governance-visual .kn-foundation-read > p { color: var(--kn-muted, #526575); }
+.kn-governance-visual .kn-foundation-read > p { font-size: .9rem; }
+.kn-governance-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: 1rem; margin: 1rem 0; }
+.kn-governance-card, .kn-governance-visual .kn-foundation-read > ul > li { min-width: 0; padding: 1.25rem; border: 1px solid var(--kn-edge, #d9e2ee); border-radius: .5rem; background: var(--kn-surface, #fff); overflow-wrap: anywhere; }
+.kn-governance-card { margin: 1rem 0; }
+.kn-governance-grid .kn-governance-card { margin: 0; }
+.kn-governance-card h2 { margin: 0 0 .8rem; font-size: 1.1rem; }
+.kn-governance-visual .kn-foundation-read > ul { list-style: none; padding: 0; }
+.kn-governance-visual .kn-foundation-read > ul > li p { margin: 0; padding: .5rem 0; border-bottom: 1px solid var(--kn-edge, #d9e2ee); }
+.kn-governance-visual button, .kn-governance-visual input, .kn-governance-visual select { min-height: 44px; border: 1px solid var(--kn-edge, #d9e2ee); border-radius: .3rem; background: var(--kn-surface, #fff); color: var(--kn-text, #172b3a); font: inherit; }
+.kn-governance-visual button { color: var(--kn-link, #06636d); cursor: pointer; }
+.kn-governance-visual button:hover { border-color: var(--kn-primary, #087f8c); background: var(--kn-tint, #e4f7f7); }
+.kn-governance-visual label { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: .5rem 1rem .5rem 0; }
+.kn-governance-visual input, .kn-governance-visual select { max-width: 100%; padding: .5rem; }
+@media (max-width: 600px) { .kn-governance-card, .kn-governance-visual .kn-foundation-read > ul > li { padding: 1rem; } .kn-governance-heading h1 { font-size: 1.5rem; } .kn-governance-visual label { display: flex; } }

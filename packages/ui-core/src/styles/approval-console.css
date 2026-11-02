@@ -664,3 +664,61 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Fixture workspace presentation follows the current console prototype without
+   changing the legacy standalone approval styles above. */
+.kn-approval-console[data-fixture="true"] .kn-approval-fixture-banner {
+  background: color-mix(in srgb, var(--kn-approval-warning) 12%, var(--kn-approval-surface));
+  border-color: var(--kn-approval-warning);
+  border-radius: 5px;
+  padding: .8rem 1rem;
+}
+.kn-approval-console[data-fixture="true"] .kn-approval-page-heading h1 {
+  font-family: "Red Hat Display", "Red Hat Text", system-ui, sans-serif;
+  font-size: 1.8rem;
+  letter-spacing: -.025em;
+}
+.kn-approval-console[data-fixture="true"] .kn-approval-metrics > div,
+.kn-approval-console[data-fixture="true"] .kn-approval-panel {
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+.kn-approval-console[data-fixture="true"] .kn-approval-metrics > div > span {
+  color: var(--kn-approval-muted);
+  font-size: .75rem;
+  text-transform: uppercase;
+}
+.kn-approval-console[data-fixture="true"] .kn-approval-metrics strong { font-size: 1.8rem; }
+.kn-approval-console[data-fixture="true"] .kn-approval-list-heading { font-size: 1rem; margin: 0 0 1rem; }
+.kn-approval-console[data-fixture="true"] .kn-approval-table th { background: var(--kn-approval-canvas); }
+.kn-approval-console[data-fixture="true"] .kn-approval-table td { padding-block: 1rem; }
+.kn-approval-console[data-fixture="true"] .kn-approval-table td button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--kn-approval-primary);
+  font-weight: 650;
+}
+.kn-approval-console[data-fixture="true"] .kn-approval-list-footnote { font-size: .8rem; margin-bottom: 0; }
+.kn-approval-console[data-fixture="true"] .kn-approval-back { margin-bottom: 1rem; }
+.kn-approval-console[data-fixture="true"] .kn-approval-ledger { border-left: 3px solid var(--kn-approval-primary); }
+.kn-approval-console[data-fixture="true"] .kn-approval-status[data-status="pending"],
+.kn-approval-console[data-fixture="true"] .kn-approval-page-heading .kn-approval-badge[data-status="pending"] {
+  background: color-mix(in srgb, var(--kn-approval-warning) 14%, var(--kn-approval-surface));
+  border-color: transparent;
+  color: var(--kn-approval-warning);
+}
+.kn-approval-console[data-fixture="true"] .kn-approval-actions .kn-approval-approve {
+  background: var(--kn-approval-primary);
+  border-color: var(--kn-approval-primary);
+  color: #fff;
+}
+.kn-approval-console[data-fixture="true"] .kn-approval-actions .kn-approval-reject {
+  background: var(--kn-approval-surface);
+  border-color: var(--kn-approval-border);
+  color: var(--kn-approval-text);
+}
+.kn-foundation[data-theme="dark"] .kn-approval-console[data-fixture="true"] .kn-approval-actions .kn-approval-approve { color: #09292A; }
+@media (prefers-color-scheme: dark) {
+  .kn-approval-console[data-fixture="true"] .kn-approval-actions .kn-approval-approve { color: #09292A; }
+  .kn-foundation[data-theme="light"] .kn-approval-console[data-fixture="true"] .kn-approval-actions .kn-approval-approve { color: #fff; }
+}
