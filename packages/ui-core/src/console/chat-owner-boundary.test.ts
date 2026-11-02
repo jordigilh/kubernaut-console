@@ -36,7 +36,7 @@ describe("source-only chat owner boundary", () => {
     expect(current.isCurrent()).toBe(true);
   });
 
-  it("fences before abort listeners and delayed callbacks can write after invalidation", async () => {
+  it("prevents abort listeners and delayed callbacks from writing after invalidation", async () => {
     const boundary = createChatOwnerBoundary();
     const old = boundary.activate(scope)!;
     const write = vi.fn();

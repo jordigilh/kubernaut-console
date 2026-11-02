@@ -19,6 +19,13 @@ The new shell does not yet mount this presenter. Existing browser/session and
 MCP state behavior is unchanged; all applicable ownership, logout, transport,
 semantic-projection and acceptance gates remain open.
 
+At this source-only checkpoint, the full UI-core suite reported 731 tests passed.
+A six-test-file coverage run applied thresholds to the **aggregate of two
+included files**, not to each file: `ChatContainer.tsx` measured 76.78%
+statements, 79.66% functions and 78.36% lines; the boundary measured 100%
+statements, functions and lines. This is neither a per-file 80% pass nor
+live-lifecycle, identity-isolation or changed-branch coverage.
+
 ### Delivery options and current progress
 
 **User decision:** start with the page-lifetime, memory-only owner. The
@@ -109,12 +116,14 @@ Source of the generation and its lifetime across page reload remain unresolved.
 
 ## Evidence boundary
 
-The Console worktree starts at `97bd5b4e47cbf22795d36be252466602f1bc7ddf`.
-The existing chat, hook, transport, session and auth files cited below are
-unchanged from the inspected `caac5a796ad19398e2b37dae03576dd313701b71`
-baseline. `packages/ui-core/src/index.ts` and the foundation are read from the
-Stage 4 worktree, not the independently indexed main snapshot. Source inspection
-is not an executed test or a deployed behavior guarantee. Upstream Engram main
+The historical Stage 4 fixture work began at
+`97bd5b4e47cbf22795d36be252466602f1bc7ddf` and compared its chat, hook,
+transport, session and auth sources with
+`caac5a796ad19398e2b37dae03576dd313701b71`. The current work starts from
+`82761210e57fcb70fef06a4d2d0fa4fd862e2847` and changes `ChatContainer.tsx`
+to extract its single owner and presenter, as described above. The historical
+comparison is not a claim that the current chat component is unchanged.
+Source inspection is not an executed test or a deployed behavior guarantee. Upstream Engram main
 search identified `internal/kubernautagent/mcp/tools/investigate.go`; its
 runner/session interfaces are not evidence of deployed concurrency or recovery,
 and no exact upstream revision is asserted for that current index.
@@ -133,7 +142,7 @@ gate. Auth/further CR changes and #2570/parameter editing/V8 remain held.
 | --- | --- | --- |
 | Entry and exports | `packages/standalone/src/App.tsx` mounts `KubernautChat`; `packages/ui-core/src/index.ts` exports `KubernautChat`, `ChatContainer`, `useChat`, providers and types, plus the newer source-only foundation. `useRRStatus` is internal, not an index export. | Preserve existing consumers and standalone mounting. Screen IDs in `console/registry.ts` are purposes, not routes or authorization. |
 | Authentication | `components/KubernautChat.tsx` obtains a user and, outside mock mode, requires a successful coarse access check before mounting `ChatContainer`. `providers/auth.ts` user fields are name/email/initials. | A successful check is not case, workspace, per-tool or cross-user authorization. Display identity is not a trusted owner key. Source inspection does not qualify logout safety. |
-| Owner and presenter | `components/ChatContainer.tsx` instantiates `useChat` and `useRRStatus`, holds input locally, derives an RR from messages, and owns action handlers. `useRRStatus.ts` starts a status subscription in an effect and aborts it on cleanup. | Unmounting the existing presenter is not the required stable-owner boundary. Do not simply embed/unmount it for route switches or implement a second chat. |
+| Owner and presenter | `components/ChatContainer.tsx` now places the existing `useChat`, `useRRStatus`, draft and action handlers in a single owner above `ChatPresenter`. `useRRStatus.ts` starts a status subscription in an effect and aborts it on cleanup. | The extracted provider can outlive its presenter in the controlled test; it is not yet a scoped multi-investigation owner or mounted in the new shell. Do not create a second chat. |
 | Stream and status | `lib/a2a-client.ts` retries eligible failures but reports a disconnected live stream as interrupted rather than automatically repeating it. `lib/a2a-status-client.ts` separately subscribes/retries RR status. `useRRStatus` exposes idle/connected/reconnecting/error/not-found and terminal state. | RR lifecycle, response stream and status observation are distinct; a status reconnect is not permission to replay a prompt or claim a driver. Initial failures have their own current hook behavior and require parity review. |
 | MCP and actions | `lib/mcp-client.ts` has module-level initialization/session state and can reinitialize and repeat a tool call for specific errors. `ChatContainer.tsx` calls `kubernaut_cancel` separately from response Stop and also contains existing workflow and approval handlers. | Preserve current consumer behavior while qualifying source/auth-scoped MCP state and ambiguous dispatch. The planned new conversation projection must keep RAR discovery/decisions outside chat; merely hiding existing controls is not semantic redaction. No action wiring is authorized here. |
 | Browser state | `useChat.ts` loads JSON messages from a tab-global session key; its save path clears `isStreaming`, limits thinking on normal save and falls back to the last ten messages on storage failure. `lib/session-state.ts` manages global phase/context/workflow keys and rotates context on cleanup. | These are existing behaviors, not validated multi-owner snapshots or logout fences. Stored text is not a live stream/driver; a fresh context alone does not prove isolation. |
