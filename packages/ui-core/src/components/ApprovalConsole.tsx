@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import consoleLogo from "../assets/console-logo.svg";
 import { ApprovalReviewPage } from "../pages/ApprovalReviewPage";
 import { ApprovalsPage } from "../pages/ApprovalsPage";
 import {
@@ -68,7 +69,7 @@ export function ApprovalConsole({
     <div className="kn-approval-console" data-fixture="true">
       <header className="kn-approval-header">
         <div className="kn-approval-brand">
-          <img className="kn-approval-logo" src="/logo.svg" alt="Kubernaut" />
+          <img className="kn-approval-logo" src={consoleLogo} alt="Kubernaut" />
           <div>
             <strong>Kubernaut</strong>
             <span>Approval review</span>

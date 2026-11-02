@@ -55,6 +55,34 @@ function renderReview(
 }
 
 describe("ApprovalReviewPage decision boundaries", () => {
+  it("does not send twice when confirmation is activated twice before a render", async () => {
+    const decision = deferred<ApprovalDecisionResult>();
+    const decide = vi.fn(() => decision.promise);
+    const adapter = createApprovalFixtureAdapter({ decide });
+    renderReview(adapter);
+    await screen.findByText("Deployment/demo-operator");
+    fireEvent.change(screen.getByLabelText("Decision reason"), { target: { value: "Reviewed." } });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    const confirm = screen.getByRole("button", { name: "Confirm Approved" });
+    act(() => { fireEvent.click(confirm); fireEvent.click(confirm); });
+    expect(decide).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not send when the deadline passes while confirmation is open", async () => {
+    let now = Date.parse("2026-10-31T14:00:00Z");
+    const decide = vi.fn(async (): Promise<ApprovalDecisionResult> => ({ status: "expired", message: "Expired" }));
+    const adapter = createApprovalFixtureAdapter({ now: () => now, decide });
+    renderReview(adapter);
+    await screen.findByText("Deployment/demo-operator");
+    fireEvent.change(screen.getByLabelText("Decision reason"), { target: { value: "Reviewed." } });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    now = Date.parse("2026-10-31T14:14:00Z");
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Approved" }));
+    expect(decide).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+  });
+
   it.each(["unknown", "stale", "forbidden", "expired", "conflict"] as const)(
     "requires an explicit current reread before another send after a %s outcome",
     async (status) => {
@@ -237,6 +265,42 @@ describe("ApprovalReviewPage decision boundaries", () => {
 });
 
 describe("ApprovalReviewPage scope fencing", () => {
+  it("ignores a decision receipt from an earlier visit after navigating A to B to A", async () => {
+    const base = createApprovalFixtureAdapter();
+    const decision = deferred<ApprovalDecisionResult>();
+    const adapter: ApprovalReviewAdapter = { ...base, decide: vi.fn(() => decision.promise) };
+    const page = (id: string) => <ApprovalReviewPage adapter={adapter} requestId={id} reviewer={FIXTURE_REVIEWER} onBack={vi.fn()} />;
+    const view = render(page("rar-demo-02"));
+    await screen.findByText("Deployment/demo-operator");
+    fireEvent.change(screen.getByLabelText("Decision reason"), { target: { value: "Previous visit." } });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Approved" }));
+    view.rerender(page("rar-demo-03"));
+    await screen.findByText("StatefulSet/orders-db");
+    view.rerender(page("rar-demo-02"));
+    await screen.findByText("Deployment/demo-operator");
+    await act(async () => decision.resolve({ status: "accepted", receipt: { requestId: "rar-demo-02", requestUid: "rar-demo-02-uid", decision: "Approved", actor: FIXTURE_REVIEWER, reason: "Previous visit.", decidedAt: "2026-10-31T14:05:00Z", source: "fixture" } }));
+    expect(screen.queryByText("Approved by Morgan Lee")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
+  });
+
+  it("ignores evidence from an earlier visit after navigating A to B to A", async () => {
+    const base = createApprovalFixtureAdapter();
+    const evidence = deferred<ApprovalReadState<readonly import("../lib/approval-review").ApprovalEvidenceItem[]>>();
+    const adapter: ApprovalReviewAdapter = { ...base, retryEvidence: vi.fn(() => evidence.promise) };
+    const page = (id: string) => <ApprovalReviewPage adapter={adapter} requestId={id} reviewer={FIXTURE_REVIEWER} onBack={vi.fn()} />;
+    const view = render(page("rar-demo-02"));
+    await screen.findByText("Deployment/demo-operator");
+    fireEvent.click(screen.getByRole("button", { name: "Retry related evidence" }));
+    view.rerender(page("rar-demo-03"));
+    await screen.findByText("StatefulSet/orders-db");
+    view.rerender(page("rar-demo-02"));
+    await screen.findByText("Deployment/demo-operator");
+    await act(async () => evidence.resolve({ status: "ready", observedAt: "2026-10-31T14:00:00Z", data: [{ id: "old", occurredAt: null, category: "fixture", summary: "Evidence from the previous visit", actor: null, redacted: false }] }));
+    expect(screen.queryByText(/Evidence from the previous visit/)).not.toBeInTheDocument();
+    expect(screen.getByText("Related evidence is unavailable", { selector: "strong" })).toBeInTheDocument();
+  });
+
   it("ignores a late initial read after the request scope changes", async () => {
     const base = createApprovalFixtureAdapter();
     const read02 = deferred<ApprovalReadState<ApprovalReview>>();

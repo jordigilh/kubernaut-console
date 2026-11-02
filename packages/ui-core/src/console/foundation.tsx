@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import consoleLogo from "../assets/console-logo.svg";
 import { ApprovalsPage } from "../pages/ApprovalsPage";
 import { ApprovalReviewPage } from "../pages/ApprovalReviewPage";
 import { createApprovalFixtureAdapter, FIXTURE_REVIEWER } from "../lib/approval-review";
@@ -84,7 +85,7 @@ export function ConsoleShell({ access, topology, current, hrefs, theme = "light"
     return href ? <a key={item.id} href={href} aria-current={current === item.id ? "page" : undefined} onClick={(event) => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) setOpen(false); }}>{item.label}</a> : <span key={item.id} className="kn-foundation-deferred">{item.label}<small>{item.availability === "topology-unknown" ? "Topology unavailable" : "Deferred"}</small></span>;
   }
   return <div className="kn-foundation" data-theme={theme}>
-    <header className="kn-foundation-header"><img src="/logo.svg" alt="Kubernaut" /><strong>Kubernaut</strong></header>
+    <header className="kn-foundation-header"><img src={consoleLogo} alt="Kubernaut" /><strong>Kubernaut</strong></header>
     <div className="kn-foundation-layout">
       <nav ref={nav} aria-label="Console navigation" className="kn-foundation-nav" onKeyDown={(event) => { if (event.key === "Escape" && open) { event.preventDefault(); setOpen(false); more.current?.focus(); } }} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
         <div className="kn-foundation-priority"><h2>Operate</h2>{items.filter((item) => item.group === "Operate").map(renderItem)}</div>
