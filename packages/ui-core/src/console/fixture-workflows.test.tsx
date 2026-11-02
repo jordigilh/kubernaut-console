@@ -32,6 +32,25 @@ describe("synthetic workflow identities", () => {
 
 describe("fixture workflow presentation", () => {
   const direct: FixtureWorkflowScreen = { screen: "outcomes.verification", assessmentId: "ea-fixture-01" };
+  it("shows exact workflow versions in a catalog table and places Back above the detail title", () => {
+    render(<FixtureWorkflows embedded />);
+    const table = screen.getByRole("table");
+    expect(within(table).getByRole("columnheader", { name: "Applicability" })).toBeInTheDocument();
+    fireEvent.click(within(table).getByRole("button", { name: "Open workflow wf-fixture-01 version 1.0.7" }));
+    const back = screen.getByRole("button", { name: "Back to catalog" });
+    const heading = screen.getByRole("heading", { name: "Workflow version" });
+    expect(back.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("Workflow version: 1.0.7")).toBeInTheDocument();
+  });
+  it("keeps execution phase, application and effectiveness in distinct columns", () => {
+    render(<FixtureWorkflows embedded initialScreen={{ screen: "workflows.executions", workflow }} />);
+    const table = screen.getByRole("table");
+    for (const name of ["Execution phase", "Application", "Assessment / effectiveness"]) expect(within(table).getByRole("columnheader", { name })).toBeInTheDocument();
+    const row = within(table).getByRole("row", { name: /we-fixture-01/ });
+    expect(within(row).getByText("Completed")).toBeInTheDocument();
+    expect(within(row).getByText("Confirmed")).toBeInTheDocument();
+    expect(within(row).getByText("Effectiveness: 0.00")).toBeInTheDocument();
+  });
   it.each([["loading", "Loading"], ["empty", "No results"], ["unavailable", "Unavailable"], ["forbidden", "Access denied"], ["missing", "Missing or out of scope"]] as const)("withholds records and provenance for %s", (status, text) => {
     render(<FixtureWorkflows initialScreen={direct} status={status} />);
     expect(screen.getByText(new RegExp(text))).toBeInTheDocument();

@@ -42,6 +42,16 @@ describe("fixture investigation identity boundaries", () => {
 });
 
 describe("fixture-only investigation presentation", () => {
+  it("presents independently recorded scope and lifecycle in a labelled table", () => {
+    render(<FixtureInvestigations embedded />);
+    const table = screen.getByRole("table");
+    expect(within(table).getByRole("columnheader", { name: "Alert source / namespace" })).toBeInTheDocument();
+    const row = within(table).getByRole("row", { name: /rr-fixture-01/ });
+    expect(within(row).getByText("alert-cluster")).toBeInTheDocument();
+    expect(within(row).getByText("Deployment/target")).toBeInTheDocument();
+    expect(within(row).getByText("Investigating")).toBeInTheDocument();
+    expect(within(table).getByRole("row", { name: /rr-fixture-02/ })).not.toHaveTextContent("Deployment/target");
+  });
   it.each([
     ["loading", "Loading"], ["empty", "No results"], ["unavailable", "Unavailable"],
     ["forbidden", "Access denied"], ["missing", "Missing or out of scope"],
