@@ -1,20 +1,129 @@
 # Stage 4 — investigation and chat source-only readiness
 
-**Status: source mapping plus a fixture-only recorded presentation.** No live
-adapter, production route, owner refactor or acceptance gate is implemented.
+**Status: source mapping, fixture-only recorded presentation, and a bounded
+single-chat owner/presenter extraction.** No live adapter, production route,
+multi-investigation owner or acceptance gate is implemented.
 The rollout plan's Stage 4 remains open. Live RAR Stage 3 is
 parked pending upstream qualification; the Stage 4 work does not resolve its
 UID/content-binding contract conflict. Local labels below are handoff labels,
 not registered business requirements or passing tests.
 
+The existing `ChatContainer` now composes an internal `ChatOwnerProvider` and
+`ChatPresenter`, retaining the existing standalone entry point. In a controlled
+component test, keeping the provider mounted while hiding the presenter retains
+the draft and accepts a synthetic stream and status update without an additional
+send, status subscription, cancellation or MCP call. Disposing the provider
+aborts its subscriptions. This is a single-owner structural seam, not scoped
+identity, multi-investigation isolation, live concurrency, or recovery evidence.
+The new shell does not yet mount this presenter. Existing browser/session and
+MCP state behavior is unchanged; all applicable ownership, logout, transport,
+semantic-projection and acceptance gates remain open.
+
+At the review-evidence checkpoint before the scroll-position follow-up, the full
+UI-core suite reported 731 tests passed. A six-test-file coverage run applied thresholds to the **aggregate of two
+included files**, not to each file: `ChatContainer.tsx` measured 76.78%
+statements, 79.66% functions and 78.36% lines; the boundary measured 100%
+statements, functions and lines. This is neither a per-file 80% pass nor
+live-lifecycle, identity-isolation or changed-branch coverage.
+
+### Delivery options and current progress
+
+**User decision:** start with the page-lifetime, memory-only owner. The
+long-term goal remains browser-owned conversation restoration across reloads
+once verified scope, retention and safety contracts are qualified. Neither
+approach is complete or approved for live deployment.
+
+| | Page-lifetime, memory-only owner | Verified-scope, reload-capable owner |
+| --- | --- | --- |
+| Intended behavior | Keep the active conversation and draft while navigating within one authenticated page lifetime. Do not promise recovery after reload or logout. | Restore bounded browser-owned snapshots after the host verifies the applicable source, identity and session. Restored content is disconnected, not a live stream or driver. |
+| Completed evidence | Single-owner/presenter extraction and controlled hide/show test; an independent in-memory lease primitive and synthetic tests. Neither is wired to the new shell. | Host requirements proposal and source preflight only. No qualified identity/session source or scoped snapshot implementation exists. |
+| Next implementation work | Explicitly disable or isolate the existing tab-global transcript/context/phase/pending/workflow storage for this mode; isolate MCP by source and auth lifetime; fence stream, status, action and storage callbacks. Invalidate and abort before clearing or allowing a successor. | Qualify the host contract below; approve legacy-cache handling, retention and privacy policy; implement bounded, validated scoped snapshots, unique IDs, safe storage-failure handling and async write fencing. |
+| Required evidence | Auth/loading/logout/source-change and delayed-callback tests, same-user re-login, MCP initialization/retry isolation and no implicit actions on view changes. Test the integrated owner, not just the lease primitive. | All memory-only evidence, plus cross-user/session/source/conversation isolation, reload and partial-stream restore, legacy-cache rejection/migration, quota/denial, stale writes and separately qualified deployed concurrency. |
+
+The first option still requires a trustworthy way to detect authentication and
+source transitions for its page lifetime; a local generation is not proof of
+identity or server authorization. Existing global persistence and MCP state
+must not silently remain in use under a memory-only label. Both options retain
+the existing OAuth2 Proxy/JWT boundary; neither authorizes exposing credentials,
+replaying actions, creating a backend transcript store, or treating a snapshot
+as a recovered live investigation. Full G1–G5 and release gates stay open.
+
+### Proposed source-only identity/lifecycle boundary
+
+`chat-owner-boundary.ts` defines an in-memory, single-owner fencing primitive;
+it is not wired into the existing owner or production host. The host contract
+must supply a verified canonical source, issuer, immutable subject, nonsecret
+authenticated-session generation and browser-local conversation ID. Display
+name/email, an RR, MCP session, A2A task or driver is not a substitute for any
+of these fields. Missing or invalid scope does not create an owner. Auth loading
+is distinct from explicit logout and must not itself invalidate an active owner.
+
+On explicit logout or scope replacement, the boundary invalidates the old
+generation before aborting it. A stale lease cannot perform a guarded synchronous
+write or invalidate a newer generation. Async work must re-check after every
+await; a guarded function does not protect work it schedules for later. This
+primitive has no authority to authenticate its input, clear storage, fence the
+existing callbacks, isolate MCP sessions, or revoke server-side work. Those
+integrations and their negative tests remain required before live use; the
+current provider supplies display fields rather than a qualified scope.
+
+### Host contract proposal — not yet supplied or approved
+
+Source checked at console `82761210e57fcb70fef06a4d2d0fa4fd862e2847`:
+`KubernautAuthProvider` returns a token and display-only `KubernautUser`;
+the standalone `ProxyAuthProvider` maps `/oauth2/userinfo` to name, email and
+initials. It exposes no qualified issuer/subject or authenticated-session
+generation to the chat owner. OAuth2 Proxy's
+[v7.15.3 UserInfo handler](https://github.com/oauth2-proxy/oauth2-proxy/blob/v7.15.3/oauthproxy.go)
+returns user, email, groups, preferred username and optional additional claims;
+that source does not establish this deployment's claim mappings, issuer or a
+browser-safe session generation. Do not assume `user` or additional claims are
+verified `sub`, or that the deployed proxy matches this reference version.
+
+Before wiring the owner, an owning host/security team must qualify an
+authenticated, same-origin, non-cacheable scope source with these properties:
+
+1. **Principal and source:** explicit verified issuer and immutable subject,
+   plus canonical backend/source identity. The host establishes these from its
+   validated authentication boundary; client-supplied display fields, raw
+   headers and unverified token decoding are not proof.
+2. **Session generation:** an opaque **noncredential** identifier, stable for
+   the supported continuity interval and different after logout, replacement or
+   a new login. Define refresh, expiry, cross-tab, server restart, replay and
+   revocation behavior. It must not be a cookie, bearer token, token hash, MCP
+   session, A2A context, RR or driver ID. Do not expose secrets to the SPA.
+3. **Authentication states:** distinguish loading, verified, explicit logout,
+   unauthenticated and error. Fail closed on absent, ambiguous or malformed
+   scope; loading alone does not clear an active owner. Invalidation precedes
+   any cleanup; stale completions cannot clear or revive a successor. Logout
+   locks owner activation before abort callbacks and only a separately verified
+   new authenticated transition may unlock it.
+4. **Privacy and storage:** subject and session values are sensitive identifiers,
+   not authorization grants. Define storage representation, retention, size,
+   deletion, storage-denial behavior and cross-tab isolation before persistence.
+   Unowned legacy cache must not be adopted as another user's data; deletion or
+   migration requires an explicit policy. Never persist credentials or handles.
+5. **Integration evidence:** test host claim provenance and the full auth/load/
+   logout/re-login sequence; stale stream, status, action, approval and storage
+   callbacks; and scope-specific MCP initialization and retry. Browser guards
+   cannot revoke an already-dispatched backend mutation. Verify protected links,
+   transport behavior and deployed AF/KA concurrency separately.
+
+This is a requirements proposal, not a claim that a new endpoint, proxy feature,
+deployment configuration or provider contract exists. The local boundary test
+checks the synchronous lock only; it cannot verify an authenticated transition.
+Source of the generation and its lifetime across page reload remain unresolved.
+
 ## Evidence boundary
 
-The Console worktree starts at `97bd5b4e47cbf22795d36be252466602f1bc7ddf`.
-The existing chat, hook, transport, session and auth files cited below are
-unchanged from the inspected `caac5a796ad19398e2b37dae03576dd313701b71`
-baseline. `packages/ui-core/src/index.ts` and the foundation are read from the
-Stage 4 worktree, not the independently indexed main snapshot. Source inspection
-is not an executed test or a deployed behavior guarantee. Upstream Engram main
+The historical Stage 4 fixture work began at
+`97bd5b4e47cbf22795d36be252466602f1bc7ddf` and compared its chat, hook,
+transport, session and auth sources with
+`caac5a796ad19398e2b37dae03576dd313701b71`. The current work starts from
+`82761210e57fcb70fef06a4d2d0fa4fd862e2847` and changes `ChatContainer.tsx`
+to extract its single owner and presenter, as described above. The historical
+comparison is not a claim that the current chat component is unchanged.
+Source inspection is not an executed test or a deployed behavior guarantee. Upstream Engram main
 search identified `internal/kubernautagent/mcp/tools/investigate.go`; its
 runner/session interfaces are not evidence of deployed concurrency or recovery,
 and no exact upstream revision is asserted for that current index.
@@ -33,7 +142,7 @@ gate. Auth/further CR changes and #2570/parameter editing/V8 remain held.
 | --- | --- | --- |
 | Entry and exports | `packages/standalone/src/App.tsx` mounts `KubernautChat`; `packages/ui-core/src/index.ts` exports `KubernautChat`, `ChatContainer`, `useChat`, providers and types, plus the newer source-only foundation. `useRRStatus` is internal, not an index export. | Preserve existing consumers and standalone mounting. Screen IDs in `console/registry.ts` are purposes, not routes or authorization. |
 | Authentication | `components/KubernautChat.tsx` obtains a user and, outside mock mode, requires a successful coarse access check before mounting `ChatContainer`. `providers/auth.ts` user fields are name/email/initials. | A successful check is not case, workspace, per-tool or cross-user authorization. Display identity is not a trusted owner key. Source inspection does not qualify logout safety. |
-| Owner and presenter | `components/ChatContainer.tsx` instantiates `useChat` and `useRRStatus`, holds input locally, derives an RR from messages, and owns action handlers. `useRRStatus.ts` starts a status subscription in an effect and aborts it on cleanup. | Unmounting the existing presenter is not the required stable-owner boundary. Do not simply embed/unmount it for route switches or implement a second chat. |
+| Owner and presenter | `components/ChatContainer.tsx` now places the existing `useChat`, `useRRStatus`, draft and action handlers in a single owner above `ChatPresenter`. `useRRStatus.ts` starts a status subscription in an effect and aborts it on cleanup. | The extracted provider can outlive its presenter in the controlled test; it is not yet a scoped multi-investigation owner or mounted in the new shell. Do not create a second chat. |
 | Stream and status | `lib/a2a-client.ts` retries eligible failures but reports a disconnected live stream as interrupted rather than automatically repeating it. `lib/a2a-status-client.ts` separately subscribes/retries RR status. `useRRStatus` exposes idle/connected/reconnecting/error/not-found and terminal state. | RR lifecycle, response stream and status observation are distinct; a status reconnect is not permission to replay a prompt or claim a driver. Initial failures have their own current hook behavior and require parity review. |
 | MCP and actions | `lib/mcp-client.ts` has module-level initialization/session state and can reinitialize and repeat a tool call for specific errors. `ChatContainer.tsx` calls `kubernaut_cancel` separately from response Stop and also contains existing workflow and approval handlers. | Preserve current consumer behavior while qualifying source/auth-scoped MCP state and ambiguous dispatch. The planned new conversation projection must keep RAR discovery/decisions outside chat; merely hiding existing controls is not semantic redaction. No action wiring is authorized here. |
 | Browser state | `useChat.ts` loads JSON messages from a tab-global session key; its save path clears `isStreaming`, limits thinking on normal save and falls back to the last ten messages on storage failure. `lib/session-state.ts` manages global phase/context/workflow keys and rotates context on cleanup. | These are existing behaviors, not validated multi-owner snapshots or logout fences. Stored text is not a live stream/driver; a fresh context alone does not prove isolation. |

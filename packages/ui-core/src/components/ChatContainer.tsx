@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState, useCallback, useMemo, type FormEvent, type KeyboardEvent } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { useChat, type ChatMessage, type ApprovalRequest } from "../hooks/useChat";
 import { useRRStatus } from "../hooks/useRRStatus";
 import { callMcpTool, isPermissionDeniedError, type McpClientOptions } from "../lib/mcp-client";
@@ -24,7 +24,7 @@ const PHASE_MAP: Record<string, ChatMessage["phase"]> = {
   Blocked: "failed", Completed: "complete", Failed: "failed", TimedOut: "timed_out", Skipped: "complete", Cancelled: "complete",
 };
 
-export function ChatContainer() {
+function useChatOwner() {
   const { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext } = useChat();
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
@@ -86,9 +86,9 @@ export function ChatContainer() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const userScrolledUpRef = useRef(false);
+  const savedScrollTopRef = useRef(0);
   const programmaticScrollRef = useRef(false);
   const lastRcaMessageId = messages.findLast(m => m.role === "agent" && m.rca)?.id;
-  const previousRcaMessageIdRef = useRef(lastRcaMessageId);
   const rcaAnchorRef = useRef<HTMLDivElement>(null);
 
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
@@ -116,27 +116,8 @@ export function ChatContainer() {
     const threshold = 80;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
     userScrolledUpRef.current = !nearBottom;
+    savedScrollTopRef.current = el.scrollTop;
   };
-
-  useEffect(() => {
-    const newRcaPresented = shouldAnchorToNewRca(
-      previousRcaMessageIdRef.current,
-      lastRcaMessageId,
-      userScrolledUpRef.current,
-    );
-    previousRcaMessageIdRef.current = lastRcaMessageId;
-    if (userScrolledUpRef.current) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    programmaticScrollRef.current = true;
-
-    if (newRcaPresented && rcaAnchorRef.current) {
-      rcaAnchorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    } else {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-    }
-    setTimeout(() => { programmaticScrollRef.current = false; }, 400);
-  }, [messages, lastRcaMessageId]);
 
   const [approvalDenied, setApprovalDenied] = useState(false);
   const approvalFetchedRef = useRef<string | null>(null);
@@ -487,6 +468,65 @@ export function ChatContainer() {
     clearHistory();
   }, [clearHistory]);
 
+  return {
+    messages, isStreaming, error, connectionStatus, cancelStream, investigationStartTime,
+    currentPhase, investigationEngaged, rrId, effectiveRrId, statusConnection, statusMetadata,
+    bannerPhase, alertName, namespace, resource, cluster, recoverySignal, user, userIdentity,
+    input, setInput, scrollRef, inputRef, lastRcaMessageId, rcaAnchorRef, handleScroll, userScrolledUpRef, savedScrollTopRef, programmaticScrollRef,
+    clearConfirmOpen, setClearConfirmOpen, cancellingInvestigation, rawThinkingEnabled,
+    showRawThinkingToggle, showRawThinking, handleToggleRawThinking, approvalDenied,
+    handleSubmit, handleKeyDown, handleSuggest, handleFillTemplate, canCancelInvestigation,
+    handleCancelInvestigation, handleExecuteWorkflow, handleApprove, handleDecline,
+    handleDismiss, handleEscalate, workflowActionTaken, handleClearHistory, confirmClear,
+    handleSignOut,
+  };
+}
+
+const ChatOwnerContext = createContext<ReturnType<typeof useChatOwner> | null>(null);
+
+/** Internal single-chat lifecycle boundary; not a scoped multi-user owner or live integration. */
+export function ChatOwnerProvider({ children }: { children: ReactNode }) {
+  const owner = useChatOwner();
+  return <ChatOwnerContext.Provider value={owner}>{children}</ChatOwnerContext.Provider>;
+}
+
+/** Presentation may unmount while its owning provider remains mounted. */
+export function ChatPresenter() {
+  const owner = useContext(ChatOwnerContext);
+  if (!owner) throw new Error("ChatPresenter requires ChatOwnerProvider");
+  const {
+    messages, isStreaming, error, connectionStatus, cancelStream, investigationStartTime,
+    currentPhase, investigationEngaged, rrId, effectiveRrId, statusConnection, statusMetadata,
+    bannerPhase, alertName, namespace, resource, cluster, recoverySignal, user, userIdentity,
+    input, setInput, scrollRef, inputRef, lastRcaMessageId, rcaAnchorRef, handleScroll, userScrolledUpRef, savedScrollTopRef, programmaticScrollRef,
+    clearConfirmOpen, setClearConfirmOpen, cancellingInvestigation, rawThinkingEnabled,
+    showRawThinkingToggle, showRawThinking, handleToggleRawThinking, approvalDenied,
+    handleSubmit, handleKeyDown, handleSuggest, handleFillTemplate, canCancelInvestigation,
+    handleCancelInvestigation, handleExecuteWorkflow, handleApprove, handleDecline,
+    handleDismiss, handleEscalate, workflowActionTaken, handleClearHistory, confirmClear,
+    handleSignOut,
+  } = owner;
+  const previousRcaMessageIdRef = useRef(lastRcaMessageId);
+  useLayoutEffect(() => {
+    if (userScrolledUpRef.current && scrollRef.current) {
+      scrollRef.current.scrollTop = savedScrollTopRef.current;
+    }
+  }, [scrollRef, savedScrollTopRef, userScrolledUpRef]);
+  useEffect(() => {
+    const newRcaPresented = shouldAnchorToNewRca(previousRcaMessageIdRef.current, lastRcaMessageId, userScrolledUpRef.current);
+    previousRcaMessageIdRef.current = lastRcaMessageId;
+    if (userScrolledUpRef.current) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    programmaticScrollRef.current = true;
+    if (newRcaPresented && rcaAnchorRef.current) {
+      rcaAnchorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
+    const timer = setTimeout(() => { programmaticScrollRef.current = false; }, 400);
+    return () => { clearTimeout(timer); programmaticScrollRef.current = false; };
+  }, [messages, lastRcaMessageId, userScrolledUpRef, programmaticScrollRef, scrollRef, rcaAnchorRef]);
   return (
     <div className="kn-chat">
       <a href="#chat-input" className="kn-sr-only">
@@ -733,4 +773,9 @@ export function ChatContainer() {
       )}
     </div>
   );
+}
+
+/** Preserve the existing one-owner/one-presenter public component behavior. */
+export function ChatContainer() {
+  return <ChatOwnerProvider><ChatPresenter /></ChatOwnerProvider>;
 }
