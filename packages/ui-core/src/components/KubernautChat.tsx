@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
-import { AuthContext, type KubernautAuthProvider, type KubernautUser } from "../providers/auth";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AuthContext, AuthenticationRequiredError, AuthenticationUnavailableError, type AuthLifecycle, type KubernautAuthProvider, type KubernautUser } from "../providers/auth";
 import { ConfigContext, type KubernautConfig } from "../providers/config";
 import { checkConsoleAccess } from "../lib/access-check";
+import { BackendContractUnavailableError, readBackendIncarnation } from "../lib/backend-contract";
 import { clearConsoleSessionState } from "../lib/session-state";
 import { ChatContainer } from "./ChatContainer";
 
@@ -31,28 +32,145 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [user, setUser] = useState<KubernautUser | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authRetry, setAuthRetry] = useState(0);
+  const [verifiedSource, setVerifiedSource] = useState<{ provider: KubernautAuthProvider; backendUrl: string } | null>(null);
+  const generationRef = useRef(0);
+  const activeGenerationRef = useRef(0);
+  const lifecycleActiveRef = useRef(false);
+  const sourceRef = useRef<{ provider: KubernautAuthProvider; backendUrl: string } | null>(null);
+
+  const backendIncarnationRef = useRef<string | undefined>(undefined);
+  const invalidateLifecycle = useCallback((reason = "authenticated lifecycle replaced") => {
+    if (!lifecycleActiveRef.current) return;
+    lifecycleActiveRef.current = false;
+    backendIncarnationRef.current = undefined;
+    setUser(null);
+    setVerifiedSource(null);
+
+    try {
+      clearConsoleSessionState();
+    } catch {
+      setAuthError("Unable to clear console session storage. Reload to retry.");
+      setPhase("auth-error");
+      return;
+    }
+
+    if (reason === "backend-incarnation-unavailable") {
+      setAuthError("Unable to verify backend lifecycle. Retry.");
+      setPhase("auth-error");
+      return;
+    }
+
+    setAuthError(null);
+    setPhase("loading");
+    setAuthRetry((value) => value + 1);
+  }, []);
+
+  const observeBackendIncarnation = useCallback((incarnation: string | null) => {
+    if (!config.requireBackendIncarnation || USE_MOCK) return;
+    if (!incarnation) {
+      invalidateLifecycle("backend-incarnation-unavailable");
+      return;
+    }
+    const previous = backendIncarnationRef.current;
+    if (!previous) {
+      backendIncarnationRef.current = incarnation;
+      return;
+    }
+    if (previous !== incarnation) {
+      invalidateLifecycle("backend-incarnation-changed");
+    }
+  }, [config.requireBackendIncarnation, invalidateLifecycle]);
+
+  const lifecycle = useMemo<AuthLifecycle>(() => ({
+    get generation() {
+      return generationRef.current;
+    },
+    isCurrent: () => lifecycleActiveRef.current && generationRef.current === activeGenerationRef.current,
+    invalidate: invalidateLifecycle,
+    observeBackendIncarnation,
+  }), [invalidateLifecycle, observeBackendIncarnation]);
 
   useEffect(() => {
-    let cancelled = false;
+    const generation = ++generationRef.current;
+    activeGenerationRef.current = generation;
+    const sourceChanged = sourceRef.current !== null && (
+      sourceRef.current.provider !== authProvider || sourceRef.current.backendUrl !== config.backendUrl
+    );
+    sourceRef.current = { provider: authProvider, backendUrl: config.backendUrl };
+    lifecycleActiveRef.current = !sourceChanged;
+    backendIncarnationRef.current = undefined;
+    const isGenerationCurrent = () => generationRef.current === generation;
+    const isCurrent = () => lifecycleActiveRef.current && isGenerationCurrent();
+
+    if (sourceChanged) {
+      setUser(null);
+      setVerifiedSource(null);
+      try {
+        clearConsoleSessionState();
+      } catch {
+        // This effect is the boundary that can prove storage cleanup failed;
+        // render the retry gate before any successor chat can mount.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setAuthError("Unable to clear console session storage. Reload to retry.");
+        setPhase("auth-error");
+        return;
+      }
+      lifecycleActiveRef.current = true;
+    }
 
     (async () => {
       let resolvedUser: KubernautUser;
       try {
         resolvedUser = await authProvider.getUser();
       } catch (err) {
+        if (!isCurrent()) return;
+        if (err instanceof AuthenticationUnavailableError) {
+          setAuthError(err.message);
+          setPhase("auth-error");
+          return;
+        }
         // Do not leave authenticated conversation data available when the
         // provider sends the browser through a re-authentication flow.
-        clearConsoleSessionState();
-        if (!cancelled) {
-          setAuthError((err as Error).message);
+        lifecycleActiveRef.current = false;
+        try {
+          clearConsoleSessionState();
+        } catch {
+          if (!isGenerationCurrent()) return;
+          setAuthError("Unable to clear console session storage. Reload to retry.");
           setPhase("auth-error");
+          return;
         }
+        if (!isGenerationCurrent()) return;
+        setAuthError((err as Error).message);
+        setPhase("auth-error");
+        if (err instanceof AuthenticationRequiredError) window.location.href = "/oauth2/sign_in";
         return;
       }
-      if (cancelled) return;
+      if (!isCurrent()) return;
+
+      if (config.requireBackendIncarnation && !USE_MOCK) {
+        try {
+          const incarnation = await readBackendIncarnation({
+            baseUrl: config.backendUrl,
+            fetchFn: config.fetchFn,
+          });
+          if (!isCurrent()) return;
+          backendIncarnationRef.current = incarnation;
+        } catch (err) {
+          if (!isCurrent()) return;
+          lifecycleActiveRef.current = false;
+          setAuthError(err instanceof BackendContractUnavailableError ? err.message : "Unable to verify backend lifecycle");
+          setPhase("auth-error");
+          return;
+        }
+      }
+
+      if (!isCurrent()) return;
       setUser(resolvedUser);
 
       if (USE_MOCK) {
+        setVerifiedSource({ provider: authProvider, backendUrl: config.backendUrl });
         setPhase("ready");
         return;
       }
@@ -66,17 +184,20 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
         baseUrl: config.backendUrl,
         getToken: () => authProvider.getToken(),
       });
-      if (cancelled) return;
+      if (!isCurrent()) return;
+      setVerifiedSource({ provider: authProvider, backendUrl: config.backendUrl });
 
       // Fail closed: only a clean "allowed" mounts the chat shell. A
       // network/5xx/401 "error" result does not default to rendering chat.
       setPhase(access === "allowed" ? "ready" : access === "denied" ? "access-denied" : "access-error");
     })();
 
-    return () => { cancelled = true; };
-  }, [authProvider, config.backendUrl]);
+    return () => {
+      if (isGenerationCurrent()) lifecycleActiveRef.current = false;
+    };
+  }, [authProvider, config.backendUrl, config.fetchFn, config.requireBackendIncarnation, authRetry]);
 
-  if (phase === "loading") {
+  if (phase === "loading" || (phase === "ready" && (verifiedSource?.provider !== authProvider || verifiedSource.backendUrl !== config.backendUrl))) {
     return (
       <div className="kn-chat kn-chat--loading" role="status" aria-label="Loading authentication">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", opacity: 0.6 }}>
@@ -92,6 +213,11 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "0.5rem" }}>
           <strong>Authentication Error</strong>
           <span style={{ fontSize: "0.875rem", opacity: 0.7 }}>{authError}</span>
+          <button type="button" onClick={() => {
+            setAuthError(null);
+            setPhase("loading");
+            setAuthRetry((value) => value + 1);
+          }}>Retry</button>
         </div>
       </div>
     );
@@ -125,7 +251,7 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
 
   return (
     <ConfigContext.Provider value={config}>
-      <AuthContext.Provider value={{ provider: authProvider, user, isLoading: false, error: null }}>
+      <AuthContext.Provider value={{ provider: authProvider, user, isLoading: false, error: null, lifecycle }}>
         <ChatContainer />
       </AuthContext.Provider>
     </ConfigContext.Provider>

@@ -1,6 +1,7 @@
 import type { A2AEvent, JsonRpcRequest, JsonRpcResponse } from "./a2a-types";
 import { readSSEStream, postForSSE, type SSEFetchError } from "./sse-reader";
 import { isRecord } from "./type-guards";
+import { isValidBackendIncarnation } from "./backend-contract";
 
 // kubernaut-console#90 (F-12): every SSE frame was treated as a valid
 // JsonRpcResponse via a bare type assertion. A frame that is valid JSON but
@@ -39,6 +40,10 @@ export interface StreamOptions {
    * may still be running rather than silently starting a second one.
    */
   onStreamInterrupted?: () => void;
+  /** Returns false after the authenticated page lifecycle is replaced. */
+  isCurrent?: () => boolean;
+  requireBackendIncarnation?: boolean;
+  onBackendIncarnation?: (incarnation: string | null) => void;
   signal?: AbortSignal;
   maxRetries?: number;
   idleTimeoutMs?: number;
@@ -78,10 +83,12 @@ export async function streamA2A(
   request: JsonRpcRequest,
   options: StreamOptions
 ): Promise<void> {
-  const maxRetries = options.maxRetries ?? 3;
+  // message/stream can start an investigation even if its response is lost.
+  // No current server contract proves that resubmitting this POST is safe.
+  const maxRetries = 0;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (options.signal?.aborted) return;
+    if (options.signal?.aborted || !(options.isCurrent?.() ?? true)) return;
 
     if (attempt > 0) {
       options.onReconnecting?.(attempt);
@@ -89,10 +96,12 @@ export async function streamA2A(
         ? (options.preRetryDelayMs ?? 500)
         : Math.min(1000 * Math.pow(2, attempt - 1), 8000);
       await sleep(backoff);
-      if (options.signal?.aborted) return;
+      if (options.signal?.aborted || !(options.isCurrent?.() ?? true)) return;
     }
 
     const result = await attemptStream(request, options);
+
+    if (result === "stale" || !(options.isCurrent?.() ?? true)) return;
 
     if (result === "complete") {
       options.onComplete();
@@ -104,6 +113,11 @@ export async function streamA2A(
     }
     if (result === "disconnected") {
       options.onStreamInterrupted?.();
+      return;
+    }
+    if (result === "retryable") {
+      if (options.onStreamInterrupted) options.onStreamInterrupted();
+      else options.onError(new Error("The investigation may still be running; check its status before resending."));
       return;
     }
     if (result === "buffer_overflow") {
@@ -120,12 +134,13 @@ export async function streamA2A(
   options.onError(new Error("Connection lost after maximum retries"));
 }
 
-type StreamResult = "complete" | "aborted" | "fatal" | "retryable" | "disconnected" | "buffer_overflow";
+type StreamResult = "complete" | "aborted" | "stale" | "fatal" | "retryable" | "disconnected" | "buffer_overflow";
 
 async function attemptStream(
   request: JsonRpcRequest,
   options: StreamOptions
 ): Promise<StreamResult> {
+  if (!(options.isCurrent?.() ?? true)) return "stale";
   const url = `${options.baseUrl || ""}/a2a/invoke`;
 
   const fetchResult = await postForSSE(url, request, {
@@ -135,18 +150,31 @@ async function attemptStream(
   });
 
   if (typeof fetchResult === "string") {
+    if (options.requireBackendIncarnation) options.onBackendIncarnation?.(null);
     return fetchResult;
   }
   if ("kind" in fetchResult && (fetchResult as SSEFetchError).kind === "fatal") {
+    if (options.requireBackendIncarnation) options.onBackendIncarnation?.(null);
     const httpErr = fetchResult as SSEFetchError;
     options.onError(new Error(`HTTP ${httpErr.status}: ${httpErr.statusText}`));
     return "fatal";
   }
 
   const response = fetchResult as Response;
+  if (!(options.isCurrent?.() ?? true)) return "stale";
+  const incarnation = response.headers.get("x-kubernaut-backend-incarnation");
+  if (options.requireBackendIncarnation && (!incarnation || !isValidBackendIncarnation(incarnation))) {
+    options.onBackendIncarnation?.(null);
+    return "stale";
+  }
+  if (incarnation && isValidBackendIncarnation(incarnation)) {
+    options.onBackendIncarnation?.(incarnation);
+  }
+  if (!(options.isCurrent?.() ?? true)) return "stale";
   const streamResult = await readSSEStream(
     response.body!,
     (parsed) => {
+      if (!(options.isCurrent?.() ?? true)) return "aborted";
       if (!isJsonRpcResponse(parsed)) {
         console.error("[a2a] SSE frame failed JSON-RPC envelope validation (neither error nor result)", parsed);
         options.onError(new Error("Received a malformed response from the server."));

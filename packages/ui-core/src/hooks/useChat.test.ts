@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useChat } from "./useChat";
 import type { RCAData, WorkflowOption } from "./useChat";
+import { streamA2A } from "../lib/a2a-client";
 
 vi.mock("../lib/a2a-client", () => ({
   buildStreamRequest: vi.fn(() => ({ jsonrpc: "2.0", method: "message/stream", params: { message: { parts: [{ kind: "text", text: "test" }] } } })),
@@ -31,6 +32,24 @@ describe("useChat", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("Console #168: verification updates the latest agent message, not earlier messages", async () => {
+    vi.useRealTimers();
+    vi.mocked(streamA2A).mockImplementationOnce(async (_request, options) => {
+      options.onEvent({
+        kind: "status-update", taskId: "t1", contextId: "ctx",
+        status: { state: "working" },
+        metadata: { type: "verification_step", step: "alert_check", step_status: "in_progress" },
+      });
+      options.onComplete();
+    });
+    const { result } = renderHook(() => useChat());
+    act(() => result.current.setMessages([{ id: "older", role: "agent", text: "older", timestamp: 1 }]));
+    await act(async () => { await result.current.sendMessage("verify"); });
+    const agents = result.current.messages.filter((message) => message.role === "agent");
+    expect(agents[0].verificationSteps).toBeUndefined();
+    expect(agents.at(-1)?.verificationSteps?.[0].step).toBe("alert_check");
   });
 
   // SC-5: Denial of Service Protection

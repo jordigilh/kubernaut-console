@@ -43,6 +43,30 @@ describe("ProxyAuthProvider", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it.each([{}, { iss: "issuer", sub: "subject", sid: " " }, { iss: "issuer", sub: 1, sid: "session" }])(
+    "UT-CONSOLE-168-023: refuses missing or malformed verified claims (%s)",
+    async (claims) => {
+      const redirect = vi.fn();
+      vi.stubGlobal("window", { location: { set href(value: string) { redirect(value); } } });
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ user: "display", additionalClaims: claims }))));
+      const { ProxyAuthProvider } = await loadProxyAuthProvider(false);
+      await expect(new ProxyAuthProvider().getUser()).rejects.toThrow();
+      expect(redirect).not.toHaveBeenCalled();
+    },
+  );
+
+  it("UT-CONSOLE-168-024: refuses a changed verified session even if display name is unchanged", async () => {
+    const redirect = vi.fn();
+    vi.stubGlobal("window", { location: { set href(value: string) { redirect(value); } } });
+    const response = (sid: string) => new Response(JSON.stringify({ user: "same", additionalClaims: { iss: "issuer", sub: "subject", sid } }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(response("one")).mockResolvedValueOnce(response("two")));
+    const { ProxyAuthProvider } = await loadProxyAuthProvider(false);
+    const provider = new ProxyAuthProvider();
+    await expect(provider.getUser()).resolves.toMatchObject({ name: "same" });
+    await expect(provider.getUser()).rejects.toThrow();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
   it.each([
     [
       "preferredUsername with a full name",
@@ -78,7 +102,7 @@ describe("ProxyAuthProvider", () => {
     "UT-CONSOLE-AUTH-092-004: maps %s from /oauth2/userinfo",
     async (_description, responseBody, expectedUser) => {
       const fetchMock = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify(responseBody), { status: 200 }),
+        new Response(JSON.stringify({ ...responseBody, additionalClaims: { iss: "issuer", sub: "subject", sid: "session" } }), { status: 200 }),
       );
       vi.stubGlobal("fetch", fetchMock);
       const { ProxyAuthProvider } = await loadProxyAuthProvider(false);
@@ -111,7 +135,7 @@ describe("ProxyAuthProvider", () => {
       await expect(new ProxyAuthProvider().getUser()).rejects.toThrow(
         "Redirecting to login",
       );
-      expect(redirect).toHaveBeenCalledWith("/oauth2/sign_in");
+      expect(redirect).not.toHaveBeenCalled();
     },
   );
 

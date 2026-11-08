@@ -47,7 +47,7 @@ export const DEFAULT_MAX_SSE_BUFFER_BYTES = 1_048_576;
  */
 export async function readSSEStream(
   body: ReadableStream<Uint8Array>,
-  onFrame: (parsed: Record<string, unknown>) => "continue" | "complete" | "retryable" | "fatal" | "terminal" | "not_found",
+  onFrame: (parsed: Record<string, unknown>) => "continue" | "complete" | "aborted" | "retryable" | "fatal" | "terminal" | "not_found",
   options?: SSEReaderOptions,
 ): Promise<SSEStreamResult | "fatal" | "terminal" | "not_found" | "disconnected"> {
   const reader = body.getReader();

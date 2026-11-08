@@ -1,7 +1,7 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { useChat, type ChatMessage, type ApprovalRequest } from "../hooks/useChat";
 import { useRRStatus } from "../hooks/useRRStatus";
-import { callMcpTool, isPermissionDeniedError, type McpClientOptions } from "../lib/mcp-client";
+import { callMcpTool, isPermissionDeniedError, isStaleMcpResult, McpClient, type McpClientOptions } from "../lib/mcp-client";
 import { isPastDecisionPhase, isWorkflowResolved, markWorkflowResolved } from "../lib/session-state";
 import { getShowRawThinking, setShowRawThinking } from "../lib/preferences";
 import { isInvestigationEngaged } from "../lib/query-intent";
@@ -78,10 +78,18 @@ function useChatOwner() {
   const configCtx = useContext(ConfigContext);
   const user = authCtx?.user ?? { name: "", email: "", initials: "??" };
   const userIdentity = formatUserIdentity(user.name, user.email);
-  const mcpOptions: McpClientOptions = useMemo(() => ({
+  const authProvider = authCtx?.provider;
+  const lifecycle = authCtx?.lifecycle;
+  const mcpClient = useMemo(() => new McpClient({
     baseUrl: configCtx?.backendUrl,
-    getToken: authCtx?.provider ? () => authCtx.provider.getToken() : undefined,
-  }), [configCtx, authCtx]);
+    fetchFn: configCtx?.fetchFn,
+    getToken: authProvider ? () => authProvider.getToken() : undefined,
+    lifecycle,
+    requireBackendIncarnation: configCtx?.requireBackendIncarnation,
+    onBackendIncarnation: (incarnation) => lifecycle?.observeBackendIncarnation?.(incarnation),
+  }), [configCtx?.backendUrl, configCtx?.fetchFn, configCtx?.requireBackendIncarnation, authProvider, lifecycle]);
+  useEffect(() => () => mcpClient.dispose(), [mcpClient]);
+  const mcpOptions: McpClientOptions = useMemo(() => ({ client: mcpClient }), [mcpClient]);
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -132,6 +140,7 @@ function useChatOwner() {
     approvalFetchedRef.current = rarName;
 
     callMcpTool("kubernaut_get_approval_request", { rar_id: rarName }, mcpOptions).then((res) => {
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
       if (res.error) {
         // #57: a permission gap and a backend bad-request/validation error both
         // arrive as the same generic isError shape — branch on AF's stable
@@ -210,7 +219,7 @@ function useChatOwner() {
       setCurrentPhase("decision");
       userScrolledUpRef.current = false;
     });
-  }, [statusPhase, statusMetadata, setMessages, setCurrentPhase, setError, mcpOptions, effectiveRrId]);
+  }, [statusPhase, statusMetadata, setMessages, setCurrentPhase, setError, mcpOptions, effectiveRrId, lifecycle]);
 
   useEffect(() => {
     if (statusPhase && PHASE_MAP[statusPhase]) {
@@ -298,6 +307,7 @@ function useChatOwner() {
 
     setCancellingInvestigation(true);
     const res = await callMcpTool("kubernaut_cancel", { rr_id: effectiveRrId }, mcpOptions);
+    if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
 
     if (res.error) {
       setError(res.error.message);
@@ -309,7 +319,7 @@ function useChatOwner() {
     setInvestigationCancelled(true);
     setCurrentPhase("complete");
     setCancellingInvestigation(false);
-  }, [effectiveRrId, cancellingInvestigation, investigationCancelled, mcpOptions, setError, cancelStream, setCurrentPhase]);
+  }, [effectiveRrId, cancellingInvestigation, investigationCancelled, mcpOptions, setError, cancelStream, setCurrentPhase, lifecycle]);
 
   // The handlers below no longer call a local emitAuditEvent(). That helper
   // only ever wrote to console.log (gated behind
@@ -335,6 +345,7 @@ function useChatOwner() {
         rr_id: rrId,
         workflow_id: workflowId,
       }, mcpOptions);
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
       if (res.error) {
         setError(res.error.message);
         return;
@@ -347,7 +358,7 @@ function useChatOwner() {
         setCurrentPhase((prev) => maxChatPhase(prev, mapped) ?? mapped);
       }
     },
-    [rrId, workflowActionTaken, setCurrentPhase, setError, mcpOptions],
+    [rrId, workflowActionTaken, setCurrentPhase, setError, mcpOptions, lifecycle],
   );
 
   const handleApprove = useCallback(
@@ -357,6 +368,7 @@ function useChatOwner() {
         decision: "Approved",
         reason,
       }, mcpOptions);
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
       if (res.error) {
         setError(res.error.message);
         return;
@@ -367,7 +379,7 @@ function useChatOwner() {
           : msg,
       ));
     },
-    [setMessages, setError, user.name, user.email, mcpOptions],
+    [setMessages, setError, user.name, user.email, mcpOptions, lifecycle],
   );
 
   const handleDecline = useCallback(
@@ -377,6 +389,7 @@ function useChatOwner() {
         decision: "Rejected",
         reason,
       }, mcpOptions);
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
       if (res.error) {
         setError(res.error.message);
         return;
@@ -388,7 +401,7 @@ function useChatOwner() {
       ));
       setCurrentPhase("failed");
     },
-    [setMessages, setCurrentPhase, setError, user.name, user.email, mcpOptions],
+    [setMessages, setCurrentPhase, setError, user.name, user.email, mcpOptions, lifecycle],
   );
 
   const handleDismiss = useCallback(
@@ -405,6 +418,7 @@ function useChatOwner() {
         rr_id: rrId,
         reason: "Dismissed by operator: no action needed",
       }, mcpOptions);
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
       if (res.error) {
         setError(res.error.message);
         return;
@@ -418,7 +432,7 @@ function useChatOwner() {
       }]);
       setCurrentPhase("complete");
     },
-    [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions],
+    [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions, lifecycle],
   );
 
   const handleEscalate = useCallback(async (reason: string) => {
@@ -435,6 +449,7 @@ function useChatOwner() {
       reason: "Escalated by operator",
       escalation_reason: reason,
     }, mcpOptions);
+    if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
     if (res.error) {
       setError(res.error.message);
       return;
@@ -447,26 +462,40 @@ function useChatOwner() {
       timestamp: Date.now(),
     }]);
     setCurrentPhase("complete");
-  }, [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions]);
+  }, [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions, lifecycle]);
 
   const handleClearHistory = useCallback(() => {
     if (messages.length === 0) {
-      clearHistory();
-      setError(null);
+      try {
+        clearHistory();
+        setError(null);
+      } catch {
+        setError("Unable to clear console session storage. Retry clearing history.");
+      }
     } else {
       setClearConfirmOpen(true);
     }
   }, [messages.length, clearHistory, setError]);
 
   const confirmClear = useCallback(() => {
-    setClearConfirmOpen(false);
-    clearHistory();
-    setError(null);
+    try {
+      clearHistory();
+      setClearConfirmOpen(false);
+      setError(null);
+    } catch {
+      setError("Unable to clear console session storage. Retry clearing history.");
+    }
   }, [clearHistory, setError]);
 
-  const handleSignOut = useCallback(() => {
-    clearHistory();
-  }, [clearHistory]);
+  const handleSignOut = useCallback((event: MouseEvent<HTMLAnchorElement>) => {
+    cancelStream();
+    try {
+      clearHistory();
+    } catch {
+      event.preventDefault();
+      setError("Unable to clear console session storage. Retry sign out.");
+    }
+  }, [cancelStream, clearHistory, setError]);
 
   return {
     messages, isStreaming, error, connectionStatus, cancelStream, investigationStartTime,

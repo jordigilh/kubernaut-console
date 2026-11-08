@@ -1,7 +1,19 @@
-import { KubernautChat, ErrorBoundary } from "@kubernaut/ui-core";
+import { KubernautChat, ErrorBoundary, clearConsoleSessionState } from "@kubernaut/ui-core";
 import { ProxyAuthProvider } from "./ProxyAuthProvider";
 import { LiveE2EAuthProvider } from "./LiveE2EAuthProvider";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+
+// Console #168: reload cannot bind previously stored chat data to this page's
+// newly verified principal. Clear it once per document, before React renders.
+function clearUnboundState(): boolean {
+  try {
+    clearConsoleSessionState();
+    return true;
+  } catch {
+    return false;
+  }
+}
+let storageReady = clearUnboundState();
 
 // ADR-009 live E2E suite only: no oauth2-proxy fronts the fullpipeline
 // cluster, so auth falls back to a Dex-token-bearing provider instead of
@@ -28,13 +40,19 @@ declare global {
 }
 
 function App() {
+  const [ready, setReady] = useState(storageReady);
   const config = useMemo(
     () => ({
       backendUrl: "",
+      requireBackendIncarnation: true,
       enableRawThinking: window.__KUBERNAUT_CONFIG__?.enableRawThinking,
     }),
     [],
   );
+
+  if (!ready) {
+    return <div role="alert">Unable to clear session storage. <button onClick={() => { storageReady = clearUnboundState(); setReady(storageReady); }}>Retry</button></div>;
+  }
 
   return (
     <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "var(--kn-surface)", padding: 0 }}>

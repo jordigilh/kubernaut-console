@@ -1,4 +1,5 @@
 import { readSSEStream, postForSSE, type SSEFetchError } from "./sse-reader";
+import { isValidBackendIncarnation } from "./backend-contract";
 
 export type RRPhase =
   | "Pending" | "Processing" | "Analyzing" | "Investigating"
@@ -36,6 +37,9 @@ export interface StatusSubscribeOptions {
   idleTimeoutMs?: number;
   /** See `SSEReaderOptions.maxBufferBytes` (kubernaut-console#93). Default: 1 MiB. */
   maxBufferBytes?: number;
+  isCurrent?: () => boolean;
+  requireBackendIncarnation?: boolean;
+  onBackendIncarnation?: (incarnation: string | null) => void;
 }
 
 export interface StatusSubscribeRequest {
@@ -60,12 +64,13 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-type StreamResult = "complete" | "terminal" | "not_found" | "aborted" | "retryable" | "fatal" | "service_unavailable" | "buffer_overflow";
+type StreamResult = "complete" | "terminal" | "not_found" | "aborted" | "stale" | "retryable" | "fatal" | "service_unavailable" | "buffer_overflow";
 
 async function attemptSubscription(
   rrId: string,
   options: StatusSubscribeOptions
 ): Promise<StreamResult> {
+  if (!(options.isCurrent?.() ?? true)) return "stale";
   const url = `${options.baseUrl || ""}/a2a/status`;
   const request = buildStatusSubscribeRequest(rrId);
 
@@ -76,9 +81,11 @@ async function attemptSubscription(
   });
 
   if (typeof fetchResult === "string") {
+    if (options.requireBackendIncarnation) options.onBackendIncarnation?.(null);
     return fetchResult;
   }
   if ("kind" in fetchResult && (fetchResult as SSEFetchError).kind === "fatal") {
+    if (options.requireBackendIncarnation) options.onBackendIncarnation?.(null);
     const httpErr = fetchResult as SSEFetchError;
     if (httpErr.status === 404) {
       return "service_unavailable";
@@ -88,6 +95,14 @@ async function attemptSubscription(
   }
 
   const response = fetchResult as Response;
+  if (!(options.isCurrent?.() ?? true)) return "stale";
+  const incarnation = response.headers.get("x-kubernaut-backend-incarnation");
+  if (options.requireBackendIncarnation && (!incarnation || !isValidBackendIncarnation(incarnation))) {
+    options.onBackendIncarnation?.(null);
+    return "stale";
+  }
+  if (incarnation && isValidBackendIncarnation(incarnation)) options.onBackendIncarnation?.(incarnation);
+  if (!(options.isCurrent?.() ?? true)) return "stale";
   const streamResult = await readSSEStream(
     response.body!,
     (parsed) => {
@@ -143,16 +158,18 @@ export async function subscribeRRStatus(rrId: string, options: StatusSubscribeOp
   let lastNotFound = false;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (options.signal?.aborted) return;
+    if (options.signal?.aborted || !(options.isCurrent?.() ?? true)) return;
 
     if (attempt > 0) {
       options.onReconnecting?.(attempt);
       const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
       await sleep(backoff);
-      if (options.signal?.aborted) return;
+      if (options.signal?.aborted || !(options.isCurrent?.() ?? true)) return;
     }
 
     const result = await attemptSubscription(rrId, options);
+
+    if (result === "stale" || !(options.isCurrent?.() ?? true)) return;
 
     if (result === "buffer_overflow") {
       // kubernaut-console#93 (F-15): a non-terminating/oversized SSE

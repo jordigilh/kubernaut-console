@@ -352,6 +352,7 @@ export function useChat() {
   const nextId = () => `msg-${++messageIdRef.current}`;
 
   const sendMessage = useCallback(async (text: string, options?: { silent?: boolean }) => {
+    if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
     const now = Date.now();
     if (now - lastSendRef.current < 500) return;
     lastSendRef.current = now;
@@ -404,6 +405,7 @@ export function useChat() {
     abortRef.current = controller;
 
     const updateAgent = (updates: Partial<ChatMessage>) => {
+      if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
       setMessages((prev) =>
         prev.map((m) => (m.id === agentMsgId ? { ...m, ...updates } : m))
       );
@@ -412,6 +414,7 @@ export function useChat() {
     const DISCOVERY_PHASE_PATTERN = /discover.*workflow|remediation option|available workflow|searching.*workflow/i;
 
     const handleEvent = (event: A2AEvent) => {
+      if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
       if (!contextIdRef.current && event.contextId) {
         contextIdRef.current = event.contextId;
         saveContextId(event.contextId);
@@ -735,7 +738,8 @@ export function useChat() {
         };
 
         setMessages((prev) => {
-          const lastAgentIdx = prev.findLastIndex((m) => m.role === "agent");
+          let lastAgentIdx = prev.length - 1;
+          while (lastAgentIdx >= 0 && prev[lastAgentIdx].role !== "agent") lastAgentIdx--;
           if (lastAgentIdx === -1) return prev;
           const msg = prev[lastAgentIdx];
           const existing = msg.verificationSteps ?? [];
@@ -1004,30 +1008,38 @@ export function useChat() {
       token,
       onEvent: handleEvent,
       onError: (err) => {
+        if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
         setError(friendlyError(err.message));
         updateAgent({ isStreaming: false });
         setIsStreaming(false);
         setConnectionStatus("idle");
       },
       onComplete: () => {
+        if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
         updateAgent({ isStreaming: false });
         setIsStreaming(false);
         setConnectionStatus("idle");
       },
       onConnectionLost: () => {
+        if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
         if (terminalReceivedRef.current) return;
         setConnectionStatus("lost");
       },
       onReconnecting: () => {
+        if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
         if (terminalReceivedRef.current) return;
         setConnectionStatus("reconnecting");
       },
       onStreamInterrupted: () => {
+        if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
         setConnectionStatus("interrupted");
         setError(STREAM_INTERRUPTED_MESSAGE);
         updateAgent({ isStreaming: false });
         setIsStreaming(false);
       },
+      isCurrent: () => authCtx?.lifecycle?.isCurrent() ?? true,
+      requireBackendIncarnation: configCtx?.requireBackendIncarnation,
+      onBackendIncarnation: (incarnation) => authCtx?.lifecycle?.observeBackendIncarnation?.(incarnation),
       signal: controller.signal,
     });
   }, [authCtx, configCtx]);
