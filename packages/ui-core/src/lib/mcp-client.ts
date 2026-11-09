@@ -1,8 +1,10 @@
 import { isValidBackendIncarnation } from "./backend-contract";
+import { isAuthenticationRejectionMessage, isAuthenticationRejectionStatus } from "../providers/auth";
 
 export interface McpResult {
   result?: unknown;
   error?: { code: number; message: string };
+  authenticationRequired?: boolean;
   stale?: boolean;
 }
 
@@ -35,6 +37,8 @@ export interface McpClientOptions {
   client?: McpClient;
   requireBackendIncarnation?: boolean;
   onBackendIncarnation?: (incarnation: string | null) => void;
+  /** Active auth rejection: fence the lifecycle and never replay the request. */
+  onAuthenticationRequired?: () => void;
 }
 
 function staleResult(): McpResult {
@@ -109,6 +113,22 @@ export class McpClient {
     return headers;
   }
 
+  private authenticationRejection(error: { code: number; message: string }): McpResult {
+    if (this.options.onAuthenticationRequired) {
+      this.options.onAuthenticationRequired();
+      if (!this.isCurrent()) return staleResult();
+    }
+    return { authenticationRequired: true, error };
+  }
+
+  private responseAuthenticationRejection(response: Response): McpResult | null {
+    if (!isAuthenticationRejectionStatus(response.status)) return null;
+    return this.authenticationRejection({
+      code: response.status,
+      message: `HTTP ${response.status}: ${response.statusText}`,
+    });
+  }
+
   private observeResponse(response: Response): boolean {
     if (!this.isCurrent()) return false;
     const incarnation = response.headers.get("x-kubernaut-backend-incarnation");
@@ -150,6 +170,8 @@ export class McpClient {
     }
     requestSignal.cleanup();
     if (!this.isCurrent()) return staleResult();
+    const responseAuthError = this.responseAuthenticationRejection(response);
+    if (responseAuthError) return responseAuthError;
     if (!this.observeResponse(response)) return staleResult();
     if (!response.ok) {
       return { error: { code: response.status, message: `HTTP ${response.status}: ${response.statusText}` } };
@@ -168,10 +190,18 @@ export class McpClient {
     } catch {
       return { error: { code: -1, message: text ? `MCP response: ${text.slice(0, 200)}` : "Invalid JSON response from MCP endpoint" } };
     }
-    if (body.error) return { error: body.error };
+    if (body.error) {
+      if (isAuthenticationRejectionMessage(body.error.message || "")) {
+        return this.authenticationRejection(body.error);
+      }
+      return { error: body.error };
+    }
     if (body.result && typeof body.result === "object" && (body.result as Record<string, unknown>).isError) {
       const content = (body.result as { content?: Array<{ text?: string }> }).content;
       const msg = content?.map(c => c.text).filter(Boolean).join("; ") || "Tool call failed";
+      if (isAuthenticationRejectionMessage(msg)) {
+        return this.authenticationRejection({ code: -32000, message: msg });
+      }
       return { error: { code: -32000, message: msg } };
     }
     return { result: body.result };
@@ -197,6 +227,8 @@ export class McpClient {
     }
     requestSignal.cleanup();
     if (!this.isCurrent()) return staleResult();
+    const responseAuthError = this.responseAuthenticationRejection(response);
+    if (responseAuthError) return responseAuthError;
     if (!this.observeResponse(response)) return staleResult();
     if (!response.ok) {
       return { error: { code: response.status, message: `HTTP ${response.status}: ${response.statusText}` } };

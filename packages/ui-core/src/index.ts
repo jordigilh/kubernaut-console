@@ -3,7 +3,15 @@ export { KubernautChat } from "./components/KubernautChat";
 export type { KubernautChatProps } from "./components/KubernautChat";
 
 // Providers
-export { AuthContext, useAuth, AuthenticationRequiredError, AuthenticationUnavailableError } from "./providers/auth";
+export {
+  AuthContext,
+  useAuth,
+  AuthenticationRequiredError,
+  AuthenticationSupersededError,
+  AuthenticationUnavailableError,
+  isAuthenticationRejectionMessage,
+  isAuthenticationRejectionStatus,
+} from "./providers/auth";
 export type { KubernautAuthProvider, KubernautUser, AuthContextValue, AuthLifecycle } from "./providers/auth";
 export { ConfigContext, useConfig } from "./providers/config";
 export type { KubernautConfig, FetchFn } from "./providers/config";

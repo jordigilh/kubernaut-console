@@ -96,6 +96,41 @@ describe("callMcpTool", () => {
     expect(result.result).toBeUndefined();
   });
 
+  it.each([401, 403])("IT-CONSOLE-168-032: fences an active HTTP %s MCP auth rejection without replay", async (status) => {
+    const onAuthenticationRequired = vi.fn();
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(new Response("rejected", { status, statusText: status === 401 ? "Unauthorized" : "Forbidden" }))
+      .mockResolvedValueOnce(mockSuccessResponse());
+    client = new McpClient({ onAuthenticationRequired });
+
+    const result = await callTool("kubernaut_complete_no_action", { rr_id: "rr-168", reason: "dismiss" });
+
+    expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledTimes(3);
+    expect(onAuthenticationRequired).toHaveBeenCalledOnce();
+    expect(result.authenticationRequired).toBe(true);
+    expect(result.error?.code).toBe(status);
+  });
+
+  it("IT-CONSOLE-168-033: fences an equivalent MCP authentication rejection", async () => {
+    const onAuthenticationRequired = vi.fn();
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        jsonrpc: "2.0",
+        id: 3,
+        error: { code: -32002, message: "access_denied" },
+      }), { status: 200 }));
+    client = new McpClient({ onAuthenticationRequired });
+
+    const result = await callTool("kubernaut_complete_no_action", { rr_id: "rr-168", reason: "dismiss" });
+
+    expect(onAuthenticationRequired).toHaveBeenCalledOnce();
+    expect(result.authenticationRequired).toBe(true);
+  });
+
   // SI-10: No silent pass-through on JSON-RPC error
   it("UT-CONSOLE-MCP-003: returns error on JSON-RPC error response", async () => {
     // First two calls succeed (initialize + notify), third fails with JSON-RPC error

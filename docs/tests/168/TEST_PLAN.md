@@ -41,7 +41,7 @@ login redirect.
 | IT | One MCP client owns one session; disposal and incarnation changes fence without replay | `IT-CONSOLE-168-006/007/008/009`, MCP suite |
 | IT | A2A and status work fence missing/changed incarnation signals | `IT-CONSOLE-168-015/018/019`, A2A/status/component suites |
 | UT | Contract request is no-store, same-origin, credential-free and validates bounded values | `UT-CONSOLE-168-020/021/022`, backend-contract suite |
-| IT | AF serves one process value and propagates it through contract and auth responses | `IT-AF-CONSOLE-168-001/002/003`, isolated AF handler suite |
+| IT | AF serves one process value and propagates it through contract and auth responses | `IT-AF-CONSOLE-168-001/002/003`, not run in this worktree; durable AF worktree and handler evidence pending |
 | Browser/deployment | Reload, cross-tab, proxy cookies, restart and single-replica rollout | Not run; requires deployed qualification and Operator #621 |
 
 Critical lifecycle isolation scenarios must all pass; record scenario coverage
@@ -60,27 +60,36 @@ negative claim cases, or an independently observed deployment revision.
 
 ## Verification and wiring gate
 
-The local GREEN gate is satisfied for the Console callers and isolated AF
-router. Unit tests prove transition logic; local integration tests exercise the
-standalone auth host, lifecycle consumers and AF HTTP router. The AF changes
-remain unmerged in a separate worktree, so proxy pass-through and deployment
-evidence are still acceptance blockers. Record unavailable live checks
-separately and do not call #168 production-qualified without them.
+The local GREEN gate is satisfied for the Console callers. Unit tests prove
+transition logic; local integration tests exercise the standalone auth host and
+lifecycle consumers. AF contract/handler work was not recreated or changed in
+this worktree, so AF, proxy pass-through and deployment evidence remain
+acceptance blockers. Record unavailable live checks separately and do not call
+#168 production-qualified without them.
 
-## Local evidence (2026-11-06)
+## Local evidence (2026-11-08)
 
-- UI-core: 60 files and 756 tests passed.
-- Standalone: 2 files and 22 tests passed; package coverage reported 93.1%
-  statements, 92.85% branches and 100% functions.
-- UI-core and standalone production builds passed.
-- Console lint exited zero with 12 warnings; the remaining warnings include
-  generated coverage-report files and existing React-hook recommendations.
-- AF `go test ./pkg/apifrontend/handler` passed in the isolated worktree;
-  `gofmt -d` and Console `git diff --check` are clean.
+- `pnpm --filter @kubernaut/ui-core test`: 61 files and 776 tests passed.
+- `pnpm --filter @kubernaut/standalone test`: 2 files and 24 tests passed;
+  package coverage reported 88.70% statements, 88.33% branches, 100%
+  functions and 92.59% lines.
+- `pnpm --filter @kubernaut/ui-core build` and
+  `pnpm --filter @kubernaut/standalone build` passed.
+- `pnpm lint` exited zero with 10 warnings and no errors; the remaining
+  warnings are generated coverage directives and existing React-hook/unused
+  symbol recommendations.
+- `pnpm --filter @kubernaut/ui-core exec tsc --noEmit` still reports
+  pre-existing repository errors, including `findLast` target errors in
+  `ChatContainer.tsx`; no new errors were reported in changed auth/SSE/A2A
+  production files.
+- `git diff --check` passed. No AF handler suite was run because AF work was
+  not recreated or changed in this worktree.
 
 The local scenario evidence covers the critical identity, cleanup, stale-work,
-no-replay, MCP isolation and AF contract cases listed above. It does not prove
-browser reload/cross-tab behavior, deployed OAuth2 Proxy cookies, AF restart
-through the operator proxy, conflicting replicas, or single-replica rollout.
-The minimum 90% scenario target is assessed against the local scenarios above;
-production acceptance remains blocked on the unrun deployment boundary.
+no-replay and MCP isolation cases listed above. The 52/52 outcomes from
+explicitly tagged Console #168 regressions, including parameterized cases, and
+4/4 SSE hardening scenarios present in the local test tree pass. The local tests
+do not prove browser reload/cross-tab behavior, deployed
+OAuth2 Proxy cookies, AF contract/header behavior, AF restart through the
+operator proxy, conflicting replicas, or single-replica rollout. Production
+acceptance remains blocked on those unrun deployment and AF boundaries.

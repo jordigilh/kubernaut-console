@@ -10,6 +10,20 @@ export class AuthenticationUnavailableError extends Error {
   constructor(message: string) { super(message); this.name = "AuthenticationUnavailableError"; }
 }
 
+/** An older host verification request lost a race with a newer one. */
+export class AuthenticationSupersededError extends Error {
+  constructor() { super("Authentication verification superseded"); this.name = "AuthenticationSupersededError"; }
+}
+
+/** Only host/authentication failures use this signal; RBAC denial is separate. */
+export function isAuthenticationRejectionMessage(message: string): boolean {
+  return /(?:^|[\s:_-])(unauthorized|not authorized|authentication required|access_denied|invalid token|token expired|session expired)(?:$|[\s:._-])/i.test(message);
+}
+
+export function isAuthenticationRejectionStatus(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
 export interface KubernautUser {
   name: string;
   email: string;

@@ -106,18 +106,21 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
         await subscribeRRStatus(rrId, {
           onPhaseChange: handlePhaseChange,
           onError: handleError,
+          onAuthenticationRequired: lifecycle
+            ? () => lifecycle.invalidate("authentication-required")
+            : undefined,
           onTerminal: handleTerminal,
           onNotFound: handleNotFound,
           onReconnecting: handleReconnecting,
           signal: controller.signal,
-           idleTimeoutMs: 300_000,
-           baseUrl: configCtx?.backendUrl,
-           fetchFn: configCtx?.fetchFn as typeof fetch | undefined,
-           token,
-           isCurrent: () => lifecycle?.isCurrent() ?? true,
-           requireBackendIncarnation: configCtx?.requireBackendIncarnation,
-           onBackendIncarnation: (incarnation) => lifecycle?.observeBackendIncarnation?.(incarnation),
-         });
+          idleTimeoutMs: 300_000,
+          baseUrl: configCtx?.backendUrl,
+          fetchFn: configCtx?.fetchFn as typeof fetch | undefined,
+          token,
+          isCurrent: () => lifecycle?.isCurrent() ?? true,
+          requireBackendIncarnation: configCtx?.requireBackendIncarnation,
+          onBackendIncarnation: (incarnation) => lifecycle?.observeBackendIncarnation?.(incarnation),
+        });
       };
       startSubscription().catch((err) => {
         handleError(err instanceof Error ? err : new Error(String(err)));

@@ -2,6 +2,7 @@ import type { A2AEvent, JsonRpcRequest, JsonRpcResponse } from "./a2a-types";
 import { readSSEStream, postForSSE, type SSEFetchError } from "./sse-reader";
 import { isRecord } from "./type-guards";
 import { isValidBackendIncarnation } from "./backend-contract";
+import { isAuthenticationRejectionMessage, isAuthenticationRejectionStatus } from "../providers/auth";
 
 // kubernaut-console#90 (F-12): every SSE frame was treated as a valid
 // JsonRpcResponse via a bare type assertion. A frame that is valid JSON but
@@ -23,6 +24,8 @@ export interface StreamOptions {
   fetchFn?: FetchFn;
   onEvent: (event: A2AEvent) => void;
   onError: (error: Error) => void;
+  /** Active auth rejection: fence the lifecycle instead of treating it as transport loss. */
+  onAuthenticationRequired?: () => void;
   onComplete: () => void;
   onConnectionLost?: () => void;
   onReconnecting?: (attempt: number) => void;
@@ -108,6 +111,7 @@ export async function streamA2A(
       return;
     }
     if (result === "aborted") return;
+    if (result === "auth_required") return;
     if (result === "fatal") {
       return;
     }
@@ -134,7 +138,16 @@ export async function streamA2A(
   options.onError(new Error("Connection lost after maximum retries"));
 }
 
-type StreamResult = "complete" | "aborted" | "stale" | "fatal" | "retryable" | "disconnected" | "buffer_overflow";
+type StreamResult = "complete" | "aborted" | "auth_required" | "stale" | "fatal" | "retryable" | "disconnected" | "buffer_overflow";
+
+function handleAuthenticationRejection(options: StreamOptions, message: string): "auth_required" | "fatal" {
+  if (options.onAuthenticationRequired) {
+    options.onAuthenticationRequired();
+    return "auth_required";
+  }
+  options.onError(new Error(message));
+  return "fatal";
+}
 
 async function attemptStream(
   request: JsonRpcRequest,
@@ -154,8 +167,11 @@ async function attemptStream(
     return fetchResult;
   }
   if ("kind" in fetchResult && (fetchResult as SSEFetchError).kind === "fatal") {
-    if (options.requireBackendIncarnation) options.onBackendIncarnation?.(null);
     const httpErr = fetchResult as SSEFetchError;
+    if (isAuthenticationRejectionStatus(httpErr.status)) {
+      return handleAuthenticationRejection(options, `HTTP ${httpErr.status}: ${httpErr.statusText}`);
+    }
+    if (options.requireBackendIncarnation) options.onBackendIncarnation?.(null);
     options.onError(new Error(`HTTP ${httpErr.status}: ${httpErr.statusText}`));
     return "fatal";
   }
@@ -185,6 +201,9 @@ async function attemptStream(
         const msg = rpc.error.message || "";
         const data = (rpc.error as Record<string, unknown>).data as Record<string, unknown> | undefined;
         const detail = (data?.error as string) || "";
+        if (isAuthenticationRejectionMessage(`${msg} ${detail}`)) {
+          return handleAuthenticationRejection(options, msg || detail || "Authentication required");
+        }
         const isTransient = /execution.*in progress|task.*in progress/i.test(msg + detail);
         if (isTransient) {
           return "retryable";

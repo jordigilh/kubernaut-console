@@ -8,6 +8,7 @@ import { isInvestigationEngaged } from "../lib/query-intent";
 import { findApprovalMessageIndex } from "../lib/approval-dedup";
 import { maxChatPhase } from "../lib/phase-rank";
 import { buildDeferredContext } from "../lib/context-builder";
+import { notifyAuthLifecycleChanged } from "../lib/auth-notifications";
 import { shouldAnchorToNewRca, userScrolledUpAfterSubmit } from "../lib/chat-scroll";
 import { formatUserIdentity } from "../lib/user-identity";
 import { AuthContext } from "../providers/auth";
@@ -87,6 +88,9 @@ function useChatOwner() {
     lifecycle,
     requireBackendIncarnation: configCtx?.requireBackendIncarnation,
     onBackendIncarnation: (incarnation) => lifecycle?.observeBackendIncarnation?.(incarnation),
+    onAuthenticationRequired: lifecycle
+      ? () => lifecycle.invalidate("authentication-required")
+      : undefined,
   }), [configCtx?.backendUrl, configCtx?.fetchFn, configCtx?.requireBackendIncarnation, authProvider, lifecycle]);
   useEffect(() => () => mcpClient.dispose(), [mcpClient]);
   const mcpOptions: McpClientOptions = useMemo(() => ({ client: mcpClient }), [mcpClient]);
@@ -491,6 +495,7 @@ function useChatOwner() {
     cancelStream();
     try {
       clearHistory();
+      notifyAuthLifecycleChanged();
     } catch {
       event.preventDefault();
       setError("Unable to clear console session storage. Retry sign out.");

@@ -296,6 +296,12 @@ describe("sse-reader", () => {
       expect(result).toBe("retryable");
     });
 
+    it("returns disconnected for an unexpected AbortError when no lifecycle signal was aborted", async () => {
+      const mockFetch = vi.fn().mockRejectedValue(new DOMException("abort", "AbortError"));
+      const result = await postForSSE("/test", {}, { fetchFn: mockFetch as unknown as typeof fetch });
+      expect(result).toBe("disconnected");
+    });
+
     it("returns aborted when signal is active", async () => {
       const controller = new AbortController();
       controller.abort();

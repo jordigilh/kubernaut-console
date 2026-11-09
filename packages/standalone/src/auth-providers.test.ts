@@ -67,6 +67,37 @@ describe("ProxyAuthProvider", () => {
     expect(redirect).not.toHaveBeenCalled();
   });
 
+  it("UT-CONSOLE-168-037: accepts a changed same-user session only on a fresh provider instance", async () => {
+    const response = (sid: string) => new Response(JSON.stringify({
+      user: "same",
+      additionalClaims: { iss: "issuer", sub: "subject", sid },
+    }));
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(response("old-session"))
+      .mockResolvedValueOnce(response("new-session")));
+    const { ProxyAuthProvider } = await loadProxyAuthProvider(false);
+
+    await expect(new ProxyAuthProvider().getUser()).resolves.toMatchObject({ name: "same" });
+    await expect(new ProxyAuthProvider().getUser()).resolves.toMatchObject({ name: "same" });
+  });
+
+  it("UT-CONSOLE-168-038: superseded userinfo verification cannot fail the successor request", async () => {
+    let resolveFirst!: (response: Response) => void;
+    let resolveSecond!: (response: Response) => void;
+    vi.stubGlobal("fetch", vi.fn()
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveSecond = resolve; })));
+    const { ProxyAuthProvider } = await loadProxyAuthProvider(false);
+    const provider = new ProxyAuthProvider();
+    const first = provider.getUser();
+    const second = provider.getUser();
+
+    resolveSecond(new Response(JSON.stringify({ user: "new", additionalClaims: { iss: "issuer", sub: "subject", sid: "new" } })));
+    await expect(second).resolves.toMatchObject({ name: "new" });
+    resolveFirst(new Response(JSON.stringify({ user: "old", additionalClaims: { iss: "issuer", sub: "subject", sid: "old" } })));
+    await expect(first).rejects.toThrow("Authentication verification superseded");
+  });
+
   it.each([
     [
       "preferredUsername with a full name",

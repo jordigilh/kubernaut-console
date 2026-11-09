@@ -41,11 +41,10 @@ must be at least 90% of the defined in-scope UT scenarios and 100% of critical
 identity, security and stale-work scenarios. Count outcomes, not assertions;
 no pending/skipped placeholder is acceptance evidence.
 
-The local implementation gate is complete: affected scenario tests pass,
-production callers are wired, and both Console packages build. The AF contract
-is implemented on isolated branch `feat/console-168-af-contract` and has a
-passing handler package suite, but it is not yet merged into the canonical AF
-checkout.
+The local Console implementation gate is complete: affected scenario tests
+pass, production callers are wired, and both Console packages build. AF
+contract/handler work was not recreated or rerun in this worktree; no AF
+handler evidence is claimed here.
 
 ## Wiring manifest and checkpoint
 
@@ -55,7 +54,7 @@ checkout.
 | Verified identity and lifecycle | `ProxyAuthProvider` -> `KubernautChat` -> `AuthContext` consumers | UT-CONSOLE-168-023/024; IT-CONSOLE-168-001/002/014/016 | wired and locally passing |
 | Scoped MCP client | `ChatContainer` creates one `McpClient` per authenticated lifecycle | IT-CONSOLE-168-006/007/008/009; full UI-core suite | wired and locally passing |
 | A2A/status incarnation fencing | `useChat`, `useRRStatus`, A2A/status clients | IT-CONSOLE-168-015/018/019; full UI-core suite | wired and locally passing |
-| AF incarnation | AF `NewRouter` -> same-origin contract and A2A/MCP/status headers | IT-AF-CONSOLE-168-001/002/003; handler suite | implemented in isolated AF worktree; merge/deploy pending |
+| AF incarnation | AF `NewRouter` -> same-origin contract and A2A/MCP/status headers | IT-AF-CONSOLE-168-001/002/003; handler suite | not run in this worktree; merge/deploy evidence pending |
 | Single AF deployment | Operator reconciliation and rollout | Operator #621 deployment tests | external prerequisite |
 
 The provider validates required fields, detects changed claims in its own
@@ -66,25 +65,30 @@ have no automatic replay; status-stream retries remain read-only status
 subscriptions. MCP session state is instance-scoped and disposed with the
 authenticated lifecycle.
 
-CHECKPOINT W passes for the Console production callers and the isolated AF
-router tests. It is not a deployed qualification result: the AF branch still
-needs integration into the canonical AF change, proxy pass-through validation,
-and single-replica rollout evidence from Operator #621.
+CHECKPOINT W passes for the Console production callers. It is not a deployed
+qualification result: AF contract tests still need a durable isolated AF
+worktree and integration into the canonical AF change, followed by proxy
+pass-through validation and single-replica rollout evidence from Operator
+#621.
 
-## Execution evidence (2026-11-06)
+## Execution evidence (2026-11-08)
 
 | Check | Result |
 |---|---|
-| UI-core full Vitest | 60 files, 756 tests passed |
-| Standalone full Vitest | 2 files, 22 tests passed; 93.1% statement coverage in the package run |
-| UI-core build | passed; Vite emitted existing config-loader warning |
-| Standalone build | passed; Vite emitted existing chunk-size warning |
-| Console lint | exit 0; 12 warnings remain, including generated coverage reports and existing React-hook warnings |
-| AF handler suite | `go test ./pkg/apifrontend/handler` passed in isolated worktree |
-| Formatting/diff checks | `git diff --check` and AF `gofmt -d` clean |
+| UI-core full Vitest | `pnpm --filter @kubernaut/ui-core test`: 61 files, 776 tests passed |
+| Standalone full Vitest | `pnpm --filter @kubernaut/standalone test`: 2 files, 24 tests passed; 88.70% statements, 88.33% branches, 100% functions and 92.59% lines |
+| UI-core build | `pnpm --filter @kubernaut/ui-core build` passed; Vite emitted the existing config-loader warning |
+| Standalone build | `pnpm --filter @kubernaut/standalone build` passed; Vite emitted the existing chunk-size warning |
+| Console lint | `pnpm lint` exited 0; 10 warnings remain, with no errors |
+| TypeScript check | `pnpm --filter @kubernaut/ui-core exec tsc --noEmit` still reports pre-existing repository errors, including `findLast` target errors in `ChatContainer.tsx`; no new errors remain in the changed auth/SSE/A2A production files |
+| Formatting/diff checks | `git diff --check` passed |
+| AF handler suite | not run; no AF files were changed or recreated in this worktree |
 
-No live OAuth2 Proxy, browser reload/cross-tab, AF restart, mixed-replica,
-operator reconciliation, or deployed single-replica test has been run.
+The local test tree contains 52/52 outcomes from explicitly tagged Console
+#168 regressions, including parameterized cases, and 4/4 SSE buffer-hardening
+labels with passing outcomes. No live OAuth2 Proxy, browser reload/cross-tab, AF restart,
+mixed-replica, operator reconciliation, or deployed single-replica test has
+been run.
 
 ## Scenario and evidence matrix
 

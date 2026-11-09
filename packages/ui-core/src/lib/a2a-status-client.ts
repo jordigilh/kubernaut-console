@@ -1,5 +1,6 @@
 import { readSSEStream, postForSSE, type SSEFetchError } from "./sse-reader";
 import { isValidBackendIncarnation } from "./backend-contract";
+import { isAuthenticationRejectionMessage, isAuthenticationRejectionStatus } from "../providers/auth";
 
 export type RRPhase =
   | "Pending" | "Processing" | "Analyzing" | "Investigating"
@@ -25,6 +26,8 @@ export class StatusStreamError extends Error {
 export interface StatusSubscribeOptions {
   onPhaseChange: (phase: RRPhase, metadata: Record<string, unknown>) => void;
   onError: (error: Error | StatusStreamError) => void;
+  /** Active auth rejection: fence the lifecycle instead of retrying as transport loss. */
+  onAuthenticationRequired?: () => void;
   onTerminal?: (phase: RRPhase) => void;
   onNotFound?: () => void;
   onReconnecting?: (attempt: number) => void;
@@ -64,7 +67,16 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-type StreamResult = "complete" | "terminal" | "not_found" | "aborted" | "stale" | "retryable" | "fatal" | "service_unavailable" | "buffer_overflow";
+type StreamResult = "complete" | "terminal" | "not_found" | "aborted" | "auth_required" | "stale" | "retryable" | "disconnected" | "fatal" | "service_unavailable" | "buffer_overflow";
+
+function handleAuthenticationRejection(options: StatusSubscribeOptions, error: Error | StatusStreamError): "auth_required" | "fatal" {
+  if (options.onAuthenticationRequired) {
+    options.onAuthenticationRequired();
+    return "auth_required";
+  }
+  options.onError(error);
+  return "fatal";
+}
 
 async function attemptSubscription(
   rrId: string,
@@ -85,8 +97,11 @@ async function attemptSubscription(
     return fetchResult;
   }
   if ("kind" in fetchResult && (fetchResult as SSEFetchError).kind === "fatal") {
-    if (options.requireBackendIncarnation) options.onBackendIncarnation?.(null);
     const httpErr = fetchResult as SSEFetchError;
+    if (isAuthenticationRejectionStatus(httpErr.status)) {
+      return handleAuthenticationRejection(options, new Error(`HTTP ${httpErr.status}: ${httpErr.statusText}`));
+    }
+    if (options.requireBackendIncarnation) options.onBackendIncarnation?.(null);
     if (httpErr.status === 404) {
       return "service_unavailable";
     }
@@ -108,6 +123,12 @@ async function attemptSubscription(
     (parsed) => {
       if (parsed.error) {
         const err = parsed.error as { code: number; message: string };
+        if (isAuthenticationRejectionMessage(err.message || "")) {
+          return handleAuthenticationRejection(
+            options,
+            new StatusStreamError(err.message || "Authentication required", err.code),
+          );
+        }
         if (err.code === RR_NOT_FOUND_CODE) {
           return "not_found";
         }
@@ -179,7 +200,7 @@ export async function subscribeRRStatus(rrId: string, options: StatusSubscribeOp
       options.onError(new Error("Received an oversized status update from the server; connection terminated."));
       return;
     }
-    if (result === "aborted" || result === "complete" || result === "terminal" || result === "fatal") return;
+    if (result === "aborted" || result === "auth_required" || result === "complete" || result === "terminal" || result === "fatal") return;
     if (result === "not_found") {
       lastNotFound = true;
       continue;

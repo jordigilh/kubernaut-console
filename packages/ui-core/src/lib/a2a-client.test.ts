@@ -339,6 +339,50 @@ describe("streamA2A", () => {
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: "HTTP 403: Forbidden" }));
   });
 
+  it.each([401, 403])("IT-CONSOLE-168-028: fences an active HTTP %s auth rejection without replay or normal error handling", async (status) => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("rejected", { status, statusText: status === 401 ? "Unauthorized" : "Forbidden" }),
+    );
+    const onAuthenticationRequired = vi.fn();
+    const onBackendIncarnation = vi.fn();
+    const onError = vi.fn();
+
+    await streamA2A(buildStreamRequest("state-changing investigation"), {
+      onEvent: vi.fn(),
+      onError,
+      onComplete: vi.fn(),
+      onAuthenticationRequired,
+      onBackendIncarnation,
+      requireBackendIncarnation: true,
+      maxRetries: 3,
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(onAuthenticationRequired).toHaveBeenCalledOnce();
+    expect(onBackendIncarnation).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("IT-CONSOLE-168-029: treats a JSON-RPC authentication rejection as a lifecycle rejection", async () => {
+    const onAuthenticationRequired = vi.fn();
+    const onError = vi.fn();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(createSSEResponse([sseFrame({
+      jsonrpc: "2.0",
+      id: "1",
+      error: { code: -32002, message: "access_denied" },
+    })]));
+
+    await streamA2A(buildStreamRequest("investigate"), {
+      onEvent: vi.fn(),
+      onError,
+      onComplete: vi.fn(),
+      onAuthenticationRequired,
+    });
+
+    expect(onAuthenticationRequired).toHaveBeenCalledOnce();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
   it("Console #168: does not replay after a 5xx response", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response("Error", { status: 502 }))

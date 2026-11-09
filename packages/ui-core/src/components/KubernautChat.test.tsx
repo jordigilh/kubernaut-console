@@ -43,6 +43,28 @@ function makeMockConfig(overrides?: Partial<KubernautConfig>): KubernautConfig {
   };
 }
 
+class TestBroadcastChannel {
+  static instances: TestBroadcastChannel[] = [];
+  onmessage: ((event: MessageEvent) => void) | null = null;
+
+  constructor(readonly name: string) {
+    TestBroadcastChannel.instances.push(this);
+  }
+
+  postMessage(_message: unknown): void {}
+  close(): void {}
+
+  emit(data: unknown): void {
+    this.onmessage?.({ data } as MessageEvent);
+  }
+}
+
+function activeAuthChannel(): TestBroadcastChannel {
+  const channel = TestBroadcastChannel.instances.find((candidate) => candidate.onmessage);
+  if (!channel) throw new Error("No active auth notification channel");
+  return channel;
+}
+
 describe("KubernautChat", () => {
   const originalFetch = globalThis.fetch;
 
@@ -56,6 +78,7 @@ describe("KubernautChat", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    TestBroadcastChannel.instances = [];
     vi.unstubAllGlobals();
   });
 
@@ -147,6 +170,80 @@ describe("KubernautChat", () => {
 
     await waitFor(() => expect(redirect).toHaveBeenCalledWith("/oauth2/sign_in"));
     expect(screen.getByText("Authentication Error")).toBeInTheDocument();
+  });
+
+  it("IT-CONSOLE-168-034: revalidates cross-tab notifications with the host and ignores claim-bearing payloads", async () => {
+    vi.stubGlobal("BroadcastChannel", TestBroadcastChannel);
+    const provider = makeMockAuthProvider();
+
+    render(<KubernautChat authProvider={provider} config={makeMockConfig()} />);
+    await screen.findByTestId("chat-container");
+    expect(provider.getUser).toHaveBeenCalledOnce();
+
+    activeAuthChannel().emit({
+      type: "kubernaut-console-auth-changed",
+      iss: "untrusted-issuer",
+      sub: "untrusted-subject",
+      sid: "untrusted-session",
+      cookie: "readable-cookie",
+      authorization: "Bearer browser-token",
+    });
+
+    await waitFor(() => expect(provider.getUser).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId("chat-container")).toBeInTheDocument();
+  });
+
+  it("IT-CONSOLE-168-035: changed host identity from a cross-tab notification fences, clears, and redirects", async () => {
+    vi.stubGlobal("BroadcastChannel", TestBroadcastChannel);
+    sessionStorage.setItem("kubernaut-console-messages", "private successor data");
+    const redirect = vi.fn();
+    const realWindow = window;
+    vi.stubGlobal("window", new Proxy(realWindow, {
+      get(target, property) {
+        if (property === "location") {
+          return { set href(value: string) { redirect(value); } };
+        }
+        return Reflect.get(target, property, target);
+      },
+    }));
+    const provider = makeMockAuthProvider({
+      getUser: vi.fn()
+        .mockResolvedValueOnce({ name: "Jane Doe", email: "jane@example.com", initials: "JD" })
+        .mockRejectedValueOnce(new AuthenticationRequiredError()),
+    });
+
+    render(<KubernautChat authProvider={provider} config={makeMockConfig()} />);
+    await screen.findByTestId("chat-container");
+    activeAuthChannel().emit({ type: "kubernaut-console-auth-changed", sid: "untrusted" });
+
+    await waitFor(() => expect(redirect).toHaveBeenCalledWith("/oauth2/sign_in"));
+    expect(sessionStorage.getItem("kubernaut-console-messages")).toBeNull();
+  });
+
+  it("IT-CONSOLE-168-036: delayed cross-tab revalidation cannot clear a successor lifecycle", async () => {
+    vi.stubGlobal("BroadcastChannel", TestBroadcastChannel);
+    let resolveRevalidation!: (user: KubernautUser) => void;
+    const oldProvider = makeMockAuthProvider({
+      getUser: vi.fn()
+        .mockResolvedValueOnce({ name: "Old", email: "old@example.com", initials: "OL" })
+        .mockReturnValueOnce(new Promise<KubernautUser>((resolve) => { resolveRevalidation = resolve; })),
+    });
+    const nextProvider = makeMockAuthProvider({
+      getUser: vi.fn().mockResolvedValue({ name: "New", email: "new@example.com", initials: "NE" }),
+    });
+    const view = render(<KubernautChat authProvider={oldProvider} config={makeMockConfig()} />);
+    await screen.findByTestId("chat-container");
+    activeAuthChannel().emit({ type: "kubernaut-console-auth-changed" });
+    await waitFor(() => expect(oldProvider.getUser).toHaveBeenCalledTimes(2));
+
+    view.rerender(<KubernautChat authProvider={nextProvider} config={makeMockConfig()} />);
+    await waitFor(() => expect(screen.getByTestId("ctx-user")).toHaveTextContent("New"));
+    sessionStorage.setItem("kubernaut-console-messages", "successor messages");
+    resolveRevalidation({ name: "Old", email: "old@example.com", initials: "OL" });
+
+    await act(async () => {});
+    expect(sessionStorage.getItem("kubernaut-console-messages")).toBe("successor messages");
+    expect(screen.getByTestId("ctx-user")).toHaveTextContent("New");
   });
 
   it("IT-CONSOLE-168-001: a superseded authentication failure cannot clear the successor's session", async () => {

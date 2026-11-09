@@ -1,5 +1,5 @@
 import type { KubernautAuthProvider, KubernautUser } from "@kubernaut/ui-core";
-import { AuthenticationRequiredError, AuthenticationUnavailableError } from "@kubernaut/ui-core";
+import { AuthenticationRequiredError, AuthenticationSupersededError, AuthenticationUnavailableError } from "@kubernaut/ui-core";
 
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
@@ -24,8 +24,11 @@ export class ProxyAuthProvider implements KubernautAuthProvider {
     const revision = ++this.revision;
     let res: Response;
     try { res = await fetch("/oauth2/userinfo"); }
-    catch { throw new AuthenticationUnavailableError("Unable to verify authentication"); }
-    if (revision !== this.revision) throw new Error("authentication superseded");
+    catch {
+      if (revision !== this.revision) throw new AuthenticationSupersededError();
+      throw new AuthenticationUnavailableError("Unable to verify authentication");
+    }
+    if (revision !== this.revision) throw new AuthenticationSupersededError();
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) {
         throw new AuthenticationRequiredError();
@@ -36,9 +39,10 @@ export class ProxyAuthProvider implements KubernautAuthProvider {
     try {
       data = await res.json();
     } catch {
+      if (revision !== this.revision) throw new AuthenticationSupersededError();
       throw new AuthenticationRequiredError();
     }
-    if (revision !== this.revision) throw new Error("authentication superseded");
+    if (revision !== this.revision) throw new AuthenticationSupersededError();
     const record = data && typeof data === "object" ? data as Record<string, unknown> : undefined;
     const claims = record?.additionalClaims && typeof record.additionalClaims === "object"
       ? record.additionalClaims as Record<string, unknown>

@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AuthContext, AuthenticationRequiredError, AuthenticationUnavailableError, type AuthLifecycle, type KubernautAuthProvider, type KubernautUser } from "../providers/auth";
+import { AuthContext, AuthenticationRequiredError, AuthenticationSupersededError, AuthenticationUnavailableError, type AuthLifecycle, type KubernautAuthProvider, type KubernautUser } from "../providers/auth";
 import { ConfigContext, type KubernautConfig } from "../providers/config";
 import { checkConsoleAccess } from "../lib/access-check";
+import { notifyAuthLifecycleChanged, subscribeAuthLifecycleNotifications } from "../lib/auth-notifications";
 import { BackendContractUnavailableError, readBackendIncarnation } from "../lib/backend-contract";
 import { clearConsoleSessionState } from "../lib/session-state";
 import { ChatContainer } from "./ChatContainer";
@@ -40,7 +41,7 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
   const sourceRef = useRef<{ provider: KubernautAuthProvider; backendUrl: string } | null>(null);
 
   const backendIncarnationRef = useRef<string | undefined>(undefined);
-  const invalidateLifecycle = useCallback((reason = "authenticated lifecycle replaced") => {
+  const invalidateLifecycle = useCallback((reason = "authenticated lifecycle replaced", message?: string) => {
     if (!lifecycleActiveRef.current) return;
     lifecycleActiveRef.current = false;
     backendIncarnationRef.current = undefined;
@@ -55,8 +56,22 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
       return;
     }
 
+    if (reason === "authentication-required") {
+      notifyAuthLifecycleChanged();
+      setAuthError("Authentication required. Sign in again.");
+      setPhase("auth-error");
+      window.location.href = "/oauth2/sign_in";
+      return;
+    }
+
+    if (reason === "authentication-unavailable") {
+      setAuthError(message ?? "Unable to verify authentication. Retry.");
+      setPhase("auth-error");
+      return;
+    }
+
     if (reason === "backend-incarnation-unavailable") {
-      setAuthError("Unable to verify backend lifecycle. Retry.");
+      setAuthError(message ?? "Unable to verify backend lifecycle. Retry.");
       setPhase("auth-error");
       return;
     }
@@ -125,26 +140,19 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
         resolvedUser = await authProvider.getUser();
       } catch (err) {
         if (!isCurrent()) return;
-        if (err instanceof AuthenticationUnavailableError) {
-          setAuthError(err.message);
-          setPhase("auth-error");
+        if (err instanceof AuthenticationSupersededError) {
           return;
         }
-        // Do not leave authenticated conversation data available when the
-        // provider sends the browser through a re-authentication flow.
-        lifecycleActiveRef.current = false;
-        try {
-          clearConsoleSessionState();
-        } catch {
-          if (!isGenerationCurrent()) return;
-          setAuthError("Unable to clear console session storage. Reload to retry.");
-          setPhase("auth-error");
+        if (err instanceof AuthenticationRequiredError) {
+          invalidateLifecycle("authentication-required");
           return;
         }
-        if (!isGenerationCurrent()) return;
-        setAuthError((err as Error).message);
-        setPhase("auth-error");
-        if (err instanceof AuthenticationRequiredError) window.location.href = "/oauth2/sign_in";
+        invalidateLifecycle(
+          "authentication-unavailable",
+          err instanceof AuthenticationUnavailableError || err instanceof Error
+            ? err.message
+            : "Unable to verify authentication. Retry.",
+        );
         return;
       }
       if (!isCurrent()) return;
@@ -159,9 +167,10 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
           backendIncarnationRef.current = incarnation;
         } catch (err) {
           if (!isCurrent()) return;
-          lifecycleActiveRef.current = false;
-          setAuthError(err instanceof BackendContractUnavailableError ? err.message : "Unable to verify backend lifecycle");
-          setPhase("auth-error");
+          invalidateLifecycle(
+            "backend-incarnation-unavailable",
+            err instanceof BackendContractUnavailableError ? err.message : "Unable to verify backend lifecycle",
+          );
           return;
         }
       }
@@ -172,6 +181,7 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
       if (USE_MOCK) {
         setVerifiedSource({ provider: authProvider, backendUrl: config.backendUrl });
         setPhase("ready");
+        notifyAuthLifecycleChanged();
         return;
       }
 
@@ -189,13 +199,71 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
 
       // Fail closed: only a clean "allowed" mounts the chat shell. A
       // network/5xx/401 "error" result does not default to rendering chat.
-      setPhase(access === "allowed" ? "ready" : access === "denied" ? "access-denied" : "access-error");
+      const nextPhase = access === "allowed" ? "ready" : access === "denied" ? "access-denied" : "access-error";
+      setPhase(nextPhase);
+      if (nextPhase === "ready") notifyAuthLifecycleChanged();
     })();
 
     return () => {
       if (isGenerationCurrent()) lifecycleActiveRef.current = false;
     };
-  }, [authProvider, config.backendUrl, config.fetchFn, config.requireBackendIncarnation, authRetry]);
+  }, [authProvider, config.backendUrl, config.fetchFn, config.requireBackendIncarnation, authRetry, invalidateLifecycle]);
+
+  useEffect(() => {
+    if (
+      phase !== "ready" ||
+      verifiedSource?.provider !== authProvider ||
+      verifiedSource.backendUrl !== config.backendUrl
+    ) {
+      return;
+    }
+
+    const generation = generationRef.current;
+    let revalidationPending = false;
+    let disposed = false;
+    const isCurrent = () => !disposed && lifecycleActiveRef.current && generationRef.current === generation;
+
+    const revalidate = async () => {
+      if (revalidationPending || !isCurrent()) return;
+      revalidationPending = true;
+      try {
+        const verifiedUser = await authProvider.getUser();
+        if (!isCurrent()) return;
+
+        if (config.requireBackendIncarnation && !USE_MOCK) {
+          const incarnation = await readBackendIncarnation({
+            baseUrl: config.backendUrl,
+            fetchFn: config.fetchFn,
+          });
+          if (!isCurrent()) return;
+          observeBackendIncarnation(incarnation);
+          if (!isCurrent()) return;
+        }
+
+        setUser(verifiedUser);
+      } catch (err) {
+        if (!isCurrent() || err instanceof AuthenticationSupersededError) return;
+        if (err instanceof AuthenticationRequiredError) {
+          invalidateLifecycle("authentication-required");
+          return;
+        }
+        invalidateLifecycle(
+          "authentication-unavailable",
+          err instanceof AuthenticationUnavailableError || err instanceof Error
+            ? err.message
+            : "Unable to verify authentication. Retry.",
+        );
+      } finally {
+        revalidationPending = false;
+      }
+    };
+
+    const unsubscribe = subscribeAuthLifecycleNotifications(() => { void revalidate(); });
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, [authProvider, config.backendUrl, config.fetchFn, config.requireBackendIncarnation, invalidateLifecycle, observeBackendIncarnation, phase, verifiedSource]);
 
   if (phase === "loading" || (phase === "ready" && (verifiedSource?.provider !== authProvider || verifiedSource.backendUrl !== config.backendUrl))) {
     return (

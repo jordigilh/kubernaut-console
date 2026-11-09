@@ -1007,6 +1007,9 @@ export function useChat() {
       fetchFn: configCtx?.fetchFn,
       token,
       onEvent: handleEvent,
+      onAuthenticationRequired: authCtx?.lifecycle
+        ? () => authCtx.lifecycle?.invalidate("authentication-required")
+        : undefined,
       onError: (err) => {
         if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
         setError(friendlyError(err.message));
