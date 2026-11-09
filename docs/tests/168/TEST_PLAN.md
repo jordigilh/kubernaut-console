@@ -41,7 +41,7 @@ login redirect.
 | IT | One MCP client owns one session; disposal and incarnation changes fence without replay | `IT-CONSOLE-168-006/007/008/009`, MCP suite |
 | IT | A2A and status work fence missing/changed incarnation signals | `IT-CONSOLE-168-015/018/019`, A2A/status/component suites |
 | UT | Contract request is no-store, same-origin, credential-free and validates bounded values | `UT-CONSOLE-168-020/021/022`, backend-contract suite |
-| IT | AF serves one process value and propagates it through contract and auth responses | `IT-AF-CONSOLE-168-001/002/003`, not run in this worktree; durable AF worktree and handler evidence pending |
+| IT | AF serves one process value and propagates it through contract and auth responses | `IT-AF-CONSOLE-168-001/002/003`, durable AF commit `ae7b4e70`; handler and command wiring suites pass |
 | Browser/deployment | Reload, cross-tab, proxy cookies, restart and single-replica rollout | Not run; requires deployed qualification and Operator #621 |
 
 Critical lifecycle isolation scenarios must all pass; record scenario coverage
@@ -60,10 +60,12 @@ negative claim cases, or an independently observed deployment revision.
 
 ## Verification and wiring gate
 
-The local GREEN gate is satisfied for the Console callers. Unit tests prove
-transition logic; local integration tests exercise the standalone auth host and
-lifecycle consumers. AF contract/handler work was not recreated or changed in
-this worktree, so AF, proxy pass-through and deployment evidence remain
+The local GREEN gate is satisfied for the Console callers and the AF contract
+handler. Unit tests prove transition logic; local integration tests exercise the
+standalone auth host, lifecycle consumers, and AF router dispatch. The AF
+contract is committed separately at `ae7b4e70` on durable branch
+`feat/console-168-af-contract-durable`; it is not merged or deployed here.
+Proxy pass-through, restart, and single-replica deployment evidence remain
 acceptance blockers. Record unavailable live checks separately and do not call
 #168 production-qualified without them.
 
@@ -82,14 +84,18 @@ acceptance blockers. Record unavailable live checks separately and do not call
   pre-existing repository errors, including `findLast` target errors in
   `ChatContainer.tsx`; no new errors were reported in changed auth/SSE/A2A
   production files.
-- `git diff --check` passed. No AF handler suite was run because AF work was
-  not recreated or changed in this worktree.
+- `git diff --check` passed for the Console worktree.
+- AF durable worktree `/Users/jgil/.local/share/opencode/worktree/4a612ea9def73fde9d75b20f45f7ce767533d027/console-168-af-contract`, branch
+  `feat/console-168-af-contract-durable`, commit `ae7b4e70`:
+  `go test ./pkg/apifrontend/handler` passed all 237 handler specs;
+  `go test ./cmd/apifrontend` passed; `go build ./cmd/apifrontend` passed;
+  scoped `golangci-lint` reported 0 issues; `git diff --check` passed.
 
 The local scenario evidence covers the critical identity, cleanup, stale-work,
 no-replay and MCP isolation cases listed above. The 52/52 outcomes from
 explicitly tagged Console #168 regressions, including parameterized cases, and
-4/4 SSE hardening scenarios present in the local test tree pass. The local tests
-do not prove browser reload/cross-tab behavior, deployed
-OAuth2 Proxy cookies, AF contract/header behavior, AF restart through the
-operator proxy, conflicting replicas, or single-replica rollout. Production
-acceptance remains blocked on those unrun deployment and AF boundaries.
+4/4 SSE hardening scenarios present in the local test tree pass. The AF contract
+scenarios pass in the durable AF worktree. The local tests do not prove browser
+reload/cross-tab behavior, deployed OAuth2 Proxy cookies, AF restart through
+the operator proxy, conflicting replicas, or single-replica rollout.
+Production acceptance remains blocked on those unrun deployment boundaries.
