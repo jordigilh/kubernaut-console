@@ -39,3 +39,6 @@ test-results/
 playwright-report/
 e2e/visual.spec.ts-snapshots/
 coverage/
+__pycache__/
+.openchamber/
+.zvec-grep/
