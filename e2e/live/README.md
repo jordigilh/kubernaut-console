@@ -20,11 +20,51 @@ for the full design and status.
 > full environment log.
 
 This is **not** part of `playwright.config.ts` / `.github/workflows/e2e.yml`
-(the mocked suite, `VITE_MOCK_A2A=true`). It runs against
-`playwright.live.config.ts`, nightly + `workflow_dispatch`, once the CI
-harness (issue #39's remaining implementation work — matrix image build +
-`load-ci-images` reuse + `PRESERVE_E2E_CLUSTER=true make
-test-e2e-fullpipeline`) lands.
+(the mocked suite, `VITE_MOCK_A2A=true`). The Console-owned disposable Kind
+lane is `.github/workflows/e2e-live.yml`; it runs nightly and through
+`workflow_dispatch` with a fresh local and fleet matrix entry. The older
+`playwright.live.config.ts` command below remains the manual preserved-cluster
+harness from issue #39.
+
+## Console-owned disposable Kind lane
+
+The workflow builds immutable amd64 artifacts once, verifies their hashes, and
+reuses them in both topologies. Provisioning is delegated to the pinned
+upstream `kubernaut/hack/setup-demo-infra` helper; the Console lane owns
+preflight, fixtures, Playwright, diagnostics, and same-job cleanup.
+
+Pinned defaults:
+
+| Input | Value |
+|---|---|
+| Kubernaut | `397fc2b70eabc8932176aa10729ced1e8a6c5b5d` |
+| kubernaut-operator | `ad80481c3fb7cd1ea3c9d29c26b3d9a36a360906` |
+| demo scenarios | `0af47027d654bc5bf9ed055790c0311642b43be1` |
+| Kind / kubectl / Helm | `v0.32.0` / `v1.36.1` / `v3.18.6` |
+| Fleet gateway | EAIGW by default; Kuadrant is a dispatch choice |
+| Browser login | `sre-user` / `password` in the disposable demo only |
+
+Configure repository variables `LIVE_E2E_LLM_PROVIDER`,
+`LIVE_E2E_LLM_MODEL`, and `LIVE_E2E_LLM_ENDPOINT`, plus the
+`LIVE_E2E_LLM_CREDENTIAL` repository secret. For Vertex AI, configure
+`LIVE_E2E_VERTEX_PROJECT` and `LIVE_E2E_VERTEX_LOCATION` instead of an
+endpoint. Missing configuration fails before Kind provisioning.
+
+Run the default local+fleet matrix with:
+
+```bash
+gh workflow run e2e-live.yml --repo jordigilh/kubernaut-console --ref main \
+  -f gateway_type=eaigw
+gh run watch --repo jordigilh/kubernaut-console
+```
+
+The fleet proof requires a completed Job-backed WorkflowExecution with
+`spec.clusterID=remote-cluster`, a successful matching Job on the spoke, and
+the target state change on that spoke. Diagnostics are sanitized and scanned
+for bearer tokens, cookies, JWTs, kubeconfig fields, Kubernetes Secrets, and
+the configured LLM credential before upload. Traces, videos, and screenshots
+are not retained in CI; local debugging can opt in with
+`LIVE_E2E_RETAIN_BROWSER_ARTIFACTS=1`.
 
 ## Prerequisites
 

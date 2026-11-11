@@ -1,5 +1,5 @@
 import { chromium, type FullConfig } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { chmodSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -19,7 +19,9 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
   }
 
   const browser = await chromium.launch();
-  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: process.env.LIVE_E2E_IGNORE_HTTPS_ERRORS === "true" || !process.env.CI,
+  });
   const page = await context.newPage();
 
   try {
@@ -37,7 +39,9 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
     await page.locator(".kn-chat").waitFor({ state: "visible", timeout: 60_000 });
 
     mkdirSync(dirname(localAuthStatePath), { recursive: true, mode: 0o700 });
+    chmodSync(dirname(localAuthStatePath), 0o700);
     await context.storageState({ path: localAuthStatePath });
+    chmodSync(localAuthStatePath, 0o600);
   } finally {
     await context.close();
     await browser.close();
