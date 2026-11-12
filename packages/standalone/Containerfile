@@ -1,5 +1,5 @@
 # registry.access.redhat.com/ubi9/nodejs-22-minimal:1-1791924375 (linux/amd64, linux/arm64)
-FROM registry.access.redhat.com/ubi9/nodejs-22-minimal:1793616272@sha256:e32a0985811efc5bbadbe3bf67b8ea71c9d8ea5d0cfcfc9f1264a8e3a428cf5d AS build
+FROM registry.access.redhat.com/ubi9/nodejs-22-minimal:1794243225@sha256:7c28182428503c3e98be630ac8d8c6582c39bb7d4bce34bb862de0cee0f00b25 AS build
 # Root is limited to build-time dependency installation; the runtime stage is non-root.
 USER 0
 WORKDIR /build
@@ -18,7 +18,7 @@ RUN pnpm --filter @kubernaut/ui-core build \
     && pnpm --filter @kubernaut/standalone build
 
 # registry.access.redhat.com/ubi9/nginx-126:1-1793251909 (linux/amd64, linux/arm64)
-FROM registry.access.redhat.com/ubi9/nginx-126:1-1793251909@sha256:afe4a17857e88905b559b28d61bfa6dd4169a79bde381b4c5dec3cf46608dd70
+FROM registry.access.redhat.com/ubi9/nginx-126:1793640017@sha256:ab7d3522224f774b4df6480934c1b8f900714ab42b1faf30d267d3c15c5247b3
 # The vendor image predates current curl, glibc, and util-linux advisory fixes.
 # Patch only the affected RPMs at image build time; the running container
 # remains USER 1001 below.
