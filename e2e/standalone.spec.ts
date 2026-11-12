@@ -25,7 +25,7 @@ test.describe("Standalone Mode E2E", () => {
     // The built ui-core package does not receive Vite's runtime test env, so
     // provide a minimal mocked stream here. Keep it open long enough for the
     // always-available stop control to be exercised; the banner test below
-    // registers a more specific handler after this one and takes precedence.
+    // registers its handler after this one, so Playwright gives it precedence.
     await page.route("**/a2a/invoke", async (route) => {
       try {
         await new Promise((resolve) => setTimeout(resolve, 5_000));
