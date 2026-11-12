@@ -80,6 +80,56 @@ def load_image(archive: Path) -> None:
     subprocess.run(["podman", "load", "--input", str(archive)], check=True)
 
 
+def archive_image_id(archive: Path) -> str:
+    """Return the image ID Podman assigns when loading a docker-save archive.
+
+    Docker's local ``image inspect .Id`` is not a stable archive identity: for
+    registry-pinned images it can be the registry manifest digest, while
+    ``podman load`` addresses the image by the archive's config digest. The
+    config bytes and their digest are checked here so the sidecar cannot point
+    at a different object than the verified archive.
+    """
+
+    try:
+        with tarfile.open(archive, "r:*") as stream:
+            manifest_member = stream.getmember("manifest.json")
+            if not manifest_member.isfile():
+                raise ValueError("manifest.json is not a regular file")
+            manifest_stream = stream.extractfile(manifest_member)
+            if manifest_stream is None:
+                raise ValueError("manifest.json cannot be read")
+            manifest = json.load(manifest_stream)
+            if not isinstance(manifest, list) or len(manifest) != 1 or not isinstance(manifest[0], dict):
+                raise ValueError("image archive must contain exactly one manifest entry")
+            config_path = manifest[0].get("Config")
+            if not isinstance(config_path, str):
+                raise ValueError(f"image archive has an invalid config path: {config_path!r}")
+            match = re.fullmatch(r"blobs/sha256/([0-9a-f]{64})", config_path)
+            if match is None:
+                raise ValueError(f"image archive has an invalid config path: {config_path!r}")
+            config_member = stream.getmember(config_path)
+            if not config_member.isfile():
+                raise ValueError("image config is not a regular file")
+            config_stream = stream.extractfile(config_member)
+            if config_stream is None:
+                raise ValueError("image config cannot be read")
+            digest = hashlib.sha256()
+            for chunk in iter(lambda: config_stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except ValueError:
+        raise
+    except (KeyError, OSError, tarfile.TarError, json.JSONDecodeError) as error:
+        raise ValueError(f"cannot inspect image archive {archive}: {error}") from error
+
+    expected_digest = match.group(1)
+    actual_digest = digest.hexdigest()
+    if actual_digest != expected_digest:
+        raise ValueError(
+            f"image config digest mismatch for {archive}: got {actual_digest}, expected {expected_digest}"
+        )
+    return f"sha256:{actual_digest}"
+
+
 def image_exists(reference: str) -> bool:
     return subprocess.run(
         ["podman", "image", "exists", reference],
@@ -163,7 +213,7 @@ def main() -> None:
 
     metadata = sidecars(root)
     archives: list[Path] = []
-    image_metadata: list[dict[str, Any]] = []
+    image_metadata: list[tuple[dict[str, Any], Path]] = []
     scenario_archive: Path | None = None
     chart_archive: Path | None = None
     for sidecar_path, value in metadata:
@@ -181,7 +231,9 @@ def main() -> None:
             archives.append(archive)
         kind = value.get("kind")
         if kind in {"container-image", "auxiliary-image"}:
-            image_metadata.append(value)
+            if archive is None:
+                fail(f"image sidecar has no archive: {sidecar_path}")
+            image_metadata.append((value, archive))
         elif kind == "operator-qualification-input":
             charts = value.get("charts")
             if not isinstance(charts, dict):
@@ -200,13 +252,16 @@ def main() -> None:
                 fail(f"operator image sidecar SHA-256 mismatch for {archive}")
             archives.append(archive)
             image_metadata.append(
-                {
-                    "kind": "container-image",
-                    "name": "operator",
-                    "sourceSHA": value.get("sourceSHA"),
-                    "reference": image.get("reference"),
-                    "imageID": image.get("imageID"),
-                }
+                (
+                    {
+                        "kind": "container-image",
+                        "name": "operator",
+                        "sourceSHA": value.get("sourceSHA"),
+                        "reference": image.get("reference"),
+                        "imageID": image.get("imageID"),
+                    },
+                    archive,
+                )
             )
             chart_name = charts.get("archive")
             if not isinstance(chart_name, str) or not chart_name:
@@ -249,11 +304,17 @@ def main() -> None:
         if archive.name.endswith(".tar"):
             load_image(archive)
 
-    for value in image_metadata:
+    for value, archive in image_metadata:
+        try:
+            archive_id = archive_image_id(archive)
+        except ValueError as error:
+            fail(str(error))
         reference = value.get("reference")
         image_id = value.get("imageID")
+        if image_id != archive_id:
+            fail(f"image ID mismatch for {archive}: sidecar={image_id!r}, archive={archive_id!r}")
         if not isinstance(reference, str) or not (
-            image_exists(reference) or (isinstance(image_id, str) and image_exists(image_id))
+            image_exists(reference) or image_exists(archive_id)
         ):
             fail(f"loaded image is not available: {reference!r}")
 

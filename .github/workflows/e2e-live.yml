@@ -185,7 +185,11 @@ jobs:
 
           mkdir -p artifact
           docker save --output artifact/console-image.tar "${image}"
-          image_id="$(docker image inspect --format '{{.Id}}' "${image}")"
+          config_path="$(tar -xOf artifact/console-image.tar manifest.json | jq -er 'if length == 1 then .[0].Config else error("expected one image in archive") end')"
+          [[ "${config_path}" =~ ^blobs/sha256/[0-9a-f]{64}$ ]] || { echo "invalid image config path: ${config_path}" >&2; exit 1; }
+          config_digest="$(tar -xOf artifact/console-image.tar "${config_path}" | sha256sum | awk '{print $1}')"
+          [[ "${config_digest}" == "${config_path#blobs/sha256/}" ]] || { echo "image config digest mismatch: ${config_path}" >&2; exit 1; }
+          image_id="sha256:${config_digest}"
           tar_sha="$(sha256sum artifact/console-image.tar | awk '{print $1}')"
           jq -n \
             --arg source_sha "${SOURCE_SHA}" \
@@ -265,7 +269,11 @@ jobs:
 
           mkdir -p artifact
           docker save --output "artifact/${SERVICE}.tar" "${image}"
-          image_id="$(docker image inspect --format '{{.Id}}' "${image}")"
+          config_path="$(tar -xOf "artifact/${SERVICE}.tar" manifest.json | jq -er 'if length == 1 then .[0].Config else error("expected one image in archive") end')"
+          [[ "${config_path}" =~ ^blobs/sha256/[0-9a-f]{64}$ ]] || { echo "invalid image config path: ${config_path}" >&2; exit 1; }
+          config_digest="$(tar -xOf "artifact/${SERVICE}.tar" "${config_path}" | sha256sum | awk '{print $1}')"
+          [[ "${config_digest}" == "${config_path#blobs/sha256/}" ]] || { echo "image config digest mismatch: ${config_path}" >&2; exit 1; }
+          image_id="sha256:${config_digest}"
           tar_sha="$(sha256sum "artifact/${SERVICE}.tar" | awk '{print $1}')"
           jq -n \
             --arg source_sha "${SOURCE_SHA}" \
@@ -335,7 +343,11 @@ jobs:
 
           mkdir -p artifact
           docker save --output "artifact/${SERVICE}.tar" "${image}"
-          image_id="$(docker image inspect --format '{{.Id}}' "${image}")"
+          config_path="$(tar -xOf "artifact/${SERVICE}.tar" manifest.json | jq -er 'if length == 1 then .[0].Config else error("expected one image in archive") end')"
+          [[ "${config_path}" =~ ^blobs/sha256/[0-9a-f]{64}$ ]] || { echo "invalid image config path: ${config_path}" >&2; exit 1; }
+          config_digest="$(tar -xOf "artifact/${SERVICE}.tar" "${config_path}" | sha256sum | awk '{print $1}')"
+          [[ "${config_digest}" == "${config_path#blobs/sha256/}" ]] || { echo "image config digest mismatch: ${config_path}" >&2; exit 1; }
+          image_id="sha256:${config_digest}"
           tar_sha="$(sha256sum "artifact/${SERVICE}.tar" | awk '{print $1}')"
           jq -n \
             --arg source_sha "${SOURCE_SHA}" \
@@ -396,7 +408,11 @@ jobs:
             charts/kubernaut-operator \
             charts/kubernaut-development-dependencies
 
-          image_id="$(docker image inspect --format '{{.Id}}' "${image}")"
+          config_path="$(tar -xOf artifact/operator-image.tar manifest.json | jq -er 'if length == 1 then .[0].Config else error("expected one image in archive") end')"
+          [[ "${config_path}" =~ ^blobs/sha256/[0-9a-f]{64}$ ]] || { echo "invalid image config path: ${config_path}" >&2; exit 1; }
+          config_digest="$(tar -xOf artifact/operator-image.tar "${config_path}" | sha256sum | awk '{print $1}')"
+          [[ "${config_digest}" == "${config_path#blobs/sha256/}" ]] || { echo "image config digest mismatch: ${config_path}" >&2; exit 1; }
+          image_id="sha256:${config_digest}"
           image_sha="$(sha256sum artifact/operator-image.tar | awk '{print $1}')"
           charts_sha="$(sha256sum artifact/operator-charts.tar.gz | awk '{print $1}')"
           jq -n \
@@ -441,7 +457,11 @@ jobs:
           docker pull --platform linux/amd64 "${IMAGE_REFERENCE}"
           mkdir -p artifact
           docker save --output "artifact/${IMAGE_NAME}.tar" "${IMAGE_REFERENCE}"
-          image_id="$(docker image inspect --format '{{.Id}}' "${IMAGE_REFERENCE}")"
+          config_path="$(tar -xOf "artifact/${IMAGE_NAME}.tar" manifest.json | jq -er 'if length == 1 then .[0].Config else error("expected one image in archive") end')"
+          [[ "${config_path}" =~ ^blobs/sha256/[0-9a-f]{64}$ ]] || { echo "invalid image config path: ${config_path}" >&2; exit 1; }
+          config_digest="$(tar -xOf "artifact/${IMAGE_NAME}.tar" "${config_path}" | sha256sum | awk '{print $1}')"
+          [[ "${config_digest}" == "${config_path#blobs/sha256/}" ]] || { echo "image config digest mismatch: ${config_path}" >&2; exit 1; }
+          image_id="sha256:${config_digest}"
           tar_sha="$(sha256sum "artifact/${IMAGE_NAME}.tar" | awk '{print $1}')"
           jq -n \
             --arg name "${IMAGE_NAME}" \
