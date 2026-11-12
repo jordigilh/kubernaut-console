@@ -83,7 +83,7 @@ if [[ "$MODE" == "fullpipeline" ]]; then
 
   echo "==> Verifying upstream mock-LLM scenario ConfigMap (read-only)"
   scenarios_json="$(kubectl --kubeconfig "$HUB_KUBECONFIG" get configmap mock-llm-scenarios -n "$PLATFORM_NS" -o json)"
-  jq -e '.metadata.name == "mock-llm-scenarios" and .data["scenarios.yaml"] | length > 0' <<<"$scenarios_json" >/dev/null || {
+  jq -e '.metadata.name == "mock-llm-scenarios" and ((.data["scenarios.yaml"] // "") | length > 0)' <<<"$scenarios_json" >/dev/null || {
     echo "error: upstream mock-llm-scenarios ConfigMap has no scenarios.yaml" >&2
     exit 1
   }
