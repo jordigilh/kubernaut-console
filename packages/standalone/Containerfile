@@ -13,6 +13,10 @@ RUN npm install -g corepack && corepack enable && corepack prepare pnpm@11.7.0 -
 
 COPY packages/ui-core/ packages/ui-core/
 COPY packages/standalone/ packages/standalone/
+# The live Dex auth boundary is evaluated by Vite during the Console build.
+# Keep this test-only helper in the build context without copying the rest of
+# the live-E2E harness into the image.
+COPY e2e/live/scripts/dex-token.mjs e2e/live/scripts/dex-token.mjs
 
 RUN pnpm --filter @kubernaut/ui-core build \
     && pnpm --filter @kubernaut/standalone build

@@ -13,7 +13,7 @@ The existing Playwright suite (`e2e/standalone.spec.ts`, `e2e/accessibility.spec
 Two constraints shape the decision:
 
 1. **The console must stay decoupled from kubernaut.** Per [ADR-007](007-multi-platform-plugin-architecture.md) and explicit product direction, this console is a reference/demo implementation, not a mandatory customer-facing component — customers are expected to bring their own UI against the same `integration-guide.md` contract. Coupling kubernaut's CI/release process to this console's test suite would invert that relationship and make an optional component load-bearing for the platform.
-2. **kubernaut's CI publishes no durable artifacts.** `ci-pipeline.yml` is explicitly "Artifact-Based, No Registry": service images are `docker save`d and uploaded as GitHub Actions artifacts with `retention-days: 2`, downloaded only by downstream jobs within the *same* workflow run (see the `load-ci-images` composite action and the Helm-smoke job's `download-artifact` step). There is no ghcr.io/registry publishing to depend on, and no cross-repo/cross-day artifact contract.
+2. **kubernaut's CI publishes no durable artifacts.** `ci-pipeline.yml` is explicitly "Artifact-Based, No Registry": service images are `docker save`d and uploaded as GitHub Actions artifacts with `retention-days: 2`, downloaded only by downstream jobs within the *same* workflow run. There is no ghcr.io/registry publishing to depend on, and no cross-repo/cross-day artifact contract; this workflow therefore builds and verifies its own immutable handoff.
 
 ## Decision
 
@@ -30,40 +30,31 @@ Two constraints shape the decision:
 
 Neither repo takes a source-level or CI-level dependency on the other beyond the disposable, one-directional build step described next.
 
-### 3. Cluster provisioning: build kubernaut from source, then drive upstream's own `fullpipeline` E2E harness as a black box
+### 3. Cluster provisioning: call upstream's authoritative setup function, not its test suite
 
-This decision was revised after a preflight spike read the actual kubernaut source (Makefile, `ci-pipeline.yml`, `test/infrastructure/fullpipeline_e2e.go`) rather than relying on `E2E_SERVICE_DEPENDENCY_MATRIX.md` alone, which turned out to be stale/incomplete on several points below.
+The native mock-LLM lane uses the pinned upstream infrastructure orchestrator as a setup-only dependency. It deliberately does not enter upstream's Ginkgo test-suite entrypoint, because Console owns the browser coverage and must not run upstream FullPipeline tests in this workflow.
 
 Console's nightly workflow:
 
-1. Resolves the latest commit on kubernaut `main` with a green `ci-pipeline.yml` run:
-   ```bash
-   gh run list --repo jordigilh/kubernaut --workflow=ci-pipeline.yml \
-     --branch=main --status=success --limit=1 --json headSha
-   ```
-   Verified live: this command works today against the real repo and returns a usable `headSha`.
-2. Shallow-checks out kubernaut at that SHA into a scratch directory.
-3. Builds every image `test/infrastructure/fullpipeline_e2e.go`'s `fullPipelineImageConfigs` needs, in parallel (§4), using kubernaut's own Dockerfiles.
-4. Loads those images and hands off to kubernaut's own `make test-e2e-fullpipeline` target with `PRESERVE_E2E_CLUSTER=true` set:
-   ```bash
-   PRESERVE_E2E_CLUSTER=true make test-e2e-fullpipeline
-   ```
-   This is the exact target upstream itself defines (`Makefile:883-891`: `$(GINKGO) -v --race --timeout=50m --procs=$(TEST_PROCS) ./test/e2e/fullpipeline/...`) and already runs in kubernaut's own CI (`ci-pipeline.yml` E2E matrix, `service: fullpipeline`). It builds/loads whatever images weren't pre-supplied, creates the Kind cluster, deploys **every** service the full remediation lifecycle needs (including Dex — see §5), seeds the real workflow catalog fixtures, and runs kubernaut's own full-lifecycle assertions. `PRESERVE_E2E_CLUSTER=true` (`suite_test.go:365-372`, an existing, documented escape hatch — not a console-side patch) skips upstream's teardown and leaves the cluster + kubeconfig behind instead of deleting it.
-5. Console's own `e2e/live/` Playwright suite then runs against the preserved cluster's chart-pinned NodePorts (verified in `test/e2e/fullpipeline/suite_test.go`/`06_af_audit_trace_test.go`): Gateway `http://localhost:30080`, DataStorage `https://localhost:30081`, API Frontend `https://localhost:18443` (self-signed TLS), Dex `https://localhost:30556/dex` (self-signed TLS).
-6. Console deletes the Kind cluster itself afterward (`kind delete cluster --name fullpipeline-e2e`), since step 4 intentionally skipped upstream's own cleanup.
+1. Resolves and validates immutable source SHAs for Console, kubernaut, the operator, and demo scenarios.
+2. Shallow-checks out kubernaut at that SHA into a scratch directory and loads the verified image/chart artifacts produced earlier in the same workflow run.
+3. Runs `e2e/live/scripts/ci-provision-native-fullpipeline.sh`, which creates a temporary Go module with a local replacement for the pinned kubernaut checkout and calls `infrastructure.SetupFullPipelineInfrastructure(ctx, "fullpipeline-e2e", kubeconfig, nil, writer)`.
+4. The upstream function creates the Kind cluster, installs the operator/dependency charts, deploys the application services, Dex, mock-LLM, monitoring, event-exporter, and test RBAC, and seeds the real workflow catalog. The Console adapter then performs only setup-only namespace labeling and deploys the upstream stable `kubernaut-system/memory-eater` target; it writes sanitized workflow and namespace mappings without tokens or Secret data.
+5. Console emits a runtime manifest from the cluster plus the adapter metadata, verifies the upstream catalog, mock-LLM scenarios, Dex/API Frontend boundary, dynamic namespaces, and stable target without reseeding or replacing any fixture.
+6. Console's native Playwright project runs against the resulting cluster, then the same job collects redacted diagnostics and deletes only the exact `fullpipeline-e2e` cluster.
 
-This is a **build-time-only, read-only, disposable dependency**: nothing from kubernaut ships in console's repo or release artifacts, and kubernaut has no knowledge this happens (its own `PRESERVE_E2E_CLUSTER` flag and `load-ci-images` action exist for its own CI's benefit; console just also happens to be a valid caller). Building from source — rather than depending on kubernaut's own CI artifacts (2-day retention, single-run scoped) — remains the right call for the reasons in the Context section; running upstream's own `fullpipeline` suite as the bootstrap/deploy driver, instead of console hand-rolling Kind manifests and service wiring, avoids reimplementing infrastructure that already exists, is already tested, and will track upstream's own future changes (new services, port/config changes) automatically.
+This is a **build-time-only, read-only, disposable dependency**: nothing from kubernaut ships in Console's repo or release artifacts, and kubernaut has no knowledge this happens. Calling the exported setup function instead of hand-rolling Kind manifests keeps service wiring, ports, catalog seeding, and mock-LLM configuration aligned with upstream while avoiding execution of upstream's own tests.
 
 ### 4. Build parallelization
 
-Mirror upstream's own matrix-build pattern and plug directly into its own prebuilt-artifact fast path — this isn't a new mechanism console invents, it's the exact one `ci-pipeline.yml` already uses to make its own `fullpipeline` E2E job fast (20 min, vs. `test-e2e-fullpipeline`'s ~30-50 min stand-alone estimate in the Makefile, precisely because the images don't need to be (re)built serially inside the suite):
+Mirror upstream's own matrix-build pattern and plug directly into its prebuilt-artifact fast path. The setup adapter finds the same `localhost/<service>:<tag>` images in Podman and skips rebuilding them, so the native bootstrap remains bounded by cluster deployment rather than serial image compilation.
 
 - Matrix over every entry in `fullPipelineImageConfigs` (`test/infrastructure/fullpipeline_e2e.go:97-111` — 13 images, all Go-built: `gateway`, `signalprocessing`, `remediationorchestrator`, `aianalysis`, `workflowexecution`, `notification`, `datastorage`, `authwebhook`, `kubernautagent`, `mock-llm`, `effectivenessmonitor`, `apifrontend`, `fleetmetadatacache`) plus `db-migrate`, built the same way `ci-pipeline.yml`'s own `build-images`/`build-infra-images` jobs do (`docker build --build-arg GOFLAGS=-cover -t localhost/<service>:<tag> -f <dockerfile> .`, after `make generate`). Per §5's Gateway finding, this can drop to 12 once excluding Gateway from the deploy is actually wired up — not assumed done by this ADR.
 - amd64 only — no arm64 leg (irrelevant on GitHub-hosted runners; matches upstream's own `fullpipeline` job, which only needs amd64).
 - `fail-fast: false` — one broken service shouldn't hide unrelated results.
 - Each leg: build → `docker save` → `actions/upload-artifact`, named `image-<service>-amd64` (this exact naming is required — see next point) — scoped to this single console workflow run.
-- The downstream job reuses kubernaut's **own** composite action directly, cross-repo, pinned to the resolved SHA — `uses: jordigilh/kubernaut/.github/actions/load-ci-images@<sha>` — rather than console reimplementing the download/load logic. That action is generic (downloads `image-*-amd64` artifacts from the current run, `podman load`s them) and has no kubernaut-repo-specific assumptions, so it works unmodified when invoked from console's own workflow run.
-- The same tag used when building (`KUBERNAUT_CI_ARTIFACT_TAG=<tag>`) must be exported before invoking `make test-e2e-fullpipeline`: `test/infrastructure/e2e_images.go`'s `resolvePrebuiltCIArtifact()` checks `localhost/<service>:<tag>` and, when found, skips building that service entirely — this is the identical mechanism `ci-pipeline.yml`'s own `e2e-tests`/`integration-tests` jobs rely on (`KUBERNAUT_CI_ARTIFACT_TAG: ${{ needs.build-images.outputs.tag }}`).
+- The downstream jobs use Console-owned verification and loading helpers, so the artifact boundary is explicit in this repository: every archive is hash-checked against the published manifest before `podman load`, and only the verified charts and scenario source are extracted.
+- The same tag used when building (`KUBERNAUT_CI_ARTIFACT_TAG=<tag>`) is exported before invoking the native setup adapter: `test/infrastructure/e2e_images.go`'s `resolvePrebuiltCIArtifact()` checks `localhost/<service>:<tag>` and, when found, skips building that service entirely — this is the identical mechanism `ci-pipeline.yml`'s own `e2e-tests`/`integration-tests` jobs rely on (`KUBERNAUT_CI_ARTIFACT_TAG: ${{ needs.build-images.outputs.tag }}`).
 - `kubernautagent` (contrary to `E2E_SERVICE_DEPENDENCY_MATRIX.md`, which describes it as a separate Python component) is a plain Go service in the same matrix, built identically to the rest — confirmed by reading its Dockerfile and the Makefile's `CROSS_SERVICES`/`BINARY_NAME_kubernautagent` entries. No separate build step is needed.
 - **Registry-pull mode (`IMAGE_REGISTRY`+`IMAGE_TAG` set to a real registry URL) was considered and rejected**: it's a real code path in `fullpipeline_e2e.go:79-82`/`InstallFullPipelineHelmChart`, but grepping `ci-pipeline.yml` shows upstream's own CI never actually exercises it with a real registry — every live usage is either `KUBERNAUT_CI_ARTIFACT_TAG` or `IMAGE_REGISTRY=localhost` (a local-tag naming convention, not a network pull). Using the untested registry-pull path would also require console to stand up new registry infrastructure (auth, `imagePullSecrets`, package cleanup) that cuts against reusing upstream's own proven mechanism.
 - **`KUBERNAUT_CI_ARTIFACT_TAG` only skips the build half, not the Kind-load half.** `resolvePrebuiltCIArtifact()` short-circuits `BuildImageForKind`'s compile+`docker build` step once it finds the image already in the local podman store — but `GetImagePullPolicy()` still returns `Never` in this mode, so `SetupFullPipelineInfrastructure`'s own `kind load image-archive` step still runs for every image, same as local dev. That's fine: the load step is cheap (seconds per image, no build); the ~30-50min→20min speedup upstream's own CI gets from this mechanism comes entirely from skipping compilation, which is exactly the part parallelizing across GitHub-hosted runners buys us.
@@ -123,7 +114,7 @@ Manually ran the full `e2e/live/` suite against a real, locally-built `fullpipel
 
 ### 10. #1818 fixed upstream; re-validation found a second, distinct blocker (kubernaut#1853)
 
-[kubernaut#1844](https://github.com/jordigilh/kubernaut/pull/1844) fixed #1818 and merged to `main` (2026-08-02). Re-validated directly rather than assuming: checked out the merge commit (`e018a4747`), waited for upstream CI's arm64 image matrix to build (12 of 13 Go services; CI only builds `mock-llm`/`db-migrate` for amd64, so those two were built locally for arm64 from the same Dockerfiles), loaded everything into a local Kind cluster via `PRESERVE_E2E_CLUSTER=true`, and ran the focused upstream regression test directly (`--label-filter=issue-1189`, covering `test/e2e/fullpipeline/06`–`15`). **4/4 passed**, including `15_af_a2a_interactive_streaming_test.go`'s exact #1818 race scenario — the fix works as advertised, for the multi-turn MCP protocol upstream's own tests use.
+[kubernaut#1844](https://github.com/jordigilh/kubernaut/pull/1844) fixed #1818 and merged to `main` (2026-08-02). Re-validated directly rather than assuming: checked out the merge commit (`e018a4747`), waited for upstream CI's arm64 image matrix to build (12 of 13 Go services; CI only builds `mock-llm`/`db-migrate` for amd64, so those two were built locally for arm64 from the same Dockerfiles), loaded everything into a local Kind cluster via the same setup-only bootstrap path, and ran the focused upstream regression test directly (`--label-filter=issue-1189`, covering `test/e2e/fullpipeline/06`–`15`). **4/4 passed**, including `15_af_a2a_interactive_streaming_test.go`'s exact #1818 race scenario — the fix works as advertised, for the multi-turn MCP protocol upstream's own tests use.
 
 **`e2e/live/` still failed identically (8/9) against this fixed cluster.** Tracing it further (AF pod logs, plus a direct `curl` repro of the console's exact single-message request against the fixed cluster) found the cause is not a recurrence of #1818, but a **second, distinct defect**: [kubernaut#1853](https://github.com/jordigilh/kubernaut/issues/1853).
 
@@ -206,7 +197,7 @@ Rejected — defer until the single-cluster remediation flow is proven; avoids o
 
 ### G. Hand-curate a minimal 10-service subset with a console-authored Kind bootstrap
 
-This was the original draft of this ADR. Rejected after a preflight spike found `test/infrastructure/fullpipeline_e2e.go` (invoked with `fleetProvisioner=nil`) already *is* an existing, tested, single-cluster/no-Tekton/no-fleet bootstrap for the full remediation lifecycle — reimplementing a hand-picked subset of it in console would duplicate real infrastructure code, drift from upstream's own service/port/config changes over time, and (per the Dex finding in §5) would have shipped with an infeasible scope decision (excluding a service, Dex, that `apifrontend` hard-requires). Driving upstream's own `make test-e2e-fullpipeline` with `PRESERVE_E2E_CLUSTER=true` as a black box is strictly less code and lower drift risk, at the cost of pulling in a few non-essential services (§5) console doesn't strictly need.
+This was the original draft of this ADR. Rejected after a preflight spike found `test/infrastructure/fullpipeline_e2e.go` (invoked with `fleetProvisioner=nil`) already *is* an existing, tested, single-cluster/no-Tekton/no-fleet bootstrap for the full remediation lifecycle — reimplementing a hand-picked subset of it in console would duplicate real infrastructure code, drift from upstream's own service/port/config changes over time, and (per the Dex finding in §5) would have shipped with an infeasible scope decision (excluding a service, Dex, that `apifrontend` hard-requires). Driving the exported upstream setup function through Console's adapter is strictly less code and lower drift risk, at the cost of pulling in a few non-essential services (§5) console doesn't strictly need.
 
 ### H. Stand up a real oauth2-proxy in front of the live-suite console
 
@@ -223,17 +214,16 @@ another deployment to the upstream black-box cluster.
 
 - Real, browser-driven verification of the console against a genuinely running signal → investigation → remediation pipeline, closing the gap left by the fully-mocked existing suite.
 - Zero new coupling in kubernaut's repo/CI — console remains a client of a documented contract, consistent with its role as an optional/replaceable reference implementation.
-- Reuses upstream's own build recipes, its `KUBERNAUT_CI_ARTIFACT_TAG` prebuilt-artifact fast path, its `load-ci-images` composite action (referenced cross-repo, unmodified), and its entire `fullpipeline` bootstrap/deploy/seed orchestration as a black box. Console writes almost no new infrastructure code, and automatically absorbs upstream's own future changes (new services, port/config changes) without this ADR or console's workflow needing to track them individually.
-- As a side effect, every nightly run also re-validates kubernaut's own full-lifecycle assertions (`test/e2e/fullpipeline`'s own specs), not just console's UI — free additional signal.
+- Reuses upstream's own build recipes, its `KUBERNAUT_CI_ARTIFACT_TAG` prebuilt-artifact fast path, and its exported `SetupFullPipelineInfrastructure` orchestration while keeping the artifact verification and setup-only adapter in Console's repository.
+- The native lane validates the same deployed catalog, mock-LLM boundary, and stable workload that Console consumes, without silently running upstream's own FullPipeline test suite.
 - Nightly cadence surfaces contract drift within ~24h without slowing PR feedback loops.
 
 ### Negative
 
 - Console CI takes on a nontrivial new capability: building ~13 Go services in parallel from kubernaut source every night.
-- Deeper coupling to upstream's *test infrastructure* internals than originally scoped: not just Dockerfiles, but specific Makefile targets (`test-e2e-fullpipeline`), an env var contract (`PRESERVE_E2E_CLUSTER`, `KUBERNAUT_CI_ARTIFACT_TAG`), a Go symbol (`fullPipelineImageConfigs`, indirectly, via its build list), fixed NodePort assumptions, and a cross-repo composite action reference. All of this is upstream's own internal test tooling, not a published/versioned API — if upstream renames or restructures any of it, console's nightly workflow breaks until updated. This is still build-time-only and disposable, but the blast radius of an upstream refactor is larger than the original "just Dockerfiles" framing implied.
+- Deeper coupling to upstream's *test infrastructure* internals than originally scoped: not just Dockerfiles, but the exported setup function, its image-artifact env contract (`KUBERNAUT_CI_ARTIFACT_TAG`), the Go symbol `fullPipelineImageConfigs` indirectly via its build list, and fixed NodePort assumptions. All of this is upstream's own internal test tooling, not a published/versioned API — if upstream renames or restructures any of it, Console's workflow breaks until the pin and adapter are updated.
 - Larger footprint than originally scoped: `fullpipeline` unconditionally also builds/deploys `gateway`, `notification`, `effectivenessmonitor`, Prometheus, Alertmanager, and event-exporter/mock-slack (~6GB RAM total) even though console doesn't need them — accepted as the cost of reusing tested infrastructure rather than hand-curating a leaner set (see Alternative G). Gateway specifically is a known, confirmed-excludable candidate (§5) for a future footprint reduction once the CI harness supports it; the rest are accepted as-is.
-- No durable version pin — testing against kubernaut's "latest green main" means a console failure could stem from an upstream regression the console can't fix directly. Failures need clear attribution (upstream `fullpipeline` suite failure vs. console Playwright failure) via separated job steps/logs — notably, `PRESERVE_E2E_CLUSTER=true` preserves the cluster even if upstream's own specs fail, so console's Playwright suite may still run against a partially-degraded backend; this needs an explicit CI policy (documented separately in the implementation plan).
-- Requires a PAT (or equivalent) with read access to kubernaut's Actions API to resolve the latest green SHA cross-repo.
+- The native lane is coupled to the pinned upstream setup API and source SHA; a Console change must update the pin deliberately when upstream changes that API. Failures have clear attribution (upstream setup failure vs. Console Playwright failure) via separated job steps/logs; the setup adapter fails before browser coverage when infrastructure is not ready.
 
 ### Neutral
 
@@ -250,9 +240,9 @@ another deployment to the upstream black-box cluster.
 
 - [Integration Guide](../integration-guide.md) — the A2A/MCP contract this suite validates
 - [ADR-007: Multi-Platform Plugin Architecture](007-multi-platform-plugin-architecture.md) — establishes the console as an optional, platform-agnostic reference UI
-- `kubernaut` `Makefile:883-891` — `test-e2e-fullpipeline` target, the black-box entrypoint this ADR drives
+- `kubernaut` `test/infrastructure/fullpipeline_e2e.go` — authoritative setup orchestrator called by the Console adapter
 - `kubernaut` `test/infrastructure/fullpipeline_e2e.go` — `fullPipelineImageConfigs` (image list) and `SetupFullPipelineInfrastructure` (bootstrap orchestration) this ADR reuses
-- `kubernaut` `test/e2e/fullpipeline/suite_test.go` — `PRESERVE_E2E_CLUSTER` escape hatch and chart-pinned NodePort values this ADR depends on
+- `kubernaut` `test/e2e/fullpipeline/suite_test.go` — reference setup-only namespace/fixture steps and chart-pinned NodePort values
 - `kubernaut` `test/infrastructure/kind-fullpipeline-config.yaml` — authoritative host-port mapping; corrected this ADR's Dex port (30556, not 5556) during `e2e/live/` drafting
 - `kubernaut` `deploy/apifrontend/overlays/e2e/dex.yaml` — Dex static clients/users this suite's token-fetch helper authenticates as
 - `kubernaut` `charts/kubernaut/values.yaml` (`rbac.personas`) — per-persona MCP tool ACL; source of the `kubernaut_complete_no_action` gap noted in §8
@@ -266,7 +256,6 @@ another deployment to the upstream black-box cluster.
 - `kubernaut` `test/services/mock-llm/handlers/gemini.go` (`resolveGeminiTemplateArgs`) — the `$from_tool` template-resolution mechanism behind #1853
 - `kubernaut` `test/e2e/fullpipeline/05_mcp_interactive_lifecycle_test.go` / `pkg/apifrontend/handler/mcp.go` — the KA-vs-AF MCP endpoint distinction behind #1827
 - `kubernaut` `.github/workflows/ci-pipeline.yml` — source of the matrix-build pattern and `KUBERNAUT_CI_ARTIFACT_TAG` prebuilt-artifact handoff reused here
-- `kubernaut` `.github/actions/load-ci-images/action.yml` — generic composite action reused cross-repo, unmodified
 - `kubernaut` `pkg/workflowexecution/executor/job.go` — confirms the plain-Job execution path is fully independent of Tekton
 - `kubernaut` `test/e2e/apifrontend/helpers_test.go` — confirms Dex/OIDC has no test bypass, motivating its inclusion in phase 1 scope
 - `kubernaut` `test/e2e/E2E_SERVICE_DEPENDENCY_MATRIX.md` — background context only; several claims in it (mock-llm Dockerfile path, kubernautagent being Python, apifrontend's standalone Dex requirement) were found stale/incomplete during this ADR's preflight and should not be trusted without cross-checking source

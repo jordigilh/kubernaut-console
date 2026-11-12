@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Emit the sanitized runtime contract produced after setup-demo-infra.
+# Emit the sanitized runtime contract produced after a live topology bootstrap.
 #
 # This file deliberately contains paths, identities, URLs, and resource
 # metadata only. It never reads Secret data or the LLM credential file.
@@ -16,6 +16,7 @@ API_FRONTEND_URL=""
 KEYCLOAK_URL=""
 DEX_URL=""
 NATIVE_LOG=""
+NATIVE_SETUP_METADATA=""
 ARTIFACT_TAG=""
 CONSOLE_SHA=""
 KUBERNAUT_SHA=""
@@ -23,7 +24,7 @@ OPERATOR_SHA=""
 SCENARIOS_SHA=""
 
 usage() {
-  echo "usage: $0 --mode local|fleet|fullpipeline --hub-kubeconfig PATH [--spoke-kubeconfig PATH] --hub-cluster-name NAME [--spoke-cluster-name NAME] --output PATH --console-url URL --api-frontend-url URL [--keycloak-url URL] [--dex-url URL] [--native-log PATH] --artifact-tag TAG --console-sha SHA --kubernaut-sha SHA --operator-sha SHA --scenarios-sha SHA" >&2
+  echo "usage: $0 --mode local|fleet|fullpipeline --hub-kubeconfig PATH [--spoke-kubeconfig PATH] --hub-cluster-name NAME [--spoke-cluster-name NAME] --output PATH --console-url URL --api-frontend-url URL [--keycloak-url URL] [--dex-url URL] [--native-log PATH] [--native-setup-metadata PATH] --artifact-tag TAG --console-sha SHA --kubernaut-sha SHA --operator-sha SHA --scenarios-sha SHA" >&2
   exit 2
 }
 
@@ -40,6 +41,7 @@ while [[ $# -gt 0 ]]; do
     --keycloak-url) KEYCLOAK_URL="${2:-}"; shift 2 ;;
     --dex-url) DEX_URL="${2:-}"; shift 2 ;;
     --native-log) NATIVE_LOG="${2:-}"; shift 2 ;;
+    --native-setup-metadata) NATIVE_SETUP_METADATA="${2:-}"; shift 2 ;;
     --artifact-tag) ARTIFACT_TAG="${2:-}"; shift 2 ;;
     --console-sha) CONSOLE_SHA="${2:-}"; shift 2 ;;
     --kubernaut-sha) KUBERNAUT_SHA="${2:-}"; shift 2 ;;
@@ -166,7 +168,11 @@ if [[ "$MODE" == "fullpipeline" ]]; then
 
   native_namespace() {
     local key="$1" prefix="$2" value
-    value="$(native_namespace_from_log "$key")"
+    value=""
+    if [[ -n "$NATIVE_SETUP_METADATA" && -s "$NATIVE_SETUP_METADATA" ]]; then
+      value="$(jq -r --arg key "$key" '.remediateNamespaces[$key] // empty' "$NATIVE_SETUP_METADATA" 2>/dev/null || true)"
+    fi
+    [[ -n "$value" ]] || value="$(native_namespace_from_log "$key")"
     [[ -n "$value" ]] || value="$(native_namespace_from_cluster "$prefix")"
     [[ "$value" =~ ^${prefix}[a-z0-9-]+$ ]] || {
       echo "error: native namespace mapping ${key} is missing or malformed" >&2
@@ -219,7 +225,7 @@ if [[ "$MODE" == "fullpipeline" ]]; then
       fleet:{enabled:false,remoteClusterID:"",gateway:{type:"none",namespace:"",endpoint:""}},
       fixtures:{owner:"native-fullpipeline",cluster:$hub_cluster,kubeconfig:$hub_kubeconfig},
       fullPipeline:{clusterName:$hub_cluster,kubeconfig:$hub_kubeconfig,namespace:"kubernaut-system",monitoringNamespace:"monitoring",workflowUUIDs:$workflow_uuids,remediateNamespaces:$remediate_namespaces,targets:{memoryEater:{kind:"Deployment",namespace:"kubernaut-system",name:"memory-eater"}}},
-      provisioner:{entrypoint:"make test-e2e-fullpipeline",source:"pinned-upstream"}}
+      provisioner:{entrypoint:"e2e/live/scripts/ci-provision-native-fullpipeline.sh",source:"Console adapter -> infrastructure.SetupFullPipelineInfrastructure (pinned upstream)"}}
     ' >"$OUTPUT"
   chmod 600 "$OUTPUT"
   jq . "$OUTPUT"
@@ -313,7 +319,7 @@ jq -n \
     auth:{mode:$auth_mode,keycloakURL:$keycloak_url},
     fleet:{enabled:($mode == "fleet"),remoteClusterID:$remote_cluster_id,gateway:{type:$gateway_type,namespace:$gateway_namespace,endpoint:$gateway_endpoint}},
     fixtures:{owner:$fixture_owner,cluster:$fixture_cluster,kubeconfig:$fixture_kubeconfig},
-    provisioner:{entrypoint:"hack/setup-demo-infra",source:"pinned-upstream"}}
+    provisioner:{entrypoint:"e2e/live/scripts/ci-provision-demo-infra.sh",source:"pinned upstream Make target"}}
   ' >"$OUTPUT"
 chmod 600 "$OUTPUT"
 jq . "$OUTPUT"

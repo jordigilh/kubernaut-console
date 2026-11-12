@@ -29,21 +29,26 @@ harness from issue #39.
 
 ## Native FullPipeline lane
 
-The native lane runs upstream's pinned `PRESERVE_E2E_CLUSTER=true make
-test-e2e-fullpipeline` first, then consumes its catalog, mock-LLM scenarios,
-dynamic `fp-*` mappings, and `kubernaut-system/memory-eater` target read-only.
-The Console lane does not reseed workflows, create a replacement workload, or
-mutate that target. Vite fetches the synthetic Dex token in its server process,
-injects it only on the server-to-AF proxy hop, and serves sanitized userinfo to
-the always-selected `ProxyAuthProvider`; the browser never receives a bearer
-token.
+The native lane first runs
+`e2e/live/scripts/ci-provision-native-fullpipeline.sh`. That setup-only adapter
+calls the pinned upstream
+`infrastructure.SetupFullPipelineInfrastructure` function through a temporary
+Go module; it does not invoke upstream's Ginkgo tests. The lane then consumes
+the upstream catalog, mock-LLM scenarios, dynamic `fp-*` mappings, and
+`kubernaut-system/memory-eater` target read-only. The Console lane does not
+reseed workflows, create a replacement workload, or mutate that target. Vite
+fetches the synthetic Dex token in its server process, injects it only on the
+server-to-AF proxy hop, and serves sanitized userinfo to the always-selected
+`ProxyAuthProvider`; the browser never receives a bearer token.
 
 ## Console-owned disposable Kind lane
 
 The workflow builds immutable amd64 artifacts once, verifies their hashes, and
-reuses them in both topologies. Provisioning is delegated to the pinned
-upstream `kubernaut/hack/setup-demo-infra` helper; the Console lane owns
-preflight, fixtures, Playwright, diagnostics, and same-job cleanup.
+reuses them in both topologies. Local/fleet provisioning is delegated to the
+pinned upstream Make targets through
+`e2e/live/scripts/ci-provision-demo-infra.sh`; the native lane uses the
+setup-only adapter above. The Console lane owns preflight, fixtures,
+Playwright, diagnostics, and same-job cleanup.
 
 Pinned defaults:
 
@@ -81,11 +86,9 @@ are not retained in CI; local debugging can opt in with
 
 ## Prerequisites
 
-1. A preserved kubernaut `fullpipeline` Kind cluster (see ADR-009 §3):
-   ```bash
-   # From a kubernaut checkout, at the SHA the CI harness resolved:
-   PRESERVE_E2E_CLUSTER=true make test-e2e-fullpipeline
-   ```
+1. A preserved kubernaut `fullpipeline` Kind cluster created by the native
+   setup-only adapter (the CI workflow creates it automatically; see ADR-009
+   §3).
 2. Its NodePorts reachable at `localhost`: DataStorage `:30081`, API
    Frontend `:18443` (self-signed TLS), Dex `:30556` (self-signed TLS) —
    **not** `:5556`, which is only Dex's in-cluster Service port (see

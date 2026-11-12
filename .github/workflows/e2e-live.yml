@@ -173,31 +173,10 @@ jobs:
       - name: Build Console image
         shell: bash
         env:
+          BUILD_KIND: console
           SOURCE_SHA: ${{ needs.resolve-pins.outputs.console_sha }}
           IMAGE_TAG: ${{ needs.resolve-pins.outputs.artifact_tag }}
-        run: |
-          set -euo pipefail
-          image="localhost/kubernaut-console:${IMAGE_TAG}"
-          docker build --pull=false --platform linux/amd64 \
-            --tag "${image}" \
-            --file packages/standalone/Containerfile \
-            .
-
-          mkdir -p artifact
-          docker save --output artifact/console-image.tar "${image}"
-          config_path="$(tar -xOf artifact/console-image.tar manifest.json | jq -er 'if length == 1 then .[0].Config else error("expected one image in archive") end')"
-          [[ "${config_path}" =~ ^blobs/sha256/[0-9a-f]{64}$ ]] || { echo "invalid image config path: ${config_path}" >&2; exit 1; }
-          config_digest="$(tar -xOf artifact/console-image.tar "${config_path}" | sha256sum | awk '{print $1}')"
-          [[ "${config_digest}" == "${config_path#blobs/sha256/}" ]] || { echo "image config digest mismatch: ${config_path}" >&2; exit 1; }
-          image_id="sha256:${config_digest}"
-          tar_sha="$(sha256sum artifact/console-image.tar | awk '{print $1}')"
-          jq -n \
-            --arg source_sha "${SOURCE_SHA}" \
-            --arg reference "${image}" \
-            --arg image_id "${image_id}" \
-            --arg archive_sha "${tar_sha}" \
-            '{kind:"container-image", name:"console", sourceSHA:$source_sha, reference:$reference, imageID:$image_id, archive:"console-image.tar", archiveSHA256:$archive_sha}' \
-            > artifact/console-image.json
+        run: e2e/live/scripts/ci-build-container-artifact.sh
 
       - name: Upload Console image artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -243,6 +222,12 @@ jobs:
           - service: db-migrate
             dockerfile: docker/db-migrate.Dockerfile
     steps:
+      - name: Checkout Console build helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          path: console
+
       - name: Checkout Kubernaut source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -254,36 +239,12 @@ jobs:
       - name: Build service image
         shell: bash
         env:
+          BUILD_KIND: kubernaut
           SOURCE_SHA: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
           IMAGE_TAG: ${{ needs.resolve-pins.outputs.artifact_tag }}
           SERVICE: ${{ matrix.service }}
           DOCKERFILE: ${{ matrix.dockerfile }}
-        run: |
-          set -euo pipefail
-          image="localhost/${SERVICE}:${IMAGE_TAG}"
-          docker build --pull=false --platform linux/amd64 \
-            --build-arg GOFLAGS=-cover \
-            --tag "${image}" \
-            --file "kubernaut/${DOCKERFILE}" \
-            kubernaut
-
-          mkdir -p artifact
-          docker save --output "artifact/${SERVICE}.tar" "${image}"
-          config_path="$(tar -xOf "artifact/${SERVICE}.tar" manifest.json | jq -er 'if length == 1 then .[0].Config else error("expected one image in archive") end')"
-          [[ "${config_path}" =~ ^blobs/sha256/[0-9a-f]{64}$ ]] || { echo "invalid image config path: ${config_path}" >&2; exit 1; }
-          config_digest="$(tar -xOf "artifact/${SERVICE}.tar" "${config_path}" | sha256sum | awk '{print $1}')"
-          [[ "${config_digest}" == "${config_path#blobs/sha256/}" ]] || { echo "image config digest mismatch: ${config_path}" >&2; exit 1; }
-          image_id="sha256:${config_digest}"
-          tar_sha="$(sha256sum "artifact/${SERVICE}.tar" | awk '{print $1}')"
-          jq -n \
-            --arg source_sha "${SOURCE_SHA}" \
-            --arg name "${SERVICE}" \
-            --arg reference "${image}" \
-            --arg image_id "${image_id}" \
-            --arg archive "${SERVICE}.tar" \
-            --arg archive_sha "${tar_sha}" \
-            '{kind:"container-image", name:$name, sourceSHA:$source_sha, reference:$reference, imageID:$image_id, archive:$archive, archiveSHA256:$archive_sha}' \
-            > "artifact/${SERVICE}.json"
+        run: console/e2e/live/scripts/ci-build-container-artifact.sh
 
       - name: Upload Kubernaut image artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -309,6 +270,12 @@ jobs:
             dockerfile: test/services/mock-llm/go.Dockerfile
             context: .
     steps:
+      - name: Checkout Console build helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          path: console
+
       - name: Checkout Kubernaut source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -320,44 +287,13 @@ jobs:
       - name: Build support image
         shell: bash
         env:
+          BUILD_KIND: support
           SOURCE_SHA: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
           IMAGE_TAG: ${{ needs.resolve-pins.outputs.artifact_tag }}
           SERVICE: ${{ matrix.service }}
           DOCKERFILE: ${{ matrix.dockerfile }}
           BUILD_CONTEXT: ${{ matrix.context }}
-        run: |
-          set -euo pipefail
-          image="localhost/${SERVICE}:${IMAGE_TAG}"
-          if [[ "${SERVICE}" == "must-gather" ]]; then
-            docker build --pull=false --platform linux/amd64 \
-              --build-arg TARGETARCH=amd64 \
-              --tag "${image}" \
-              --file "kubernaut/${DOCKERFILE}" \
-              "kubernaut/${BUILD_CONTEXT}"
-          else
-            docker build --pull=false --platform linux/amd64 \
-              --tag "${image}" \
-              --file "kubernaut/${DOCKERFILE}" \
-              "kubernaut/${BUILD_CONTEXT}"
-          fi
-
-          mkdir -p artifact
-          docker save --output "artifact/${SERVICE}.tar" "${image}"
-          config_path="$(tar -xOf "artifact/${SERVICE}.tar" manifest.json | jq -er 'if length == 1 then .[0].Config else error("expected one image in archive") end')"
-          [[ "${config_path}" =~ ^blobs/sha256/[0-9a-f]{64}$ ]] || { echo "invalid image config path: ${config_path}" >&2; exit 1; }
-          config_digest="$(tar -xOf "artifact/${SERVICE}.tar" "${config_path}" | sha256sum | awk '{print $1}')"
-          [[ "${config_digest}" == "${config_path#blobs/sha256/}" ]] || { echo "image config digest mismatch: ${config_path}" >&2; exit 1; }
-          image_id="sha256:${config_digest}"
-          tar_sha="$(sha256sum "artifact/${SERVICE}.tar" | awk '{print $1}')"
-          jq -n \
-            --arg source_sha "${SOURCE_SHA}" \
-            --arg name "${SERVICE}" \
-            --arg reference "${image}" \
-            --arg image_id "${image_id}" \
-            --arg archive "${SERVICE}.tar" \
-            --arg archive_sha "${tar_sha}" \
-            '{kind:"container-image", name:$name, sourceSHA:$source_sha, reference:$reference, imageID:$image_id, archive:$archive, archiveSHA256:$archive_sha}' \
-            > "artifact/${SERVICE}.json"
+        run: console/e2e/live/scripts/ci-build-container-artifact.sh
 
       - name: Upload support image artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -373,6 +309,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Checkout Console build helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          path: console
+
       - name: Checkout operator source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -386,44 +328,7 @@ jobs:
         env:
           SOURCE_SHA: ${{ needs.resolve-pins.outputs.operator_sha }}
           IMAGE_TAG: ${{ needs.resolve-pins.outputs.artifact_tag }}
-        run: |
-          set -euo pipefail
-          operator_version="$(awk -F'[:?= ]+' '/^VERSION[[:space:]]*\?=/{print $NF; exit}' kubernaut-operator/Makefile)"
-          test -n "${operator_version}"
-
-          helm lint kubernaut-operator/charts/kubernaut-operator --strict
-          helm lint kubernaut-operator/charts/kubernaut-development-dependencies --strict
-
-          image="localhost/kubernaut-operator:${IMAGE_TAG}"
-          docker build --pull=false --platform linux/amd64 \
-            --build-arg VERSION="${operator_version}" \
-            --build-arg GIT_COMMIT="${SOURCE_SHA}" \
-            --tag "${image}" \
-            kubernaut-operator
-
-          mkdir -p artifact/charts
-          docker save --output artifact/operator-image.tar "${image}"
-          tar -czf artifact/operator-charts.tar.gz \
-            -C kubernaut-operator \
-            charts/kubernaut-operator \
-            charts/kubernaut-development-dependencies
-
-          config_path="$(tar -xOf artifact/operator-image.tar manifest.json | jq -er 'if length == 1 then .[0].Config else error("expected one image in archive") end')"
-          [[ "${config_path}" =~ ^blobs/sha256/[0-9a-f]{64}$ ]] || { echo "invalid image config path: ${config_path}" >&2; exit 1; }
-          config_digest="$(tar -xOf artifact/operator-image.tar "${config_path}" | sha256sum | awk '{print $1}')"
-          [[ "${config_digest}" == "${config_path#blobs/sha256/}" ]] || { echo "image config digest mismatch: ${config_path}" >&2; exit 1; }
-          image_id="sha256:${config_digest}"
-          image_sha="$(sha256sum artifact/operator-image.tar | awk '{print $1}')"
-          charts_sha="$(sha256sum artifact/operator-charts.tar.gz | awk '{print $1}')"
-          jq -n \
-            --arg source_sha "${SOURCE_SHA}" \
-            --arg version "${operator_version}" \
-            --arg reference "${image}" \
-            --arg image_id "${image_id}" \
-            --arg image_archive_sha "${image_sha}" \
-            --arg charts_archive_sha "${charts_sha}" \
-            '{kind:"operator-qualification-input", repository:"jordigilh/kubernaut-operator", sourceSHA:$source_sha, version:$version, image:{reference:$reference,imageID:$image_id,archive:"operator-image.tar",archiveSHA256:$image_archive_sha},charts:{archive:"operator-charts.tar.gz",archiveSHA256:$charts_archive_sha,operatorPath:"charts/kubernaut-operator",dependencyPath:"charts/kubernaut-development-dependencies"}}' \
-            > artifact/operator-provenance.json
+        run: console/e2e/live/scripts/ci-build-operator-artifacts.sh
 
       - name: Upload operator artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -447,30 +352,19 @@ jobs:
           - name: oauth2-proxy
             reference: quay.io/oauth2-proxy/oauth2-proxy@sha256:37c1570c0427e02fc7c947ef2c04e8995b8347b7abc9fcf1dbb4e376a4b221a7
     steps:
+      - name: Checkout Console build helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          path: console
+
       - name: Pull pinned auxiliary image
         shell: bash
         env:
+          BUILD_KIND: auxiliary
           IMAGE_NAME: ${{ matrix.name }}
           IMAGE_REFERENCE: ${{ matrix.reference }}
-        run: |
-          set -euo pipefail
-          docker pull --platform linux/amd64 "${IMAGE_REFERENCE}"
-          mkdir -p artifact
-          docker save --output "artifact/${IMAGE_NAME}.tar" "${IMAGE_REFERENCE}"
-          config_path="$(tar -xOf "artifact/${IMAGE_NAME}.tar" manifest.json | jq -er 'if length == 1 then .[0].Config else error("expected one image in archive") end')"
-          [[ "${config_path}" =~ ^blobs/sha256/[0-9a-f]{64}$ ]] || { echo "invalid image config path: ${config_path}" >&2; exit 1; }
-          config_digest="$(tar -xOf "artifact/${IMAGE_NAME}.tar" "${config_path}" | sha256sum | awk '{print $1}')"
-          [[ "${config_digest}" == "${config_path#blobs/sha256/}" ]] || { echo "image config digest mismatch: ${config_path}" >&2; exit 1; }
-          image_id="sha256:${config_digest}"
-          tar_sha="$(sha256sum "artifact/${IMAGE_NAME}.tar" | awk '{print $1}')"
-          jq -n \
-            --arg name "${IMAGE_NAME}" \
-            --arg reference "${IMAGE_REFERENCE}" \
-            --arg image_id "${image_id}" \
-            --arg archive "${IMAGE_NAME}.tar" \
-            --arg archive_sha "${tar_sha}" \
-            '{kind:"auxiliary-image",name:$name,reference:$reference,imageID:$image_id,archive:$archive,archiveSHA256:$archive_sha}' \
-            > "artifact/${IMAGE_NAME}.json"
+        run: console/e2e/live/scripts/ci-build-container-artifact.sh
 
       - name: Upload auxiliary image artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -486,6 +380,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Checkout Console build helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          path: console
+
       - name: Checkout demo scenarios
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -498,25 +398,7 @@ jobs:
         shell: bash
         env:
           SOURCE_SHA: ${{ needs.resolve-pins.outputs.scenarios_sha }}
-        run: |
-          set -euo pipefail
-          mkdir -p artifact
-          # Keep the fixture source needed by the live lane, but never package
-          # the scenarios repository's credentials directory or workspace
-          # environment files into a GitHub Actions artifact.
-          tar -czf artifact/demo-scenarios.tar.gz \
-            -C kubernaut-demo-scenarios \
-            base deploy docs golden-transcripts helm overlays scenarios scripts tools README.md LICENSE
-          if tar -tzf artifact/demo-scenarios.tar.gz | grep -Eq '(^|/)(credentials|\.git)(/|$)|(^|/)\.env($|\.)'; then
-            echo "::error::scenario artifact contains a credentials or environment-file path"
-            exit 1
-          fi
-          archive_sha="$(sha256sum artifact/demo-scenarios.tar.gz | awk '{print $1}')"
-          jq -n \
-            --arg source_sha "${SOURCE_SHA}" \
-            --arg archive_sha "${archive_sha}" \
-            '{kind:"fixture-source",repository:"jordigilh/kubernaut-demo-scenarios",sourceSHA:$source_sha,archive:"demo-scenarios.tar.gz",archiveSHA256:$archive_sha}' \
-            > artifact/demo-scenarios.json
+        run: console/e2e/live/scripts/ci-package-demo-scenarios.sh
 
       - name: Upload scenario artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -539,6 +421,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Checkout Console provenance helper
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          fetch-depth: 1
+
       - name: Download this run's build artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
@@ -555,102 +443,7 @@ jobs:
           SCENARIOS_SHA: ${{ needs.resolve-pins.outputs.scenarios_sha }}
           LIFECYCLE_CONTRACT: ${{ needs.resolve-pins.outputs.lifecycle_contract }}
           ARTIFACT_TAG: ${{ needs.resolve-pins.outputs.artifact_tag }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-
-          root = Path("downloaded")
-          files = sorted(path for path in root.rglob("*") if path.is_file())
-          if not files:
-              raise SystemExit("no build artifacts were downloaded")
-
-          required = {
-              "console-image.tar",
-              "operator-image.tar",
-              "operator-charts.tar.gz",
-              "demo-scenarios.tar.gz",
-              "must-gather.tar",
-              "mock-llm.tar",
-              "init-ubi-minimal.tar",
-              "oauth2-proxy.tar",
-              "aianalysis.tar",
-              "apifrontend.tar",
-              "authwebhook.tar",
-              "datastorage.tar",
-              "effectivenessmonitor.tar",
-              "fleetmetadatacache.tar",
-              "gateway.tar",
-              "kubernautagent.tar",
-              "notification.tar",
-              "remediationorchestrator.tar",
-              "signalprocessing.tar",
-              "workflowexecution.tar",
-              "db-migrate.tar",
-          }
-          present = {path.name for path in files}
-          missing = sorted(required - present)
-          if missing:
-              raise SystemExit("missing required artifacts: " + ", ".join(missing))
-
-          entries = []
-          for path in files:
-              digest = hashlib.sha256(path.read_bytes()).hexdigest()
-              relative = path.relative_to(root).as_posix()
-              artifact_name = path.relative_to(root).parts[0]
-              entries.append({
-                  "artifactName": artifact_name,
-                  "path": relative,
-                  "bytes": path.stat().st_size,
-                  "sha256": digest,
-              })
-
-          manifest = {
-              "schemaVersion": 1,
-              "kind": "kubernaut-console-live-e2e-artifacts",
-              "workflow": os.environ["GITHUB_WORKFLOW"],
-              "runId": os.environ["GITHUB_RUN_ID"],
-              "runUrl": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
-              "artifactTag": os.environ["ARTIFACT_TAG"],
-              "lifecycleContract": os.environ["LIFECYCLE_CONTRACT"],
-              "sources": {
-                  "console": {"repository": os.environ["GITHUB_REPOSITORY"], "sha": os.environ["CONSOLE_SHA"]},
-                  "kubernaut": {"repository": "jordigilh/kubernaut", "sha": os.environ["KUBERNAUT_SHA"]},
-                  "operator": {"repository": "jordigilh/kubernaut-operator", "sha": os.environ["OPERATOR_SHA"]},
-                  "demoScenarios": {"repository": "jordigilh/kubernaut-demo-scenarios", "sha": os.environ["SCENARIOS_SHA"]},
-              },
-              "imageContract": {
-                  "applicationRepository": "localhost",
-                  "applicationTag": os.environ["ARTIFACT_TAG"],
-                  "consoleImage": f"localhost/kubernaut-console:{os.environ['ARTIFACT_TAG']}",
-                  "operatorImage": f"localhost/kubernaut-operator:{os.environ['ARTIFACT_TAG']}",
-                  "auxiliaryImages": {
-                      "init-ubi-minimal": os.environ["INIT_UBI_MINIMAL_IMAGE"],
-                      "oauth2-proxy": os.environ["OAUTH2_PROXY_IMAGE"],
-                  },
-              },
-              "requiredArchiveNames": sorted(required),
-              "artifacts": entries,
-              "consumptionContract": {
-                  "loadTool": "docker or podman load each image archive",
-                  "setupEntrypoint": "go run ./hack/setup-demo-infra",
-                  "setupImageRepository": "localhost",
-                  "setupImageTag": os.environ["ARTIFACT_TAG"],
-                  "consoleOverride": "KUBERNAUT_CONSOLE_IMAGE",
-                  "operatorOverride": "KUBERNAUT_OPERATOR_IMAGE",
-                  "operatorTarFallback": "KUBERNAUT_OPERATOR_IMAGE_TAR",
-                  "chartPaths": ["KUBERNAUT_OPERATOR_CHART_PATH", "KUBERNAUT_DEPENDENCY_CHART_PATH"],
-              },
-          }
-
-          output = Path("provenance")
-          output.mkdir(parents=True, exist_ok=True)
-          (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-          print(json.dumps(manifest, indent=2))
-          PY
+        run: python3 e2e/live/scripts/ci-write-live-provenance.py
 
       - name: Upload provenance manifest
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -673,6 +466,7 @@ jobs:
         mode: [local, fleet]
     env:
       MODE: ${{ matrix.mode }}
+      ARTIFACT_TAG: ${{ needs.resolve-pins.outputs.artifact_tag }}
       LLM_PROVIDER: ${{ inputs.llm_provider || vars.LIVE_E2E_LLM_PROVIDER }}
       LLM_MODEL: ${{ inputs.llm_model || vars.LIVE_E2E_LLM_MODEL }}
       LLM_ENDPOINT: ${{ inputs.llm_endpoint || vars.LIVE_E2E_LLM_ENDPOINT }}
@@ -728,78 +522,10 @@ jobs:
           podman info
 
       - name: Install pinned Kubernetes tooling
-        shell: bash
-        run: |
-          set -euo pipefail
-          bin_dir="${RUNNER_TEMP}/live-e2e-bin"
-          mkdir -p "${bin_dir}"
-
-          kind_version="v0.32.0"
-          curl --fail --silent --show-error --location \
-            --output "${bin_dir}/kind" \
-            "https://github.com/kubernetes-sigs/kind/releases/download/${kind_version}/kind-linux-amd64"
-          echo "50030de23cf40a18505f20426f6a8506bedf13c6e509244bd1fa9463721b0f54  ${bin_dir}/kind" | sha256sum --check
-          chmod 0755 "${bin_dir}/kind"
-
-          kubectl_version="v1.36.1"
-          curl --fail --silent --show-error --location \
-            --output "${bin_dir}/kubectl" \
-            "https://dl.k8s.io/release/${kubectl_version}/bin/linux/amd64/kubectl"
-          echo "629d3f410e09bf49b64ae7079f7f0bda1191efed311f7d37fdbab0ad5b0ec2b7  ${bin_dir}/kubectl" | sha256sum --check
-          chmod 0755 "${bin_dir}/kubectl"
-
-          helm_version="v3.18.6"
-          curl --fail --silent --show-error --location \
-            --output "${RUNNER_TEMP}/helm.tgz" \
-            "https://get.helm.sh/helm-${helm_version}-linux-amd64.tar.gz"
-          echo "3f43c0aa57243852dd542493a0f54f1396c0bc8ec7296bbb2c01e802010819ce  ${RUNNER_TEMP}/helm.tgz" | sha256sum --check
-          tar -xzf "${RUNNER_TEMP}/helm.tgz" -C "${RUNNER_TEMP}"
-          mv "${RUNNER_TEMP}/linux-amd64/helm" "${bin_dir}/helm"
-          chmod 0755 "${bin_dir}/helm"
-
-          echo "${bin_dir}" >> "${GITHUB_PATH}"
-          "${bin_dir}/kind" version
-          "${bin_dir}/kubectl" version --client
-          "${bin_dir}/helm" version
-
-          echo "127.0.0.1 keycloak kubernaut-console.local" | sudo tee -a /etc/hosts >/dev/null
+        run: e2e/live/scripts/ci-install-kubernetes-tooling.sh
 
       - name: Define isolated runtime paths
-        shell: bash
-        run: |
-          set -euo pipefail
-          root="${RUNNER_TEMP}/kubernaut-console-live-${MODE}-${GITHUB_RUN_ID}"
-          hub_cluster="kubernaut-live-${MODE}-${GITHUB_RUN_ID}"
-          spoke_cluster="kubernaut-live-${MODE}-spoke-${GITHUB_RUN_ID}"
-          target_kubeconfig="${root}/${hub_cluster}-config"
-          [[ "${MODE}" == "fleet" ]] && target_kubeconfig="${root}/${spoke_cluster}-config"
-          mkdir -p "${root}/artifacts" "${root}/runtime" "${root}/diagnostics"
-          chmod 700 "${root}" "${root}/artifacts" "${root}/runtime" "${root}/diagnostics"
-          {
-            echo "LIVE_E2E_ROOT=${root}"
-            echo "LIVE_E2E_ARTIFACT_ROOT=${root}/artifacts"
-            echo "LIVE_E2E_RUNTIME_ROOT=${root}/runtime"
-            echo "LIVE_E2E_DIAGNOSTICS_ROOT=${root}/diagnostics"
-            echo "HUB_CLUSTER_NAME=${hub_cluster}"
-            echo "SPOKE_CLUSTER_NAME=${spoke_cluster}"
-            echo "HUB_KUBECONFIG=${root}/${hub_cluster}-config"
-            echo "LIVE_E2E_HUB_KUBECONFIG=${root}/${hub_cluster}-config"
-            echo "SPOKE_KUBECONFIG=${root}/${spoke_cluster}-config"
-            echo "LIVE_E2E_STATE_FILE=${root}/fixtures.env"
-            echo "LIVE_E2E_REPORT=${root}/live-e2e-kind.json"
-            echo "LIVE_E2E_JSON_REPORT=${root}/live-e2e-kind.json"
-            echo "LIVE_E2E_CONSOLE_URL=https://kubernaut-console.local:8843"
-            echo "LIVE_E2E_API_FRONTEND_URL=https://127.0.0.1:18443"
-            echo "LIVE_E2E_KEYCLOAK_URL=https://keycloak:8443/realms/kubernaut-demo"
-            echo "LIVE_E2E_SETUP_MANIFEST=${root}/runtime/setup-runtime.json"
-            echo "LIVE_E2E_AUTH_STATE=${root}/local-auth-state.json"
-            echo "LIVE_E2E_KUBE_TOOL=kubectl"
-            echo "LIVE_E2E_TARGET_KUBECONFIG=${target_kubeconfig}"
-            echo "LIVE_E2E_IGNORE_HTTPS_ERRORS=true"
-            echo "KUBECONFIG=${root}/${hub_cluster}-config"
-          } >> "${GITHUB_ENV}"
-          echo "Fixture suffix: r${GITHUB_RUN_ID}"
-          echo "LIVE_E2E_NS_SUFFIX=r${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
+        run: e2e/live/scripts/ci-define-live-runtime.sh
 
       - name: Download this run's immutable artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -809,90 +535,21 @@ jobs:
           merge-multiple: false
 
       - name: Verify artifact hashes and load images
-        shell: bash
         env:
           CONSOLE_SHA: ${{ needs.resolve-pins.outputs.console_sha }}
           KUBERNAUT_SHA: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
           OPERATOR_SHA: ${{ needs.resolve-pins.outputs.operator_sha }}
           SCENARIOS_SHA: ${{ needs.resolve-pins.outputs.scenarios_sha }}
-        run: |
-          set -euo pipefail
-          manifest="$(find "${LIVE_E2E_ARTIFACT_ROOT}" -type f -name manifest.json -print -quit)"
-          [[ -n "${manifest}" && -f "${manifest}" ]] || { echo "error: provenance manifest was not downloaded" >&2; exit 1; }
-          verification_log="${LIVE_E2E_ROOT}/artifact-verification.json"
-          python3 e2e/live/scripts/verify-live-artifacts.py \
-            --root "${LIVE_E2E_ARTIFACT_ROOT}" \
-            --manifest "${manifest}" \
-            --output "${LIVE_E2E_RUNTIME_ROOT}" \
-            --console-sha "${CONSOLE_SHA}" \
-            --kubernaut-sha "${KUBERNAUT_SHA}" \
-            --operator-sha "${OPERATOR_SHA}" \
-            --scenarios-sha "${SCENARIOS_SHA}" > "${verification_log}"
-          mv "${verification_log}" "${LIVE_E2E_RUNTIME_ROOT}/verification.json"
-
-          scenario_root="$(jq -er '.scenarioRoot' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
-          operator_chart="$(jq -er '.operatorChartPath' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
-          dependency_chart="$(jq -er '.dependencyChartPath' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
-          operator_image="$(jq -er '.operatorImage' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
-          operator_tar="$(find "${LIVE_E2E_ARTIFACT_ROOT}" -type f -name operator-image.tar -print -quit)"
-          [[ -d "${scenario_root}" && -d "${operator_chart}" && -d "${dependency_chart}" ]] || exit 1
-          [[ -n "${operator_tar}" && -f "${operator_tar}" ]] || exit 1
-          {
-            echo "LIVE_E2E_SCENARIOS_DIR=${scenario_root}"
-            echo "KUBERNAUT_OPERATOR_CHART_PATH=${operator_chart}"
-            echo "KUBERNAUT_DEPENDENCY_CHART_PATH=${dependency_chart}"
-            echo "KUBERNAUT_OPERATOR_IMAGE=${operator_image}"
-            echo "KUBERNAUT_OPERATOR_IMAGE_TAR=${operator_tar}"
-            echo "KUBERNAUT_OPERATOR_SHA=${OPERATOR_SHA}"
-            echo "KUBERNAUT_CONSOLE_IMAGE=localhost/kubernaut-console:${ARTIFACT_TAG}"
-          } >> "${GITHUB_ENV}"
+        run: e2e/live/scripts/ci-verify-live-artifacts.sh
 
       - name: Provision the approved LLM credential file
-        shell: bash
-        run: |
-          set -euo pipefail
-          [[ -n "${LLM_PROVIDER:-}" ]] || { echo "::error::Configure LIVE_E2E_LLM_PROVIDER or workflow_dispatch llm_provider"; exit 1; }
-          [[ -n "${LLM_MODEL:-}" ]] || { echo "::error::Configure LIVE_E2E_LLM_MODEL or workflow_dispatch llm_model"; exit 1; }
-          [[ -n "${LLM_CREDENTIAL:-}" ]] || { echo "::error::Configure the LIVE_E2E_LLM_CREDENTIAL secret"; exit 1; }
-          if [[ "${LLM_PROVIDER}" == "vertex_ai" ]]; then
-            [[ -n "${VERTEX_PROJECT:-}" ]] || { echo "::error::Vertex AI requires LIVE_E2E_VERTEX_PROJECT"; exit 1; }
-            [[ -n "${VERTEX_LOCATION:-}" ]] || { echo "::error::Vertex AI requires LIVE_E2E_VERTEX_LOCATION"; exit 1; }
-          else
-            [[ -n "${LLM_ENDPOINT:-}" ]] || { echo "::error::Configure LIVE_E2E_LLM_ENDPOINT or workflow_dispatch llm_endpoint"; exit 1; }
-          fi
-          credential_file="${LIVE_E2E_ROOT}/llm-credentials"
-          umask 077
-          printf '%s' "${LLM_CREDENTIAL}" >"${credential_file}"
-          chmod 600 "${credential_file}"
-          echo "LIVE_E2E_LLM_CREDENTIAL_FILE=${credential_file}" >> "${GITHUB_ENV}"
+        run: e2e/live/scripts/ci-provision-live-credentials.sh
 
       - name: Provision Kind topology and operator application
         id: provision
-        shell: bash
-        working-directory: kubernaut
-        run: |
-          set -euo pipefail
-          args=(
-            "-mode=${MODE}"
-            "-cluster-name=${HUB_CLUSTER_NAME}"
-            "-remote-cluster-name=${SPOKE_CLUSTER_NAME}"
-            "-kubeconfig=${HUB_KUBECONFIG}"
-            "-llm-provider=${LLM_PROVIDER}"
-            "-llm-model=${LLM_MODEL}"
-            "-llm-credentials-file=${LIVE_E2E_LLM_CREDENTIAL_FILE}"
-            "-gateway-type=${GATEWAY_TYPE}"
-            "-image-repository=localhost"
-            "-image-tag=${ARTIFACT_TAG}"
-            "-operator-image=${KUBERNAUT_OPERATOR_IMAGE}"
-            "-sp-policy-file=${LIVE_E2E_SCENARIOS_DIR}/deploy/defaults/signalprocessing-policy.rego"
-            "-aa-policy-file=${LIVE_E2E_SCENARIOS_DIR}/deploy/defaults/approval-policy.rego"
-          )
-          if [[ "${LLM_PROVIDER}" != "vertex_ai" ]]; then
-            args+=("-llm-endpoint=${LLM_ENDPOINT}")
-          else
-            args+=("-vertex-project=${VERTEX_PROJECT}" "-vertex-location=${VERTEX_LOCATION}")
-          fi
-          go run ./hack/setup-demo-infra "${args[@]}"
+        env:
+          KUBERNAUT_ROOT: ${{ github.workspace }}/kubernaut
+        run: e2e/live/scripts/ci-provision-demo-infra.sh
 
       - name: Emit and consume sanitized runtime manifest
         id: runtime
@@ -902,122 +559,27 @@ jobs:
           KUBERNAUT_SHA: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
           OPERATOR_SHA: ${{ needs.resolve-pins.outputs.operator_sha }}
           SCENARIOS_SHA: ${{ needs.resolve-pins.outputs.scenarios_sha }}
-        run: |
-          set -euo pipefail
-          e2e/live/scripts/kind-runtime-manifest.sh \
-            --mode "${MODE}" \
-            --hub-kubeconfig "${HUB_KUBECONFIG}" \
-            --spoke-kubeconfig "${SPOKE_KUBECONFIG}" \
-            --hub-cluster-name "${HUB_CLUSTER_NAME}" \
-            --spoke-cluster-name "${SPOKE_CLUSTER_NAME}" \
-            --output "${LIVE_E2E_SETUP_MANIFEST}" \
-            --console-url "${LIVE_E2E_CONSOLE_URL}" \
-            --api-frontend-url "${LIVE_E2E_API_FRONTEND_URL}" \
-            --keycloak-url "${LIVE_E2E_KEYCLOAK_URL}" \
-            --artifact-tag "${ARTIFACT_TAG}" \
-            --console-sha "${CONSOLE_SHA}" \
-            --kubernaut-sha "${KUBERNAUT_SHA}" \
-            --operator-sha "${OPERATOR_SHA}" \
-            --scenarios-sha "${SCENARIOS_SHA}"
-          {
-            echo "LIVE_E2E_CONSOLE_URL=$(jq -er '.urls.console' "${LIVE_E2E_SETUP_MANIFEST}")"
-            echo "LIVE_E2E_API_FRONTEND_URL=$(jq -er '.urls.apiFrontend' "${LIVE_E2E_SETUP_MANIFEST}")"
-            echo "LIVE_E2E_KEYCLOAK_URL=$(jq -er '.urls.keycloak' "${LIVE_E2E_SETUP_MANIFEST}")"
-            echo "LIVE_E2E_TARGET_KUBECONFIG=$(jq -er '.kubeconfigs.target' "${LIVE_E2E_SETUP_MANIFEST}")"
-            if [[ "${MODE}" == "fleet" ]]; then
-              echo "LIVE_E2E_FLEET_CLUSTER_ID=$(jq -er '.fleet.remoteClusterID' "${LIVE_E2E_SETUP_MANIFEST}")"
-              echo "LIVE_E2E_GATEWAY_TYPE=$(jq -er '.fleet.gateway.type' "${LIVE_E2E_SETUP_MANIFEST}")"
-              echo "LIVE_E2E_GATEWAY_ENDPOINT=$(jq -er '.fleet.gateway.endpoint' "${LIVE_E2E_SETUP_MANIFEST}")"
-            else
-              echo "LIVE_E2E_FLEET_CLUSTER_ID="
-              echo "LIVE_E2E_GATEWAY_TYPE=none"
-              echo "LIVE_E2E_GATEWAY_ENDPOINT="
-            fi
-          } >> "${GITHUB_ENV}"
+        run: e2e/live/scripts/ci-emit-live-runtime.sh
 
       - name: Seed catalog and policy prerequisites
         id: seed
-        run: |
-          set -euo pipefail
-          args=(--mode "${MODE}" --hub-kubeconfig "${HUB_KUBECONFIG}" --scenarios-dir "${LIVE_E2E_SCENARIOS_DIR}")
-          if [[ "${MODE}" == "fleet" ]]; then
-            args+=(--spoke-kubeconfig "${SPOKE_KUBECONFIG}")
-          fi
-          e2e/live/scripts/kind-seed-prerequisites.sh "${args[@]}"
+        if: steps.runtime.outcome == 'success'
+        run: e2e/live/scripts/ci-seed-live-prerequisites.sh
 
       - name: Preflight the running topology
         id: preflight
-        run: |
-          set -euo pipefail
-          args=(
-            --mode "${MODE}"
-            --hub-kubeconfig "${HUB_KUBECONFIG}"
-            --hub-cluster-name "${HUB_CLUSTER_NAME}"
-            --spoke-cluster-name "${SPOKE_CLUSTER_NAME}"
-            --runtime-manifest "${LIVE_E2E_SETUP_MANIFEST}"
-            --image-tag "${ARTIFACT_TAG}"
-            --operator-image "${KUBERNAUT_OPERATOR_IMAGE}"
-          )
-          if [[ "${MODE}" == "fleet" ]]; then
-            args+=(--spoke-kubeconfig "${SPOKE_KUBECONFIG}")
-          fi
-          e2e/live/scripts/kind-preflight.sh "${args[@]}"
+        if: steps.seed.outcome == 'success'
+        run: e2e/live/scripts/ci-preflight-live.sh
 
       - name: Create fresh live fault fixtures
         id: fixtures
-        run: |
-          set -euo pipefail
-          args=(
-            --mode "${MODE}"
-            --hub-kubeconfig "${HUB_KUBECONFIG}"
-            --scenarios-dir "${LIVE_E2E_SCENARIOS_DIR}"
-            --state-file "${LIVE_E2E_STATE_FILE}"
-            --suffix "${LIVE_E2E_NS_SUFFIX}"
-          )
-          if [[ "${MODE}" == "fleet" ]]; then
-            args+=(--spoke-kubeconfig "${SPOKE_KUBECONFIG}")
-          fi
-          e2e/live/scripts/kind-setup-fixtures.sh "${args[@]}"
+        if: steps.preflight.outcome == 'success'
+        run: e2e/live/scripts/ci-setup-live-fixtures.sh
 
       - name: Run the real Playwright suite
         id: playwright
         if: steps.fixtures.outcome == 'success'
-        run: |
-          set +e
-          proof_pid=""
-          proof_log="${LIVE_E2E_DIAGNOSTICS_ROOT}/fleet-spoke-proof.log"
-          if [[ "${MODE}" == "fleet" ]]; then
-            e2e/live/scripts/assert-fleet-spoke-execution.sh \
-              --hub-kubeconfig "${HUB_KUBECONFIG}" \
-              --spoke-kubeconfig "${SPOKE_KUBECONFIG}" \
-              --suffix "${LIVE_E2E_NS_SUFFIX}" \
-              --cluster-id "${LIVE_E2E_FLEET_CLUSTER_ID}" \
-              --timeout-seconds 5400 \
-              --output "${LIVE_E2E_DIAGNOSTICS_ROOT}/fleet-spoke-proof.json" \
-              >"${proof_log}" 2>&1 &
-            proof_pid=$!
-          fi
-          pnpm exec playwright test --config=playwright.live-kind.config.ts
-          playwright_status=$?
-          proof_status=0
-          if [[ -n "${proof_pid}" ]]; then
-            if [[ "${playwright_status}" -eq 0 ]]; then
-              wait "${proof_pid}"
-              proof_status=$?
-            else
-              kill "${proof_pid}" 2>/dev/null || true
-              wait "${proof_pid}" 2>/dev/null || true
-            fi
-          fi
-          echo "status=${playwright_status}" >> "${GITHUB_OUTPUT}"
-          if [[ "${playwright_status}" -ne 0 ]]; then
-            exit "${playwright_status}"
-          fi
-          if [[ "${proof_status}" -ne 0 ]]; then
-            echo "Fleet spoke proof failed:" >&2
-            cat "${proof_log}" >&2
-            exit "${proof_status}"
-          fi
+        run: e2e/live/scripts/ci-run-local-fleet-playwright.sh
 
       - name: Enforce non-empty and allowlisted Playwright report
         if: steps.playwright.outcome == 'success'
@@ -1033,36 +595,12 @@ jobs:
 
       - name: Collect sanitized diagnostics
         if: always()
-        run: |
-          set +e
-          args=(
-            --mode "${MODE}"
-            --hub-kubeconfig "${HUB_KUBECONFIG}"
-            --output "${LIVE_E2E_DIAGNOSTICS_ROOT}"
-          )
-          if [[ "${MODE}" == "fleet" ]]; then
-            args+=(--spoke-kubeconfig "${SPOKE_KUBECONFIG}")
-          fi
-          e2e/live/scripts/collect-kind-diagnostics.sh "${args[@]}"
+        run: e2e/live/scripts/ci-collect-live-diagnostics.sh
 
       - name: Scan diagnostics and browser artifacts for credentials
         id: artifact_scan
         if: always()
-        run: |
-          set -euo pipefail
-          scan_paths=()
-          [[ -d "${LIVE_E2E_DIAGNOSTICS_ROOT}" ]] && scan_paths+=("${LIVE_E2E_DIAGNOSTICS_ROOT}")
-          [[ -f "${LIVE_E2E_SETUP_MANIFEST}" ]] && scan_paths+=("${LIVE_E2E_SETUP_MANIFEST}")
-          [[ -f "${LIVE_E2E_REPORT}" ]] && scan_paths+=("${LIVE_E2E_REPORT}")
-          [[ -d "test-results" ]] && scan_paths+=("test-results")
-          [[ "${#scan_paths[@]}" -gt 0 ]] || { echo "error: no live-E2E output exists to scan" >&2; exit 1; }
-          secret_args=()
-          if [[ -n "${LIVE_E2E_LLM_CREDENTIAL_FILE:-}" && -f "${LIVE_E2E_LLM_CREDENTIAL_FILE}" ]]; then
-            secret_args+=(--secret-file "${LIVE_E2E_LLM_CREDENTIAL_FILE}")
-          fi
-          python3 e2e/live/scripts/scan-live-artifacts.py \
-            "${secret_args[@]}" \
-            "${scan_paths[@]}"
+        run: e2e/live/scripts/ci-scan-live-artifacts.sh
 
       - name: Upload sanitized live diagnostics
         if: always() && steps.artifact_scan.outcome == 'success'
@@ -1078,18 +616,7 @@ jobs:
 
       - name: Tear down run-owned Kind resources
         if: always()
-        run: |
-          set +e
-          args=(
-            --mode "${MODE}"
-            --hub-kubeconfig "${HUB_KUBECONFIG}"
-            --hub-cluster-name "${HUB_CLUSTER_NAME}"
-            --state-file "${LIVE_E2E_STATE_FILE}"
-          )
-          if [[ "${MODE}" == "fleet" ]]; then
-            args+=(--spoke-kubeconfig "${SPOKE_KUBECONFIG}" --spoke-cluster-name "${SPOKE_CLUSTER_NAME}")
-          fi
-          e2e/live/scripts/kind-teardown.sh "${args[@]}"
+        run: e2e/live/scripts/ci-teardown-live.sh
 
   live-fullpipeline-e2e:
     name: Live E2E (native FullPipeline mock LLM)
@@ -1147,69 +674,10 @@ jobs:
           podman info
 
       - name: Install pinned Kubernetes tooling
-        shell: bash
-        run: |
-          set -euo pipefail
-          bin_dir="${RUNNER_TEMP}/live-e2e-fullpipeline-bin"
-          mkdir -p "${bin_dir}"
-
-          kind_version="v0.32.0"
-          curl --fail --silent --show-error --location \
-            --output "${bin_dir}/kind" \
-            "https://github.com/kubernetes-sigs/kind/releases/download/${kind_version}/kind-linux-amd64"
-          echo "50030de23cf40a18505f20426f6a8506bedf13c6e509244bd1fa9463721b0f54  ${bin_dir}/kind" | sha256sum --check
-          chmod 0755 "${bin_dir}/kind"
-
-          kubectl_version="v1.36.1"
-          curl --fail --silent --show-error --location \
-            --output "${bin_dir}/kubectl" \
-            "https://dl.k8s.io/release/${kubectl_version}/bin/linux/amd64/kubectl"
-          echo "629d3f410e09bf49b64ae7079f7f0bda1191efed311f7d37fdbab0ad5b0ec2b7  ${bin_dir}/kubectl" | sha256sum --check
-          chmod 0755 "${bin_dir}/kubectl"
-
-          helm_version="v3.18.6"
-          curl --fail --silent --show-error --location \
-            --output "${RUNNER_TEMP}/live-e2e-fullpipeline-helm.tgz" \
-            "https://get.helm.sh/helm-${helm_version}-linux-amd64.tar.gz"
-          echo "3f43c0aa57243852dd542493a0f54f1396c0bc8ec7296bbb2c01e802010819ce  ${RUNNER_TEMP}/live-e2e-fullpipeline-helm.tgz" | sha256sum --check
-          tar -xzf "${RUNNER_TEMP}/live-e2e-fullpipeline-helm.tgz" -C "${RUNNER_TEMP}"
-          mv "${RUNNER_TEMP}/linux-amd64/helm" "${bin_dir}/helm"
-          chmod 0755 "${bin_dir}/helm"
-
-          echo "${bin_dir}" >> "${GITHUB_PATH}"
-          "${bin_dir}/kind" version
-          "${bin_dir}/kubectl" version --client
-          "${bin_dir}/helm" version
+        run: e2e/live/scripts/ci-install-kubernetes-tooling.sh
 
       - name: Define native FullPipeline runtime paths
-        shell: bash
-        run: |
-          set -euo pipefail
-          root="${RUNNER_TEMP}/kubernaut-console-live-fullpipeline-${GITHUB_RUN_ID}"
-          kubeconfig="${HOME}/.kube/fullpipeline-e2e-config"
-          mkdir -p "${HOME}/.kube" "${root}/artifacts" "${root}/runtime" "${root}/diagnostics"
-          chmod 700 "${root}" "${root}/artifacts" "${root}/runtime" "${root}/diagnostics"
-          {
-            echo "LIVE_E2E_ROOT=${root}"
-            echo "LIVE_E2E_ARTIFACT_ROOT=${root}/artifacts"
-            echo "LIVE_E2E_RUNTIME_ROOT=${root}/runtime"
-            echo "LIVE_E2E_DIAGNOSTICS_ROOT=${root}/diagnostics"
-            echo "HUB_CLUSTER_NAME=fullpipeline-e2e"
-            echo "HUB_KUBECONFIG=${kubeconfig}"
-            echo "LIVE_E2E_HUB_KUBECONFIG=${kubeconfig}"
-            echo "LIVE_E2E_STATE_FILE=${root}/native-fixture.env"
-            echo "LIVE_E2E_REPORT=${root}/live-e2e-fullpipeline.json"
-            echo "LIVE_E2E_JSON_REPORT=${root}/live-e2e-fullpipeline.json"
-            echo "LIVE_E2E_CONSOLE_URL=http://127.0.0.1:5174"
-            echo "LIVE_E2E_API_FRONTEND_URL=https://127.0.0.1:18443"
-            echo "LIVE_E2E_DEX_URL=https://127.0.0.1:30556/dex"
-            echo "LIVE_E2E_SETUP_MANIFEST=${root}/runtime/setup-runtime.json"
-            echo "LIVE_E2E_NATIVE_LOG=${root}/runtime/upstream-fullpipeline.log"
-            echo "LIVE_E2E_KUBE_TOOL=kubectl"
-            echo "LIVE_E2E_TARGET_KUBECONFIG=${kubeconfig}"
-            echo "LIVE_E2E_IGNORE_HTTPS_ERRORS=true"
-            echo "KUBECONFIG=${kubeconfig}"
-          } >> "${GITHUB_ENV}"
+        run: e2e/live/scripts/ci-define-live-runtime.sh
 
       - name: Download this run's immutable artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1219,133 +687,48 @@ jobs:
           merge-multiple: false
 
       - name: Verify and load immutable artifacts
-        shell: bash
         env:
           CONSOLE_SHA: ${{ needs.resolve-pins.outputs.console_sha }}
           KUBERNAUT_SHA: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
           OPERATOR_SHA: ${{ needs.resolve-pins.outputs.operator_sha }}
           SCENARIOS_SHA: ${{ needs.resolve-pins.outputs.scenarios_sha }}
-        run: |
-          set -euo pipefail
-          manifest="$(find "${LIVE_E2E_ARTIFACT_ROOT}" -type f -name manifest.json -print -quit)"
-          [[ -n "${manifest}" && -f "${manifest}" ]] || { echo "error: provenance manifest was not downloaded" >&2; exit 1; }
-          python3 e2e/live/scripts/verify-live-artifacts.py \
-            --root "${LIVE_E2E_ARTIFACT_ROOT}" \
-            --manifest "${manifest}" \
-            --output "${LIVE_E2E_RUNTIME_ROOT}" \
-            --console-sha "${CONSOLE_SHA}" \
-            --kubernaut-sha "${KUBERNAUT_SHA}" \
-            --operator-sha "${OPERATOR_SHA}" \
-            --scenarios-sha "${SCENARIOS_SHA}" > "${LIVE_E2E_RUNTIME_ROOT}/verification.json"
+        run: e2e/live/scripts/ci-verify-live-artifacts.sh
 
-          scenario_root="$(jq -er '.scenarioRoot' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
-          operator_chart="$(jq -er '.operatorChartPath' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
-          dependency_chart="$(jq -er '.dependencyChartPath' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
-          operator_image="$(jq -er '.operatorImage' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
-          console_image="$(jq -er '.consoleImage' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
-          operator_tar="$(find "${LIVE_E2E_ARTIFACT_ROOT}" -type f -name operator-image.tar -print -quit)"
-          [[ -d "${scenario_root}" && -d "${operator_chart}" && -d "${dependency_chart}" ]] || exit 1
-          [[ -n "${operator_tar}" && -f "${operator_tar}" ]] || exit 1
-          {
-            echo "LIVE_E2E_SCENARIOS_DIR=${scenario_root}"
-            echo "KUBERNAUT_OPERATOR_CHART_PATH=${operator_chart}"
-            echo "KUBERNAUT_DEPENDENCY_CHART_PATH=${dependency_chart}"
-            echo "KUBERNAUT_OPERATOR_IMAGE=${operator_image}"
-            echo "KUBERNAUT_OPERATOR_IMAGE_TAR=${operator_tar}"
-            echo "KUBERNAUT_OPERATOR_SHA=${OPERATOR_SHA}"
-            echo "KUBERNAUT_CONSOLE_IMAGE=${console_image}"
-            echo "KUBERNAUT_CI_ARTIFACT_TAG=${ARTIFACT_TAG}"
-          } >> "${GITHUB_ENV}"
-
-      - name: Run upstream FullPipeline mock-LLM E2E and preserve its cluster
-        id: upstream
-        working-directory: kubernaut
-        shell: bash
-        run: |
-          set -o pipefail
-          umask 077
-          unset SKIP_MOCK_LLM
-          PRESERVE_E2E_CLUSTER=true \
-            KUBERNAUT_CI_ARTIFACT_TAG="${KUBERNAUT_CI_ARTIFACT_TAG}" \
-            make test-e2e-fullpipeline 2>&1 | tee "${LIVE_E2E_NATIVE_LOG}"
-          chmod 600 "${LIVE_E2E_NATIVE_LOG}"
+      - name: Provision native FullPipeline setup only
+        id: provision
+        env:
+          KUBERNAUT_ROOT: ${{ github.workspace }}/kubernaut
+        run: e2e/live/scripts/ci-provision-native-fullpipeline.sh
 
       - name: Emit and consume sanitized native runtime manifest
         id: runtime
-        if: steps.upstream.outcome == 'success'
+        if: steps.provision.outcome == 'success'
         env:
           CONSOLE_SHA: ${{ needs.resolve-pins.outputs.console_sha }}
           KUBERNAUT_SHA: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
           OPERATOR_SHA: ${{ needs.resolve-pins.outputs.operator_sha }}
           SCENARIOS_SHA: ${{ needs.resolve-pins.outputs.scenarios_sha }}
-        run: |
-          set -euo pipefail
-          e2e/live/scripts/kind-runtime-manifest.sh \
-            --mode fullpipeline \
-            --hub-kubeconfig "${HUB_KUBECONFIG}" \
-            --hub-cluster-name fullpipeline-e2e \
-            --output "${LIVE_E2E_SETUP_MANIFEST}" \
-            --console-url "${LIVE_E2E_CONSOLE_URL}" \
-            --api-frontend-url "${LIVE_E2E_API_FRONTEND_URL}" \
-            --dex-url "${LIVE_E2E_DEX_URL}" \
-            --native-log "${LIVE_E2E_NATIVE_LOG}" \
-            --artifact-tag "${ARTIFACT_TAG}" \
-            --console-sha "${CONSOLE_SHA}" \
-            --kubernaut-sha "${KUBERNAUT_SHA}" \
-            --operator-sha "${OPERATOR_SHA}" \
-            --scenarios-sha "${SCENARIOS_SHA}"
-          {
-            echo "LIVE_E2E_CONSOLE_URL=$(jq -er '.urls.console' "${LIVE_E2E_SETUP_MANIFEST}")"
-            echo "LIVE_E2E_API_FRONTEND_URL=$(jq -er '.urls.apiFrontend' "${LIVE_E2E_SETUP_MANIFEST}")"
-            echo "LIVE_E2E_DEX_URL=$(jq -er '.urls.dex' "${LIVE_E2E_SETUP_MANIFEST}")"
-            echo "LIVE_E2E_TARGET_KUBECONFIG=$(jq -er '.kubeconfigs.target' "${LIVE_E2E_SETUP_MANIFEST}")"
-            echo "LIVE_E2E_NATIVE_TARGET_NAMESPACE=$(jq -er '.fullPipeline.targets.memoryEater.namespace' "${LIVE_E2E_SETUP_MANIFEST}")"
-            echo "LIVE_E2E_NATIVE_TARGET_NAME=$(jq -er '.fullPipeline.targets.memoryEater.name' "${LIVE_E2E_SETUP_MANIFEST}")"
-          } >> "${GITHUB_ENV}"
+        run: e2e/live/scripts/ci-emit-live-runtime.sh
 
       - name: Verify native catalog and scenario prerequisites without reseeding
         id: seed
         if: steps.runtime.outcome == 'success'
-        run: |
-          set -euo pipefail
-          e2e/live/scripts/kind-seed-prerequisites.sh \
-            --mode fullpipeline \
-            --hub-kubeconfig "${HUB_KUBECONFIG}" \
-            --scenarios-dir "${LIVE_E2E_SCENARIOS_DIR}" \
-            --runtime-manifest "${LIVE_E2E_SETUP_MANIFEST}"
+        run: e2e/live/scripts/ci-seed-live-prerequisites.sh
 
       - name: Preflight the native FullPipeline topology
         id: preflight
         if: steps.seed.outcome == 'success'
-        run: |
-          set -euo pipefail
-          e2e/live/scripts/kind-preflight.sh \
-            --mode fullpipeline \
-            --hub-kubeconfig "${HUB_KUBECONFIG}" \
-            --hub-cluster-name fullpipeline-e2e \
-            --runtime-manifest "${LIVE_E2E_SETUP_MANIFEST}" \
-            --operator-image "${KUBERNAUT_OPERATOR_IMAGE}"
+        run: e2e/live/scripts/ci-preflight-live.sh
 
       - name: Consume the upstream stable fixture read-only
         id: fixtures
         if: steps.preflight.outcome == 'success'
-        run: |
-          set -euo pipefail
-          e2e/live/scripts/kind-setup-fixtures.sh \
-            --mode fullpipeline \
-            --hub-kubeconfig "${HUB_KUBECONFIG}" \
-            --state-file "${LIVE_E2E_STATE_FILE}" \
-            --runtime-manifest "${LIVE_E2E_SETUP_MANIFEST}"
+        run: e2e/live/scripts/ci-setup-live-fixtures.sh
 
       - name: Run native Console Playwright coverage
         id: playwright
         if: steps.fixtures.outcome == 'success'
-        run: |
-          set +e
-          pnpm exec playwright test --config=playwright.live-fullpipeline.config.ts
-          playwright_status=$?
-          echo "status=${playwright_status}" >> "${GITHUB_OUTPUT}"
-          exit "${playwright_status}"
+        run: pnpm exec playwright test --config=playwright.live-fullpipeline.config.ts
 
       - name: Enforce non-empty native Playwright report
         if: steps.playwright.outcome == 'success'
@@ -1353,26 +736,12 @@ jobs:
 
       - name: Collect sanitized native diagnostics
         if: always()
-        run: |
-          set +e
-          e2e/live/scripts/collect-kind-diagnostics.sh \
-            --mode fullpipeline \
-            --hub-kubeconfig "${HUB_KUBECONFIG}" \
-            --output "${LIVE_E2E_DIAGNOSTICS_ROOT}" \
-            --native-log "${LIVE_E2E_NATIVE_LOG}"
+        run: e2e/live/scripts/ci-collect-live-diagnostics.sh
 
       - name: Scan native diagnostics and browser artifacts for credentials
         id: artifact_scan
         if: always()
-        run: |
-          set -euo pipefail
-          scan_paths=()
-          [[ -d "${LIVE_E2E_DIAGNOSTICS_ROOT}" ]] && scan_paths+=("${LIVE_E2E_DIAGNOSTICS_ROOT}")
-          [[ -f "${LIVE_E2E_SETUP_MANIFEST}" ]] && scan_paths+=("${LIVE_E2E_SETUP_MANIFEST}")
-          [[ -f "${LIVE_E2E_REPORT}" ]] && scan_paths+=("${LIVE_E2E_REPORT}")
-          [[ -d "test-results" ]] && scan_paths+=("test-results")
-          [[ "${#scan_paths[@]}" -gt 0 ]] || { echo "error: no native live-E2E output exists to scan" >&2; exit 1; }
-          python3 e2e/live/scripts/scan-live-artifacts.py "${scan_paths[@]}"
+        run: e2e/live/scripts/ci-scan-live-artifacts.sh
 
       - name: Upload sanitized native diagnostics
         if: always() && steps.artifact_scan.outcome == 'success'
@@ -1388,10 +757,4 @@ jobs:
 
       - name: Tear down exact native FullPipeline Kind cluster
         if: always()
-        run: |
-          set +e
-          e2e/live/scripts/kind-teardown.sh \
-            --mode fullpipeline \
-            --hub-kubeconfig "${HUB_KUBECONFIG}" \
-            --hub-cluster-name fullpipeline-e2e \
-            --state-file "${LIVE_E2E_STATE_FILE}"
+        run: e2e/live/scripts/ci-teardown-live.sh

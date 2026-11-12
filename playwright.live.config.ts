@@ -1,9 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // ADR-009: separate project from playwright.config.ts's mocked suite.
-// Targets a real, preserved `fullpipeline` Kind cluster (kubernaut's own
-// `PRESERVE_E2E_CLUSTER=true make test-e2e-fullpipeline`) instead of a
-// mocked A2A backend. Never run as part of the PR-blocking `e2e.yml` gate —
+// Targets a real, preserved `fullpipeline` Kind cluster created by the native
+// setup-only adapter instead of a mocked A2A backend. Never run as part of the
+// PR-blocking `e2e.yml` gate —
 // see .github/workflows/e2e-live.yml (nightly + workflow_dispatch, added
 // alongside the CI harness this suite depends on).
 //
