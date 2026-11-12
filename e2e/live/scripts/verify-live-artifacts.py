@@ -33,14 +33,19 @@ def sha256(path: Path) -> str:
 
 
 def safe_member_path(member: tarfile.TarInfo, destination: Path) -> Path:
-    if member.islnk() or member.issym():
-        fail(f"archive contains a link: {member.name}")
+    if member.islnk():
+        fail(f"archive contains a hard link: {member.name}")
     relative = Path(member.name)
-    if relative.is_absolute() or ".." in relative.parts:
+    if not member.name or relative.is_absolute() or ".." in relative.parts:
         fail(f"archive contains an unsafe path: {member.name}")
-    target = (destination / relative).resolve()
-    if destination.resolve() not in target.parents and target != destination.resolve():
+    root = destination.resolve()
+    target = (root / relative).resolve()
+    if root not in target.parents and target != root:
         fail(f"archive escapes extraction directory: {member.name}")
+    if member.issym():
+        link_target = (target.parent / member.linkname).resolve()
+        if root not in link_target.parents and link_target != root:
+            fail(f"archive symlink escapes extraction directory: {member.name} -> {member.linkname}")
     return target
 
 
@@ -57,8 +62,36 @@ def extract_archive(archive: Path, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     with tarfile.open(archive, "r:*") as stream:
         members = stream.getmembers()
+        members_by_path: dict[str, tarfile.TarInfo] = {}
+        symlink_paths: set[str] = set()
         for member in members:
             safe_member_path(member, destination)
+            relative = Path(member.name)
+            normalized = relative.as_posix()
+            if normalized in members_by_path:
+                fail(f"archive contains duplicate path: {member.name}")
+            members_by_path[normalized] = member
+            if member.issym():
+                symlink_paths.add(normalized)
+
+        root = destination.resolve()
+        for member in members:
+            relative = Path(member.name)
+            if any(
+                parent.as_posix() in symlink_paths
+                for parent in relative.parents
+                if parent != Path(".")
+            ):
+                fail(f"archive member is beneath a symlink: {member.name}")
+            if member.issym():
+                target = (root / relative).resolve()
+                link_target = (target.parent / member.linkname).resolve()
+                link_name = link_target.relative_to(root).as_posix()
+                linked_member = members_by_path.get(link_name)
+                if linked_member is None:
+                    fail(f"archive symlink target is missing: {member.name} -> {member.linkname}")
+                if linked_member.issym() or linked_member.islnk():
+                    fail(f"archive symlink target is a link: {member.name} -> {member.linkname}")
         stream.extractall(destination, filter="data")
 
 
