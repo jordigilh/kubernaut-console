@@ -50,5 +50,57 @@ class ArchiveImageIDTests(unittest.TestCase):
                 VERIFY.archive_image_id(archive)
 
 
+class ArchiveExtractionTests(unittest.TestCase):
+    def test_allows_internal_relative_symlinks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "scenarios.tar"
+            with tarfile.open(archive, "w") as stream:
+                target = b"kind: Cluster\n"
+                target_member = tarfile.TarInfo("scenarios/kind-config-singlenode.yaml")
+                target_member.size = len(target)
+                stream.addfile(target_member, io.BytesIO(target))
+                link_member = tarfile.TarInfo("scenarios/gitops-drift/kind-config.yaml")
+                link_member.type = tarfile.SYMTYPE
+                link_member.linkname = "../kind-config-singlenode.yaml"
+                stream.addfile(link_member)
+
+            destination = Path(directory) / "extracted"
+            VERIFY.extract_archive(archive, destination)
+
+            link = destination / "scenarios/gitops-drift/kind-config.yaml"
+            self.assertTrue(link.is_symlink())
+            self.assertEqual(b"kind: Cluster\n", link.read_bytes())
+
+    def test_rejects_symlink_that_escapes_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "unsafe.tar"
+            with tarfile.open(archive, "w") as stream:
+                link_member = tarfile.TarInfo("scenarios/kind-config.yaml")
+                link_member.type = tarfile.SYMTYPE
+                link_member.linkname = "../../outside"
+                stream.addfile(link_member)
+
+            with self.assertRaisesRegex(SystemExit, "symlink escapes"):
+                VERIFY.extract_archive(archive, Path(directory) / "extracted")
+
+    def test_rejects_members_beneath_symlink_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "unsafe-nested.tar"
+            with tarfile.open(archive, "w") as stream:
+                target_member = tarfile.TarInfo("target")
+                target_member.type = tarfile.DIRTYPE
+                stream.addfile(target_member)
+                link_member = tarfile.TarInfo("alias")
+                link_member.type = tarfile.SYMTYPE
+                link_member.linkname = "target"
+                stream.addfile(link_member)
+                nested_member = tarfile.TarInfo("alias/file.txt")
+                nested_member.size = 1
+                stream.addfile(nested_member, io.BytesIO(b"x"))
+
+            with self.assertRaisesRegex(SystemExit, "beneath a symlink"):
+                VERIFY.extract_archive(archive, Path(directory) / "extracted")
+
+
 if __name__ == "__main__":
     unittest.main()
