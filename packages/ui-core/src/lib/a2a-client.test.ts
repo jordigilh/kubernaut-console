@@ -424,6 +424,31 @@ describe("streamA2A", () => {
     expect(onComplete).not.toHaveBeenCalled();
   });
 
+  it("IT-CONSOLE-168-039: does not fence the lifecycle when the user aborts an active stream", async () => {
+    const controller = new AbortController();
+    const onBackendIncarnation = vi.fn();
+    const fetchFn = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => {
+        reject(new DOMException("The operation was aborted.", "AbortError"));
+      }, { once: true });
+    }));
+
+    const stream = streamA2A(buildStreamRequest("investigate"), {
+      fetchFn,
+      onEvent: vi.fn(),
+      onError: vi.fn(),
+      onComplete: vi.fn(),
+      signal: controller.signal,
+      requireBackendIncarnation: true,
+      onBackendIncarnation,
+    });
+    controller.abort();
+    await stream;
+
+    expect(fetchFn).toHaveBeenCalledOnce();
+    expect(onBackendIncarnation).not.toHaveBeenCalled();
+  });
+
   it("UT-CONSOLE-A2A-010: does not replay when execution is in progress", async () => {
     const transientError = {
       jsonrpc: "2.0",

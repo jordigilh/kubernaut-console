@@ -163,7 +163,12 @@ async function attemptStream(
   });
 
   if (typeof fetchResult === "string") {
-    if (options.requireBackendIncarnation) options.onBackendIncarnation?.(null);
+    // User cancellation is an intentional local teardown, not evidence that
+    // the backend lifecycle is unavailable or has changed. Do not fence the
+    // authenticated UI when the stop control aborts this request.
+    if (fetchResult !== "aborted" && options.requireBackendIncarnation) {
+      options.onBackendIncarnation?.(null);
+    }
     return fetchResult;
   }
   if ("kind" in fetchResult && (fetchResult as SSEFetchError).kind === "fatal") {

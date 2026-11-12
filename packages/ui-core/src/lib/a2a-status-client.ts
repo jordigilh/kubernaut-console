@@ -93,7 +93,11 @@ async function attemptSubscription(
   });
 
   if (typeof fetchResult === "string") {
-    if (options.requireBackendIncarnation) options.onBackendIncarnation?.(null);
+    // A component unmount or explicit cancellation is local teardown, not a
+    // backend lifecycle failure. Preserve the authenticated UI on abort.
+    if (fetchResult !== "aborted" && options.requireBackendIncarnation) {
+      options.onBackendIncarnation?.(null);
+    }
     return fetchResult;
   }
   if ("kind" in fetchResult && (fetchResult as SSEFetchError).kind === "fatal") {

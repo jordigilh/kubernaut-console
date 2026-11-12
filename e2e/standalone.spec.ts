@@ -1,18 +1,58 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Standalone Mode E2E", () => {
-  // console#48: KubernautChat gates rendering behind GET /a2a/access. This
-  // suite runs against a fully mocked A2A backend (VITE_MOCK_A2A=true) with
-  // no real AF process to answer it -- vite's dev-server proxy would
-  // otherwise ECONNREFUSED on every page load and the fail-closed gate
-  // would block the chat shell for every test in this file. Stub it here at
-  // the network layer rather than relying on the VITE_MOCK_A2A build-time
-  // constant, since ui-core ships as a pre-built dist consumed by the
-  // standalone app and its import.meta.env checks are baked in at ui-core's
-  // own (unflagged) `pnpm build` time in CI.
+  // console#48 / console#168: KubernautChat gates rendering behind the
+  // access check and public backend-lifecycle contract. This suite runs
+  // against a fully mocked A2A backend (VITE_MOCK_A2A=true) with no real AF
+  // process to answer either request -- vite's dev-server proxy would
+  // otherwise ECONNREFUSED and the fail-closed gates would block the chat
+  // shell for every test in this file. Stub both at the network layer rather
+  // than relying on the VITE_MOCK_A2A build-time constant, since ui-core
+  // ships as a pre-built dist consumed by the standalone app and its
+  // import.meta.env checks are baked in at ui-core's own (unflagged)
+  // `pnpm build` time in CI.
   test.beforeEach(async ({ page }) => {
     await page.route("**/a2a/access", async (route) => {
       await route.fulfill({ status: 200 });
+    });
+    await page.route("**/.well-known/kubernaut-console-contract.json", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ backend_incarnation: "e2e-process" }),
+      });
+    });
+    // The built ui-core package does not receive Vite's runtime test env, so
+    // provide a minimal mocked stream here. Keep it open long enough for the
+    // always-available stop control to be exercised; the banner test below
+    // registers a more specific handler after this one and takes precedence.
+    await page.route("**/a2a/invoke", async (route) => {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
+        await route.fulfill({
+          status: 200,
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "x-kubernaut-backend-incarnation": "e2e-process",
+          },
+          body: `data: ${JSON.stringify({
+            jsonrpc: "2.0",
+            id: "e2e-invoke",
+            result: {
+              kind: "status-update",
+              taskId: "e2e-task",
+              contextId: "e2e-context",
+              status: {
+                state: "working",
+                message: { role: "agent", parts: [{ kind: "text", text: "Working..." }] },
+              },
+            },
+          })}\n\n`,
+        });
+      } catch {
+        // The stop control aborts this request before the delayed response.
+      }
     });
   });
 
@@ -48,14 +88,6 @@ test.describe("Standalone Mode E2E", () => {
   // session must not render the prior tab's conversation after logout.
   test("same-tab logout starts a blank authenticated conversation", async ({ page }) => {
     const previousText = "private incident details";
-    await page.addInitScript(({ previousText }) => {
-      if (sessionStorage.getItem("console-auth-boundary-e2e-seeded")) return;
-      sessionStorage.setItem("console-auth-boundary-e2e-seeded", "true");
-      sessionStorage.setItem("kubernaut-console-messages", JSON.stringify([
-        { id: "old-message", role: "user", text: previousText, timestamp: 1 },
-      ]));
-      sessionStorage.setItem("kubernaut-console-context", "old-context");
-    }, { previousText });
     await page.route("**/oauth2/sign_out", async (route) => {
       await route.fulfill({
         status: 200,
@@ -66,6 +98,9 @@ test.describe("Standalone Mode E2E", () => {
 
     await page.goto("/");
     await page.waitForLoadState("networkidle");
+    const input = page.locator("textarea[aria-label='Type your message']");
+    await input.fill(previousText);
+    await page.locator("button[aria-label='Send message']").click();
     await expect(page.getByText(previousText)).toBeVisible();
 
     await page.getByRole("link", { name: /sign out/i }).click();
@@ -212,7 +247,11 @@ test.describe("Standalone Mode E2E", () => {
 
       await route.fulfill({
         status: 200,
-        headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "x-kubernaut-backend-incarnation": "e2e-process",
+        },
         body: sseFrames.join(""),
       });
     });
@@ -227,7 +266,11 @@ test.describe("Standalone Mode E2E", () => {
 
       await route.fulfill({
         status: 200,
-        headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "x-kubernaut-backend-incarnation": "e2e-process",
+        },
         body: sseFrames.join(""),
       });
     });
