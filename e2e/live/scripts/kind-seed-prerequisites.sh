@@ -8,9 +8,10 @@ MODE=""
 HUB_KUBECONFIG=""
 SPOKE_KUBECONFIG=""
 SCENARIOS_DIR=""
+RUNTIME_MANIFEST=""
 
 usage() {
-  echo "usage: $0 --mode local|fleet --hub-kubeconfig PATH [--spoke-kubeconfig PATH] --scenarios-dir PATH" >&2
+  echo "usage: $0 --mode local|fleet|fullpipeline --hub-kubeconfig PATH [--spoke-kubeconfig PATH] [--scenarios-dir PATH] [--runtime-manifest PATH]" >&2
   exit 2
 }
 
@@ -20,13 +21,16 @@ while [[ $# -gt 0 ]]; do
     --hub-kubeconfig) HUB_KUBECONFIG="${2:-}"; shift 2 ;;
     --spoke-kubeconfig) SPOKE_KUBECONFIG="${2:-}"; shift 2 ;;
     --scenarios-dir) SCENARIOS_DIR="${2:-}"; shift 2 ;;
+    --runtime-manifest) RUNTIME_MANIFEST="${2:-}"; shift 2 ;;
     *) usage ;;
   esac
 done
 
-[[ "$MODE" == "local" || "$MODE" == "fleet" ]] || usage
+[[ "$MODE" == "local" || "$MODE" == "fleet" || "$MODE" == "fullpipeline" ]] || usage
 [[ -s "$HUB_KUBECONFIG" ]] || { echo "error: hub kubeconfig is missing" >&2; exit 1; }
-[[ -d "$SCENARIOS_DIR/scripts" ]] || { echo "error: scenario scripts are missing" >&2; exit 1; }
+if [[ "$MODE" != "fullpipeline" ]]; then
+  [[ -d "$SCENARIOS_DIR/scripts" ]] || { echo "error: scenario scripts are missing" >&2; exit 1; }
+fi
 if [[ "$MODE" == "fleet" && ! -s "$SPOKE_KUBECONFIG" ]]; then
   echo "error: fleet mode requires a spoke kubeconfig" >&2
   exit 1
@@ -40,6 +44,77 @@ PLATFORM_NS="kubernaut-system"
 export PLATFORM_NS
 export WE_NAMESPACE="kubernaut-workflows"
 export KUBECONFIG="$HUB_KUBECONFIG"
+
+if [[ "$MODE" == "fullpipeline" ]]; then
+  [[ -s "$RUNTIME_MANIFEST" ]] || { echo "error: native FullPipeline runtime manifest is missing" >&2; exit 1; }
+  [[ "$(jq -er '.mode' "$RUNTIME_MANIFEST")" == "fullpipeline" ]] || {
+    echo "error: native FullPipeline runtime manifest has the wrong mode" >&2
+    exit 1
+  }
+  [[ "$(jq -er '.clusters.hub.name' "$RUNTIME_MANIFEST")" == "fullpipeline-e2e" ]] || {
+    echo "error: native FullPipeline runtime manifest does not identify fullpipeline-e2e" >&2
+    exit 1
+  }
+
+  echo "==> Verifying upstream RemediationWorkflow catalog (read-only)"
+  workflow_json="$(kubectl --kubeconfig "$HUB_KUBECONFIG" get remediationworkflows -n "$PLATFORM_NS" -o json)"
+  workflow_count="$(jq -r '.items | length' <<<"$workflow_json")"
+  [[ "$workflow_count" -gt 0 ]] || { echo "error: upstream workflow catalog is empty" >&2; exit 1; }
+
+  while IFS= read -r workflow_key; do
+    [[ -n "$workflow_key" ]] || continue
+    workflow_name="${workflow_key%%:*}"
+    environment="${workflow_key#*:}"
+    expected_uuid="$(jq -er --arg key "$workflow_key" '.fullPipeline.workflowUUIDs[$key]' "$RUNTIME_MANIFEST")"
+    workflow_resource="$(jq -er --arg name "$workflow_name" '.items[] | select(.metadata.name == $name)' <<<"$workflow_json")" || {
+      echo "error: upstream workflow ${workflow_name} is missing" >&2
+      exit 1
+    }
+    jq -e --arg environment "$environment" --arg expected_uuid "$expected_uuid" '
+      (.spec.labels.environment // []) as $environments
+      | ([ $environments ] | flatten | map(tostring) | index($environment)) != null
+      and (.status.workflowId // "") == $expected_uuid
+      and (.status.catalogStatus // "") == "Active"
+    ' <<<"$workflow_resource" >/dev/null || {
+      echo "error: upstream workflow ${workflow_key} is not the active manifest-selected catalog entry" >&2
+      exit 1
+    }
+  done < <(jq -er '.fullPipeline.workflowUUIDs | keys[]' "$RUNTIME_MANIFEST")
+
+  echo "==> Verifying upstream mock-LLM scenario ConfigMap (read-only)"
+  scenarios_json="$(kubectl --kubeconfig "$HUB_KUBECONFIG" get configmap mock-llm-scenarios -n "$PLATFORM_NS" -o json)"
+  jq -e '.metadata.name == "mock-llm-scenarios" and .data["scenarios.yaml"] | length > 0' <<<"$scenarios_json" >/dev/null || {
+    echo "error: upstream mock-llm-scenarios ConfigMap has no scenarios.yaml" >&2
+    exit 1
+  }
+  scenarios_yaml="$(jq -er '.data["scenarios.yaml"]' <<<"$scenarios_json")"
+  while IFS= read -r namespace; do
+    [[ -n "$namespace" ]] || continue
+    grep -Fq "$namespace" <<<"$scenarios_yaml" || {
+      echo "error: upstream mock-LLM scenarios do not contain namespace ${namespace}" >&2
+      exit 1
+    }
+  done < <(jq -er '.fullPipeline.remediateNamespaces | to_entries[] | .value' "$RUNTIME_MANIFEST")
+
+  echo "==> Verifying upstream stable memory-eater target (read-only)"
+  target_json="$(kubectl --kubeconfig "$HUB_KUBECONFIG" get deployment memory-eater -n "$PLATFORM_NS" -o json)"
+  jq -e '
+    .metadata.namespace == "kubernaut-system"
+    and .metadata.name == "memory-eater"
+    and (.spec.replicas // 0) > 0
+  ' <<<"$target_json" >/dev/null || {
+    echo "error: upstream kubernaut-system/memory-eater target is missing or scaled down" >&2
+    exit 1
+  }
+  target_pods="$(kubectl --kubeconfig "$HUB_KUBECONFIG" get pods -n "$PLATFORM_NS" -l app=memory-eater -o json)"
+  jq -e '[.items[]?.status.containerStatuses[]? | (.state.waiting.reason // .state.terminated.reason // .lastState.terminated.reason)] | any(.[]; . == "CrashLoopBackOff" or . == "OOMKilled" or . == "Error")' <<<"$target_pods" >/dev/null || {
+    echo "error: upstream stable memory-eater target is not showing an OOM/crash fault" >&2
+    exit 1
+  }
+
+  echo "Native FullPipeline catalog, scenarios, and stable target verified without mutation"
+  exit 0
+fi
 
 if [[ "$MODE" == "fleet" ]]; then
   export HUB_KUBECONFIG="$HUB_KUBECONFIG"

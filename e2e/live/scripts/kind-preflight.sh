@@ -29,7 +29,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ "$MODE" == "local" || "$MODE" == "fleet" ]] || { echo "error: invalid mode" >&2; exit 2; }
+[[ "$MODE" == "local" || "$MODE" == "fleet" || "$MODE" == "fullpipeline" ]] || { echo "error: invalid mode" >&2; exit 2; }
 
 for command in kubectl jq curl; do
   command -v "$command" >/dev/null 2>&1 || { echo "error: $command is required" >&2; exit 1; }
@@ -38,6 +38,10 @@ done
 if [[ "$MODE" == "fleet" && ! -s "$SPOKE_KUBECONFIG" ]]; then
   echo "error: fleet mode requires a spoke kubeconfig" >&2
   exit 1
+fi
+if [[ "$MODE" == "fullpipeline" ]]; then
+  [[ -s "$RUNTIME_MANIFEST" ]] || { echo "error: native FullPipeline preflight requires a runtime manifest" >&2; exit 1; }
+  [[ "$HUB_CLUSTER_NAME" == "fullpipeline-e2e" ]] || { echo "error: native FullPipeline requires the exact fullpipeline-e2e cluster" >&2; exit 1; }
 fi
 
 PASS=0
@@ -51,6 +55,7 @@ spoke() { kubectl --kubeconfig "$SPOKE_KUBECONFIG" "$@"; }
 CONSOLE_URL="https://kubernaut-console.local:8843"
 API_FRONTEND_URL="https://127.0.0.1:18443"
 KEYCLOAK_URL="https://keycloak:8443/realms/kubernaut-demo"
+DEX_URL=""
 EXPECTED_REMOTE_CLUSTER_ID="remote-cluster"
 EXPECTED_GATEWAY_TYPE=""
 EXPECTED_GATEWAY_NAMESPACE="mcp-system"
@@ -64,7 +69,11 @@ if [[ -n "$RUNTIME_MANIFEST" ]]; then
   [[ "$manifest_mode" == "$MODE" ]] || { echo "error: runtime manifest mode does not match preflight mode" >&2; exit 1; }
   CONSOLE_URL="$(jq -er '.urls.console' "$RUNTIME_MANIFEST")" || { echo "error: runtime manifest has no Console URL" >&2; exit 1; }
   API_FRONTEND_URL="$(jq -er '.urls.apiFrontend' "$RUNTIME_MANIFEST")" || { echo "error: runtime manifest has no API Frontend URL" >&2; exit 1; }
-  KEYCLOAK_URL="$(jq -er '.urls.keycloak' "$RUNTIME_MANIFEST")" || { echo "error: runtime manifest has no Keycloak URL" >&2; exit 1; }
+  if [[ "$MODE" == "fullpipeline" ]]; then
+    DEX_URL="$(jq -er '.urls.dex' "$RUNTIME_MANIFEST")" || { echo "error: runtime manifest has no Dex URL" >&2; exit 1; }
+  else
+    KEYCLOAK_URL="$(jq -er '.urls.keycloak' "$RUNTIME_MANIFEST")" || { echo "error: runtime manifest has no Keycloak URL" >&2; exit 1; }
+  fi
   [[ "$(jq -er '.clusters.hub.name' "$RUNTIME_MANIFEST")" == "$HUB_CLUSTER_NAME" ]] || { echo "error: runtime manifest hub cluster mismatch" >&2; exit 1; }
   [[ "$(jq -er '.kubeconfigs.hub' "$RUNTIME_MANIFEST")" == "$HUB_KUBECONFIG" ]] || { echo "error: runtime manifest hub kubeconfig mismatch" >&2; exit 1; }
   if [[ "$MODE" == "fleet" ]]; then
@@ -167,12 +176,23 @@ else
   done
   jq -e '.items[0].status.services // [] | length > 0 and all(.[]; .ready == true)' <<<"$cr_json" >/dev/null 2>&1 \
     && pass "Kubernaut service status is Ready" || fail "one or more Kubernaut service statuses are not Ready"
-  jq -e '.items[0].spec.console.enabled == true' <<<"$cr_json" >/dev/null 2>&1 \
-    && pass "Console enabled in Kubernaut CR" || fail "Console is not enabled in Kubernaut CR"
-  jq -e '.items[0].spec.apiFrontend.enabled == true' <<<"$cr_json" >/dev/null 2>&1 \
-    && pass "API Frontend enabled in Kubernaut CR" || fail "API Frontend is not enabled in Kubernaut CR"
-  jq -e '.items[0].spec.gateway.enabled == false' <<<"$cr_json" >/dev/null 2>&1 \
-    && pass "Gateway disabled for console-driven lane" || fail "Gateway must be disabled for this console-driven lane"
+  if [[ "$MODE" == "fullpipeline" ]]; then
+    jq -e '(.items[0].spec.console.enabled // false) == false' <<<"$cr_json" >/dev/null 2>&1 \
+      && pass "Console disabled in native FullPipeline Kubernaut CR" || fail "Console must be disabled in native FullPipeline mode"
+    jq -e '.items[0].spec.apiFrontend.enabled == true' <<<"$cr_json" >/dev/null 2>&1 \
+      && pass "API Frontend enabled in native FullPipeline Kubernaut CR" || fail "API Frontend must be enabled in native FullPipeline mode"
+    jq -e '.items[0].spec.gateway.enabled == true' <<<"$cr_json" >/dev/null 2>&1 \
+      && pass "Gateway enabled in native FullPipeline Kubernaut CR" || fail "Gateway must be enabled in native FullPipeline mode"
+    jq -e '(.items[0].spec.fleet.enabled // false) == false' <<<"$cr_json" >/dev/null 2>&1 \
+      && pass "Fleet disabled in native FullPipeline Kubernaut CR" || fail "Fleet must be disabled in native FullPipeline mode"
+  else
+    jq -e '.items[0].spec.console.enabled == true' <<<"$cr_json" >/dev/null 2>&1 \
+      && pass "Console enabled in Kubernaut CR" || fail "Console is not enabled in Kubernaut CR"
+    jq -e '.items[0].spec.apiFrontend.enabled == true' <<<"$cr_json" >/dev/null 2>&1 \
+      && pass "API Frontend enabled in Kubernaut CR" || fail "API Frontend is not enabled in Kubernaut CR"
+    jq -e '.items[0].spec.gateway.enabled == false' <<<"$cr_json" >/dev/null 2>&1 \
+      && pass "Gateway disabled for console-driven lane" || fail "Gateway must be disabled for this console-driven lane"
+  fi
   if [[ "$MODE" == "fleet" ]]; then
     jq -e '.items[0].spec.fleet.enabled == true' <<<"$cr_json" >/dev/null 2>&1 \
       && pass "Fleet enabled in Kubernaut CR" || fail "Fleet is not enabled in Kubernaut CR"
@@ -183,30 +203,41 @@ else
 fi
 
 check_operator_readiness
-check_deployment "Hub" "$HUB_KUBECONFIG" traefik-system traefik
+if [[ "$MODE" == "fullpipeline" ]]; then
+  [[ "$HUB_CLUSTER_NAME" == "fullpipeline-e2e" ]] \
+    && pass "Native FullPipeline cluster identity is exact" \
+    || fail "Native FullPipeline requires the exact fullpipeline-e2e cluster"
+  check_deployment "Native Gateway" "$HUB_KUBECONFIG" kubernaut-system gateway
+  check_deployment "Native API Frontend" "$HUB_KUBECONFIG" kubernaut-system apifrontend
+  check_deployment "Native Dex" "$HUB_KUBECONFIG" kubernaut-system dex
+else
+  check_deployment "Hub" "$HUB_KUBECONFIG" traefik-system traefik
+fi
 
-if [[ -n "$IMAGE_TAG" ]]; then
+if [[ "$MODE" != "fullpipeline" && -n "$IMAGE_TAG" ]]; then
   check_pod_image "Console" "$HUB_KUBECONFIG" "localhost/kubernaut-console:${IMAGE_TAG}"
 fi
 if [[ -n "$OPERATOR_IMAGE" ]]; then
   check_pod_image "Operator" "$HUB_KUBECONFIG" "$OPERATOR_IMAGE"
 fi
 
-keycloak_name="$(hub get deployments -n idp -o json 2>/dev/null | jq -r '.items[] | select(.metadata.name | contains("keycloak")) | .metadata.name' | head -1)"
-if [[ -n "$keycloak_name" ]]; then
-  check_deployment "Identity" "$HUB_KUBECONFIG" idp "$keycloak_name"
-else
-  fail "no Keycloak deployment found in idp"
+if [[ "$MODE" != "fullpipeline" ]]; then
+  keycloak_name="$(hub get deployments -n idp -o json 2>/dev/null | jq -r '.items[] | select(.metadata.name | contains("keycloak")) | .metadata.name' | head -1)"
+  if [[ -n "$keycloak_name" ]]; then
+    check_deployment "Identity" "$HUB_KUBECONFIG" idp "$keycloak_name"
+  else
+    fail "no Keycloak deployment found in idp"
+  fi
+
+  hub get ingress kubernaut-console -n kubernaut-system >/dev/null 2>&1 \
+    && pass "Console Ingress exists" || fail "Console Ingress is missing"
+
+  console_status="$(curl -ksS --max-time 20 -o /dev/null -w '%{http_code}' --resolve kubernaut-console.local:8843:127.0.0.1 "${CONSOLE_URL%/}/" 2>/dev/null || true)"
+  case "$console_status" in
+    200|302) pass "Console edge responds with HTTP ${console_status}" ;;
+    *) fail "Console edge returned HTTP ${console_status:-no-response}" ;;
+  esac
 fi
-
-hub get ingress kubernaut-console -n kubernaut-system >/dev/null 2>&1 \
-  && pass "Console Ingress exists" || fail "Console Ingress is missing"
-
-console_status="$(curl -ksS --max-time 20 -o /dev/null -w '%{http_code}' --resolve kubernaut-console.local:8843:127.0.0.1 "${CONSOLE_URL%/}/" 2>/dev/null || true)"
-case "$console_status" in
-  200|302) pass "Console edge responds with HTTP ${console_status}" ;;
-  *) fail "Console edge returned HTTP ${console_status:-no-response}" ;;
-esac
 
 api_frontend_status="$(curl -ksS --max-time 20 -o /dev/null -w '%{http_code}' "${API_FRONTEND_URL%/}/readyz" 2>/dev/null || true)"
 case "$api_frontend_status" in
@@ -214,8 +245,32 @@ case "$api_frontend_status" in
   *) fail "API Frontend readiness returned HTTP ${api_frontend_status:-no-response}" ;;
 esac
 
-keycloak_status="$(curl -ksS --max-time 20 -o /dev/null -w '%{http_code}' --resolve keycloak:8443:127.0.0.1 "$KEYCLOAK_URL" 2>/dev/null || true)"
-[[ "$keycloak_status" == "200" ]] && pass "Keycloak demo realm responds" || fail "Keycloak demo realm returned HTTP ${keycloak_status:-no-response}"
+if [[ "$MODE" != "fullpipeline" ]]; then
+  keycloak_status="$(curl -ksS --max-time 20 -o /dev/null -w '%{http_code}' --resolve keycloak:8443:127.0.0.1 "$KEYCLOAK_URL" 2>/dev/null || true)"
+  [[ "$keycloak_status" == "200" ]] && pass "Keycloak demo realm responds" || fail "Keycloak demo realm returned HTTP ${keycloak_status:-no-response}"
+else
+  dex_status="$(curl -ksS --max-time 20 -o /dev/null -w '%{http_code}' "${DEX_URL%/}/healthz" 2>/dev/null || true)"
+  [[ "$dex_status" == "200" ]] && pass "Native Dex health responds" || fail "Native Dex health returned HTTP ${dex_status:-no-response}"
+fi
+
+if [[ "$MODE" == "fullpipeline" ]]; then
+  target_json="$(hub get deployment memory-eater -n kubernaut-system -o json 2>/dev/null || true)"
+  if [[ -n "$target_json" ]] && jq -e '
+    .metadata.namespace == "kubernaut-system"
+    and .metadata.name == "memory-eater"
+    and (.spec.replicas // 0) > 0
+  ' <<<"$target_json" >/dev/null 2>&1; then
+    pass "Native stable target kubernaut-system/memory-eater exists"
+  else
+    fail "Native stable target kubernaut-system/memory-eater is missing or scaled down"
+  fi
+  target_pods="$(hub get pods -n kubernaut-system -l app=memory-eater -o json 2>/dev/null || true)"
+  if [[ -n "$target_pods" ]] && jq -e '[.items[]?.status.containerStatuses[]? | (.state.waiting.reason // .state.terminated.reason // .lastState.terminated.reason)] | any(.[]; . == "CrashLoopBackOff" or . == "OOMKilled" or . == "Error")' <<<"$target_pods" >/dev/null 2>&1; then
+    pass "Native stable target is showing an OOM/crash fault"
+  else
+    fail "Native stable target is not showing an OOM/crash fault"
+  fi
+fi
 
 workflow_count="$(hub get remediationworkflows -n kubernaut-system --no-headers 2>/dev/null | awk 'NF {count++} END {print count+0}')"
 action_count="$(hub get actiontypes -n kubernaut-system --no-headers 2>/dev/null | awk 'NF {count++} END {print count+0}')"
@@ -254,10 +309,29 @@ check_workflow() {
   fi
 }
 
-check_action_type rollback-deployment RollbackDeployment
-check_action_type fix-stateful-set-pvc FixStatefulSetPVC
-check_workflow crashloop-rollback-v1 RollbackDeployment crashloop-rollback-v1-runner
-check_workflow fix-statefulset-pvc-v1 FixStatefulSetPVC fix-statefulset-pvc-v1-runner
+if [[ "$MODE" == "fullpipeline" ]]; then
+  for workflow_key in oomkill-increase-memory-v1:staging gitops-drift-2390-v1:staging fullpipeline-consent-job-v1:staging; do
+    workflow_name="${workflow_key%%:*}"
+    expected_environment="${workflow_key#*:}"
+    expected_uuid="$(jq -er --arg key "$workflow_key" '.fullPipeline.workflowUUIDs[$key]' "$RUNTIME_MANIFEST" 2>/dev/null || true)"
+    workflow_json="$(hub get remediationworkflow "$workflow_name" -n kubernaut-system -o json 2>/dev/null || true)"
+    if [[ -n "$workflow_json" ]] && jq -e --arg expected_environment "$expected_environment" --arg expected_uuid "$expected_uuid" '
+      (.spec.labels.environment // []) as $environments
+      | ([ $environments ] | flatten | map(tostring) | index($expected_environment)) != null
+      and (.status.workflowId // "") == $expected_uuid
+      and (.status.catalogStatus // "") == "Active"
+    ' <<<"$workflow_json" >/dev/null 2>&1; then
+      pass "Native workflow ${workflow_key} is registered and Active"
+    else
+      fail "Native workflow ${workflow_key} is missing or has an unexpected catalog identity"
+    fi
+  done
+else
+  check_action_type rollback-deployment RollbackDeployment
+  check_action_type fix-stateful-set-pvc FixStatefulSetPVC
+  check_workflow crashloop-rollback-v1 RollbackDeployment crashloop-rollback-v1-runner
+  check_workflow fix-statefulset-pvc-v1 FixStatefulSetPVC fix-statefulset-pvc-v1-runner
+fi
 
 if [[ "$MODE" == "fleet" ]]; then
   check_deployment "Fleet MCP" "$HUB_KUBECONFIG" "$EXPECTED_GATEWAY_NAMESPACE" kube-mcp-server

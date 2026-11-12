@@ -22,8 +22,25 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ "$MODE" == "local" || "$MODE" == "fleet" ]] || { echo "error: invalid mode" >&2; exit 2; }
+[[ "$MODE" == "local" || "$MODE" == "fleet" || "$MODE" == "fullpipeline" ]] || { echo "error: invalid mode" >&2; exit 2; }
 [[ "$HUB_CLUSTER_NAME" =~ ^[a-z0-9-]+$ ]] || { echo "error: refusing non-DNS hub cluster name" >&2; exit 1; }
+if [[ "$MODE" == "fullpipeline" ]]; then
+  [[ "$HUB_CLUSTER_NAME" == "fullpipeline-e2e" ]] || {
+    echo "error: native FullPipeline teardown may delete only the exact fullpipeline-e2e cluster" >&2
+    exit 1
+  }
+  [[ -z "$SPOKE_CLUSTER_NAME" && -z "$SPOKE_KUBECONFIG" ]] || {
+    echo "error: native FullPipeline teardown refuses spoke-cluster arguments" >&2
+    exit 1
+  }
+  if command -v kind >/dev/null 2>&1; then
+    export KIND_EXPERIMENTAL_PROVIDER="${KIND_EXPERIMENTAL_PROVIDER:-podman}"
+    kind delete cluster --name fullpipeline-e2e >/dev/null 2>&1 || true
+  fi
+  rm -f "$STATE_FILE"
+  echo "Exact native FullPipeline Kind cluster removed: fullpipeline-e2e"
+  exit 0
+fi
 if [[ "$MODE" == "fleet" && ! "$SPOKE_CLUSTER_NAME" =~ ^[a-z0-9-]+$ ]]; then
   echo "error: refusing non-DNS spoke cluster name" >&2
   exit 1

@@ -7,6 +7,7 @@ MODE=""
 HUB_KUBECONFIG=""
 SPOKE_KUBECONFIG=""
 OUTPUT=""
+NATIVE_LOG=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -14,11 +15,12 @@ while [[ $# -gt 0 ]]; do
     --hub-kubeconfig) HUB_KUBECONFIG="${2:-}"; shift 2 ;;
     --spoke-kubeconfig) SPOKE_KUBECONFIG="${2:-}"; shift 2 ;;
     --output) OUTPUT="${2:-}"; shift 2 ;;
+    --native-log) NATIVE_LOG="${2:-}"; shift 2 ;;
     *) echo "error: unknown argument $1" >&2; exit 2 ;;
   esac
 done
 
-[[ "$MODE" == "local" || "$MODE" == "fleet" ]] || { echo "error: invalid mode" >&2; exit 2; }
+[[ "$MODE" == "local" || "$MODE" == "fleet" || "$MODE" == "fullpipeline" ]] || { echo "error: invalid mode" >&2; exit 2; }
 [[ -n "$OUTPUT" ]] || { echo "error: --output is required" >&2; exit 2; }
 mkdir -p "$OUTPUT"
 chmod 700 "$OUTPUT"
@@ -62,6 +64,9 @@ collect_cluster() {
   capture_kube "$kubeconfig" "$directory/remediationrequests.json" get remediationrequests -n kubernaut-system -o json
   capture_kube "$kubeconfig" "$directory/workflowexecutions.json" get workflowexecutions -n kubernaut-system -o json
   capture_kube "$kubeconfig" "$directory/investigationsessions.json" get investigationsessions -n kubernaut-system -o json
+  if [[ "$MODE" == "fullpipeline" ]]; then
+    capture_kube "$kubeconfig" "$directory/mock-llm-scenarios.json" get configmap mock-llm-scenarios -n kubernaut-system -o json
+  fi
 
   # Logs are useful for controller failures but are the highest-risk diagnostic
   # stream. Restrict collection to platform pods and redact before persistence.
@@ -73,7 +78,9 @@ collect_cluster() {
   done <<<"$pods"
 }
 
-collect_cluster hub "$HUB_KUBECONFIG"
+cluster_label="hub"
+[[ "$MODE" == "fullpipeline" ]] && cluster_label="fullpipeline-e2e"
+collect_cluster "$cluster_label" "$HUB_KUBECONFIG"
 if [[ "$MODE" == "fleet" && -s "$SPOKE_KUBECONFIG" ]]; then
   collect_cluster spoke "$SPOKE_KUBECONFIG"
 fi
@@ -86,6 +93,10 @@ if command -v kind >/dev/null 2>&1; then
   capture "$OUTPUT/kind-clusters.txt" kind get clusters
 fi
 
+if [[ "$MODE" == "fullpipeline" && -n "$NATIVE_LOG" && -f "$NATIVE_LOG" ]]; then
+  redact <"$NATIVE_LOG" >"$OUTPUT/upstream-fullpipeline.log"
+fi
+
 cat >"$OUTPUT/README.txt" <<EOF
 Diagnostics are sanitized and contain no Kubernetes Secret values.
 Mode: ${MODE}
@@ -93,5 +104,8 @@ Hub kubeconfig: ${HUB_KUBECONFIG}
 EOF
 if [[ "$MODE" == "fleet" ]]; then
   echo "Spoke kubeconfig: ${SPOKE_KUBECONFIG}" >>"$OUTPUT/README.txt"
+fi
+if [[ "$MODE" == "fullpipeline" ]]; then
+  echo "Native upstream log: ${NATIVE_LOG:-not provided}" >>"$OUTPUT/README.txt"
 fi
 chmod -R go-rwx "$OUTPUT"

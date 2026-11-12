@@ -17,9 +17,10 @@ vi.mock("@kubernaut/ui-core", () => ({
   clearConsoleSessionState,
 }));
 
-async function renderAppWithToken(token: string) {
+async function renderApp(legacyBrowserToken = "") {
   vi.resetModules();
-  vi.stubEnv("VITE_LIVE_E2E_TOKEN", token);
+  vi.stubEnv("VITE_LIVE_E2E_TOKEN", legacyBrowserToken);
+  vi.stubEnv("VITE_MOCK_A2A", "false");
 
   const { default: App } = await import("./App.tsx");
   render(<App />);
@@ -42,15 +43,11 @@ describe("App auth-provider selection", () => {
     vi.resetModules();
   });
 
-  it("UT-CONSOLE-AUTH-092-001: uses ProxyAuthProvider by default", async () => {
-    const provider = await renderAppWithToken("");
-    const [{ ProxyAuthProvider }, { LiveE2EAuthProvider }] = await Promise.all([
-      import("./ProxyAuthProvider"),
-      import("./LiveE2EAuthProvider"),
-    ]);
+  it("UT-CONSOLE-AUTH-092-001: always uses the host-owned ProxyAuthProvider", async () => {
+    const provider = await renderApp();
+    const { ProxyAuthProvider } = await import("./ProxyAuthProvider");
 
     expect(provider).toBeInstanceOf(ProxyAuthProvider);
-    expect(provider).not.toBeInstanceOf(LiveE2EAuthProvider);
   });
 
   it("IT-CONSOLE-168-003: discards unbound reload state before chat mounts without logging out", async () => {
@@ -67,7 +64,7 @@ describe("App auth-provider selection", () => {
       expect(sessionStorage.getItem("kubernaut-console-phase")).toBeNull();
       return null;
     });
-    await renderAppWithToken("");
+    await renderApp();
     expect(document.cookie).toContain("unrelated_login_marker=preserved");
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
@@ -95,14 +92,10 @@ describe("App auth-provider selection", () => {
     }
   });
 
-  it("UT-CONSOLE-AUTH-092-002: uses LiveE2EAuthProvider only when a token is set", async () => {
-    const provider = await renderAppWithToken("live-e2e-token");
-    const [{ LiveE2EAuthProvider }, { ProxyAuthProvider }] = await Promise.all([
-      import("./LiveE2EAuthProvider"),
-      import("./ProxyAuthProvider"),
-    ]);
+  it("UT-CONSOLE-AUTH-092-002: ignores the legacy browser-token environment variable", async () => {
+    const provider = await renderApp("legacy-token-must-not-reach-the-browser");
+    const { ProxyAuthProvider } = await import("./ProxyAuthProvider");
 
-    expect(provider).toBeInstanceOf(LiveE2EAuthProvider);
-    expect(provider).not.toBeInstanceOf(ProxyAuthProvider);
+    expect(provider).toBeInstanceOf(ProxyAuthProvider);
   });
 });

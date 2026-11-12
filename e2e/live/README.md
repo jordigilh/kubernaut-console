@@ -21,10 +21,22 @@ for the full design and status.
 
 This is **not** part of `playwright.config.ts` / `.github/workflows/e2e.yml`
 (the mocked suite, `VITE_MOCK_A2A=true`). The Console-owned disposable Kind
-lane is `.github/workflows/e2e-live.yml`; it runs nightly and through
-`workflow_dispatch` with a fresh local and fleet matrix entry. The older
+lanes are in `.github/workflows/e2e-live.yml`: local/fleet lanes use the
+configured real LLM, while `live-fullpipeline-e2e` consumes upstream's
+deterministic mock-LLM cluster without any real-LLM credential. The older
 `playwright.live.config.ts` command below remains the manual preserved-cluster
 harness from issue #39.
+
+## Native FullPipeline lane
+
+The native lane runs upstream's pinned `PRESERVE_E2E_CLUSTER=true make
+test-e2e-fullpipeline` first, then consumes its catalog, mock-LLM scenarios,
+dynamic `fp-*` mappings, and `kubernaut-system/memory-eater` target read-only.
+The Console lane does not reseed workflows, create a replacement workload, or
+mutate that target. Vite fetches the synthetic Dex token in its server process,
+injects it only on the server-to-AF proxy hop, and serves sanitized userinfo to
+the always-selected `ProxyAuthProvider`; the browser never receives a bearer
+token.
 
 ## Console-owned disposable Kind lane
 
@@ -48,7 +60,8 @@ Configure repository variables `LIVE_E2E_LLM_PROVIDER`,
 `LIVE_E2E_LLM_MODEL`, and `LIVE_E2E_LLM_ENDPOINT`, plus the
 `LIVE_E2E_LLM_CREDENTIAL` repository secret. For Vertex AI, configure
 `LIVE_E2E_VERTEX_PROJECT` and `LIVE_E2E_VERTEX_LOCATION` instead of an
-endpoint. Missing configuration fails before Kind provisioning.
+endpoint. These values are required only by the local/fleet real-LLM matrix;
+the native FullPipeline mock-LLM lane does not read or require them.
 
 Run the default local+fleet matrix with:
 
@@ -74,14 +87,12 @@ are not retained in CI; local debugging can opt in with
    PRESERVE_E2E_CLUSTER=true make test-e2e-fullpipeline
    ```
 2. Its NodePorts reachable at `localhost`: DataStorage `:30081`, API
-   Frontend `:30443` (self-signed TLS), Dex `:30556` (self-signed TLS) —
+   Frontend `:18443` (self-signed TLS), Dex `:30556` (self-signed TLS) —
    **not** `:5556`, which is only Dex's in-cluster Service port (see
    `e2e/live/scripts/dex-token.mjs`'s header comment for why this matters).
-   Gateway (`:30080`) is deployed by `fullpipeline` today but is **not**
-   required by this suite — every scenario here is chat/A2A/MCP-driven and
-   never exercises Gateway's webhook-ingestion path (confirmed by the
-   maintainer; see ADR-009 §5). It can be excluded from the deploy to
-   shrink the cluster's footprint once the CI harness supports it.
+   Gateway (`:30080`) and API Frontend must remain enabled for the native
+   topology contract, even though this Console spec does not exercise Gateway's
+   webhook-ingestion path.
 
 ## Running locally
 
@@ -89,22 +100,18 @@ are not retained in CI; local debugging can opt in with
 pnpm test:e2e:live
 ```
 
-This starts the console's own dev server (via
-`e2e/live/scripts/start-console-with-token.mjs`) pointed at the real AF,
-after first fetching a real Dex token — see that script and
-`packages/standalone/src/LiveE2EAuthProvider.ts` for how auth is wired
-(no oauth2-proxy in this harness; a real Dex ROPC token is attached
-client-side, the same way kubernaut's own Go E2E suites authenticate to AF
-directly).
+This starts the console's own dev server pointed at the real AF. The Vite
+server fetches a real Dex token and injects it on the AF proxy hop; the browser
+uses the same `ProxyAuthProvider` as production and never handles the token.
 
 Override any of these if your cluster's ports/credentials differ from the
 `fullpipeline` defaults:
 
 | Env var | Default |
 |---|---|
-| `LIVE_E2E_CONSOLE_URL` | `http://localhost:5174` |
-| `LIVE_E2E_AF_URL` | `https://localhost:30443` |
-| `LIVE_E2E_DEX_URL` | `https://localhost:30556/dex` |
+| `LIVE_E2E_CONSOLE_URL` | `http://127.0.0.1:5174` |
+| `LIVE_E2E_AF_URL` | `https://127.0.0.1:18443` |
+| `LIVE_E2E_DEX_URL` | `https://127.0.0.1:30556/dex` |
 
 ## Suite layout
 

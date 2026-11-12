@@ -1,4 +1,4 @@
-name: Live E2E (local and fleet Kind)
+name: Live E2E (local, fleet, and native FullPipeline Kind)
 
 # The artifact jobs build immutable inputs first. The live matrix then consumes
 # those exact artifacts, provisions and tests one disposable Kind topology per
@@ -1090,3 +1090,308 @@ jobs:
             args+=(--spoke-kubeconfig "${SPOKE_KUBECONFIG}" --spoke-cluster-name "${SPOKE_CLUSTER_NAME}")
           fi
           e2e/live/scripts/kind-teardown.sh "${args[@]}"
+
+  live-fullpipeline-e2e:
+    name: Live E2E (native FullPipeline mock LLM)
+    needs:
+      - resolve-pins
+      - publish-provenance
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      MODE: fullpipeline
+      ARTIFACT_TAG: ${{ needs.resolve-pins.outputs.artifact_tag }}
+      KIND_EXPERIMENTAL_PROVIDER: podman
+    steps:
+      - name: Checkout Console at the pinned SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          fetch-depth: 1
+
+      - name: Checkout Kubernaut at the pinned SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jordigilh/kubernaut
+          ref: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
+          path: kubernaut
+          fetch-depth: 1
+
+      - name: Set up Go
+        uses: actions/setup-go@e093d1e9bb74ffc381514c57dcb7832730010598 # v6.0.0
+        with:
+          go-version-file: kubernaut/go.mod
+          cache: false
+
+      - name: Set up pnpm and Node.js
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Console test dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install chromium --with-deps
+
+      - name: Install Podman and diagnostic tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends podman jq shellcheck uidmap slirp4netns fuse-overlayfs
+          podman info
+
+      - name: Install pinned Kubernetes tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin_dir="${RUNNER_TEMP}/live-e2e-fullpipeline-bin"
+          mkdir -p "${bin_dir}"
+
+          kind_version="v0.32.0"
+          curl --fail --silent --show-error --location \
+            --output "${bin_dir}/kind" \
+            "https://github.com/kubernetes-sigs/kind/releases/download/${kind_version}/kind-linux-amd64"
+          echo "50030de23cf40a18505f20426f6a8506bedf13c6e509244bd1fa9463721b0f54  ${bin_dir}/kind" | sha256sum --check
+          chmod 0755 "${bin_dir}/kind"
+
+          kubectl_version="v1.36.1"
+          curl --fail --silent --show-error --location \
+            --output "${bin_dir}/kubectl" \
+            "https://dl.k8s.io/release/${kubectl_version}/bin/linux/amd64/kubectl"
+          echo "629d3f410e09bf49b64ae7079f7f0bda1191efed311f7d37fdbab0ad5b0ec2b7  ${bin_dir}/kubectl" | sha256sum --check
+          chmod 0755 "${bin_dir}/kubectl"
+
+          helm_version="v3.18.6"
+          curl --fail --silent --show-error --location \
+            --output "${RUNNER_TEMP}/live-e2e-fullpipeline-helm.tgz" \
+            "https://get.helm.sh/helm-${helm_version}-linux-amd64.tar.gz"
+          echo "3f43c0aa57243852dd542493a0f54f1396c0bc8ec7296bbb2c01e802010819ce  ${RUNNER_TEMP}/live-e2e-fullpipeline-helm.tgz" | sha256sum --check
+          tar -xzf "${RUNNER_TEMP}/live-e2e-fullpipeline-helm.tgz" -C "${RUNNER_TEMP}"
+          mv "${RUNNER_TEMP}/linux-amd64/helm" "${bin_dir}/helm"
+          chmod 0755 "${bin_dir}/helm"
+
+          echo "${bin_dir}" >> "${GITHUB_PATH}"
+          "${bin_dir}/kind" version
+          "${bin_dir}/kubectl" version --client
+          "${bin_dir}/helm" version
+
+      - name: Define native FullPipeline runtime paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/kubernaut-console-live-fullpipeline-${GITHUB_RUN_ID}"
+          kubeconfig="${HOME}/.kube/fullpipeline-e2e-config"
+          mkdir -p "${HOME}/.kube" "${root}/artifacts" "${root}/runtime" "${root}/diagnostics"
+          chmod 700 "${root}" "${root}/artifacts" "${root}/runtime" "${root}/diagnostics"
+          {
+            echo "LIVE_E2E_ROOT=${root}"
+            echo "LIVE_E2E_ARTIFACT_ROOT=${root}/artifacts"
+            echo "LIVE_E2E_RUNTIME_ROOT=${root}/runtime"
+            echo "LIVE_E2E_DIAGNOSTICS_ROOT=${root}/diagnostics"
+            echo "HUB_CLUSTER_NAME=fullpipeline-e2e"
+            echo "HUB_KUBECONFIG=${kubeconfig}"
+            echo "LIVE_E2E_HUB_KUBECONFIG=${kubeconfig}"
+            echo "LIVE_E2E_STATE_FILE=${root}/native-fixture.env"
+            echo "LIVE_E2E_REPORT=${root}/live-e2e-fullpipeline.json"
+            echo "LIVE_E2E_JSON_REPORT=${root}/live-e2e-fullpipeline.json"
+            echo "LIVE_E2E_CONSOLE_URL=http://127.0.0.1:5174"
+            echo "LIVE_E2E_API_FRONTEND_URL=https://127.0.0.1:18443"
+            echo "LIVE_E2E_DEX_URL=https://127.0.0.1:30556/dex"
+            echo "LIVE_E2E_SETUP_MANIFEST=${root}/runtime/setup-runtime.json"
+            echo "LIVE_E2E_NATIVE_LOG=${root}/runtime/upstream-fullpipeline.log"
+            echo "LIVE_E2E_KUBE_TOOL=kubectl"
+            echo "LIVE_E2E_TARGET_KUBECONFIG=${kubeconfig}"
+            echo "LIVE_E2E_IGNORE_HTTPS_ERRORS=true"
+            echo "KUBECONFIG=${kubeconfig}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Download this run's immutable artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: live-e2e-*-${{ github.run_id }}
+          path: ${{ runner.temp }}/kubernaut-console-live-fullpipeline-${{ github.run_id }}/artifacts
+          merge-multiple: false
+
+      - name: Verify and load immutable artifacts
+        shell: bash
+        env:
+          CONSOLE_SHA: ${{ needs.resolve-pins.outputs.console_sha }}
+          KUBERNAUT_SHA: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
+          OPERATOR_SHA: ${{ needs.resolve-pins.outputs.operator_sha }}
+          SCENARIOS_SHA: ${{ needs.resolve-pins.outputs.scenarios_sha }}
+        run: |
+          set -euo pipefail
+          manifest="$(find "${LIVE_E2E_ARTIFACT_ROOT}" -type f -name manifest.json -print -quit)"
+          [[ -n "${manifest}" && -f "${manifest}" ]] || { echo "error: provenance manifest was not downloaded" >&2; exit 1; }
+          python3 e2e/live/scripts/verify-live-artifacts.py \
+            --root "${LIVE_E2E_ARTIFACT_ROOT}" \
+            --manifest "${manifest}" \
+            --output "${LIVE_E2E_RUNTIME_ROOT}" \
+            --console-sha "${CONSOLE_SHA}" \
+            --kubernaut-sha "${KUBERNAUT_SHA}" \
+            --operator-sha "${OPERATOR_SHA}" \
+            --scenarios-sha "${SCENARIOS_SHA}" > "${LIVE_E2E_RUNTIME_ROOT}/verification.json"
+
+          scenario_root="$(jq -er '.scenarioRoot' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
+          operator_chart="$(jq -er '.operatorChartPath' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
+          dependency_chart="$(jq -er '.dependencyChartPath' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
+          operator_image="$(jq -er '.operatorImage' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
+          console_image="$(jq -er '.consoleImage' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
+          operator_tar="$(find "${LIVE_E2E_ARTIFACT_ROOT}" -type f -name operator-image.tar -print -quit)"
+          [[ -d "${scenario_root}" && -d "${operator_chart}" && -d "${dependency_chart}" ]] || exit 1
+          [[ -n "${operator_tar}" && -f "${operator_tar}" ]] || exit 1
+          {
+            echo "LIVE_E2E_SCENARIOS_DIR=${scenario_root}"
+            echo "KUBERNAUT_OPERATOR_CHART_PATH=${operator_chart}"
+            echo "KUBERNAUT_DEPENDENCY_CHART_PATH=${dependency_chart}"
+            echo "KUBERNAUT_OPERATOR_IMAGE=${operator_image}"
+            echo "KUBERNAUT_OPERATOR_IMAGE_TAR=${operator_tar}"
+            echo "KUBERNAUT_OPERATOR_SHA=${OPERATOR_SHA}"
+            echo "KUBERNAUT_CONSOLE_IMAGE=${console_image}"
+            echo "KUBERNAUT_CI_ARTIFACT_TAG=${ARTIFACT_TAG}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Run upstream FullPipeline mock-LLM E2E and preserve its cluster
+        id: upstream
+        working-directory: kubernaut
+        shell: bash
+        run: |
+          set -o pipefail
+          umask 077
+          unset SKIP_MOCK_LLM
+          PRESERVE_E2E_CLUSTER=true \
+            KUBERNAUT_CI_ARTIFACT_TAG="${KUBERNAUT_CI_ARTIFACT_TAG}" \
+            make test-e2e-fullpipeline 2>&1 | tee "${LIVE_E2E_NATIVE_LOG}"
+          chmod 600 "${LIVE_E2E_NATIVE_LOG}"
+
+      - name: Emit and consume sanitized native runtime manifest
+        id: runtime
+        if: steps.upstream.outcome == 'success'
+        env:
+          CONSOLE_SHA: ${{ needs.resolve-pins.outputs.console_sha }}
+          KUBERNAUT_SHA: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
+          OPERATOR_SHA: ${{ needs.resolve-pins.outputs.operator_sha }}
+          SCENARIOS_SHA: ${{ needs.resolve-pins.outputs.scenarios_sha }}
+        run: |
+          set -euo pipefail
+          e2e/live/scripts/kind-runtime-manifest.sh \
+            --mode fullpipeline \
+            --hub-kubeconfig "${HUB_KUBECONFIG}" \
+            --hub-cluster-name fullpipeline-e2e \
+            --output "${LIVE_E2E_SETUP_MANIFEST}" \
+            --console-url "${LIVE_E2E_CONSOLE_URL}" \
+            --api-frontend-url "${LIVE_E2E_API_FRONTEND_URL}" \
+            --dex-url "${LIVE_E2E_DEX_URL}" \
+            --native-log "${LIVE_E2E_NATIVE_LOG}" \
+            --artifact-tag "${ARTIFACT_TAG}" \
+            --console-sha "${CONSOLE_SHA}" \
+            --kubernaut-sha "${KUBERNAUT_SHA}" \
+            --operator-sha "${OPERATOR_SHA}" \
+            --scenarios-sha "${SCENARIOS_SHA}"
+          {
+            echo "LIVE_E2E_CONSOLE_URL=$(jq -er '.urls.console' "${LIVE_E2E_SETUP_MANIFEST}")"
+            echo "LIVE_E2E_API_FRONTEND_URL=$(jq -er '.urls.apiFrontend' "${LIVE_E2E_SETUP_MANIFEST}")"
+            echo "LIVE_E2E_DEX_URL=$(jq -er '.urls.dex' "${LIVE_E2E_SETUP_MANIFEST}")"
+            echo "LIVE_E2E_TARGET_KUBECONFIG=$(jq -er '.kubeconfigs.target' "${LIVE_E2E_SETUP_MANIFEST}")"
+            echo "LIVE_E2E_NATIVE_TARGET_NAMESPACE=$(jq -er '.fullPipeline.targets.memoryEater.namespace' "${LIVE_E2E_SETUP_MANIFEST}")"
+            echo "LIVE_E2E_NATIVE_TARGET_NAME=$(jq -er '.fullPipeline.targets.memoryEater.name' "${LIVE_E2E_SETUP_MANIFEST}")"
+          } >> "${GITHUB_ENV}"
+
+      - name: Verify native catalog and scenario prerequisites without reseeding
+        id: seed
+        if: steps.runtime.outcome == 'success'
+        run: |
+          set -euo pipefail
+          e2e/live/scripts/kind-seed-prerequisites.sh \
+            --mode fullpipeline \
+            --hub-kubeconfig "${HUB_KUBECONFIG}" \
+            --scenarios-dir "${LIVE_E2E_SCENARIOS_DIR}" \
+            --runtime-manifest "${LIVE_E2E_SETUP_MANIFEST}"
+
+      - name: Preflight the native FullPipeline topology
+        id: preflight
+        if: steps.seed.outcome == 'success'
+        run: |
+          set -euo pipefail
+          e2e/live/scripts/kind-preflight.sh \
+            --mode fullpipeline \
+            --hub-kubeconfig "${HUB_KUBECONFIG}" \
+            --hub-cluster-name fullpipeline-e2e \
+            --runtime-manifest "${LIVE_E2E_SETUP_MANIFEST}" \
+            --operator-image "${KUBERNAUT_OPERATOR_IMAGE}"
+
+      - name: Consume the upstream stable fixture read-only
+        id: fixtures
+        if: steps.preflight.outcome == 'success'
+        run: |
+          set -euo pipefail
+          e2e/live/scripts/kind-setup-fixtures.sh \
+            --mode fullpipeline \
+            --hub-kubeconfig "${HUB_KUBECONFIG}" \
+            --state-file "${LIVE_E2E_STATE_FILE}" \
+            --runtime-manifest "${LIVE_E2E_SETUP_MANIFEST}"
+
+      - name: Run native Console Playwright coverage
+        id: playwright
+        if: steps.fixtures.outcome == 'success'
+        run: |
+          set +e
+          pnpm exec playwright test --config=playwright.live-fullpipeline.config.ts
+          playwright_status=$?
+          echo "status=${playwright_status}" >> "${GITHUB_OUTPUT}"
+          exit "${playwright_status}"
+
+      - name: Enforce non-empty native Playwright report
+        if: steps.playwright.outcome == 'success'
+        run: node e2e/live/scripts/assert-playwright-report.mjs "${LIVE_E2E_REPORT}" e2e/live/skip-allowlist.json
+
+      - name: Collect sanitized native diagnostics
+        if: always()
+        run: |
+          set +e
+          e2e/live/scripts/collect-kind-diagnostics.sh \
+            --mode fullpipeline \
+            --hub-kubeconfig "${HUB_KUBECONFIG}" \
+            --output "${LIVE_E2E_DIAGNOSTICS_ROOT}" \
+            --native-log "${LIVE_E2E_NATIVE_LOG}"
+
+      - name: Scan native diagnostics and browser artifacts for credentials
+        id: artifact_scan
+        if: always()
+        run: |
+          set -euo pipefail
+          scan_paths=()
+          [[ -d "${LIVE_E2E_DIAGNOSTICS_ROOT}" ]] && scan_paths+=("${LIVE_E2E_DIAGNOSTICS_ROOT}")
+          [[ -f "${LIVE_E2E_SETUP_MANIFEST}" ]] && scan_paths+=("${LIVE_E2E_SETUP_MANIFEST}")
+          [[ -f "${LIVE_E2E_REPORT}" ]] && scan_paths+=("${LIVE_E2E_REPORT}")
+          [[ -d "test-results" ]] && scan_paths+=("test-results")
+          [[ "${#scan_paths[@]}" -gt 0 ]] || { echo "error: no native live-E2E output exists to scan" >&2; exit 1; }
+          python3 e2e/live/scripts/scan-live-artifacts.py "${scan_paths[@]}"
+
+      - name: Upload sanitized native diagnostics
+        if: always() && steps.artifact_scan.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: live-e2e-diagnostics-fullpipeline-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/kubernaut-console-live-fullpipeline-${{ github.run_id }}/diagnostics
+            ${{ runner.temp }}/kubernaut-console-live-fullpipeline-${{ github.run_id }}/runtime/setup-runtime.json
+            ${{ runner.temp }}/kubernaut-console-live-fullpipeline-${{ github.run_id }}/live-e2e-fullpipeline.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Tear down exact native FullPipeline Kind cluster
+        if: always()
+        run: |
+          set +e
+          e2e/live/scripts/kind-teardown.sh \
+            --mode fullpipeline \
+            --hub-kubeconfig "${HUB_KUBECONFIG}" \
+            --hub-cluster-name fullpipeline-e2e \
+            --state-file "${LIVE_E2E_STATE_FILE}"

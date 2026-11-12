@@ -21,7 +21,7 @@
 //      OIDC-standard JWT for an `openid`-scoped request and matches what
 //      AF's JWKS-based validation expects.
 export const DEX_DEFAULTS = {
-  dexUrl: "https://localhost:30556/dex",
+  dexUrl: "https://127.0.0.1:30556/dex",
   clientId: "kubernaut-apifrontend",
   clientSecret: "e2e-client-secret",
   // "sre" persona: broadest tool ACL in charts/kubernaut/values.yaml
@@ -69,14 +69,17 @@ export async function fetchDexToken(overrides = {}) {
   }
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Dex token request failed: HTTP ${res.status} ${text}`);
+    // Do not include the response body in an error: an IdP error response is
+    // not trusted to be credential-free, and Vite may write this exception to
+    // the native lane's diagnostics.
+    await res.arrayBuffer().catch(() => undefined);
+    throw new Error(`Dex token request failed: HTTP ${res.status}`);
   }
 
   const json = await res.json();
   const token = json.id_token ?? json.access_token;
   if (!token) {
-    throw new Error(`Dex token response had neither id_token nor access_token: ${JSON.stringify(json)}`);
+    throw new Error("Dex token response had neither id_token nor access_token");
   }
   return token;
 }

@@ -1,6 +1,5 @@
 import { KubernautChat, ErrorBoundary, clearConsoleSessionState } from "@kubernaut/ui-core";
 import { ProxyAuthProvider } from "./ProxyAuthProvider";
-import { LiveE2EAuthProvider } from "./LiveE2EAuthProvider";
 import { useMemo, useState } from "react";
 
 // Console #168: reload cannot bind previously stored chat data to this page's
@@ -15,14 +14,10 @@ function clearUnboundState(): boolean {
 }
 let storageReady = clearUnboundState();
 
-// ADR-009 live E2E suite only: no oauth2-proxy fronts the fullpipeline
-// cluster, so auth falls back to a Dex-token-bearing provider instead of
-// ProxyAuthProvider's cookie/header-injection model. Unset in every other
-// mode (local dev, standalone deploys, mocked e2e.yml), so this is a no-op
-// there.
-const authProvider = import.meta.env.VITE_LIVE_E2E_TOKEN
-  ? new LiveE2EAuthProvider()
-  : new ProxyAuthProvider();
+// All standalone modes use the same host-owned auth boundary. In production
+// oauth2-proxy injects headers; the live FullPipeline Vite server does the
+// equivalent server-side. The browser never selects a bearer-token provider.
+const authProvider = new ProxyAuthProvider();
 
 // Populated by /runtime-config.js, a same-origin script tag (see index.html)
 // served either by the deploying chart's nginx ConfigMap -- kubernaut-operator

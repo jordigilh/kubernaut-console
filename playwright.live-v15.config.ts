@@ -10,7 +10,7 @@ import { defineConfig, devices } from "@playwright/test";
 // Kubernaut CR's spec.image.overrides.console). Auth is a real Keycloak
 // access token, attached to every request (including the initial page
 // navigation, which oauth2-proxy itself gates) via extraHTTPHeaders —
-// simpler than the local suite's LiveE2EAuthProvider hack, since a real
+// simpler than the local suite's old browser-token hack, since a real
 // oauth2-proxy (--skip-jwt-bearer-tokens=true) is actually deployed here,
 // unlike the local Kind cluster which has no oauth2-proxy at all.
 //

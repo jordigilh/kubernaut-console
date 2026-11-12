@@ -53,7 +53,7 @@ pending.
 | Component | Production path | Required integration evidence | Status |
 |---|---|---|---|
 | Storage cleanup | standalone `App.tsx` before chat render; source replacement in `KubernautChat.tsx` | IT-CONSOLE-168-003/004/014/016 | local tests pass; deployed browser storage boundary pending |
-| Verified identity and lifecycle | `ProxyAuthProvider` -> `KubernautChat` -> `AuthContext` consumers | UT-CONSOLE-168-023/024; IT-CONSOLE-168-001/002/014/016 | wired and locally passing |
+| Verified identity and lifecycle | `ProxyAuthProvider` -> `KubernautChat` -> `AuthContext` consumers; native Vite/Dex proxy supplies sanitized userinfo without a browser bearer | UT-CONSOLE-168-023/024; IT-CONSOLE-168-001/002/014/016; native FullPipeline Playwright lane | wired and locally passing; deployed qualification pending |
 | Scoped MCP client | `ChatContainer` creates one `McpClient` per authenticated lifecycle | IT-CONSOLE-168-006/007/008/009; full UI-core suite | wired and locally passing |
 | A2A/status incarnation fencing | `useChat`, `useRRStatus`, A2A/status clients | IT-CONSOLE-168-015/018/019; full UI-core suite | wired and locally passing |
 | AF incarnation | AF `NewRouter` -> same-origin contract and A2A/MCP/status headers | IT-AF-CONSOLE-168-001/002/003; handler and command wiring suites | Kubernaut PR #2621 merged as `da031cc8232c1df5d9337d8f09ee63370fe14b97`; deploy evidence pending |
@@ -67,20 +67,28 @@ have no automatic replay; status-stream retries remain read-only status
 subscriptions. MCP session state is instance-scoped and disposed with the
 authenticated lifecycle.
 
+The native FullPipeline lane keeps this same provider selection. Vite fetches
+the synthetic Dex token in the server process, injects it only on proxy hops to
+API Frontend, and returns only display fields plus bounded `iss`, `sub`, and
+opaque `sid` claims from same-origin `/oauth2/userinfo`. The native Playwright
+spec reads the upstream runtime manifest and investigates only
+`kubernaut-system/memory-eater`; setup never reseeds or mutates the upstream
+catalog, scenarios, dynamic mappings, or target.
+
 CHECKPOINT W passes for the Console and AF production callers. It is not a
 deployed qualification result: the AF contract is integrated in canonical
 Kubernaut `main` through PR #2621, but still needs proxy pass-through
 validation and single-replica rollout evidence from Operator #621.
 
-## Execution evidence (2026-11-11)
+## Execution evidence (2026-11-12)
 
 | Check | Result |
 |---|---|
-| UI-core full Vitest | `pnpm --filter @kubernaut/ui-core test`: 61 files, 776 tests passed |
-| Standalone full Vitest | `pnpm --filter @kubernaut/standalone test`: 2 files, 24 tests passed; 88.70% statements, 88.33% branches, 100% functions and 92.59% lines |
+| UI-core full Vitest | `pnpm --filter @kubernaut/ui-core test`: 61 files, 785 tests passed |
+| Standalone full Vitest | `pnpm --filter @kubernaut/standalone test`: 2 files, 21 tests passed; 87.71% statements, 87.5% branches, 100% functions and 91.83% lines |
 | UI-core build | `pnpm --filter @kubernaut/ui-core build` passed; Vite emitted the existing config-loader warning |
 | Standalone build | `pnpm --filter @kubernaut/standalone build` passed; Vite emitted the existing chunk-size warning |
-| Console lint | `pnpm lint` exited 0; 10 warnings remain, with no errors |
+| Console lint | `pnpm lint` exited 0; 11 warnings remain, with no errors |
 | TypeScript check | `pnpm --filter @kubernaut/ui-core exec tsc --noEmit` still reports pre-existing repository errors, including `findLast` target errors in `ChatContainer.tsx`; no new errors remain in the changed auth/SSE/A2A production files |
 | Formatting/diff checks | `git diff --check` passed |
 | AF handler suite | Kubernaut PR #2621, merged as `da031cc8232c1df5d9337d8f09ee63370fe14b97`: AF handler and command tests, `go build`, and scoped lint passed; AF integration execution was blocked by missing `/usr/local/kubebuilder/bin/etcd` |

@@ -14,6 +14,8 @@ OUTPUT=""
 CONSOLE_URL=""
 API_FRONTEND_URL=""
 KEYCLOAK_URL=""
+DEX_URL=""
+NATIVE_LOG=""
 ARTIFACT_TAG=""
 CONSOLE_SHA=""
 KUBERNAUT_SHA=""
@@ -21,7 +23,7 @@ OPERATOR_SHA=""
 SCENARIOS_SHA=""
 
 usage() {
-  echo "usage: $0 --mode local|fleet --hub-kubeconfig PATH [--spoke-kubeconfig PATH] --hub-cluster-name NAME [--spoke-cluster-name NAME] --output PATH --console-url URL --api-frontend-url URL --keycloak-url URL --artifact-tag TAG --console-sha SHA --kubernaut-sha SHA --operator-sha SHA --scenarios-sha SHA" >&2
+  echo "usage: $0 --mode local|fleet|fullpipeline --hub-kubeconfig PATH [--spoke-kubeconfig PATH] --hub-cluster-name NAME [--spoke-cluster-name NAME] --output PATH --console-url URL --api-frontend-url URL [--keycloak-url URL] [--dex-url URL] [--native-log PATH] --artifact-tag TAG --console-sha SHA --kubernaut-sha SHA --operator-sha SHA --scenarios-sha SHA" >&2
   exit 2
 }
 
@@ -36,6 +38,8 @@ while [[ $# -gt 0 ]]; do
     --console-url) CONSOLE_URL="${2:-}"; shift 2 ;;
     --api-frontend-url) API_FRONTEND_URL="${2:-}"; shift 2 ;;
     --keycloak-url) KEYCLOAK_URL="${2:-}"; shift 2 ;;
+    --dex-url) DEX_URL="${2:-}"; shift 2 ;;
+    --native-log) NATIVE_LOG="${2:-}"; shift 2 ;;
     --artifact-tag) ARTIFACT_TAG="${2:-}"; shift 2 ;;
     --console-sha) CONSOLE_SHA="${2:-}"; shift 2 ;;
     --kubernaut-sha) KUBERNAUT_SHA="${2:-}"; shift 2 ;;
@@ -45,13 +49,21 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ "$MODE" == "local" || "$MODE" == "fleet" ]] || usage
+[[ "$MODE" == "local" || "$MODE" == "fleet" || "$MODE" == "fullpipeline" ]] || usage
 [[ -s "$HUB_KUBECONFIG" ]] || { echo "error: hub kubeconfig is missing" >&2; exit 1; }
 [[ "$HUB_CLUSTER_NAME" =~ ^[a-z0-9-]+$ ]] || { echo "error: invalid hub cluster name" >&2; exit 1; }
 [[ -n "$OUTPUT" && -n "$ARTIFACT_TAG" ]] || usage
-[[ "$CONSOLE_URL" =~ ^https://[^[:space:]]+$ ]] || { echo "error: invalid Console URL" >&2; exit 1; }
+if [[ "$MODE" == "fullpipeline" ]]; then
+  [[ "$HUB_CLUSTER_NAME" == "fullpipeline-e2e" ]] || { echo "error: FullPipeline must use the native fullpipeline-e2e cluster" >&2; exit 1; }
+  [[ "$CONSOLE_URL" =~ ^https?://[^[:space:]]+$ ]] || { echo "error: invalid FullPipeline Console URL" >&2; exit 1; }
+  [[ "$DEX_URL" =~ ^https://[^[:space:]]+$ ]] || { echo "error: invalid FullPipeline Dex URL" >&2; exit 1; }
+else
+  [[ "$CONSOLE_URL" =~ ^https://[^[:space:]]+$ ]] || { echo "error: invalid Console URL" >&2; exit 1; }
+fi
 [[ "$API_FRONTEND_URL" =~ ^https://[^[:space:]]+$ ]] || { echo "error: invalid API Frontend URL" >&2; exit 1; }
-[[ "$KEYCLOAK_URL" =~ ^https://[^[:space:]]+$ ]] || { echo "error: invalid Keycloak URL" >&2; exit 1; }
+if [[ "$MODE" != "fullpipeline" ]]; then
+  [[ "$KEYCLOAK_URL" =~ ^https://[^[:space:]]+$ ]] || { echo "error: invalid Keycloak URL" >&2; exit 1; }
+fi
 for sha in "$CONSOLE_SHA" "$KUBERNAUT_SHA" "$OPERATOR_SHA" "$SCENARIOS_SHA"; do
   [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "error: source SHA must be a lowercase 40-character commit SHA" >&2; exit 1; }
 done
@@ -95,6 +107,124 @@ if [[ "$MODE" == "fleet" ]]; then
 fi
 
 hub() { kubectl --kubeconfig "$HUB_KUBECONFIG" "$@"; }
+
+if [[ "$MODE" == "fullpipeline" ]]; then
+  cr_json="$(hub get kubernaut kubernaut -n kubernaut-system -o json 2>/dev/null || true)"
+  [[ -n "$cr_json" ]] || { echo "error: native FullPipeline Kubernaut CR is missing" >&2; exit 1; }
+  jq -e '.metadata.name == "kubernaut" and .metadata.namespace == "kubernaut-system"' <<<"$cr_json" >/dev/null || {
+    echo "error: unexpected native FullPipeline Kubernaut CR identity" >&2
+    exit 1
+  }
+
+  workflow_json="$(hub get remediationworkflows -n kubernaut-system -o json 2>/dev/null || true)"
+  [[ -n "$workflow_json" ]] || { echo "error: native FullPipeline workflow catalog is missing" >&2; exit 1; }
+  workflow_uuids="$(jq -c '
+    [ .items[] as $item
+      | ($item.spec.labels.environment // []) as $environments
+      | (if ($environments | type) == "array" then $environments else [$environments] end)[] as $environment
+      | select(($item.metadata.name // "") != "")
+      | select(($item.status.workflowId // "") != "")
+      | select(($environment | type) == "string" and ($environment | length) > 0)
+      | {key: ($item.metadata.name + ":" + $environment), value: $item.status.workflowId}
+    ] | from_entries
+  ' <<<"$workflow_json")" || { echo "error: could not extract native workflow UUIDs" >&2; exit 1; }
+
+  required_workflows=(
+    "oomkill-increase-memory-v1:staging"
+    "gitops-drift-2390-v1:staging"
+    "fullpipeline-consent-job-v1:staging"
+  )
+  for workflow_key in "${required_workflows[@]}"; do
+    jq -e --arg key "$workflow_key" '.[$key] | type == "string" and length > 0' <<<"$workflow_uuids" >/dev/null || {
+      echo "error: native workflow UUID is missing for ${workflow_key}" >&2
+      exit 1
+    }
+  done
+
+  native_namespace_from_log() {
+    local key="$1" value=""
+    if [[ -n "$NATIVE_LOG" && -f "$NATIVE_LOG" ]]; then
+      value="$(grep -E "^[[:space:]]+${key}[[:space:]]+→[[:space:]]+[a-z0-9-]+$" "$NATIVE_LOG" | tail -1 | sed -E 's/^[[:space:]]+[^[:space:]]+[[:space:]]+→[[:space:]]+//')"
+    fi
+    printf '%s' "$value"
+  }
+
+  native_namespace_from_cluster() {
+    local prefix="$1" namespaces matches count
+    namespaces="$(hub get namespaces -o json 2>/dev/null || true)"
+    matches="$(jq -r --arg prefix "$prefix" '.items[]?.metadata.name | select(startswith($prefix))' <<<"$namespaces" | sort -u)"
+    count="$(grep -c . <<<"$matches" || true)"
+    if [[ "$count" == "1" ]]; then
+      printf '%s' "$matches"
+    elif [[ "$count" == "0" ]]; then
+      printf ''
+    else
+      echo "error: native namespace prefix ${prefix} matched ${count} namespaces" >&2
+      exit 1
+    fi
+  }
+
+  native_namespace() {
+    local key="$1" prefix="$2" value
+    value="$(native_namespace_from_log "$key")"
+    [[ -n "$value" ]] || value="$(native_namespace_from_cluster "$prefix")"
+    [[ "$value" =~ ^${prefix}[a-z0-9-]+$ ]] || {
+      echo "error: native namespace mapping ${key} is missing or malformed" >&2
+      exit 1
+    }
+    printf '%s' "$value"
+  }
+
+  remediate_namespaces="$(jq -n \
+    --arg autonomous "$(native_namespace autonomous fp-auto-)" \
+    --arg interactive "$(native_namespace interactive fp-int-)" \
+    --arg cross_namespace "$(native_namespace cross-namespace fp-e2e-1292-)" \
+    --arg interactive_streaming "$(native_namespace interactive-streaming fp-ints-)" \
+    --arg combined_investigate "$(native_namespace combined-investigate fp-comb-)" \
+    --arg full_interactive "$(native_namespace full-interactive fp-full-)" \
+    --arg consent_phase2 "$(native_namespace consent-phase2 fp-cg2-)" \
+    --arg consent_phase3 "$(native_namespace consent-phase3 fp-cg3-)" \
+    --arg terminal_1912 "$(native_namespace terminal-1912 fp-t1912-)" \
+    --arg not_actionable_1918 "$(native_namespace not-actionable-1918 fp-na1918-)" \
+    --arg standalone_execution_cluster_id "$(native_namespace standalone-exec-cluster-id fp-standalone-2378-)" \
+    '{autonomous:$autonomous,interactive:$interactive,"cross-namespace":$cross_namespace,"interactive-streaming":$interactive_streaming,"combined-investigate":$combined_investigate,"full-interactive":$full_interactive,"consent-phase2":$consent_phase2,"consent-phase3":$consent_phase3,"terminal-1912":$terminal_1912,"not-actionable-1918":$not_actionable_1918,"standalone-exec-cluster-id":$standalone_execution_cluster_id}')"
+
+  mkdir -p "$(dirname "$OUTPUT")"
+  umask 077
+  jq -n \
+    --arg mode "$MODE" \
+    --arg artifact_tag "$ARTIFACT_TAG" \
+    --arg console_sha "$CONSOLE_SHA" \
+    --arg kubernaut_sha "$KUBERNAUT_SHA" \
+    --arg operator_sha "$OPERATOR_SHA" \
+    --arg scenarios_sha "$SCENARIOS_SHA" \
+    --arg hub_cluster "$HUB_CLUSTER_NAME" \
+    --arg hub_kubeconfig "$HUB_KUBECONFIG" \
+    --arg target_kubeconfig "$HUB_KUBECONFIG" \
+    --arg console_url "$CONSOLE_URL" \
+    --arg api_frontend_url "$API_FRONTEND_URL" \
+    --arg dex_url "$DEX_URL" \
+    --argjson hub_identity "$hub_identity" \
+    --argjson workflow_uuids "$workflow_uuids" \
+    --argjson remediate_namespaces "$remediate_namespaces" \
+    '{schemaVersion:1,
+      kind:"kubernaut-console-live-e2e-runtime",
+      mode:$mode,
+      artifactTag:$artifact_tag,
+      sources:{console:$console_sha,kubernaut:$kubernaut_sha,operator:$operator_sha,demoScenarios:$scenarios_sha},
+      clusters:{hub:{name:$hub_cluster,kubeconfig:$hub_kubeconfig,identity:$hub_identity},spoke:null},
+      kubeconfigs:{hub:$hub_kubeconfig,spoke:"",target:$target_kubeconfig},
+      urls:{console:$console_url,apiFrontend:$api_frontend_url,keycloak:"",dex:$dex_url},
+      auth:{mode:"dex-server-proxy",dexURL:$dex_url},
+      fleet:{enabled:false,remoteClusterID:"",gateway:{type:"none",namespace:"",endpoint:""}},
+      fixtures:{owner:"native-fullpipeline",cluster:$hub_cluster,kubeconfig:$hub_kubeconfig},
+      fullPipeline:{clusterName:$hub_cluster,kubeconfig:$hub_kubeconfig,namespace:"kubernaut-system",monitoringNamespace:"monitoring",workflowUUIDs:$workflow_uuids,remediateNamespaces:$remediate_namespaces,targets:{memoryEater:{kind:"Deployment",namespace:"kubernaut-system",name:"memory-eater"}}},
+      provisioner:{entrypoint:"make test-e2e-fullpipeline",source:"pinned-upstream"}}
+    ' >"$OUTPUT"
+  chmod 600 "$OUTPUT"
+  jq . "$OUTPUT"
+  exit 0
+fi
 
 cr_json="$(hub get kubernaut kubernaut -n kubernaut-system -o json 2>/dev/null || true)"
 [[ -n "$cr_json" ]] || { echo "error: Kubernaut CR is missing" >&2; exit 1; }

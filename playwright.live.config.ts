@@ -9,8 +9,13 @@ import { defineConfig, devices } from "@playwright/test";
 //
 // Local prerequisites (see e2e/live/README.md):
 //   1. A running, preserved fullpipeline cluster (Gateway :30080,
-//      DataStorage :30081, AF :30443, Dex :30556).
-//   2. KUBECONFIG pointed at it, if any script here needs kubectl.
+//      DataStorage :30081, AF :18443, Dex :30556).
+//   2. The server-side Vite proxy fetches Dex credentials and injects the
+//      bearer only on its AF hop; the browser uses ProxyAuthProvider.
+const baseURL = process.env.LIVE_E2E_CONSOLE_URL ?? "http://127.0.0.1:5174";
+const apiFrontendURL = process.env.LIVE_E2E_AF_URL ?? "https://127.0.0.1:18443";
+const dexURL = process.env.LIVE_E2E_DEX_URL ?? "https://127.0.0.1:30556/dex";
+
 export default defineConfig({
   testDir: "./e2e/live",
   fullyParallel: false, // shared cluster state (RRs, workflow catalog) — avoid cross-test interference
@@ -20,7 +25,7 @@ export default defineConfig({
   timeout: 180_000, // real LLM tool-call investigation can take minutes, not milliseconds
   reporter: process.env.CI ? "github" : "html",
   use: {
-    baseURL: process.env.LIVE_E2E_CONSOLE_URL ?? "http://localhost:5174",
+    baseURL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
@@ -34,16 +39,17 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "node e2e/live/scripts/start-console-with-token.mjs",
-    url: process.env.LIVE_E2E_CONSOLE_URL ?? "http://localhost:5174",
+    command: "pnpm --filter @kubernaut/standalone exec vite --host 127.0.0.1 --port 5174 --strictPort",
+    url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
     env: {
-      // Distinct from playwright.config.ts's 5173 so both suites could
-      // theoretically run side by side without colliding. Actually applied
-      // via an explicit `vite --port` flag in start-console-with-token.mjs
-      // (Vite does not read $PORT itself).
+      // Distinct from playwright.config.ts's 5173 so both suites can run
+      // side by side without colliding. Vite does not read $PORT itself.
       LIVE_E2E_CONSOLE_PORT: "5174",
+      LIVE_E2E_DEX_URL: dexURL,
+      VITE_API_UPSTREAM: apiFrontendURL,
+      VITE_API_INSECURE_TLS: "true",
     },
   },
 });

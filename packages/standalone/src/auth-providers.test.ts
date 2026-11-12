@@ -6,12 +6,6 @@ async function loadProxyAuthProvider(useMock: boolean) {
   return import("./ProxyAuthProvider");
 }
 
-async function loadLiveE2EAuthProvider(token: string) {
-  vi.resetModules();
-  vi.stubEnv("VITE_LIVE_E2E_TOKEN", token);
-  return import("./LiveE2EAuthProvider");
-}
-
 describe("ProxyAuthProvider", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
@@ -178,40 +172,5 @@ describe("ProxyAuthProvider", () => {
     const { ProxyAuthProvider } = await loadProxyAuthProvider(false);
 
     await expect(new ProxyAuthProvider().getUser()).rejects.toThrow("HTTP 500");
-  });
-});
-
-describe("LiveE2EAuthProvider", () => {
-  beforeEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.resetModules();
-  });
-
-  it("UT-CONSOLE-AUTH-092-008: returns the configured live-E2E token", async () => {
-    const { LiveE2EAuthProvider } = await loadLiveE2EAuthProvider("dex-token");
-
-    await expect(new LiveE2EAuthProvider().getToken()).resolves.toBe("dex-token");
-  });
-
-  it("UT-CONSOLE-AUTH-092-009: rejects when the live-E2E token is missing", async () => {
-    const { LiveE2EAuthProvider } = await loadLiveE2EAuthProvider("");
-
-    await expect(new LiveE2EAuthProvider().getToken()).rejects.toThrow(
-      "VITE_LIVE_E2E_TOKEN is not set",
-    );
-  });
-
-  it("UT-CONSOLE-AUTH-092-010: returns the stable live-E2E identity", async () => {
-    const { LiveE2EAuthProvider } = await loadLiveE2EAuthProvider("dex-token");
-
-    await expect(new LiveE2EAuthProvider().getUser()).resolves.toEqual({
-      name: "sre-user",
-      email: "sre@kubernaut.ai",
-      initials: "SR",
-    });
   });
 });

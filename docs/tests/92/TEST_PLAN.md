@@ -7,11 +7,11 @@
 
 ## 1. Objective and Scope
 
-`packages/standalone` currently has no Vitest project, test script, or coverage
-provider. This plan adds focused unit coverage for the security-sensitive
-selection of `ProxyAuthProvider` versus the live-E2E-only
-`LiveE2EAuthProvider`, and for the public success/error behavior of both
-providers.
+At plan creation, `packages/standalone` had no Vitest project, test script, or
+coverage provider. The completed change adds focused unit coverage for the security-sensitive
+selection of the host-owned `ProxyAuthProvider` and its public success/error
+behavior. Live E2E authentication is server-side and must not introduce a
+browser bearer-token provider.
 
 The production auth behavior is unchanged. `main.tsx` bootstrap behavior,
 real OAuth/Dex infrastructure, and browser-level operator journeys remain out
@@ -46,24 +46,21 @@ E2E surface. No backend or browser-auth infrastructure is required.
 | 1 | `packages/standalone/package.json` | Add `test`/`test:watch` scripts and Vitest, jsdom, React Testing Library, and v8 coverage tooling as package dev dependencies. |
 | 2 | `packages/standalone/vitest.config.ts` | Add a React/jsdom Vitest project with explicit source coverage scope and the existing 80/80/75/80 threshold floor. Exclude tests, setup, and the `main.tsx` bootstrap from the denominator. |
 | 3 | `packages/standalone/src/test/setup.ts` | Install the shared DOM matcher setup used by the App component test. |
-| 4 | `packages/standalone/src/App.test.tsx` | Verify default/empty-token selection and non-empty-token selection through the real App wiring. |
-| 5 | `packages/standalone/src/auth-providers.test.ts` | Verify public success and error paths for both auth providers. |
+| 4 | `packages/standalone/src/App.test.tsx` | Verify the real App wiring always selects `ProxyAuthProvider`, including when the legacy browser-token variable is set. |
+| 5 | `packages/standalone/src/auth-providers.test.ts` | Verify public success and error paths for the host-owned auth provider. |
 | 6 | `pnpm-lock.yaml` | Record the workspace dependency changes. |
 
 ## 4. Unit Test Matrix
 
 | Test ID | Scenario | Expected result | Control |
 |---|---|---|---|
-| UT-CONSOLE-AUTH-092-001 | App loads without `VITE_LIVE_E2E_TOKEN` | `KubernautChat` receives a `ProxyAuthProvider`. | IA-2 |
-| UT-CONSOLE-AUTH-092-002 | App loads with a non-empty `VITE_LIVE_E2E_TOKEN` | `KubernautChat` receives a `LiveE2EAuthProvider`; the live provider is not selected by the default path. | IA-2 |
+| UT-CONSOLE-AUTH-092-001 | App loads normally | `KubernautChat` receives a `ProxyAuthProvider`. | IA-2 |
+| UT-CONSOLE-AUTH-092-002 | App loads with a legacy browser-token variable | `KubernautChat` still receives a `ProxyAuthProvider`; no browser token provider is selected. | IA-2 |
 | UT-CONSOLE-AUTH-092-003 | Proxy provider requests a token | Resolves the empty string because oauth2-proxy injects auth server-side. | IA-2 |
 | UT-CONSOLE-AUTH-092-004 | Proxy userinfo returns a valid identity | Fetches `/oauth2/userinfo`, selects the documented name/email fields, and computes initials. | IA-2 |
 | UT-CONSOLE-AUTH-092-005 | Proxy mock mode is enabled | Returns the deterministic development identity without making a network request. | SA-11 |
 | UT-CONSOLE-AUTH-092-006 | Proxy userinfo returns 401/403 | Redirects to `/oauth2/sign_in` and rejects with the redirecting-login error. | IA-2 |
 | UT-CONSOLE-AUTH-092-007 | Proxy userinfo returns another HTTP error | Rejects with the response status and does not fabricate a user. | IA-2 |
-| UT-CONSOLE-AUTH-092-008 | Live provider has a token | Returns the exact build-time token. | IA-2 |
-| UT-CONSOLE-AUTH-092-009 | Live provider has no token | Rejects with the provider safety error explaining the live-E2E-only guard. | IA-2 |
-| UT-CONSOLE-AUTH-092-010 | Live provider resolves its identity | Returns the stable `sre-user` identity used by live E2E. | IA-2 |
 
 ## 5. Pass/Fail Criteria
 
@@ -108,13 +105,14 @@ No production behavior defect was found.
 
 ## 9. GREEN / Verification Results
 
-- Focused standalone suite: **16 tests passed**.
-- Standalone coverage: **100% statements, branches, functions, and lines**
-  for `App.tsx`, `ProxyAuthProvider.ts`, and `LiveE2EAuthProvider.ts`.
-- Root `pnpm test`: **562 ui-core tests and 16 standalone tests passed**;
+- Focused standalone suite: **21 tests passed**.
+- Standalone coverage: **87.71% statements, 87.5% branches, 100% functions
+  and 91.83% lines**; the removed browser-token provider is no longer part of
+  the source denominator.
+- Root `pnpm test`: **785 ui-core tests and 21 standalone tests passed**;
   standalone coverage ran through Turbo.
-- Explicit ui-core coverage: **82.52% statements, 82.83% branches, 84.03%
-  functions, 83.84% lines**, above its configured thresholds.
+- Explicit ui-core coverage: **83.33% statements, 83.11% branches, 86.37%
+  functions, 86.85% lines**, above its configured thresholds.
 - Root `pnpm lint` and `pnpm build`: passed. Existing ui-core lint warnings and
   the existing standalone bundle-size warning remain non-blocking.
 
@@ -128,11 +126,11 @@ variant is isolated. Coverage scope excludes only test/setup files and the
 
 ## 11. Design / Sequencing Limitations
 
-`VITE_LIVE_E2E_TOKEN` is a Vite build-time value, not a runtime feature flag.
-The selection tests use Vitest environment stubbing plus module resets to
-model the separate production and live-E2E builds; they do not replace a live
-Dex/fullpipeline run. No live E2E run was required or attempted for this
-unit-only issue.
+The native FullPipeline lane keeps auth server-side: Vite fetches the Dex token
+and injects it only on its AF proxy hop. The App always selects
+`ProxyAuthProvider`; the selection test retains the legacy environment variable
+only to prove that it cannot reintroduce a browser token path. These unit tests
+do not replace a live Dex/FullPipeline run.
 
 This checkout predates the separately tracked F-02/#89 CI-enforcement change,
 so its existing ui-core package script remains `vitest run` rather than

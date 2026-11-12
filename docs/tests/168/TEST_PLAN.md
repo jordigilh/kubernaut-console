@@ -42,6 +42,7 @@ login redirect.
 | IT | A2A and status work fence missing/changed incarnation signals | `IT-CONSOLE-168-015/018/019`, A2A/status/component suites |
 | UT | Contract request is no-store, same-origin, credential-free and validates bounded values | `UT-CONSOLE-168-020/021/022`, backend-contract suite |
 | IT | AF serves one process value and propagates it through contract and auth responses | `IT-AF-CONSOLE-168-001/002/003`, Kubernaut PR [#2621](https://github.com/jordigilh/kubernaut/pull/2621), merged as `da031cc8232c1df5d9337d8f09ee63370fe14b97`; handler and command wiring suites pass |
+| Live browser | Native FullPipeline investigates upstream `kubernaut-system/memory-eater` with server-side Dex proxying and no browser bearer token | `.github/workflows/e2e-live.yml` `live-fullpipeline-e2e`; implementation landed, qualification rerun pending |
 | Browser/deployment | Reload, cross-tab, proxy cookies, restart and single-replica rollout | Not run; requires deployed qualification and Operator #621 |
 
 Critical lifecycle isolation scenarios must all pass; record scenario coverage
@@ -69,16 +70,15 @@ merged into Kubernaut `main` as
 single-replica deployment evidence remain acceptance blockers. Record unavailable
 live checks separately and do not call #168 production-qualified without them.
 
-## Local evidence (2026-11-11)
+## Local evidence (2026-11-12)
 
-- `pnpm --filter @kubernaut/ui-core test`: 61 files and 776 tests passed
-  (rerun 2026-11-11).
-- `pnpm --filter @kubernaut/standalone test`: 2 files and 24 tests passed;
-  package coverage reported 88.70% statements, 88.33% branches, 100%
-  functions and 92.59% lines.
+- `pnpm --filter @kubernaut/ui-core test`: 61 files and 785 tests passed.
+- `pnpm --filter @kubernaut/standalone test`: 2 files and 21 tests passed;
+  package coverage reported 87.71% statements, 87.5% branches, 100%
+  functions and 91.83% lines.
 - `pnpm --filter @kubernaut/ui-core build` and
   `pnpm --filter @kubernaut/standalone build` passed.
-- `pnpm lint` exited zero with 10 warnings and no errors; the remaining
+- `pnpm lint` exited zero with 11 warnings and no errors; the remaining
   warnings are generated coverage directives and existing React-hook/unused
   symbol recommendations.
 - `pnpm --filter @kubernaut/ui-core exec tsc --noEmit` still reports
@@ -102,4 +102,9 @@ Playwright tests, but its current suite does not exercise the #168 contract,
 AF restart, browser reload/cross-tab fencing, deployed OAuth2 Proxy claims,
 conflicting replicas, or single-replica rollout. Those deployment checks remain
 unrun and are required before production qualification.
+
+The native FullPipeline lane is separate from production qualification: it
+consumes the upstream-preserved catalog, scenarios, dynamic namespace mappings,
+and stable target read-only; it does not provide evidence for OAuth2 Proxy
+cookies, AF restart, browser reload/cross-tab fencing, or deployment rollout.
 Production acceptance remains blocked on those unrun deployment boundaries.

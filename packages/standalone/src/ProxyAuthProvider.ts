@@ -4,9 +4,9 @@ import { AuthenticationRequiredError, AuthenticationSupersededError, Authenticat
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
 /**
- * Auth provider for oauth2-proxy mode. Token acquisition is a no-op since
- * the reverse proxy injects auth headers. User info is fetched from the
- * proxy's userinfo endpoint.
+ * Auth provider for host/proxy-authenticated mode. Token acquisition is a
+ * no-op since the host injects auth headers. User info is fetched from the
+ * same-origin host userinfo endpoint.
  */
 export class ProxyAuthProvider implements KubernautAuthProvider {
   private principal: { iss: string; sub: string; sid: string } | undefined;

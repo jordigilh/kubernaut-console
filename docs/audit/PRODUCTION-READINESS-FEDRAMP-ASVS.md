@@ -44,8 +44,8 @@ kubernaut-console delegates authentication entirely to an OAuth2 Proxy sidecar (
 
 The most consequential findings on the **active (standalone) surface** are **structural, not exotic**:
 
-- **CI never runs tests with `--coverage`** (`pnpm test` in [`ci.yml`](.github/workflows/ci.yml) has no `--coverage` flag), so the 80/80/75/80 thresholds already configured in `packages/ui-core/vitest.config.ts` have never actually gated a merge — and this audit found the real number (79.17% statements) is currently *below* even that pre-existing bar. There is no mechanism today that could enforce the "100% for business logic" objective this audit was asked to verify against.
-- **`packages/standalone` — the package that decides which auth provider ships (`ProxyAuthProvider` vs. the E2E-only `LiveE2EAuthProvider`) — has zero test infrastructure**: no `vitest` devDependency, no test script, no test files at all.
+- **CI invokes the root test task without a global `--coverage` flag** (`pnpm test` in [`ci.yml`](.github/workflows/ci.yml)); the `packages/ui-core` package script therefore still does not enforce its configured 80/80/75/80 thresholds. `packages/standalone` now invokes its own coverage run, but that does not make the ui-core threshold a merge gate or enforce the audit's "100% for business logic" objective.
+- **`packages/standalone` — the package that owns the host-auth provider wiring — now has focused Vitest coverage**; the native live lane keeps Dex bearer injection in the Vite server process rather than adding a browser credential path.
 - The now-closed [kubernaut-console#36](https://github.com/jordigilh/kubernaut-console/issues/36) established that oauth2-proxy runs with the default client-side cookie session store (no Redis/Valkey), meaning the console has no server-side mechanism to invalidate a session. Current tracking is [#91](https://github.com/jordigilh/kubernaut-console/issues/91), which supersedes #36 and remains open.
 - **A real, unit-tested input-validation function is never actually called.** `packages/ui-core/src/lib/schemas/investigation-summary.ts`'s `isInvestigationSummary()` type guard is fully implemented and has 8 passing tests — but the one production call site, `useChat.ts:384`, uses a raw TypeScript type assertion instead (`as unknown as InvestigationSummary`, erased at runtime). This pattern — validate JSON *syntax* via `try/catch`, but never validate JSON *shape* — repeats across every SSE/JSON-RPC client in the package (`a2a-client.ts`, `a2a-status-client.ts`, `mcp-client.ts`).
 
@@ -65,9 +65,9 @@ None of these are exotic vulnerabilities; they are the kind of gaps a control-ID
 - `packages/ui-core/src/providers/auth.ts:9-12` defines a minimal `KubernautAuthProvider` interface (`getToken`, `getUser`) implemented by `ProxyAuthProvider` (standalone's active implementation); `OCMAuthProvider` and `BackstageAuthProvider` implemented the same interface for the now-deferred plugin packages (see Section 11).
 - **Degrade-mode audit**: `ProxyAuthProvider.getUser()` (`packages/standalone/src/ProxyAuthProvider.ts:20-27`) redirects to `/oauth2/sign_in` on a 401/403 from `/oauth2/userinfo`, and throws (rather than silently returning an empty identity) on any other non-OK status — a fail-closed identity path.
 
-**Gap — E2E-only auth path has no test coverage**: `packages/standalone/src/App.tsx:11-13` selects between `ProxyAuthProvider` and `LiveE2EAuthProvider` (an E2E-only provider per ADR-009, gated on the build-time `VITE_LIVE_E2E_TOKEN` env var) with a plain ternary. Vite bakes `import.meta.env.*` values at build time, so this cannot be toggled at runtime in a shipped image — but the selection logic itself, and both provider implementations, have **zero automated test coverage**, because `packages/standalone` has no test infrastructure at all (no `vitest` devDependency, no `test` script in [`packages/standalone/package.json`](packages/standalone/package.json)). There is nothing today that would catch a future change accidentally making this selection logic reachable in a production build path.
+The former E2E-only browser-token path has been removed. `packages/standalone/src/App.tsx` always selects `ProxyAuthProvider`; the native lane's Vite server injects Dex authentication only on its AF proxy hop. App and provider tests cover the fixed selection and fail-closed claim handling. Native browser qualification remains pending.
 
-**Verdict**: **Partial**. Architecture is sound (IA-2/IA-5 delegated correctly to a trusted backend component per ASVS V7.2.1's intent), but the one piece of decision logic in this domain that lives in the console's own code (`App.tsx`'s provider selection) is completely unverified by tests — an ASVS V6/IA-2 verification gap, not a design gap. (The independent-review pass also found gaps in `OCMAuthProvider`/`BackstageAuthProvider` — see Section 11, deferred alongside those packages.)
+**Current verdict**: **Partial**. The original provider-selection test gap is remediated locally; native browser qualification and the independent-review gaps in the deferred `OCMAuthProvider`/`BackstageAuthProvider` surfaces remain separate evidence boundaries.
 
 ### 4.2 Session Management — FedRAMP AC-12, SC-23 · ASVS V7, V3.3
 
@@ -163,7 +163,7 @@ Separately flagged as an open question rather than a confirmed gap: `deploy/ngin
 - [`.github/workflows/slsa-provenance.yml`](.github/workflows/slsa-provenance.yml) generates **SLSA v1.0 Build L3** provenance via an isolated reusable workflow (its own OIDC identity, so the calling release workflow cannot forge the attestation) using `cosign` + `actions/attest-build-provenance@v4`. The workflow's own comments cite a real A/B spike (kubernaut#1109) justifying the choice over `slsa-framework/slsa-github-generator` (unmaintained since Feb 2025) — this is genuine engineering rigor, not boilerplate. **Compliant** with SA-11/SR-3/SR-4.
 - `.github/workflows/ci.yml`'s `security-scan` job runs a Trivy filesystem scan (CRITICAL/HIGH severity) and uploads SARIF results to GitHub code scanning — **Compliant** with RA-5/SR-3 (vulnerability scanning).
 
-**Gap — the single most consequential structural finding in this audit**: `.github/workflows/ci.yml:29-30` runs the test step as plain `pnpm test`, with **no `--coverage` flag**. `packages/ui-core/vitest.config.ts:21-26` already configures 80/80/75/80 coverage thresholds — but because CI never invokes coverage, that threshold has **never gated a single merge**. This audit's own coverage run (Section 8) found the real number, 79.17% statements, is currently *below* even that pre-existing, unenforced bar. There is currently **no CI mechanism of any kind** that could enforce "100% for business logic" — the objective this audit was asked to verify against — for any of the 4 packages. This is a direct SA-11 (developer testing) and CM-6 (configuration management — a configured-but-inert control) gap, and the root cause underlying most of the Section 8 findings below.
+**Gap — the single most consequential structural finding in this audit**: `.github/workflows/ci.yml:29-30` runs the root test step as plain `pnpm test`, with **no global `--coverage` flag**. `packages/ui-core/vitest.config.ts:21-26` already configures 80/80/75/80 coverage thresholds — but because the ui-core package script still invokes plain `vitest run`, that threshold has **never gated a single merge**. The standalone package now runs and enforces its own focused coverage, but there is still no CI mechanism enforcing the ui-core threshold or the audit's "100% for business logic" objective. This is a direct SA-11 (developer testing) and CM-6 (configuration management — a configured-but-inert control) gap, and the root cause underlying most of the Section 8 findings below.
 
 **Verdict**: **Compliant** for provenance and dependency scanning. **Gap** for coverage enforcement — the audit's own headline structural finding.
 
@@ -181,7 +181,7 @@ Original finding IDs are preserved as-numbered (gaps in the sequence, e.g. no F-
 |----|--------|----------|----------|---------|----------|---------|-------|
 | F-01 | Session | High | [kubernaut-console#91](https://github.com/jordigilh/kubernaut-console/issues/91) (supersedes closed #36) — default cookie session store, no server-side revocation | AC-12 | V7.2.1 | Gap | [#91](https://github.com/jordigilh/kubernaut-console/issues/91) |
 | F-02 | Supply chain / CI | High | [`ci.yml:29-30`](.github/workflows/ci.yml) — `pnpm test` runs with no `--coverage`; configured 80% threshold never enforced; real number is 79.17% | SA-11, CM-6 | — | Gap | [#89](https://github.com/jordigilh/kubernaut-console/issues/89) |
-| F-04 | Auth / test coverage | Medium | `packages/standalone` has zero test infrastructure; `App.tsx:11-13` provider-selection logic and both auth providers are entirely untested | IA-2 | V6 | Partial | [#92](https://github.com/jordigilh/kubernaut-console/issues/92) |
+| F-04 | Auth / test coverage | Medium | Focused Vitest coverage now exercises `App.tsx` provider selection and `ProxyAuthProvider.ts`; the former browser-token provider was removed | IA-2 | V6 | Compliant (local) | [#92](https://github.com/jordigilh/kubernaut-console/issues/92) |
 | F-06 | Session (cookie flags) | Medium | [`oauth2-proxy.yaml:121`](deploy/kind/oauth2-proxy.yaml) — `--cookie-secure=false`, no production overlay found to confirm the prod value differs | SC-23 | V3.3.1 | Partial | [#95](https://github.com/jordigilh/kubernaut-console/issues/95) |
 | F-07 | Input validation | Medium | `mcp-client.ts` 72.72% / `a2a-status-client.ts` 82.69% branch coverage — untested error/malformed-response branches at the server-data ingestion boundary | SI-10 | V1, V5 | Gap | [#96](https://github.com/jordigilh/kubernaut-console/issues/96) |
 | F-08 | Config / K8s hardening | Low | `deploy/kind/oauth2-proxy.yaml`'s `nginx` container omits `readOnlyRootFilesystem` despite its own emptyDir-volume layout anticipating it | CM-6 | V13 | Partial | [#98](https://github.com/jordigilh/kubernaut-console/issues/98) |
@@ -203,7 +203,7 @@ Compliant, evidence-backed controls not repeated here: fail-closed advisory acce
 
 Three independently-briefed review passes were run in parallel over disjoint file sets, without seeing this report's draft findings, per the audit's independent-review-gate methodology (Section 2, step 4):
 
-- [**Auth/session domain**](a1b43e40-fc75-4681-a44c-a54ea7450ff5) — `auth.ts`, `useUser.ts`, `session-state.ts`, `OCMAuthProvider.ts`, `BackstageAuthProvider.ts`, `LiveE2EAuthProvider.ts`, `App.tsx`, oauth2-proxy config.
+- [**Auth/session domain**](a1b43e40-fc75-4681-a44c-a54ea7450ff5) — `auth.ts`, `useUser.ts`, `session-state.ts`, `OCMAuthProvider.ts`, `BackstageAuthProvider.ts`, `ProxyAuthProvider.ts`, `App.tsx`, oauth2-proxy config.
 - [**Input-validation & communications domain**](3b59a252-a90a-4bb4-beee-a6625960c5b6) — `investigation-summary.ts`, `MarkdownContent.tsx`, `sse-reader.ts`, `mcp-client.ts`, `a2a-client.ts`, `a2a-status-client.ts`, `useChat.ts`, `ErrorBoundary.tsx`, `deploy/nginx.conf`.
 - [**Data protection, config & supply-chain domain**](96206314-2001-4790-b3a1-fcf5349f8bac) — `config.ts`, `preferences.ts`, all three Containerfiles, the plugin-ocm Helm chart, `deploy/kind/oauth2-proxy.yaml`, Backstage `app-config.kubernaut.yaml`, both GitHub Actions workflows, `pnpm-lock.yaml`, `runtime-config.js`.
 
@@ -250,9 +250,12 @@ An earlier internal note recorded "security context correctly rendered in Helm t
 
 **Component-tier (wiring, generally lower-priority against the "business logic" mandate, but flagged where a component embeds real decision logic):** `RCACard.tsx` (35.29% lines — the lowest in the package; renders RCA-derived business data, worth a closer look despite being component-tier), `ApprovalCard.tsx` (92.59% lines, 2 uncovered lines in the approve/decline decision-adjacent path), `ChatContainer.tsx` (68.78% — contains the multi-source fallback-chain resolution logic documented in `docs/tests/35/TEST_PLAN.md`, arguably business logic wearing a component's clothes), `InvestigationContext.tsx` (62.5%), `WorkflowCards.tsx` (72.52%).
 
-### 8.2 `packages/standalone` — coverage **not measurable; no test infrastructure exists**
+### 8.2 `packages/standalone` — focused auth coverage
 
-No `vitest` devDependency, no `test` script in [`packages/standalone/package.json`](packages/standalone/package.json), no `vitest.config.ts`, and no test files for any of its 4 source files (`App.tsx`, `main.tsx`, `ProxyAuthProvider.ts`, `LiveE2EAuthProvider.ts`) — including the production auth-provider-selection logic flagged in F-04.
+`packages/standalone` now has a package Vitest project and focused tests for
+`App.tsx` and `ProxyAuthProvider.ts`. The removed browser-token provider has no
+remaining production source or test surface; native Dex injection is covered
+by the server-side Vite path and native Playwright lane.
 
 ## 9. Independent-Review Status — Complete
 
@@ -266,14 +269,13 @@ Per the mandatory independent-review gate (Section 2, step 4), three parallel re
   3. No independent CVE scan of resolved dependency versions was performed as part of this audit (by design — deferred to the existing Trivy CI job), whose own scope gaps are now documented as F-20.
 - Per this project's methodology, an item below the 95% bar is escalated explicitly (as above) rather than rounded up to a false "closed" state.
 
-## 10. Recommended Follow-On Work (Active Scope — titles + priority only, not filed, not implemented)
+## 10. Recommended Follow-On Work (Active Scope — titles + priority only)
 
-Per the audit-only deliverable scope, none of the following were implemented. Each should go through this repo's existing `docs/tests/<issue>/TEST_PLAN.md`-first workflow before implementation. Items specific to `plugin-ocm`/`plugin-backstage` moved to Section 11 (deferred alongside those packages).
+Per the audit-only deliverable scope, the remaining rows below are follow-on work. F-04/#92 was completed through the repo's `docs/tests/<issue>/TEST_PLAN.md`-first workflow and is not repeated here. Items specific to `plugin-ocm`/`plugin-backstage` moved to Section 11 (deferred alongside those packages).
 
 | Priority | Title |
 |---|---|
 | P0 | Add `--coverage` to the CI test step and make the existing 80/80/75/80 thresholds a real merge gate (closes F-02) |
-| P1 | Stand up minimal test infrastructure for `packages/standalone` (vitest + at least the auth-provider-selection logic in `App.tsx`) (closes F-04) |
 | P1 | Revisit oauth2-proxy session store (Redis/Valkey) per open #91 (supersedes closed #36; closes F-01) |
 | P2 | Close branch-coverage gaps in `useChat.ts`, `useRRStatus.ts`, `mcp-client.ts`, `a2a-status-client.ts` to meet the 100%-business-logic mandate (closes F-07 and the bulk of Section 8.1) |
 | P2 | Confirm production cookie-secure value / add a production oauth2-proxy overlay to this repo for auditability (closes F-06) |
