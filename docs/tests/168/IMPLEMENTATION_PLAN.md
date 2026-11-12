@@ -43,9 +43,10 @@ no pending/skipped placeholder is acceptance evidence.
 
 The local Console implementation gate is complete: affected scenario tests
 pass, production callers are wired, and both Console packages build. AF
-contract/handler work is preserved separately in durable commit `ae7b4e70` on
-`feat/console-168-af-contract-durable`; it is not merged or deployed in this
-Console worktree.
+contract/handler work was delivered by Kubernaut PR [#2621](https://github.com/jordigilh/kubernaut/pull/2621),
+merged into Kubernaut `main` as
+`da031cc8232c1df5d9337d8f09ee63370fe14b97`; deployed qualification remains
+pending.
 
 ## Wiring manifest and checkpoint
 
@@ -55,7 +56,7 @@ Console worktree.
 | Verified identity and lifecycle | `ProxyAuthProvider` -> `KubernautChat` -> `AuthContext` consumers | UT-CONSOLE-168-023/024; IT-CONSOLE-168-001/002/014/016 | wired and locally passing |
 | Scoped MCP client | `ChatContainer` creates one `McpClient` per authenticated lifecycle | IT-CONSOLE-168-006/007/008/009; full UI-core suite | wired and locally passing |
 | A2A/status incarnation fencing | `useChat`, `useRRStatus`, A2A/status clients | IT-CONSOLE-168-015/018/019; full UI-core suite | wired and locally passing |
-| AF incarnation | AF `NewRouter` -> same-origin contract and A2A/MCP/status headers | IT-AF-CONSOLE-168-001/002/003; handler and command wiring suites | durable commit `ae7b4e70` passes locally; merge/deploy evidence pending |
+| AF incarnation | AF `NewRouter` -> same-origin contract and A2A/MCP/status headers | IT-AF-CONSOLE-168-001/002/003; handler and command wiring suites | Kubernaut PR #2621 merged as `da031cc8232c1df5d9337d8f09ee63370fe14b97`; deploy evidence pending |
 | Single AF deployment | Operator reconciliation and rollout | Operator #621 deployment tests | external prerequisite |
 
 The provider validates required fields, detects changed claims in its own
@@ -67,12 +68,11 @@ subscriptions. MCP session state is instance-scoped and disposed with the
 authenticated lifecycle.
 
 CHECKPOINT W passes for the Console and AF production callers. It is not a
-deployed qualification result: the AF contract is isolated in durable commit
-`ae7b4e70` and still needs integration into the canonical AF change, followed
-by proxy pass-through validation and single-replica rollout evidence from
-Operator #621.
+deployed qualification result: the AF contract is integrated in canonical
+Kubernaut `main` through PR #2621, but still needs proxy pass-through
+validation and single-replica rollout evidence from Operator #621.
 
-## Execution evidence (2026-11-08)
+## Execution evidence (2026-11-11)
 
 | Check | Result |
 |---|---|
@@ -83,7 +83,7 @@ Operator #621.
 | Console lint | `pnpm lint` exited 0; 10 warnings remain, with no errors |
 | TypeScript check | `pnpm --filter @kubernaut/ui-core exec tsc --noEmit` still reports pre-existing repository errors, including `findLast` target errors in `ChatContainer.tsx`; no new errors remain in the changed auth/SSE/A2A production files |
 | Formatting/diff checks | `git diff --check` passed |
-| AF handler suite | durable AF commit `ae7b4e70`: `go test ./pkg/apifrontend/handler` passed all 237 specs; `go test ./cmd/apifrontend` passed; `go build ./cmd/apifrontend` passed; scoped `golangci-lint` reported 0 issues |
+| AF handler suite | Kubernaut PR #2621, merged as `da031cc8232c1df5d9337d8f09ee63370fe14b97`: AF handler and command tests, `go build`, and scoped lint passed; AF integration execution was blocked by missing `/usr/local/kubebuilder/bin/etcd` |
 
 The local test tree contains 52/52 outcomes from explicitly tagged Console
 #168 regressions, including parameterized cases, and 4/4 SSE buffer-hardening
