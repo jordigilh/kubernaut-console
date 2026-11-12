@@ -125,8 +125,20 @@ if [[ "$MODE" == "fullpipeline" ]]; then
     echo "error: upstream kubernaut-system/memory-eater target is missing or scaled down" >&2
     exit 1
   }
-  target_pods="$(kubectl --kubeconfig "$HUB_KUBECONFIG" get pods -n "$PLATFORM_NS" -l app=memory-eater -o json)"
-  jq -e '[.items[]?.status.containerStatuses[]? | (.state.waiting.reason // .state.terminated.reason // .lastState.terminated.reason)] | any(.[]; . == "CrashLoopBackOff" or . == "OOMKilled" or . == "Error")' <<<"$target_pods" >/dev/null || {
+  fault_timeout_seconds=120
+  fault_deadline=$((SECONDS + fault_timeout_seconds))
+  fault_detected=false
+  while (( SECONDS < fault_deadline )); do
+    target_pods="$(kubectl --kubeconfig "$HUB_KUBECONFIG" get pods -n "$PLATFORM_NS" -l app=memory-eater -o json)"
+    if jq -e '[.items[]?.status.containerStatuses[]? | (.state.waiting.reason // .state.terminated.reason // .lastState.terminated.reason)] | any(.[]; . == "CrashLoopBackOff" or . == "OOMKilled" or . == "Error")' <<<"$target_pods" >/dev/null 2>&1; then
+      fault_detected=true
+      break
+    fi
+    if (( SECONDS < fault_deadline )); then
+      sleep 2
+    fi
+  done
+  [[ "$fault_detected" == true ]] || {
     echo "error: upstream stable memory-eater target is not showing an OOM/crash fault" >&2
     exit 1
   }

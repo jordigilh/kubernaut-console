@@ -33,9 +33,14 @@ if [[ "$MODE" == "fullpipeline" ]]; then
     echo "error: native FullPipeline teardown refuses spoke-cluster arguments" >&2
     exit 1
   }
-  if command -v kind >/dev/null 2>&1; then
-    export KIND_EXPERIMENTAL_PROVIDER="${KIND_EXPERIMENTAL_PROVIDER:-podman}"
-    kind delete cluster --name fullpipeline-e2e >/dev/null 2>&1 || true
+  if ! command -v kind >/dev/null 2>&1; then
+    echo "error: kind is required to tear down the native FullPipeline cluster" >&2
+    exit 1
+  fi
+  export KIND_EXPERIMENTAL_PROVIDER="${KIND_EXPERIMENTAL_PROVIDER:-podman}"
+  if ! kind delete cluster --name fullpipeline-e2e >/dev/null 2>&1; then
+    echo "error: failed to delete the native FullPipeline Kind cluster: fullpipeline-e2e" >&2
+    exit 1
   fi
   rm -f "$STATE_FILE"
   echo "Exact native FullPipeline Kind cluster removed: fullpipeline-e2e"

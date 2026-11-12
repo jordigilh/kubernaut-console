@@ -5,6 +5,7 @@ const apiFrontendURL = process.env.LIVE_E2E_API_FRONTEND_URL ?? "https://127.0.0
 const dexURL = process.env.LIVE_E2E_DEX_URL ?? "https://127.0.0.1:30556/dex";
 const jsonReportPath = process.env.LIVE_E2E_JSON_REPORT ?? "test-results/live-e2e-fullpipeline.json";
 const retainBrowserArtifacts = process.env.LIVE_E2E_RETAIN_BROWSER_ARTIFACTS === "1";
+const consoleSourceDir = process.env.LIVE_E2E_CONSOLE_SOURCE_DIR ?? ".";
 
 export default defineConfig({
   testDir: "./e2e/live",
@@ -35,6 +36,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "pnpm --filter @kubernaut/standalone exec vite --host 127.0.0.1 --port 5174 --strictPort",
+    cwd: consoleSourceDir,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,

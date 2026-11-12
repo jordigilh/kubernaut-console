@@ -28,9 +28,10 @@ chmod 700 "$OUTPUT"
 redact() {
   sed -E \
     -e 's/((private[_-]?key|credentials?)[[:space:]]*[[:punct:]]?[[:space:]]*[:=][[:space:]]*)[[:punct:]]?[^[:space:],}]+/\1<REDACTED>/Ig' \
+    -e 's/(Basic[[:space:]]+)[-A-Za-z0-9._~+\/=]+/\1<REDACTED>/Ig' \
     -e 's/(Bearer[[:space:]]+)[A-Za-z0-9._~+\/-]+/\1<REDACTED>/Ig' \
     -e 's/((api[_-]?key|password|passwd|secret|token|client[_-]?secret|authorization)[[:space:]]*[:=][[:space:]]*)[^,[:space:]}"'"'"']+/\1<REDACTED>/Ig' \
-    -e 's/("(api[_-]?key|password|passwd|secret|token|client[_-]?secret|authorization)"[[:space:]]*:[[:space:]]*")[^"]*(")/\1<REDACTED>\3/Ig'
+    -e 's/("[A-Za-z0-9_-]*(api[_-]?key|password|passwd|secret|token|client[_-]?secret|authorization)"[[:space:]]*:[[:space:]]*")[^"]*(")/\1<REDACTED>\3/Ig'
 }
 
 capture() {

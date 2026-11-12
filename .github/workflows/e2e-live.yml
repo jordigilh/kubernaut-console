@@ -659,6 +659,14 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 1
 
+      - name: Checkout Console source under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          path: console-source
+          fetch-depth: 1
+
       - name: Checkout Kubernaut at the pinned SHA
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -684,6 +692,10 @@ jobs:
           cache: pnpm
 
       - name: Install Console test dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install selected Console source dependencies
+        working-directory: console-source
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
@@ -752,6 +764,8 @@ jobs:
       - name: Run native Console Playwright coverage
         id: playwright
         if: steps.fixtures.outcome == 'success'
+        env:
+          LIVE_E2E_CONSOLE_SOURCE_DIR: console-source
         run: pnpm exec playwright test --config=playwright.live-fullpipeline.config.ts
 
       - name: Enforce non-empty native Playwright report

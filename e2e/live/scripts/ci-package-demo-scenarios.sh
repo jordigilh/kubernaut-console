@@ -10,7 +10,7 @@ mkdir -p artifact
 tar -czf artifact/demo-scenarios.tar.gz \
   -C kubernaut-demo-scenarios \
   base deploy docs golden-transcripts helm overlays scenarios scripts tools README.md LICENSE
-if tar -tzf artifact/demo-scenarios.tar.gz | grep -Eq '(^|/)(credentials|\.git)(/|$)|(^|/)\.env($|\.)'; then
+if tar -tzf artifact/demo-scenarios.tar.gz | grep -E '(^|/)(credentials|\.git)(/|$)|(^|/)\.env($|\.)' >/dev/null; then
   echo "::error::scenario artifact contains a credentials or environment-file path"
   exit 1
 fi
