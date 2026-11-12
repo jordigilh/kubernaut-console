@@ -59,10 +59,13 @@ class TestBroadcastChannel {
   }
 }
 
-function activeAuthChannel(): TestBroadcastChannel {
-  const channel = TestBroadcastChannel.instances.find((candidate) => candidate.onmessage);
-  if (!channel) throw new Error("No active auth notification channel");
-  return channel;
+async function activeAuthChannel(): Promise<TestBroadcastChannel> {
+  let channel: TestBroadcastChannel | undefined;
+  await waitFor(() => {
+    channel = TestBroadcastChannel.instances.find((candidate) => candidate.onmessage);
+    expect(channel).toBeDefined();
+  });
+  return channel!;
 }
 
 describe("KubernautChat", () => {
@@ -180,7 +183,7 @@ describe("KubernautChat", () => {
     await screen.findByTestId("chat-container");
     expect(provider.getUser).toHaveBeenCalledOnce();
 
-    activeAuthChannel().emit({
+    (await activeAuthChannel()).emit({
       type: "kubernaut-console-auth-changed",
       iss: "untrusted-issuer",
       sub: "untrusted-subject",
@@ -214,7 +217,7 @@ describe("KubernautChat", () => {
 
     render(<KubernautChat authProvider={provider} config={makeMockConfig()} />);
     await screen.findByTestId("chat-container");
-    activeAuthChannel().emit({ type: "kubernaut-console-auth-changed", sid: "untrusted" });
+    (await activeAuthChannel()).emit({ type: "kubernaut-console-auth-changed", sid: "untrusted" });
 
     await waitFor(() => expect(redirect).toHaveBeenCalledWith("/oauth2/sign_in"));
     expect(sessionStorage.getItem("kubernaut-console-messages")).toBeNull();
@@ -233,7 +236,7 @@ describe("KubernautChat", () => {
     });
     const view = render(<KubernautChat authProvider={oldProvider} config={makeMockConfig()} />);
     await screen.findByTestId("chat-container");
-    activeAuthChannel().emit({ type: "kubernaut-console-auth-changed" });
+    (await activeAuthChannel()).emit({ type: "kubernaut-console-auth-changed" });
     await waitFor(() => expect(oldProvider.getUser).toHaveBeenCalledTimes(2));
 
     view.rerender(<KubernautChat authProvider={nextProvider} config={makeMockConfig()} />);
