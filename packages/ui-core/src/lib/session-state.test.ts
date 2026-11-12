@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   clearConsoleSessionState,
   clearSessionState,
@@ -41,6 +41,16 @@ describe("session-state", () => {
     expect(freshContext).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
+  });
+
+  it("Console #168: rejects cleanup when storage silently retains private messages", () => {
+    sessionStorage.setItem("kubernaut-console-messages", "private previous session");
+    const remove = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {});
+    try {
+      expect(() => clearConsoleSessionState()).toThrow();
+    } finally {
+      remove.mockRestore();
+    }
   });
 
   it("tracks workflow resolved per rrId", () => {

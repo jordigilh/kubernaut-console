@@ -22,7 +22,7 @@ describe("isJsonRpcResponse", () => {
   });
 });
 
-function createSSEResponse(frames: string[]): Response {
+function createSSEResponse(frames: string[], extraHeaders: Record<string, string> = {}): Response {
   const body = frames.join("");
   const stream = new ReadableStream({
     start(controller) {
@@ -32,7 +32,7 @@ function createSSEResponse(frames: string[]): Response {
   });
   return new Response(stream, {
     status: 200,
-    headers: { "Content-Type": "text/event-stream" },
+    headers: { "Content-Type": "text/event-stream", ...extraHeaders },
   });
 }
 
@@ -57,6 +57,18 @@ describe("buildStreamRequest", () => {
 });
 
 describe("streamA2A", () => {
+  it.each(["network", "server"])("Console #168: reports an uncertain %s failure without repeating the investigation", async (failure) => {
+    const fetchFn = failure === "network"
+      ? vi.fn().mockRejectedValue(new TypeError("network failure"))
+      : vi.fn().mockResolvedValue(new Response("unavailable", { status: 503 }));
+    const onStreamInterrupted = vi.fn();
+    await streamA2A(buildStreamRequest("investigate"), {
+      fetchFn, onEvent: vi.fn(), onError: vi.fn(), onComplete: vi.fn(),
+      onStreamInterrupted, maxRetries: 1, preRetryDelayMs: 1,
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(onStreamInterrupted).toHaveBeenCalledOnce();
+  });
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -88,6 +100,74 @@ describe("streamA2A", () => {
     expect(events).toHaveLength(1);
     expect(events[0].kind).toBe("artifact-update");
     expect(onComplete).toHaveBeenCalled();
+  });
+
+  it("IT-CONSOLE-168-018: fences A2A work when the required incarnation header is unavailable", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(createSSEResponse([sseFrame({
+      jsonrpc: "2.0",
+      id: "1",
+      result: { kind: "status-update", taskId: "t1", contextId: "ctx-1", status: { state: "working" } },
+    })]));
+    const observed = vi.fn();
+    const onComplete = vi.fn();
+    const onEvent = vi.fn();
+
+    await streamA2A(buildStreamRequest("test"), {
+      onEvent,
+      onError: vi.fn(),
+      onComplete,
+      requireBackendIncarnation: true,
+      onBackendIncarnation: observed,
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(observed).toHaveBeenCalledWith(null);
+    expect(onEvent).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it("IT-CONSOLE-168-019: fences a changed A2A incarnation without replay", async () => {
+    let expected: string | undefined;
+    let current = true;
+    const observed = (incarnation: string | null) => {
+      if (!incarnation) {
+        current = false;
+        return;
+      }
+      if (expected && expected !== incarnation) current = false;
+      expected = incarnation;
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(createSSEResponse([sseFrame({
+        jsonrpc: "2.0", id: "1",
+        result: { kind: "status-update", taskId: "t1", contextId: "ctx-1", status: { state: "working" } },
+      })], { "x-kubernaut-backend-incarnation": "incarnation-one" }))
+      .mockResolvedValueOnce(createSSEResponse([sseFrame({
+        jsonrpc: "2.0", id: "2",
+        result: { kind: "status-update", taskId: "t1", contextId: "ctx-1", status: { state: "working" } },
+      })], { "x-kubernaut-backend-incarnation": "incarnation-two" }));
+    const onComplete = vi.fn();
+
+    await streamA2A(buildStreamRequest("first"), {
+      onEvent: vi.fn(),
+      onError: vi.fn(),
+      onComplete,
+      requireBackendIncarnation: true,
+      onBackendIncarnation: observed,
+      isCurrent: () => current,
+    });
+    await streamA2A(buildStreamRequest("second"), {
+      onEvent: vi.fn(),
+      onError: vi.fn(),
+      onComplete,
+      requireBackendIncarnation: true,
+      onBackendIncarnation: observed,
+      isCurrent: () => current,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(onComplete).toHaveBeenCalledOnce();
+    expect(current).toBe(false);
   });
 
   it("parses a status-update event with metadata.type", async () => {
@@ -259,7 +339,51 @@ describe("streamA2A", () => {
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: "HTTP 403: Forbidden" }));
   });
 
-  it("retries on 5xx and calls onReconnecting", async () => {
+  it.each([401, 403])("IT-CONSOLE-168-028: fences an active HTTP %s auth rejection without replay or normal error handling", async (status) => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("rejected", { status, statusText: status === 401 ? "Unauthorized" : "Forbidden" }),
+    );
+    const onAuthenticationRequired = vi.fn();
+    const onBackendIncarnation = vi.fn();
+    const onError = vi.fn();
+
+    await streamA2A(buildStreamRequest("state-changing investigation"), {
+      onEvent: vi.fn(),
+      onError,
+      onComplete: vi.fn(),
+      onAuthenticationRequired,
+      onBackendIncarnation,
+      requireBackendIncarnation: true,
+      maxRetries: 3,
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(onAuthenticationRequired).toHaveBeenCalledOnce();
+    expect(onBackendIncarnation).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("IT-CONSOLE-168-029: treats a JSON-RPC authentication rejection as a lifecycle rejection", async () => {
+    const onAuthenticationRequired = vi.fn();
+    const onError = vi.fn();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(createSSEResponse([sseFrame({
+      jsonrpc: "2.0",
+      id: "1",
+      error: { code: -32002, message: "access_denied" },
+    })]));
+
+    await streamA2A(buildStreamRequest("investigate"), {
+      onEvent: vi.fn(),
+      onError,
+      onComplete: vi.fn(),
+      onAuthenticationRequired,
+    });
+
+    expect(onAuthenticationRequired).toHaveBeenCalledOnce();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("Console #168: does not replay after a 5xx response", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response("Error", { status: 502 }))
       .mockResolvedValueOnce(createSSEResponse([sseFrame({
@@ -277,9 +401,9 @@ describe("streamA2A", () => {
       maxRetries: 1,
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(onReconnecting).toHaveBeenCalledWith(1);
-    expect(events).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onReconnecting).not.toHaveBeenCalled();
+    expect(events).toHaveLength(0);
   });
 
   it("respects abort signal", async () => {
@@ -300,7 +424,58 @@ describe("streamA2A", () => {
     expect(onComplete).not.toHaveBeenCalled();
   });
 
-  it("UT-CONSOLE-A2A-010: retries on JSON-RPC -32603 with 'execution in progress' and succeeds", async () => {
+  it("IT-CONSOLE-168-039: does not fence the lifecycle when the user aborts an active stream", async () => {
+    const controller = new AbortController();
+    const onBackendIncarnation = vi.fn();
+    const fetchFn = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => {
+        reject(new DOMException("The operation was aborted.", "AbortError"));
+      }, { once: true });
+    }));
+
+    const stream = streamA2A(buildStreamRequest("investigate"), {
+      fetchFn,
+      onEvent: vi.fn(),
+      onError: vi.fn(),
+      onComplete: vi.fn(),
+      signal: controller.signal,
+      requireBackendIncarnation: true,
+      onBackendIncarnation,
+    });
+    controller.abort();
+    await stream;
+
+    expect(fetchFn).toHaveBeenCalledOnce();
+    expect(onBackendIncarnation).not.toHaveBeenCalled();
+  });
+
+  it("IT-CONSOLE-168-045: ignores an HTTP auth rejection after the lifecycle becomes stale", async () => {
+    let current = true;
+    let resolveFetch!: (response: Response) => void;
+    const fetchFn = vi.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    const onAuthenticationRequired = vi.fn();
+    const onBackendIncarnation = vi.fn();
+    const pending = streamA2A(buildStreamRequest("stale request"), {
+      fetchFn,
+      onEvent: vi.fn(),
+      onError: vi.fn(),
+      onComplete: vi.fn(),
+      onAuthenticationRequired,
+      onBackendIncarnation,
+      requireBackendIncarnation: true,
+      isCurrent: () => current,
+    });
+
+    await vi.waitFor(() => expect(fetchFn).toHaveBeenCalledOnce());
+    current = false;
+    resolveFetch(new Response("rejected", { status: 401, statusText: "Unauthorized" }));
+    await pending;
+
+    expect(onAuthenticationRequired).not.toHaveBeenCalled();
+    expect(onBackendIncarnation).not.toHaveBeenCalled();
+  });
+
+  it("UT-CONSOLE-A2A-010: does not replay when execution is in progress", async () => {
     const transientError = {
       jsonrpc: "2.0",
       id: "1",
@@ -328,11 +503,10 @@ describe("streamA2A", () => {
       preRetryDelayMs: 10,
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(onReconnecting).toHaveBeenCalledWith(1);
-    expect(onError).not.toHaveBeenCalled();
-    expect(events).toHaveLength(1);
-    expect(events[0].kind).toBe("artifact-update");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onReconnecting).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalled();
+    expect(events).toHaveLength(0);
   });
 
   it("UT-CONSOLE-A2A-011: JSON-RPC -32603 with unrelated error text remains fatal", async () => {
@@ -440,7 +614,7 @@ describe("streamA2A", () => {
     expect(events).toHaveLength(0);
   });
 
-  it("UT-CONSOLE-A2A-012: preRetryDelayMs is applied before the first retry attempt", async () => {
+  it("UT-CONSOLE-A2A-012: a retry delay cannot cause investigation replay", async () => {
     const transientError = {
       jsonrpc: "2.0",
       id: "1",
@@ -452,12 +626,11 @@ describe("streamA2A", () => {
       result: { kind: "artifact-update", taskId: "t1", contextId: "ctx-1", artifact: { artifactId: "a1", parts: [{ kind: "text", text: "Delayed" }] }, lastChunk: true },
     };
 
-    vi.spyOn(globalThis, "fetch")
+    const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(createSSEResponse([sseFrame(transientError)]))
       .mockResolvedValueOnce(createSSEResponse([sseFrame(successFrame)]));
 
     const preRetryDelayMs = 150;
-    const start = Date.now();
     await streamA2A(buildStreamRequest("test"), {
       onEvent: () => {},
       onError: () => {},
@@ -465,9 +638,7 @@ describe("streamA2A", () => {
       maxRetries: 1,
       preRetryDelayMs,
     });
-    const elapsed = Date.now() - start;
-
-    expect(elapsed).toBeGreaterThanOrEqual(preRetryDelayMs - 10);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   // kubernaut-console#93 (F-15): an SSE response that never terminates a

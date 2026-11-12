@@ -1,4 +1,8 @@
-export type SSEStreamResult = "complete" | "aborted" | "retryable" | "disconnected" | "buffer_overflow";
+export type SSEStreamResult = "complete" | "aborted" | "stale" | "retryable" | "disconnected" | "buffer_overflow" | "auth_required";
+
+function isAbortError(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "name" in error && (error as { name?: unknown }).name === "AbortError");
+}
 
 export interface SSEReaderOptions {
   signal?: AbortSignal;
@@ -21,7 +25,8 @@ export const DEFAULT_MAX_SSE_BUFFER_BYTES = 1_048_576;
 /**
  * Reads an SSE stream from a response body, invoking a handler for each
  * parsed JSON payload from `data:` lines. The handler can return a result
- * to stop reading early ("complete", "retryable", "fatal", or "terminal").
+ * to stop reading early ("complete", "retryable", "fatal", "terminal", or
+ * "auth_required").
  *
  * Returns "complete" when the stream ends normally, "aborted" if signal
  * fires, "retryable" when the *server itself* signalled (via a parsed
@@ -29,7 +34,9 @@ export const DEFAULT_MAX_SSE_BUFFER_BYTES = 1_048_576;
  * or "disconnected" on idle timeout / a read-time network error that this
  * reader detected on its own.
  *
- * "retryable" and "disconnected" are deliberately distinct (kubernaut#2096
+ * "stale" is returned when the owning authenticated lifecycle is replaced
+ * while a frame is being processed. "retryable" and "disconnected" are
+ * deliberately distinct (kubernaut#2096
  * follow-up spike, 2026-08-11): once `postForSSE` has handed back a live
  * response body, the server has already started executing this request.
  * "retryable" only ever comes from `onFrame` itself recognizing a
@@ -47,7 +54,7 @@ export const DEFAULT_MAX_SSE_BUFFER_BYTES = 1_048_576;
  */
 export async function readSSEStream(
   body: ReadableStream<Uint8Array>,
-  onFrame: (parsed: Record<string, unknown>) => "continue" | "complete" | "retryable" | "fatal" | "terminal" | "not_found",
+  onFrame: (parsed: Record<string, unknown>) => "continue" | "complete" | "aborted" | "stale" | "retryable" | "fatal" | "terminal" | "not_found" | "auth_required",
   options?: SSEReaderOptions,
 ): Promise<SSEStreamResult | "fatal" | "terminal" | "not_found" | "disconnected"> {
   const reader = body.getReader();
@@ -134,7 +141,7 @@ export async function postForSSE(
     token?: string;
     fetchFn?: (url: string, init?: RequestInit) => Promise<Response>;
   },
-): Promise<Response | "aborted" | "retryable" | SSEFetchError> {
+): Promise<Response | "aborted" | "retryable" | "disconnected" | SSEFetchError> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "text/event-stream",
@@ -152,8 +159,9 @@ export async function postForSSE(
       body: JSON.stringify(body),
       signal: options?.signal,
     });
-  } catch {
+  } catch (error) {
     if (options?.signal?.aborted) return "aborted";
+    if (isAbortError(error)) return "disconnected";
     return "retryable";
   }
 

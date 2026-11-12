@@ -1,6 +1,8 @@
 import type { A2AEvent, JsonRpcRequest, JsonRpcResponse } from "./a2a-types";
 import { readSSEStream, postForSSE, type SSEFetchError } from "./sse-reader";
 import { isRecord } from "./type-guards";
+import { isValidBackendIncarnation } from "./backend-contract";
+import { isAuthenticationRejectionMessage, isAuthenticationRejectionStatus } from "../providers/auth";
 
 // kubernaut-console#90 (F-12): every SSE frame was treated as a valid
 // JsonRpcResponse via a bare type assertion. A frame that is valid JSON but
@@ -22,6 +24,8 @@ export interface StreamOptions {
   fetchFn?: FetchFn;
   onEvent: (event: A2AEvent) => void;
   onError: (error: Error) => void;
+  /** Active auth rejection: fence the lifecycle instead of treating it as transport loss. */
+  onAuthenticationRequired?: () => void;
   onComplete: () => void;
   onConnectionLost?: () => void;
   onReconnecting?: (attempt: number) => void;
@@ -39,6 +43,10 @@ export interface StreamOptions {
    * may still be running rather than silently starting a second one.
    */
   onStreamInterrupted?: () => void;
+  /** Returns false after the authenticated page lifecycle is replaced. */
+  isCurrent?: () => boolean;
+  requireBackendIncarnation?: boolean;
+  onBackendIncarnation?: (incarnation: string | null) => void;
   signal?: AbortSignal;
   maxRetries?: number;
   idleTimeoutMs?: number;
@@ -78,10 +86,12 @@ export async function streamA2A(
   request: JsonRpcRequest,
   options: StreamOptions
 ): Promise<void> {
-  const maxRetries = options.maxRetries ?? 3;
+  // message/stream can start an investigation even if its response is lost.
+  // No current server contract proves that resubmitting this POST is safe.
+  const maxRetries = 0;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (options.signal?.aborted) return;
+    if (options.signal?.aborted || !(options.isCurrent?.() ?? true)) return;
 
     if (attempt > 0) {
       options.onReconnecting?.(attempt);
@@ -89,21 +99,29 @@ export async function streamA2A(
         ? (options.preRetryDelayMs ?? 500)
         : Math.min(1000 * Math.pow(2, attempt - 1), 8000);
       await sleep(backoff);
-      if (options.signal?.aborted) return;
+      if (options.signal?.aborted || !(options.isCurrent?.() ?? true)) return;
     }
 
     const result = await attemptStream(request, options);
+
+    if (result === "stale" || !(options.isCurrent?.() ?? true)) return;
 
     if (result === "complete") {
       options.onComplete();
       return;
     }
     if (result === "aborted") return;
+    if (result === "auth_required") return;
     if (result === "fatal") {
       return;
     }
     if (result === "disconnected") {
       options.onStreamInterrupted?.();
+      return;
+    }
+    if (result === "retryable") {
+      if (options.onStreamInterrupted) options.onStreamInterrupted();
+      else options.onError(new Error("The investigation may still be running; check its status before resending."));
       return;
     }
     if (result === "buffer_overflow") {
@@ -120,12 +138,22 @@ export async function streamA2A(
   options.onError(new Error("Connection lost after maximum retries"));
 }
 
-type StreamResult = "complete" | "aborted" | "fatal" | "retryable" | "disconnected" | "buffer_overflow";
+type StreamResult = "complete" | "aborted" | "auth_required" | "stale" | "fatal" | "retryable" | "disconnected" | "buffer_overflow";
+
+function handleAuthenticationRejection(options: StreamOptions, message: string): "auth_required" | "fatal" {
+  if (options.onAuthenticationRequired) {
+    options.onAuthenticationRequired();
+    return "auth_required";
+  }
+  options.onError(new Error(message));
+  return "fatal";
+}
 
 async function attemptStream(
   request: JsonRpcRequest,
   options: StreamOptions
 ): Promise<StreamResult> {
+  if (!(options.isCurrent?.() ?? true)) return "stale";
   const url = `${options.baseUrl || ""}/a2a/invoke`;
 
   const fetchResult = await postForSSE(url, request, {
@@ -134,19 +162,42 @@ async function attemptStream(
     fetchFn: options.fetchFn,
   });
 
+  if (!(options.isCurrent?.() ?? true)) return "stale";
+
   if (typeof fetchResult === "string") {
+    // User cancellation is an intentional local teardown, not evidence that
+    // the backend lifecycle is unavailable or has changed. Do not fence the
+    // authenticated UI when the stop control aborts this request.
+    if (fetchResult !== "aborted" && options.requireBackendIncarnation) {
+      options.onBackendIncarnation?.(null);
+    }
     return fetchResult;
   }
   if ("kind" in fetchResult && (fetchResult as SSEFetchError).kind === "fatal") {
     const httpErr = fetchResult as SSEFetchError;
+    if (isAuthenticationRejectionStatus(httpErr.status)) {
+      return handleAuthenticationRejection(options, `HTTP ${httpErr.status}: ${httpErr.statusText}`);
+    }
+    if (options.requireBackendIncarnation) options.onBackendIncarnation?.(null);
     options.onError(new Error(`HTTP ${httpErr.status}: ${httpErr.statusText}`));
     return "fatal";
   }
 
   const response = fetchResult as Response;
+  if (!(options.isCurrent?.() ?? true)) return "stale";
+  const incarnation = response.headers.get("x-kubernaut-backend-incarnation");
+  if (options.requireBackendIncarnation && (!incarnation || !isValidBackendIncarnation(incarnation))) {
+    options.onBackendIncarnation?.(null);
+    return "stale";
+  }
+  if (incarnation && isValidBackendIncarnation(incarnation)) {
+    options.onBackendIncarnation?.(incarnation);
+  }
+  if (!(options.isCurrent?.() ?? true)) return "stale";
   const streamResult = await readSSEStream(
     response.body!,
     (parsed) => {
+      if (!(options.isCurrent?.() ?? true)) return "stale";
       if (!isJsonRpcResponse(parsed)) {
         console.error("[a2a] SSE frame failed JSON-RPC envelope validation (neither error nor result)", parsed);
         options.onError(new Error("Received a malformed response from the server."));
@@ -157,6 +208,9 @@ async function attemptStream(
         const msg = rpc.error.message || "";
         const data = (rpc.error as Record<string, unknown>).data as Record<string, unknown> | undefined;
         const detail = (data?.error as string) || "";
+        if (isAuthenticationRejectionMessage(`${msg} ${detail}`)) {
+          return handleAuthenticationRejection(options, msg || detail || "Authentication required");
+        }
         const isTransient = /execution.*in progress|task.*in progress/i.test(msg + detail);
         if (isTransient) {
           return "retryable";

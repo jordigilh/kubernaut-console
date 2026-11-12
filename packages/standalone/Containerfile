@@ -19,8 +19,9 @@ RUN pnpm --filter @kubernaut/ui-core build \
 
 # registry.access.redhat.com/ubi9/nginx-126:1-1793251909 (linux/amd64, linux/arm64)
 FROM registry.access.redhat.com/ubi9/nginx-126:1-1793251909@sha256:afe4a17857e88905b559b28d61bfa6dd4169a79bde381b4c5dec3cf46608dd70
-# The vendor image predates the curl and glibc advisory fixes. Patch only the
-# affected RPMs at image build time; the running container remains USER 1001 below.
+# The vendor image predates current curl, glibc, and util-linux advisory fixes.
+# Patch only the affected RPMs at image build time; the running container
+# remains USER 1001 below.
 USER 0
 RUN dnf -y upgrade --refresh \
     curl-minimal \

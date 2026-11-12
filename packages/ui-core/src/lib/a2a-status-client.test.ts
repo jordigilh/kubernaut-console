@@ -472,6 +472,29 @@ describe("subscribeRRStatus", () => {
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("malformed") }));
   });
 
+  it("IT-CONSOLE-168-046: ignores a stale status authentication frame", async () => {
+    let current = true;
+    const onAuthenticationRequired = vi.fn();
+    const onPhaseChange = vi.fn(() => { current = false; });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createSSEResponse([
+        sseFrame({ jsonrpc: "2.0", method: "status/update", params: { rr_id: "rr-stale", phase: "Investigating", metadata: {} } }),
+        sseFrame({ jsonrpc: "2.0", error: { code: -32002, message: "access_denied" } }),
+      ]),
+    );
+
+    await subscribeRRStatus("rr-stale", {
+      onPhaseChange,
+      onError: vi.fn(),
+      onAuthenticationRequired,
+      isCurrent: () => current,
+      maxRetries: 0,
+    });
+
+    expect(onPhaseChange).toHaveBeenCalledOnce();
+    expect(onAuthenticationRequired).not.toHaveBeenCalled();
+  });
+
   it("UT-CONSOLE-STATUS-027: still calls onPhaseChange for an unrecognized-but-string phase (forward compat, not malformed)", async () => {
     const onPhaseChange = vi.fn();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -532,6 +555,52 @@ describe("subscribeRRStatus", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("403") }));
     expect(onReconnecting).not.toHaveBeenCalled();
+  });
+
+  it.each([401, 403])("IT-CONSOLE-168-030: fences an active HTTP %s status auth rejection without retry", async (status) => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("rejected", { status, statusText: status === 401 ? "Unauthorized" : "Forbidden" }),
+    );
+    const onAuthenticationRequired = vi.fn();
+    const onBackendIncarnation = vi.fn();
+    const onError = vi.fn();
+    const onReconnecting = vi.fn();
+
+    await subscribeRRStatus("rr-168", {
+      onPhaseChange: vi.fn(),
+      onError,
+      onReconnecting,
+      onAuthenticationRequired,
+      onBackendIncarnation,
+      requireBackendIncarnation: true,
+      maxRetries: 3,
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(onAuthenticationRequired).toHaveBeenCalledOnce();
+    expect(onBackendIncarnation).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+    expect(onReconnecting).not.toHaveBeenCalled();
+  });
+
+  it("IT-CONSOLE-168-031: fences a status-stream access_denied application rejection", async () => {
+    const onAuthenticationRequired = vi.fn();
+    const onError = vi.fn();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(createSSEResponse([sseFrame({
+      jsonrpc: "2.0",
+      id: "1",
+      error: { code: -32002, message: "access_denied" },
+    })]));
+
+    await subscribeRRStatus("rr-168", {
+      onPhaseChange: vi.fn(),
+      onError,
+      onAuthenticationRequired,
+      maxRetries: 0,
+    });
+
+    expect(onAuthenticationRequired).toHaveBeenCalledOnce();
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it("UT-CONSOLE-STATUS-041: a persistent HTTP 404 is treated as service_unavailable (retried), not a JSON-RPC not_found", async () => {
