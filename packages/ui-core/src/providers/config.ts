@@ -4,6 +4,8 @@ export type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
 
 export interface KubernautConfig {
   backendUrl: string;
+  /** Require the AF process-incarnation contract for this host. */
+  requireBackendIncarnation?: boolean;
   /** Optional custom fetch function (e.g. consoleFetch for OCP plugins) */
   fetchFn?: FetchFn;
   /**

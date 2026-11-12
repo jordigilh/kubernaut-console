@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
 import React from "react";
-import { AuthContext, useAuth, type AuthContextValue, type KubernautAuthProvider } from "./auth";
+import {
+  AuthContext,
+  isAuthenticationRejectionMessage,
+  useAuth,
+  type AuthContextValue,
+  type KubernautAuthProvider,
+} from "./auth";
 
 function makeMockProvider(): KubernautAuthProvider {
   return {
@@ -21,6 +27,16 @@ function makeMockAuthValue(overrides?: Partial<AuthContextValue>): AuthContextVa
 }
 
 describe("AuthContext / useAuth", () => {
+  it.each([
+    ["unauthorized", true],
+    ["access_denied", true],
+    ["token expired", true],
+    ["permission denied: role lacks access", false],
+    ["backend unavailable", false],
+  ])("UT-CONSOLE-168-025: classifies active authentication rejection message %s", (message, expected) => {
+    expect(isAuthenticationRejectionMessage(message)).toBe(expected);
+  });
+
   it("UT-CONSOLE-AUTH-001: AuthContext defaults to null (no provider)", () => {
     const { result } = renderHook(() => React.useContext(AuthContext));
     expect(result.current).toBeNull();

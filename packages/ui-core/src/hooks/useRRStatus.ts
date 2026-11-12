@@ -26,39 +26,45 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
   const everConnectedRef = useRef(false);
   const configCtx = useContext(ConfigContext);
   const authCtx = useContext(AuthContext);
+  const lifecycle = authCtx?.lifecycle;
 
   const handlePhaseChange = useCallback((phase: RRPhase, metadata: Record<string, unknown>) => {
+    if (!(lifecycle?.isCurrent() ?? true)) return;
     everConnectedRef.current = true;
     setStatusPhase(phase);
     setStatusMetadata(metadata);
     setStatusConnection("connected");
-  }, []);
+  }, [lifecycle]);
 
   const handleTerminal = useCallback((_phase: RRPhase) => {
+    if (!(lifecycle?.isCurrent() ?? true)) return;
     setIsTerminal(true);
     terminalRef.current = true;
-  }, []);
+  }, [lifecycle]);
 
   const handleError = useCallback((_error: Error) => {
+    if (!(lifecycle?.isCurrent() ?? true)) return;
     if (everConnectedRef.current) {
       setStatusConnection("error");
     }
-  }, []);
+  }, [lifecycle]);
 
   const handleReconnecting = useCallback((_attempt: number) => {
+    if (!(lifecycle?.isCurrent() ?? true)) return;
     // Avoid flashing "reconnecting" on the initial subscribe before any phase was delivered.
     if (everConnectedRef.current) {
       setStatusConnection("reconnecting");
     }
-  }, []);
+  }, [lifecycle]);
 
   const handleNotFound = useCallback(() => {
+    if (!(lifecycle?.isCurrent() ?? true)) return;
     if (everConnectedRef.current) {
       setStatusConnection("not_found");
     }
     setIsTerminal(true);
     terminalRef.current = true;
-  }, []);
+  }, [lifecycle]);
 
   useEffect(() => {
     if (!rrId) {
@@ -96,10 +102,13 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
         try {
           token = authCtx?.provider ? await authCtx.provider.getToken() : undefined;
         } catch { /* proceed without token */ }
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || !(lifecycle?.isCurrent() ?? true)) return;
         await subscribeRRStatus(rrId, {
           onPhaseChange: handlePhaseChange,
           onError: handleError,
+          onAuthenticationRequired: lifecycle
+            ? () => lifecycle.invalidate("authentication-required")
+            : undefined,
           onTerminal: handleTerminal,
           onNotFound: handleNotFound,
           onReconnecting: handleReconnecting,
@@ -108,6 +117,9 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
           baseUrl: configCtx?.backendUrl,
           fetchFn: configCtx?.fetchFn as typeof fetch | undefined,
           token,
+          isCurrent: () => lifecycle?.isCurrent() ?? true,
+          requireBackendIncarnation: configCtx?.requireBackendIncarnation,
+          onBackendIncarnation: (incarnation) => lifecycle?.observeBackendIncarnation?.(incarnation),
         });
       };
       startSubscription().catch((err) => {
@@ -118,7 +130,7 @@ export function useRRStatus(rrId: string | undefined): UseRRStatusResult {
     return () => {
       controller.abort();
     };
-  }, [rrId, handlePhaseChange, handleError, handleTerminal, handleNotFound, handleReconnecting, configCtx, authCtx]);
+  }, [rrId, handlePhaseChange, handleError, handleTerminal, handleNotFound, handleReconnecting, configCtx, authCtx, lifecycle]);
 
   return { statusPhase, statusConnection, statusMetadata, isTerminal };
 }

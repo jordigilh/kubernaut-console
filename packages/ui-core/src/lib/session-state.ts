@@ -69,20 +69,16 @@ export function clearSessionState(): void {
  */
 export function clearConsoleSessionState(): string {
   const freshContext = crypto.randomUUID();
-
   try {
-    sessionStorage.removeItem(CONSOLE_MESSAGES_KEY);
-    sessionStorage.removeItem(CONSOLE_PENDING_CONTEXT_KEY);
-  } catch {
-    // Storage unavailable
-  }
-
-  clearSessionState();
-
-  try {
+    const keys = [CONSOLE_MESSAGES_KEY, CONSOLE_PENDING_CONTEXT_KEY, CONSOLE_CONTEXT_KEY, PHASE_KEY, WORKFLOW_RESOLVED_KEY];
+    for (const key of keys) sessionStorage.removeItem(key);
+    for (const key of keys) {
+      if (sessionStorage.getItem(key) !== null) throw new Error("session state remains");
+    }
     sessionStorage.setItem(CONSOLE_CONTEXT_KEY, freshContext);
-  } catch {
-    // Storage unavailable
+    if (sessionStorage.getItem(CONSOLE_CONTEXT_KEY) !== freshContext) throw new Error("context rotation failed");
+  } catch (error) {
+    throw new Error("unable to clear console session storage", { cause: error });
   }
 
   return freshContext;

@@ -1,4 +1,6 @@
 import { readSSEStream, postForSSE, type SSEFetchError } from "./sse-reader";
+import { isValidBackendIncarnation } from "./backend-contract";
+import { isAuthenticationRejectionMessage, isAuthenticationRejectionStatus } from "../providers/auth";
 
 export type RRPhase =
   | "Pending" | "Processing" | "Analyzing" | "Investigating"
@@ -24,6 +26,8 @@ export class StatusStreamError extends Error {
 export interface StatusSubscribeOptions {
   onPhaseChange: (phase: RRPhase, metadata: Record<string, unknown>) => void;
   onError: (error: Error | StatusStreamError) => void;
+  /** Active auth rejection: fence the lifecycle instead of retrying as transport loss. */
+  onAuthenticationRequired?: () => void;
   onTerminal?: (phase: RRPhase) => void;
   onNotFound?: () => void;
   onReconnecting?: (attempt: number) => void;
@@ -36,6 +40,9 @@ export interface StatusSubscribeOptions {
   idleTimeoutMs?: number;
   /** See `SSEReaderOptions.maxBufferBytes` (kubernaut-console#93). Default: 1 MiB. */
   maxBufferBytes?: number;
+  isCurrent?: () => boolean;
+  requireBackendIncarnation?: boolean;
+  onBackendIncarnation?: (incarnation: string | null) => void;
 }
 
 export interface StatusSubscribeRequest {
@@ -60,12 +67,22 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-type StreamResult = "complete" | "terminal" | "not_found" | "aborted" | "retryable" | "fatal" | "service_unavailable" | "buffer_overflow";
+type StreamResult = "complete" | "terminal" | "not_found" | "aborted" | "auth_required" | "stale" | "retryable" | "disconnected" | "fatal" | "service_unavailable" | "buffer_overflow";
+
+function handleAuthenticationRejection(options: StatusSubscribeOptions, error: Error | StatusStreamError): "auth_required" | "fatal" {
+  if (options.onAuthenticationRequired) {
+    options.onAuthenticationRequired();
+    return "auth_required";
+  }
+  options.onError(error);
+  return "fatal";
+}
 
 async function attemptSubscription(
   rrId: string,
   options: StatusSubscribeOptions
 ): Promise<StreamResult> {
+  if (!(options.isCurrent?.() ?? true)) return "stale";
   const url = `${options.baseUrl || ""}/a2a/status`;
   const request = buildStatusSubscribeRequest(rrId);
 
@@ -75,11 +92,22 @@ async function attemptSubscription(
     fetchFn: options.fetchFn,
   });
 
+  if (!(options.isCurrent?.() ?? true)) return "stale";
+
   if (typeof fetchResult === "string") {
+    // A component unmount or explicit cancellation is local teardown, not a
+    // backend lifecycle failure. Preserve the authenticated UI on abort.
+    if (fetchResult !== "aborted" && options.requireBackendIncarnation) {
+      options.onBackendIncarnation?.(null);
+    }
     return fetchResult;
   }
   if ("kind" in fetchResult && (fetchResult as SSEFetchError).kind === "fatal") {
     const httpErr = fetchResult as SSEFetchError;
+    if (isAuthenticationRejectionStatus(httpErr.status)) {
+      return handleAuthenticationRejection(options, new Error(`HTTP ${httpErr.status}: ${httpErr.statusText}`));
+    }
+    if (options.requireBackendIncarnation) options.onBackendIncarnation?.(null);
     if (httpErr.status === 404) {
       return "service_unavailable";
     }
@@ -88,11 +116,26 @@ async function attemptSubscription(
   }
 
   const response = fetchResult as Response;
+  if (!(options.isCurrent?.() ?? true)) return "stale";
+  const incarnation = response.headers.get("x-kubernaut-backend-incarnation");
+  if (options.requireBackendIncarnation && (!incarnation || !isValidBackendIncarnation(incarnation))) {
+    options.onBackendIncarnation?.(null);
+    return "stale";
+  }
+  if (incarnation && isValidBackendIncarnation(incarnation)) options.onBackendIncarnation?.(incarnation);
+  if (!(options.isCurrent?.() ?? true)) return "stale";
   const streamResult = await readSSEStream(
     response.body!,
     (parsed) => {
+      if (!(options.isCurrent?.() ?? true)) return "stale";
       if (parsed.error) {
         const err = parsed.error as { code: number; message: string };
+        if (isAuthenticationRejectionMessage(err.message || "")) {
+          return handleAuthenticationRejection(
+            options,
+            new StatusStreamError(err.message || "Authentication required", err.code),
+          );
+        }
         if (err.code === RR_NOT_FOUND_CODE) {
           return "not_found";
         }
@@ -143,16 +186,18 @@ export async function subscribeRRStatus(rrId: string, options: StatusSubscribeOp
   let lastNotFound = false;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (options.signal?.aborted) return;
+    if (options.signal?.aborted || !(options.isCurrent?.() ?? true)) return;
 
     if (attempt > 0) {
       options.onReconnecting?.(attempt);
       const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
       await sleep(backoff);
-      if (options.signal?.aborted) return;
+      if (options.signal?.aborted || !(options.isCurrent?.() ?? true)) return;
     }
 
     const result = await attemptSubscription(rrId, options);
+
+    if (result === "stale" || !(options.isCurrent?.() ?? true)) return;
 
     if (result === "buffer_overflow") {
       // kubernaut-console#93 (F-15): a non-terminating/oversized SSE
@@ -162,7 +207,7 @@ export async function subscribeRRStatus(rrId: string, options: StatusSubscribeOp
       options.onError(new Error("Received an oversized status update from the server; connection terminated."));
       return;
     }
-    if (result === "aborted" || result === "complete" || result === "terminal" || result === "fatal") return;
+    if (result === "aborted" || result === "auth_required" || result === "complete" || result === "terminal" || result === "fatal") return;
     if (result === "not_found") {
       lastNotFound = true;
       continue;

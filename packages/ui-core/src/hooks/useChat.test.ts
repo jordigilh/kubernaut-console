@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useChat } from "./useChat";
 import type { RCAData, WorkflowOption } from "./useChat";
+import { streamA2A } from "../lib/a2a-client";
 
 vi.mock("../lib/a2a-client", () => ({
   buildStreamRequest: vi.fn(() => ({ jsonrpc: "2.0", method: "message/stream", params: { message: { parts: [{ kind: "text", text: "test" }] } } })),
@@ -31,6 +32,24 @@ describe("useChat", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("Console #168: verification updates the latest agent message, not earlier messages", async () => {
+    vi.useRealTimers();
+    vi.mocked(streamA2A).mockImplementationOnce(async (_request, options) => {
+      options.onEvent({
+        kind: "status-update", taskId: "t1", contextId: "ctx",
+        status: { state: "working" },
+        metadata: { type: "verification_step", step: "alert_check", step_status: "in_progress" },
+      });
+      options.onComplete();
+    });
+    const { result } = renderHook(() => useChat());
+    act(() => result.current.setMessages([{ id: "older", role: "agent", text: "older", timestamp: 1 }]));
+    await act(async () => { await result.current.sendMessage("verify"); });
+    const agents = result.current.messages.filter((message) => message.role === "agent");
+    expect(agents[0].verificationSteps).toBeUndefined();
+    expect(agents.at(-1)?.verificationSteps?.[0].step).toBe("alert_check");
   });
 
   // SC-5: Denial of Service Protection
@@ -129,6 +148,22 @@ describe("useChat", () => {
       expect(newContext).not.toBeNull();
       expect(newContext).not.toBe("ctx-123");
       expect(newContext).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    });
+
+    it("UT-CONSOLE-168-047: clearHistory preserves the old view when storage cleanup fails", () => {
+      vi.useRealTimers();
+      sessionStorage.setItem("kubernaut-console-messages", JSON.stringify([{ id: "1", role: "user", text: "private", timestamp: 1 }]));
+      sessionStorage.setItem("kubernaut-console-context", "ctx-private");
+      const remove = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new Error("denied"); });
+
+      try {
+        const { result } = renderHook(() => useChat());
+        expect(() => result.current.clearHistory()).toThrow();
+        expect(result.current.messages[0].text).toBe("private");
+        expect(sessionStorage.getItem("kubernaut-console-context")).toBe("ctx-private");
+      } finally {
+        remove.mockRestore();
+      }
     });
   });
 
