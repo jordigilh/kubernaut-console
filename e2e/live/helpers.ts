@@ -92,13 +92,13 @@ export async function openConsole(page: Page): Promise<void> {
 /**
  * Snapshots `page` to `test-results/screenshots/<label>/NNN.png` on a fixed
  * interval, for manually reviewing a long real-cluster run's visual progress
- * without waiting for the test to finish — Playwright's own
- * `screenshot`/`video`/`trace` config in playwright.live-v15.config.ts is all
- * `on-failure`/`retain-on-failure`, so nothing is captured at all for a run
- * that *passes*, which is exactly the case where a first-ever run of a new
- * spec still benefits from a human being able to sanity-check what actually
- * rendered at each stage (kubernaut-console#77's autonomous-fix.spec.ts, its
- * first live confirmation run). `test-results/` is already gitignored.
+ * without waiting for the test to finish. Playwright's own
+ * `screenshot`/`video`/`trace` config is opt-in for this lane, so nothing is
+ * captured in CI unless browser artifacts are explicitly retained. A local
+ * run can still opt in when a first-ever run of a new spec benefits from a
+ * human being able to sanity-check what actually rendered at each stage
+ * (kubernaut-console#77's autonomous-fix.spec.ts, its first live confirmation
+ * run). `test-results/` is already gitignored.
  *
  * Returns a stop function; callers must call it (e.g. in a `finally`) once
  * the run is done, or the interval leaks past the test's own lifetime.
@@ -106,6 +106,9 @@ export async function openConsole(page: Page): Promise<void> {
  * this is a best-effort observability aid, never a source of test flakiness.
  */
 export function startPeriodicScreenshots(page: Page, label: string, intervalMs = 15_000): () => void {
+  if (process.env.LIVE_E2E_RETAIN_BROWSER_ARTIFACTS !== "1") {
+    return () => {};
+  }
   const dir = join("test-results", "screenshots", label);
   mkdirSync(dir, { recursive: true });
   let stopped = false;
@@ -679,12 +682,28 @@ export async function waitForInvestigationSummaryOrKnownRace(page: Page): Promis
 // reproduce that same ground-truth check from the browser-driven side, using
 // the exact field paths validation-helper.sh uses (`_find_rr_name`,
 // `get_rr_phase`, `get_rr_outcome`, `get_wfe_phase`) — confirmed by reading
-// that script directly rather than guessed. `oc` is already a hard
-// prerequisite of this whole suite (see scripts/setup-fixtures.sh).
+// that script directly rather than guessed. Kind runs select `kubectl`; an
+// OpenShift run can select `oc` with LIVE_E2E_KUBE_TOOL.
 const PLATFORM_NS = "kubernaut-system";
 
-function execOc(args: string[]): string {
-  return execFileSync("oc", args, { encoding: "utf-8" });
+function kubeArgs(args: string[], kubeconfig?: string): string[] {
+  return kubeconfig ? ["--kubeconfig", kubeconfig, ...args] : args;
+}
+
+function execKube(args: string[]): string {
+  const kubeconfig = process.env.LIVE_E2E_HUB_KUBECONFIG ?? process.env.HUB_KUBECONFIG;
+  return execFileSync(process.env.LIVE_E2E_KUBE_TOOL ?? "oc", kubeArgs(args, kubeconfig), { encoding: "utf-8" });
+}
+
+/**
+ * Target workloads live on the hub in local mode and on the spoke in fleet
+ * mode. Backend CRs always remain on the hub, so target-state assertions must
+ * use this separate, explicit kubeconfig rather than changing KUBECONFIG for
+ * the whole test process.
+ */
+function execTargetKube(args: string[]): string {
+  const targetKubeconfig = process.env.LIVE_E2E_TARGET_KUBECONFIG;
+  return execFileSync(process.env.LIVE_E2E_KUBE_TOOL ?? "oc", kubeArgs(args, targetKubeconfig), { encoding: "utf-8" });
 }
 
 interface RemediationRequestSummary {
@@ -717,7 +736,7 @@ interface RemediationRequestSummary {
  * assertCrashloopWasRemediated's ground-truth check on every run.
  */
 export function getRemediationRequestForTarget(namespace: string): RemediationRequestSummary | null {
-  const raw = execOc(["get", "remediationrequests", "-n", PLATFORM_NS, "-o", "json"]);
+  const raw = execKube(["get", "remediationrequests", "-n", PLATFORM_NS, "-o", "json"]);
   const { items } = JSON.parse(raw) as {
     items?: Array<{
       metadata?: { name?: string; creationTimestamp?: string };
@@ -778,7 +797,7 @@ export function getRemediationRequestForTarget(namespace: string): RemediationRe
  * `kubernaut_investigate`-driven flow this suite's other specs exercise.
  */
 export function hasInvestigationSessionForRR(rrName: string): boolean {
-  const raw = execOc([
+  const raw = execKube([
     "get",
     "investigationsessions",
     "-n",
@@ -797,7 +816,7 @@ export function hasInvestigationSessionForRR(rrName: string): boolean {
  * phase has not been populated yet. This is intentionally distinct from
  * getWorkflowExecutionPhase(), whose null result also covers a missing phase. */
 export function getWorkflowExecutionNamesForRemediationRequest(rrName: string): string[] {
-  const raw = execOc(["get", "workflowexecutions", "-n", PLATFORM_NS, "-o", "json"]);
+  const raw = execKube(["get", "workflowexecutions", "-n", PLATFORM_NS, "-o", "json"]);
   const { items } = JSON.parse(raw) as {
     items?: Array<{
       metadata?: { name?: string };
@@ -812,7 +831,7 @@ export function getWorkflowExecutionNamesForRemediationRequest(rrName: string): 
 
 export function getWorkflowExecutionPhase(rrName: string): string | null {
   try {
-    const phase = execOc(["get", "workflowexecutions", `we-${rrName}`, "-n", PLATFORM_NS, "-o", "jsonpath={.status.phase}"]);
+    const phase = execKube(["get", "workflowexecutions", `we-${rrName}`, "-n", PLATFORM_NS, "-o", "jsonpath={.status.phase}"]);
     return phase || null;
   } catch {
     return null;
@@ -822,7 +841,7 @@ export function getWorkflowExecutionPhase(rrName: string): string | null {
 /** Counts revisions in `kubectl rollout history` — a new one means a real rollback/patch actually landed. */
 export function getDeploymentRolloutRevisionCount(namespace: string, deploymentName: string): number {
   try {
-    const out = execOc(["rollout", "history", `deployment/${deploymentName}`, "-n", namespace]);
+    const out = execTargetKube(["rollout", "history", `deployment/${deploymentName}`, "-n", namespace]);
     return out
       .split("\n")
       .filter((line) => /^\d+/.test(line.trim())).length;
@@ -838,7 +857,7 @@ export function getPodHealthCounts(namespace: string): { healthy: number; crashi
       containerStatuses?: Array<{ state?: { waiting?: { reason?: string } } }>;
     };
   }
-  const raw = execOc(["get", "pods", "-n", namespace, "-o", "json"]);
+  const raw = execTargetKube(["get", "pods", "-n", namespace, "-o", "json"]);
   const { items } = JSON.parse(raw) as { items: PodStatus[] };
   let healthy = 0;
   let crashing = 0;
@@ -854,7 +873,7 @@ export function getPersistentVolumeClaimState(
   namespace: string,
   pvcName = "data-kv-store-2",
 ): { uid: string; phase: string; storageClass: string } {
-  const raw = execOc(["get", "pvc", pvcName, "-n", namespace, "-o", "json"]);
+  const raw = execTargetKube(["get", "pvc", pvcName, "-n", namespace, "-o", "json"]);
   const pvc = JSON.parse(raw) as {
     metadata?: { uid?: string };
     status?: { phase?: string };
@@ -925,12 +944,12 @@ export function assertStatefulSetPvcFailureWasRemediated(namespace: string): voi
   const wfePhase = getWorkflowExecutionPhase(rr.name);
   if (wfePhase !== "Completed") throw new Error(`WorkflowExecution we-${rr.name} did not complete: phase="${wfePhase ?? "<not found>"}".`);
 
-  const readyReplicas = execOc(["get", "statefulset", "kv-store", "-n", namespace, "-o", "jsonpath={.status.readyReplicas}"]).trim();
+  const readyReplicas = execTargetKube(["get", "statefulset", "kv-store", "-n", namespace, "-o", "jsonpath={.status.readyReplicas}"]).trim();
   if (readyReplicas !== "3") throw new Error(`StatefulSet/kv-store in ${namespace} has ${readyReplicas || 0} ready replicas; expected 3.`);
   const pvc = getPersistentVolumeClaimState(namespace);
   if (pvc.phase !== "Bound" || pvc.storageClass === "broken-storage-class") {
     throw new Error(`PVC data-kv-store-2 was not repaired: phase="${pvc.phase}", storageClass="${pvc.storageClass}".`);
   }
-  const podPhase = execOc(["get", "pod", "kv-store-2", "-n", namespace, "-o", "jsonpath={.status.phase}"]).trim();
+  const podPhase = execTargetKube(["get", "pod", "kv-store-2", "-n", namespace, "-o", "jsonpath={.status.phase}"]).trim();
   if (podPhase !== "Running") throw new Error(`Pod kv-store-2 in ${namespace} is ${podPhase || "missing"}; expected Running.`);
 }
