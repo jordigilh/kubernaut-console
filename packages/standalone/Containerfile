@@ -30,7 +30,14 @@ RUN dnf -y upgrade --refresh \
     glibc-langpack-en \
     glibc-locale-source \
     glibc-minimal-langpack \
-    && rpm -q curl-minimal libcurl-minimal glibc glibc-common glibc-langpack-en glibc-locale-source glibc-minimal-langpack \
+    util-linux \
+    util-linux-core \
+    libblkid \
+    libfdisk \
+    libmount \
+    libsmartcols \
+    libuuid \
+    && rpm -q curl-minimal libcurl-minimal glibc glibc-common glibc-langpack-en glibc-locale-source glibc-minimal-langpack util-linux util-linux-core libblkid libfdisk libmount libsmartcols libuuid \
     && dnf clean all
 COPY --from=build /build/packages/standalone/dist /opt/app-root/src
 
