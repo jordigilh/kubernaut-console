@@ -3,6 +3,7 @@ import { notifyAuthLifecycleChanged, subscribeAuthLifecycleNotifications } from 
 
 class FakeBroadcastChannel {
   static instances: FakeBroadcastChannel[] = [];
+  static throwOnPost = false;
   onmessage: ((event: MessageEvent) => void) | null = null;
   readonly posted: unknown[] = [];
 
@@ -11,6 +12,7 @@ class FakeBroadcastChannel {
   }
 
   postMessage(message: unknown): void {
+    if (FakeBroadcastChannel.throwOnPost) throw new Error("BroadcastChannel unavailable");
     this.posted.push(message);
   }
 
@@ -26,6 +28,7 @@ class FakeBroadcastChannel {
 describe("cross-tab authentication notifications", () => {
   afterEach(() => {
     FakeBroadcastChannel.instances = [];
+    FakeBroadcastChannel.throwOnPost = false;
     vi.unstubAllGlobals();
   });
 
@@ -57,5 +60,32 @@ describe("cross-tab authentication notifications", () => {
     unsubscribe();
     FakeBroadcastChannel.instances[0].emit({ type: "kubernaut-console-auth-changed" });
     expect(revalidate).toHaveBeenCalledOnce();
+  });
+
+  it("UT-CONSOLE-168-040: sign-out notifications carry only an opaque action", () => {
+    vi.stubGlobal("BroadcastChannel", FakeBroadcastChannel);
+
+    notifyAuthLifecycleChanged("signout-started");
+
+    expect(FakeBroadcastChannel.instances[0].posted).toEqual([
+      { type: "kubernaut-console-auth-changed", action: "signout-started" },
+    ]);
+  });
+
+  it("UT-CONSOLE-168-041: storage fallback remains active beside BroadcastChannel", () => {
+    vi.stubGlobal("BroadcastChannel", FakeBroadcastChannel);
+    const revalidate = vi.fn();
+    const unsubscribe = subscribeAuthLifecycleNotifications(revalidate);
+
+    window.dispatchEvent(new StorageEvent("storage", {
+      key: "kubernaut-console-auth-notification",
+      newValue: JSON.stringify({ type: "kubernaut-console-auth-changed", action: "signout-started" }),
+    }));
+
+    expect(revalidate).toHaveBeenCalledWith({
+      type: "kubernaut-console-auth-changed",
+      action: "signout-started",
+    });
+    unsubscribe();
   });
 });

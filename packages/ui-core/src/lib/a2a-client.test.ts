@@ -449,6 +449,32 @@ describe("streamA2A", () => {
     expect(onBackendIncarnation).not.toHaveBeenCalled();
   });
 
+  it("IT-CONSOLE-168-045: ignores an HTTP auth rejection after the lifecycle becomes stale", async () => {
+    let current = true;
+    let resolveFetch!: (response: Response) => void;
+    const fetchFn = vi.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    const onAuthenticationRequired = vi.fn();
+    const onBackendIncarnation = vi.fn();
+    const pending = streamA2A(buildStreamRequest("stale request"), {
+      fetchFn,
+      onEvent: vi.fn(),
+      onError: vi.fn(),
+      onComplete: vi.fn(),
+      onAuthenticationRequired,
+      onBackendIncarnation,
+      requireBackendIncarnation: true,
+      isCurrent: () => current,
+    });
+
+    await vi.waitFor(() => expect(fetchFn).toHaveBeenCalledOnce());
+    current = false;
+    resolveFetch(new Response("rejected", { status: 401, statusText: "Unauthorized" }));
+    await pending;
+
+    expect(onAuthenticationRequired).not.toHaveBeenCalled();
+    expect(onBackendIncarnation).not.toHaveBeenCalled();
+  });
+
   it("UT-CONSOLE-A2A-010: does not replay when execution is in progress", async () => {
     const transientError = {
       jsonrpc: "2.0",

@@ -1,4 +1,4 @@
-export type SSEStreamResult = "complete" | "aborted" | "retryable" | "disconnected" | "buffer_overflow" | "auth_required";
+export type SSEStreamResult = "complete" | "aborted" | "stale" | "retryable" | "disconnected" | "buffer_overflow" | "auth_required";
 
 function isAbortError(error: unknown): boolean {
   return Boolean(error && typeof error === "object" && "name" in error && (error as { name?: unknown }).name === "AbortError");
@@ -34,7 +34,9 @@ export const DEFAULT_MAX_SSE_BUFFER_BYTES = 1_048_576;
  * or "disconnected" on idle timeout / a read-time network error that this
  * reader detected on its own.
  *
- * "retryable" and "disconnected" are deliberately distinct (kubernaut#2096
+ * "stale" is returned when the owning authenticated lifecycle is replaced
+ * while a frame is being processed. "retryable" and "disconnected" are
+ * deliberately distinct (kubernaut#2096
  * follow-up spike, 2026-08-11): once `postForSSE` has handed back a live
  * response body, the server has already started executing this request.
  * "retryable" only ever comes from `onFrame` itself recognizing a
@@ -52,7 +54,7 @@ export const DEFAULT_MAX_SSE_BUFFER_BYTES = 1_048_576;
  */
 export async function readSSEStream(
   body: ReadableStream<Uint8Array>,
-  onFrame: (parsed: Record<string, unknown>) => "continue" | "complete" | "aborted" | "retryable" | "fatal" | "terminal" | "not_found" | "auth_required",
+  onFrame: (parsed: Record<string, unknown>) => "continue" | "complete" | "aborted" | "stale" | "retryable" | "fatal" | "terminal" | "not_found" | "auth_required",
   options?: SSEReaderOptions,
 ): Promise<SSEStreamResult | "fatal" | "terminal" | "not_found" | "disconnected"> {
   const reader = body.getReader();

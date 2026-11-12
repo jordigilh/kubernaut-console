@@ -1070,12 +1070,13 @@ export function useChat() {
   // clearConsoleSessionState() also rotates the context ID, so an explicit
   // reset cannot be silently reattached to the prior user session.
   const clearHistory = useCallback(() => {
+    const freshContext = clearConsoleSessionState();
     setMessages([]);
     setCurrentPhase(undefined);
     setInvestigationStartTime(undefined);
     activeRrIdRef.current = undefined;
     pendingContextRef.current = [];
-    contextIdRef.current = clearConsoleSessionState();
+    contextIdRef.current = freshContext;
   }, []);
 
   return { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext };

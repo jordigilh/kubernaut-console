@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AuthContext, AuthenticationRequiredError, AuthenticationSupersededError, AuthenticationUnavailableError, type AuthLifecycle, type KubernautAuthProvider, type KubernautUser } from "../providers/auth";
 import { ConfigContext, type KubernautConfig } from "../providers/config";
 import { checkConsoleAccess } from "../lib/access-check";
@@ -35,29 +35,40 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authRetry, setAuthRetry] = useState(0);
   const [verifiedSource, setVerifiedSource] = useState<{ provider: KubernautAuthProvider; backendUrl: string } | null>(null);
+  const [lifecycle, setLifecycle] = useState<AuthLifecycle | null>(null);
   const generationRef = useRef(0);
   const activeGenerationRef = useRef(0);
   const lifecycleActiveRef = useRef(false);
   const sourceRef = useRef<{ provider: KubernautAuthProvider; backendUrl: string } | null>(null);
+  const cleanupPendingRef = useRef(false);
 
   const backendIncarnationRef = useRef<string | undefined>(undefined);
-  const invalidateLifecycle = useCallback((reason = "authenticated lifecycle replaced", message?: string) => {
-    if (!lifecycleActiveRef.current) return;
+  const isGenerationCurrent = useCallback((generation: number) => (
+    lifecycleActiveRef.current &&
+    generationRef.current === generation &&
+    activeGenerationRef.current === generation
+  ), []);
+
+  const invalidateLifecycle = useCallback((reason = "authenticated lifecycle replaced", message?: string, generation?: number) => {
+    if (generation === undefined || !isGenerationCurrent(generation)) return;
     lifecycleActiveRef.current = false;
     backendIncarnationRef.current = undefined;
+    setLifecycle(null);
     setUser(null);
     setVerifiedSource(null);
 
     try {
       clearConsoleSessionState();
+      cleanupPendingRef.current = false;
     } catch {
+      cleanupPendingRef.current = true;
       setAuthError("Unable to clear console session storage. Reload to retry.");
       setPhase("auth-error");
       return;
     }
 
     if (reason === "authentication-required") {
-      notifyAuthLifecycleChanged();
+      notifyAuthLifecycleChanged("signout-started");
       setAuthError("Authentication required. Sign in again.");
       setPhase("auth-error");
       window.location.href = "/oauth2/sign_in";
@@ -79,12 +90,13 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
     setAuthError(null);
     setPhase("loading");
     setAuthRetry((value) => value + 1);
-  }, []);
+  }, [isGenerationCurrent]);
 
-  const observeBackendIncarnation = useCallback((incarnation: string | null) => {
+  const observeBackendIncarnation = useCallback((incarnation: string | null, generation: number) => {
+    if (!isGenerationCurrent(generation)) return;
     if (!config.requireBackendIncarnation || USE_MOCK) return;
     if (!incarnation) {
-      invalidateLifecycle("backend-incarnation-unavailable");
+      invalidateLifecycle("backend-incarnation-unavailable", undefined, generation);
       return;
     }
     const previous = backendIncarnationRef.current;
@@ -93,18 +105,27 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
       return;
     }
     if (previous !== incarnation) {
-      invalidateLifecycle("backend-incarnation-changed");
+      invalidateLifecycle("backend-incarnation-changed", undefined, generation);
     }
-  }, [config.requireBackendIncarnation, invalidateLifecycle]);
+  }, [config.requireBackendIncarnation, invalidateLifecycle, isGenerationCurrent]);
 
-  const lifecycle = useMemo<AuthLifecycle>(() => ({
-    get generation() {
-      return generationRef.current;
-    },
-    isCurrent: () => lifecycleActiveRef.current && generationRef.current === activeGenerationRef.current,
-    invalidate: invalidateLifecycle,
-    observeBackendIncarnation,
-  }), [invalidateLifecycle, observeBackendIncarnation]);
+  // Invalidate the previous source during commit, before passive effects can
+  // let an older getUser() completion mutate the successor lifecycle.
+  useLayoutEffect(() => {
+    const previous = sourceRef.current;
+    if (!previous) {
+      sourceRef.current = { provider: authProvider, backendUrl: config.backendUrl };
+      return;
+    }
+    if (previous.provider === authProvider && previous.backendUrl === config.backendUrl) return;
+
+    const generation = ++generationRef.current;
+    activeGenerationRef.current = generation;
+    lifecycleActiveRef.current = false;
+    backendIncarnationRef.current = undefined;
+    cleanupPendingRef.current = true;
+    sourceRef.current = { provider: authProvider, backendUrl: config.backendUrl };
+  }, [authProvider, config.backendUrl]);
 
   useEffect(() => {
     const generation = ++generationRef.current;
@@ -113,16 +134,24 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
       sourceRef.current.provider !== authProvider || sourceRef.current.backendUrl !== config.backendUrl
     );
     sourceRef.current = { provider: authProvider, backendUrl: config.backendUrl };
-    lifecycleActiveRef.current = !sourceChanged;
+    lifecycleActiveRef.current = false;
     backendIncarnationRef.current = undefined;
-    const isGenerationCurrent = () => generationRef.current === generation;
-    const isCurrent = () => lifecycleActiveRef.current && isGenerationCurrent();
+    const isCurrent = () => isGenerationCurrent(generation);
+    const invalidateForGeneration = (reason?: string, message?: string) => {
+      invalidateLifecycle(reason, message, generation);
+    };
+    const observeForGeneration = (incarnation: string | null) => {
+      observeBackendIncarnation(incarnation, generation);
+    };
 
-    if (sourceChanged) {
+    if (sourceChanged) cleanupPendingRef.current = true;
+
+    if (cleanupPendingRef.current) {
       setUser(null);
       setVerifiedSource(null);
       try {
         clearConsoleSessionState();
+        cleanupPendingRef.current = false;
       } catch {
         // This effect is the boundary that can prove storage cleanup failed;
         // render the retry gate before any successor chat can mount.
@@ -131,8 +160,16 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
         setPhase("auth-error");
         return;
       }
-      lifecycleActiveRef.current = true;
     }
+
+    lifecycleActiveRef.current = true;
+    const currentLifecycle: AuthLifecycle = {
+      generation,
+      isCurrent,
+      invalidate: invalidateForGeneration,
+      observeBackendIncarnation: observeForGeneration,
+    };
+    setLifecycle(currentLifecycle);
 
     (async () => {
       let resolvedUser: KubernautUser;
@@ -144,10 +181,10 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
           return;
         }
         if (err instanceof AuthenticationRequiredError) {
-          invalidateLifecycle("authentication-required");
+          invalidateForGeneration("authentication-required");
           return;
         }
-        invalidateLifecycle(
+        invalidateForGeneration(
           "authentication-unavailable",
           err instanceof AuthenticationUnavailableError || err instanceof Error
             ? err.message
@@ -167,7 +204,7 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
           backendIncarnationRef.current = incarnation;
         } catch (err) {
           if (!isCurrent()) return;
-          invalidateLifecycle(
+          invalidateForGeneration(
             "backend-incarnation-unavailable",
             err instanceof BackendContractUnavailableError ? err.message : "Unable to verify backend lifecycle",
           );
@@ -205,9 +242,9 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
     })();
 
     return () => {
-      if (isGenerationCurrent()) lifecycleActiveRef.current = false;
+      if (isGenerationCurrent(generation)) lifecycleActiveRef.current = false;
     };
-  }, [authProvider, config.backendUrl, config.fetchFn, config.requireBackendIncarnation, authRetry, invalidateLifecycle]);
+  }, [authProvider, config.backendUrl, config.fetchFn, config.requireBackendIncarnation, authRetry, invalidateLifecycle, isGenerationCurrent, observeBackendIncarnation]);
 
   useEffect(() => {
     if (
@@ -218,13 +255,22 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
       return;
     }
 
-    const generation = generationRef.current;
+    if (!lifecycle) return;
+    const generation = lifecycle.generation;
     let revalidationPending = false;
+    let revalidationRequested = false;
     let disposed = false;
-    const isCurrent = () => !disposed && lifecycleActiveRef.current && generationRef.current === generation;
+    const isCurrent = () => !disposed && isGenerationCurrent(generation);
+    const invalidateForGeneration = (reason?: string, message?: string) => {
+      invalidateLifecycle(reason, message, generation);
+    };
 
     const revalidate = async () => {
-      if (revalidationPending || !isCurrent()) return;
+      if (!isCurrent()) return;
+      if (revalidationPending) {
+        revalidationRequested = true;
+        return;
+      }
       revalidationPending = true;
       try {
         const verifiedUser = await authProvider.getUser();
@@ -236,18 +282,19 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
             fetchFn: config.fetchFn,
           });
           if (!isCurrent()) return;
-          observeBackendIncarnation(incarnation);
+          observeBackendIncarnation(incarnation, generation);
           if (!isCurrent()) return;
         }
 
+        if (revalidationRequested) return;
         setUser(verifiedUser);
       } catch (err) {
         if (!isCurrent() || err instanceof AuthenticationSupersededError) return;
         if (err instanceof AuthenticationRequiredError) {
-          invalidateLifecycle("authentication-required");
+          invalidateForGeneration("authentication-required");
           return;
         }
-        invalidateLifecycle(
+        invalidateForGeneration(
           "authentication-unavailable",
           err instanceof AuthenticationUnavailableError || err instanceof Error
             ? err.message
@@ -255,17 +302,34 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
         );
       } finally {
         revalidationPending = false;
+        if (revalidationRequested && isCurrent()) {
+          revalidationRequested = false;
+          void revalidate();
+        }
       }
     };
 
-    const unsubscribe = subscribeAuthLifecycleNotifications(() => { void revalidate(); });
+    const unsubscribe = subscribeAuthLifecycleNotifications((notification) => {
+      if (notification?.action === "signout-started") {
+        // A sign-out notification is sent before navigation can complete. Do
+        // not leave the old tab's private transcript visible while the server
+        // invalidates the cookie; fence and clear first, then authenticate a
+        // fresh blank lifecycle.
+        invalidateForGeneration();
+        return;
+      }
+      void revalidate();
+    });
     return () => {
       disposed = true;
       unsubscribe();
     };
-  }, [authProvider, config.backendUrl, config.fetchFn, config.requireBackendIncarnation, invalidateLifecycle, observeBackendIncarnation, phase, verifiedSource]);
+  }, [authProvider, config.backendUrl, config.fetchFn, config.requireBackendIncarnation, invalidateLifecycle, isGenerationCurrent, observeBackendIncarnation, phase, verifiedSource, lifecycle]);
 
-  if (phase === "loading" || (phase === "ready" && (verifiedSource?.provider !== authProvider || verifiedSource.backendUrl !== config.backendUrl))) {
+  if (
+    phase === "loading" ||
+    (phase === "ready" && (!lifecycle || verifiedSource?.provider !== authProvider || verifiedSource.backendUrl !== config.backendUrl))
+  ) {
     return (
       <div className="kn-chat kn-chat--loading" role="status" aria-label="Loading authentication">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", opacity: 0.6 }}>
@@ -319,7 +383,7 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
 
   return (
     <ConfigContext.Provider value={config}>
-      <AuthContext.Provider value={{ provider: authProvider, user, isLoading: false, error: null, lifecycle }}>
+      <AuthContext.Provider value={{ provider: authProvider, user, isLoading: false, error: null, lifecycle: lifecycle ?? undefined }}>
         <ChatContainer />
       </AuthContext.Provider>
     </ConfigContext.Provider>

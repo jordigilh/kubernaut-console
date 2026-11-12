@@ -81,19 +81,29 @@ function useChatOwner() {
   const userIdentity = formatUserIdentity(user.name, user.email);
   const authProvider = authCtx?.provider;
   const lifecycle = authCtx?.lifecycle;
-  const mcpClient = useMemo(() => new McpClient({
-    baseUrl: configCtx?.backendUrl,
-    fetchFn: configCtx?.fetchFn,
-    getToken: authProvider ? () => authProvider.getToken() : undefined,
-    lifecycle,
-    requireBackendIncarnation: configCtx?.requireBackendIncarnation,
-    onBackendIncarnation: (incarnation) => lifecycle?.observeBackendIncarnation?.(incarnation),
-    onAuthenticationRequired: lifecycle
-      ? () => lifecycle.invalidate("authentication-required")
-      : undefined,
-  }), [configCtx?.backendUrl, configCtx?.fetchFn, configCtx?.requireBackendIncarnation, authProvider, lifecycle]);
-  useEffect(() => () => mcpClient.dispose(), [mcpClient]);
-  const mcpOptions: McpClientOptions = useMemo(() => ({ client: mcpClient }), [mcpClient]);
+  const [mcpClient, setMcpClient] = useState<McpClient | null>(null);
+  useLayoutEffect(() => {
+    // Construct and dispose the same instance in the same effect. React
+    // StrictMode replays effects in development; a client created during
+    // render would be disposed by the replay cleanup and then reused.
+    const client = new McpClient({
+      baseUrl: configCtx?.backendUrl,
+      fetchFn: configCtx?.fetchFn,
+      getToken: authProvider ? () => authProvider.getToken() : undefined,
+      lifecycle,
+      requireBackendIncarnation: configCtx?.requireBackendIncarnation,
+      onBackendIncarnation: (incarnation) => lifecycle?.observeBackendIncarnation?.(incarnation),
+      onAuthenticationRequired: lifecycle
+        ? () => lifecycle.invalidate("authentication-required")
+        : undefined,
+    });
+    // The client must be published after the effect creates it so StrictMode
+    // replay never exposes the instance that cleanup has disposed.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMcpClient(client);
+    return () => client.dispose();
+  }, [configCtx?.backendUrl, configCtx?.fetchFn, configCtx?.requireBackendIncarnation, authProvider, lifecycle]);
+  const mcpOptions: McpClientOptions = useMemo(() => ({ client: mcpClient ?? undefined }), [mcpClient]);
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -495,7 +505,7 @@ function useChatOwner() {
     cancelStream();
     try {
       clearHistory();
-      notifyAuthLifecycleChanged();
+      notifyAuthLifecycleChanged("signout-started");
     } catch {
       event.preventDefault();
       setError("Unable to clear console session storage. Retry sign out.");

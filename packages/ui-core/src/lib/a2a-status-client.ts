@@ -92,6 +92,8 @@ async function attemptSubscription(
     fetchFn: options.fetchFn,
   });
 
+  if (!(options.isCurrent?.() ?? true)) return "stale";
+
   if (typeof fetchResult === "string") {
     // A component unmount or explicit cancellation is local teardown, not a
     // backend lifecycle failure. Preserve the authenticated UI on abort.
@@ -125,6 +127,7 @@ async function attemptSubscription(
   const streamResult = await readSSEStream(
     response.body!,
     (parsed) => {
+      if (!(options.isCurrent?.() ?? true)) return "stale";
       if (parsed.error) {
         const err = parsed.error as { code: number; message: string };
         if (isAuthenticationRejectionMessage(err.message || "")) {

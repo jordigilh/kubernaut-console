@@ -162,6 +162,8 @@ async function attemptStream(
     fetchFn: options.fetchFn,
   });
 
+  if (!(options.isCurrent?.() ?? true)) return "stale";
+
   if (typeof fetchResult === "string") {
     // User cancellation is an intentional local teardown, not evidence that
     // the backend lifecycle is unavailable or has changed. Do not fence the
@@ -195,7 +197,7 @@ async function attemptStream(
   const streamResult = await readSSEStream(
     response.body!,
     (parsed) => {
-      if (!(options.isCurrent?.() ?? true)) return "aborted";
+      if (!(options.isCurrent?.() ?? true)) return "stale";
       if (!isJsonRpcResponse(parsed)) {
         console.error("[a2a] SSE frame failed JSON-RPC envelope validation (neither error nor result)", parsed);
         options.onError(new Error("Received a malformed response from the server."));

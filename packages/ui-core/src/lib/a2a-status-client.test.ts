@@ -472,6 +472,29 @@ describe("subscribeRRStatus", () => {
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("malformed") }));
   });
 
+  it("IT-CONSOLE-168-046: ignores a stale status authentication frame", async () => {
+    let current = true;
+    const onAuthenticationRequired = vi.fn();
+    const onPhaseChange = vi.fn(() => { current = false; });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createSSEResponse([
+        sseFrame({ jsonrpc: "2.0", method: "status/update", params: { rr_id: "rr-stale", phase: "Investigating", metadata: {} } }),
+        sseFrame({ jsonrpc: "2.0", error: { code: -32002, message: "access_denied" } }),
+      ]),
+    );
+
+    await subscribeRRStatus("rr-stale", {
+      onPhaseChange,
+      onError: vi.fn(),
+      onAuthenticationRequired,
+      isCurrent: () => current,
+      maxRetries: 0,
+    });
+
+    expect(onPhaseChange).toHaveBeenCalledOnce();
+    expect(onAuthenticationRequired).not.toHaveBeenCalled();
+  });
+
   it("UT-CONSOLE-STATUS-027: still calls onPhaseChange for an unrecognized-but-string phase (forward compat, not malformed)", async () => {
     const onPhaseChange = vi.fn();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(

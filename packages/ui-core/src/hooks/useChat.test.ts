@@ -149,6 +149,22 @@ describe("useChat", () => {
       expect(newContext).not.toBe("ctx-123");
       expect(newContext).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
     });
+
+    it("UT-CONSOLE-168-047: clearHistory preserves the old view when storage cleanup fails", () => {
+      vi.useRealTimers();
+      sessionStorage.setItem("kubernaut-console-messages", JSON.stringify([{ id: "1", role: "user", text: "private", timestamp: 1 }]));
+      sessionStorage.setItem("kubernaut-console-context", "ctx-private");
+      const remove = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new Error("denied"); });
+
+      try {
+        const { result } = renderHook(() => useChat());
+        expect(() => result.current.clearHistory()).toThrow();
+        expect(result.current.messages[0].text).toBe("private");
+        expect(sessionStorage.getItem("kubernaut-console-context")).toBe("ctx-private");
+      } finally {
+        remove.mockRestore();
+      }
+    });
   });
 
   describe("Extended decision payload with RCA", () => {

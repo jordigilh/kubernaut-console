@@ -270,6 +270,23 @@ describe("callMcpTool", () => {
     expect(result.result).toBeUndefined();
   });
 
+  it("UT-CONSOLE-168-044: does not treat tool-result text as a Console auth rejection", async () => {
+    const onAuthenticationRequired = vi.fn();
+    vi.mocked(globalThis.fetch)
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse())
+      .mockResolvedValueOnce(mockSuccessResponse({
+        isError: true,
+        content: [{ type: "text", text: "Kubernetes API: unauthorized" }],
+      }));
+    client = new McpClient({ onAuthenticationRequired });
+
+    const result = await callTool("kubernaut_get_approval_request", { rar_id: "rar-auth-text" });
+
+    expect(onAuthenticationRequired).not.toHaveBeenCalled();
+    expect(result.error).toEqual({ code: -32000, message: "Kubernetes API: unauthorized" });
+  });
+
   // SI-10: result without isError is still treated as success
   it("UT-CONSOLE-MCP-011 [SI-10]: returns success when result.isError is absent", async () => {
     const successResult = { content: [{ type: "text", text: "success" }] };

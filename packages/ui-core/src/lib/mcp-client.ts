@@ -1,5 +1,5 @@
 import { isValidBackendIncarnation } from "./backend-contract";
-import { isAuthenticationRejectionMessage, isAuthenticationRejectionStatus } from "../providers/auth";
+import { isAuthenticationRejectionStatus } from "../providers/auth";
 
 export interface McpResult {
   result?: unknown;
@@ -14,6 +14,10 @@ export interface McpResult {
 // (validation errors, timeouts, etc.), which all share the same generic
 // isError/-32000 shape. See kubernaut-console#57.
 const PERMISSION_DENIED_PREFIX = "permission denied";
+// AF's structured MCP authentication rejection code. Tool-result text is not
+// trusted as an authentication signal because backend tools can legitimately
+// return messages containing words such as "unauthorized".
+const MCP_AUTHENTICATION_REJECTION_CODE = -32002;
 const STALE_MESSAGE = "MCP request belongs to an inactive console lifecycle";
 
 export function isPermissionDeniedError(error: McpResult["error"] | undefined): boolean {
@@ -22,6 +26,10 @@ export function isPermissionDeniedError(error: McpResult["error"] | undefined): 
 
 export function isStaleMcpResult(result: McpResult): boolean {
   return result.stale === true;
+}
+
+function isMcpAuthenticationRejection(error: { code: number; message: string }): boolean {
+  return error.code === MCP_AUTHENTICATION_REJECTION_CODE;
 }
 
 export interface McpLifecycle {
@@ -168,43 +176,45 @@ export class McpClient {
       if (!this.isCurrent()) return staleResult();
       return { error: { code: -1, message: (err as Error).message } };
     }
-    requestSignal.cleanup();
-    if (!this.isCurrent()) return staleResult();
-    const responseAuthError = this.responseAuthenticationRejection(response);
-    if (responseAuthError) return responseAuthError;
-    if (!this.observeResponse(response)) return staleResult();
-    if (!response.ok) {
-      return { error: { code: response.status, message: `HTTP ${response.status}: ${response.statusText}` } };
-    }
-    let text: string;
     try {
-      text = await response.text();
-    } catch (err) {
       if (!this.isCurrent()) return staleResult();
-      return { error: { code: -1, message: (err as Error).message } };
-    }
-    if (!this.isCurrent()) return staleResult();
-    let body: { error?: { code: number; message: string }; result?: unknown };
-    try {
-      body = parseSSEResponse(text) as typeof body;
-    } catch {
-      return { error: { code: -1, message: text ? `MCP response: ${text.slice(0, 200)}` : "Invalid JSON response from MCP endpoint" } };
-    }
-    if (body.error) {
-      if (isAuthenticationRejectionMessage(body.error.message || "")) {
-        return this.authenticationRejection(body.error);
+      const responseAuthError = this.responseAuthenticationRejection(response);
+      if (responseAuthError) return responseAuthError;
+      if (!this.observeResponse(response)) return staleResult();
+      if (!response.ok) {
+        return { error: { code: response.status, message: `HTTP ${response.status}: ${response.statusText}` } };
       }
-      return { error: body.error };
-    }
-    if (body.result && typeof body.result === "object" && (body.result as Record<string, unknown>).isError) {
-      const content = (body.result as { content?: Array<{ text?: string }> }).content;
-      const msg = content?.map(c => c.text).filter(Boolean).join("; ") || "Tool call failed";
-      if (isAuthenticationRejectionMessage(msg)) {
-        return this.authenticationRejection({ code: -32000, message: msg });
+      let text: string;
+      try {
+        text = await response.text();
+      } catch (err) {
+        if (!this.isCurrent()) return staleResult();
+        return { error: { code: -1, message: (err as Error).message } };
       }
-      return { error: { code: -32000, message: msg } };
+      if (!this.isCurrent()) return staleResult();
+      let body: { error?: { code: number; message: string }; result?: unknown };
+      try {
+        body = parseSSEResponse(text) as typeof body;
+      } catch {
+        return { error: { code: -1, message: text ? `MCP response: ${text.slice(0, 200)}` : "Invalid JSON response from MCP endpoint" } };
+      }
+      if (body.error) {
+        if (isMcpAuthenticationRejection(body.error)) {
+          return this.authenticationRejection(body.error);
+        }
+        return { error: body.error };
+      }
+      if (body.result && typeof body.result === "object" && (body.result as Record<string, unknown>).isError) {
+        const content = (body.result as { content?: Array<{ text?: string }> }).content;
+        const msg = content?.map(c => c.text).filter(Boolean).join("; ") || "Tool call failed";
+        return { error: { code: -32000, message: msg } };
+      }
+      return { result: body.result };
+    } finally {
+      // Keep the timeout and lifecycle-abort listener active until the response
+      // body has been consumed. Fetch may resolve before response.text().
+      requestSignal.cleanup();
     }
-    return { result: body.result };
   }
 
   private async sendMcpNotification(method: string): Promise<McpResult> {
