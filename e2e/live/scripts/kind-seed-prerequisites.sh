@@ -82,15 +82,34 @@ if [[ "$MODE" == "fullpipeline" ]]; then
   done < <(jq -er '.fullPipeline.workflowUUIDs | keys[]' "$RUNTIME_MANIFEST")
 
   echo "==> Verifying upstream mock-LLM scenario ConfigMap (read-only)"
+  command -v ruby >/dev/null 2>&1 || { echo "error: ruby is required to parse scenarios.yaml" >&2; exit 1; }
   scenarios_json="$(kubectl --kubeconfig "$HUB_KUBECONFIG" get configmap mock-llm-scenarios -n "$PLATFORM_NS" -o json)"
   jq -e '.metadata.name == "mock-llm-scenarios" and ((.data["scenarios.yaml"] // "") | length > 0)' <<<"$scenarios_json" >/dev/null || {
     echo "error: upstream mock-llm-scenarios ConfigMap has no scenarios.yaml" >&2
     exit 1
   }
   scenarios_yaml="$(jq -er '.data["scenarios.yaml"]' <<<"$scenarios_json")"
+  scenario_namespaces="$(ruby -ryaml -e '
+    document = YAML.safe_load(STDIN.read, permitted_classes: [], aliases: false)
+    roots = document.is_a?(Hash) ? [document["scenario_selectors"], document["transcript_scenarios"]] : []
+    walk = lambda do |value|
+      case value
+      when Array
+        value.each { |item| walk.call(item) }
+      when Hash
+        namespace = value["namespace"]
+        puts namespace if namespace.is_a?(String) && !namespace.empty?
+        value.each_value { |item| walk.call(item) }
+      end
+    end
+    roots.each { |root| walk.call(root) }
+  ' <<<"$scenarios_yaml")" || {
+    echo "error: upstream mock-LLM scenarios.yaml is not valid YAML" >&2
+    exit 1
+  }
   while IFS= read -r namespace; do
     [[ -n "$namespace" ]] || continue
-    grep -Fq "$namespace" <<<"$scenarios_yaml" || {
+    grep -Fqx -- "$namespace" <<<"$scenario_namespaces" || {
       echo "error: upstream mock-LLM scenarios do not contain namespace ${namespace}" >&2
       exit 1
     }

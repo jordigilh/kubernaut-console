@@ -164,10 +164,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Checkout Console source
+      - name: Checkout Console build helpers
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+          path: console-helpers
+
+      - name: Checkout Console source under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
           ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          path: console-source
           fetch-depth: 1
 
       - name: Build Console image
@@ -176,7 +185,8 @@ jobs:
           BUILD_KIND: console
           SOURCE_SHA: ${{ needs.resolve-pins.outputs.console_sha }}
           IMAGE_TAG: ${{ needs.resolve-pins.outputs.artifact_tag }}
-        run: e2e/live/scripts/ci-build-container-artifact.sh
+          CONSOLE_SOURCE_DIR: console-source
+        run: console-helpers/e2e/live/scripts/ci-build-container-artifact.sh
 
       - name: Upload Console image artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -225,12 +235,14 @@ jobs:
       - name: Checkout Console build helpers
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          persist-credentials: false
+          ref: ${{ github.sha }}
           path: console
 
       - name: Checkout Kubernaut source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           repository: jordigilh/kubernaut
           ref: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
           path: kubernaut
@@ -273,12 +285,14 @@ jobs:
       - name: Checkout Console build helpers
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          persist-credentials: false
+          ref: ${{ github.sha }}
           path: console
 
       - name: Checkout Kubernaut source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           repository: jordigilh/kubernaut
           ref: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
           path: kubernaut
@@ -312,12 +326,14 @@ jobs:
       - name: Checkout Console build helpers
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          persist-credentials: false
+          ref: ${{ github.sha }}
           path: console
 
       - name: Checkout operator source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           repository: jordigilh/kubernaut-operator
           ref: ${{ needs.resolve-pins.outputs.operator_sha }}
           path: kubernaut-operator
@@ -355,7 +371,8 @@ jobs:
       - name: Checkout Console build helpers
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          persist-credentials: false
+          ref: ${{ github.sha }}
           path: console
 
       - name: Pull pinned auxiliary image
@@ -383,12 +400,14 @@ jobs:
       - name: Checkout Console build helpers
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          persist-credentials: false
+          ref: ${{ github.sha }}
           path: console
 
       - name: Checkout demo scenarios
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           repository: jordigilh/kubernaut-demo-scenarios
           ref: ${{ needs.resolve-pins.outputs.scenarios_sha }}
           path: kubernaut-demo-scenarios
@@ -424,7 +443,8 @@ jobs:
       - name: Checkout Console provenance helper
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          persist-credentials: false
+          ref: ${{ github.sha }}
           fetch-depth: 1
 
       - name: Download this run's build artifacts
@@ -478,15 +498,17 @@ jobs:
       LIVE_E2E_KEYCLOAK_PASSWORD: password
       KIND_EXPERIMENTAL_PROVIDER: podman
     steps:
-      - name: Checkout Console at the pinned SHA
+      - name: Checkout Console workflow helpers
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          persist-credentials: false
+          ref: ${{ github.sha }}
           fetch-depth: 1
 
       - name: Checkout Kubernaut at the pinned SHA
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           repository: jordigilh/kubernaut
           ref: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
           path: kubernaut
@@ -630,15 +652,17 @@ jobs:
       ARTIFACT_TAG: ${{ needs.resolve-pins.outputs.artifact_tag }}
       KIND_EXPERIMENTAL_PROVIDER: podman
     steps:
-      - name: Checkout Console at the pinned SHA
+      - name: Checkout Console workflow helpers
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.resolve-pins.outputs.console_sha }}
+          persist-credentials: false
+          ref: ${{ github.sha }}
           fetch-depth: 1
 
       - name: Checkout Kubernaut at the pinned SHA
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           repository: jordigilh/kubernaut
           ref: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
           path: kubernaut
@@ -670,7 +694,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends podman jq shellcheck uidmap slirp4netns fuse-overlayfs
+          sudo apt-get install --yes --no-install-recommends podman jq ruby shellcheck uidmap slirp4netns fuse-overlayfs
           podman info
 
       - name: Install pinned Kubernetes tooling

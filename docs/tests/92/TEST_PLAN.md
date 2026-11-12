@@ -118,11 +118,15 @@ No production behavior defect was found.
 
 ## 10. REFACTOR Review
 
-No production refactor was warranted: the existing selection ternary and both
-provider implementations were already small and directly testable. The test
-helpers are limited to dynamic module loading so each build-time environment
-variant is isolated. Coverage scope excludes only test/setup files and the
-`main.tsx` bootstrap, not the auth logic under test.
+No production refactor was warranted: `App` now constructs one module-level
+`ProxyAuthProvider` and passes it directly to `KubernautChat`; there is no
+provider-selection ternary or browser-token provider. The tests cover that
+selection, including ignoring the legacy browser-token variable, plus the
+provider's empty-token behavior, mock identity, same-origin userinfo mapping,
+verified `iss`/`sub`/`sid` claims, session supersession, and authentication or
+HTTP error handling. Test helpers are limited to dynamic module loading so
+each build-time environment variant is isolated. Coverage scope excludes only
+test/setup files and the `main.tsx` bootstrap, not the auth logic under test.
 
 ## 11. Design / Sequencing Limitations
 

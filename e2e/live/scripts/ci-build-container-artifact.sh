@@ -10,13 +10,18 @@ mkdir -p artifact
 case "${BUILD_KIND}" in
   console)
     : "${SOURCE_SHA:?SOURCE_SHA is required}"
+    console_source_dir="${CONSOLE_SOURCE_DIR:-.}"
+    [[ -d "${console_source_dir}" ]] || {
+      echo "error: Console source directory is missing: ${console_source_dir}" >&2
+      exit 1
+    }
     image="localhost/kubernaut-console:${IMAGE_TAG}"
     archive="console-image.tar"
     metadata="console-image.json"
     docker build --pull=false --platform linux/amd64 \
       --tag "${image}" \
-      --file packages/standalone/Containerfile \
-      .
+      --file "${console_source_dir}/packages/standalone/Containerfile" \
+      "${console_source_dir}"
     ;;
   kubernaut)
     : "${SOURCE_SHA:?SOURCE_SHA is required}"

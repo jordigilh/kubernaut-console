@@ -37,6 +37,7 @@ process.env.LIVE_E2E_INVESTIGATION_TIMEOUT_MS ??= "300000";
 
 export default defineConfig({
   testDir: "./e2e/live",
+  testIgnore: "**/native-fullpipeline.spec.ts",
   fullyParallel: false, // shared cluster state (RRs, workflow catalog) — avoid cross-test interference
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

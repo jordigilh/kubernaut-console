@@ -42,7 +42,7 @@ umask 077
 mkdir -p "$(dirname "${LIVE_E2E_NATIVE_LOG}")"
 
 set +e
-(cd "${module_dir}" && go run "${script_dir}/native-fullpipeline-setup.go") 2>&1 | tee "${LIVE_E2E_NATIVE_LOG}"
+(cd "${module_dir}" && GOFLAGS=-mod=mod go run "${script_dir}/native-fullpipeline-setup.go") 2>&1 | tee "${LIVE_E2E_NATIVE_LOG}"
 status="${PIPESTATUS[0]}"
 set -e
 chmod 600 "${LIVE_E2E_NATIVE_LOG}"

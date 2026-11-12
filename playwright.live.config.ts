@@ -13,11 +13,16 @@ import { defineConfig, devices } from "@playwright/test";
 //   2. The server-side Vite proxy fetches Dex credentials and injects the
 //      bearer only on its AF hop; the browser uses ProxyAuthProvider.
 const baseURL = process.env.LIVE_E2E_CONSOLE_URL ?? "http://127.0.0.1:5174";
+const consolePort = new URL(baseURL).port;
+if (!consolePort) {
+  throw new Error("LIVE_E2E_CONSOLE_URL must include an explicit port for the Vite live E2E server");
+}
 const apiFrontendURL = process.env.LIVE_E2E_AF_URL ?? "https://127.0.0.1:18443";
 const dexURL = process.env.LIVE_E2E_DEX_URL ?? "https://127.0.0.1:30556/dex";
 
 export default defineConfig({
   testDir: "./e2e/live",
+  testIgnore: "**/native-fullpipeline.spec.ts",
   fullyParallel: false, // shared cluster state (RRs, workflow catalog) — avoid cross-test interference
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -39,14 +44,14 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm --filter @kubernaut/standalone exec vite --host 127.0.0.1 --port 5174 --strictPort",
+    command: `pnpm --filter @kubernaut/standalone exec vite --host 127.0.0.1 --port ${consolePort} --strictPort`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
     env: {
       // Distinct from playwright.config.ts's 5173 so both suites can run
       // side by side without colliding. Vite does not read $PORT itself.
-      LIVE_E2E_CONSOLE_PORT: "5174",
+      LIVE_E2E_CONSOLE_PORT: consolePort,
       LIVE_E2E_DEX_URL: dexURL,
       VITE_API_UPSTREAM: apiFrontendURL,
       VITE_API_INSECURE_TLS: "true",

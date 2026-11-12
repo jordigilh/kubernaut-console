@@ -181,18 +181,63 @@ if [[ "$MODE" == "fullpipeline" ]]; then
     printf '%s' "$value"
   }
 
+  if ! autonomous_namespace="$(native_namespace autonomous fp-auto-)"; then
+    echo "error: failed to resolve native namespace autonomous" >&2
+    exit 1
+  fi
+  if ! interactive_namespace="$(native_namespace interactive fp-int-)"; then
+    echo "error: failed to resolve native namespace interactive" >&2
+    exit 1
+  fi
+  if ! cross_namespace="$(native_namespace cross-namespace fp-e2e-1292-)"; then
+    echo "error: failed to resolve native namespace cross-namespace" >&2
+    exit 1
+  fi
+  if ! interactive_streaming_namespace="$(native_namespace interactive-streaming fp-ints-)"; then
+    echo "error: failed to resolve native namespace interactive-streaming" >&2
+    exit 1
+  fi
+  if ! combined_investigate_namespace="$(native_namespace combined-investigate fp-comb-)"; then
+    echo "error: failed to resolve native namespace combined-investigate" >&2
+    exit 1
+  fi
+  if ! full_interactive_namespace="$(native_namespace full-interactive fp-full-)"; then
+    echo "error: failed to resolve native namespace full-interactive" >&2
+    exit 1
+  fi
+  if ! consent_phase2_namespace="$(native_namespace consent-phase2 fp-cg2-)"; then
+    echo "error: failed to resolve native namespace consent-phase2" >&2
+    exit 1
+  fi
+  if ! consent_phase3_namespace="$(native_namespace consent-phase3 fp-cg3-)"; then
+    echo "error: failed to resolve native namespace consent-phase3" >&2
+    exit 1
+  fi
+  if ! terminal_1912_namespace="$(native_namespace terminal-1912 fp-t1912-)"; then
+    echo "error: failed to resolve native namespace terminal-1912" >&2
+    exit 1
+  fi
+  if ! not_actionable_1918_namespace="$(native_namespace not-actionable-1918 fp-na1918-)"; then
+    echo "error: failed to resolve native namespace not-actionable-1918" >&2
+    exit 1
+  fi
+  if ! standalone_execution_cluster_id_namespace="$(native_namespace standalone-exec-cluster-id fp-standalone-2378-)"; then
+    echo "error: failed to resolve native namespace standalone-exec-cluster-id" >&2
+    exit 1
+  fi
+
   remediate_namespaces="$(jq -n \
-    --arg autonomous "$(native_namespace autonomous fp-auto-)" \
-    --arg interactive "$(native_namespace interactive fp-int-)" \
-    --arg cross_namespace "$(native_namespace cross-namespace fp-e2e-1292-)" \
-    --arg interactive_streaming "$(native_namespace interactive-streaming fp-ints-)" \
-    --arg combined_investigate "$(native_namespace combined-investigate fp-comb-)" \
-    --arg full_interactive "$(native_namespace full-interactive fp-full-)" \
-    --arg consent_phase2 "$(native_namespace consent-phase2 fp-cg2-)" \
-    --arg consent_phase3 "$(native_namespace consent-phase3 fp-cg3-)" \
-    --arg terminal_1912 "$(native_namespace terminal-1912 fp-t1912-)" \
-    --arg not_actionable_1918 "$(native_namespace not-actionable-1918 fp-na1918-)" \
-    --arg standalone_execution_cluster_id "$(native_namespace standalone-exec-cluster-id fp-standalone-2378-)" \
+    --arg autonomous "$autonomous_namespace" \
+    --arg interactive "$interactive_namespace" \
+    --arg cross_namespace "$cross_namespace" \
+    --arg interactive_streaming "$interactive_streaming_namespace" \
+    --arg combined_investigate "$combined_investigate_namespace" \
+    --arg full_interactive "$full_interactive_namespace" \
+    --arg consent_phase2 "$consent_phase2_namespace" \
+    --arg consent_phase3 "$consent_phase3_namespace" \
+    --arg terminal_1912 "$terminal_1912_namespace" \
+    --arg not_actionable_1918 "$not_actionable_1918_namespace" \
+    --arg standalone_execution_cluster_id "$standalone_execution_cluster_id_namespace" \
     '{autonomous:$autonomous,interactive:$interactive,"cross-namespace":$cross_namespace,"interactive-streaming":$interactive_streaming,"combined-investigate":$combined_investigate,"full-interactive":$full_interactive,"consent-phase2":$consent_phase2,"consent-phase3":$consent_phase3,"terminal-1912":$terminal_1912,"not-actionable-1918":$not_actionable_1918,"standalone-exec-cluster-id":$standalone_execution_cluster_id}')"
 
   mkdir -p "$(dirname "$OUTPUT")"

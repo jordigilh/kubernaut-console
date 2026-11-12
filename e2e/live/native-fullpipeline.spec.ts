@@ -17,9 +17,10 @@ test("native FullPipeline investigates the upstream stable memory-eater target r
     await sendChatMessage(page, oomkillInvestigateMessage(target));
     await waitForInvestigationSummary(page);
 
-    await expect(page.getByTestId("severity-accent")).toBeVisible();
-    await expect(page.locator(".kn-chat")).toContainText(target.name);
-    await expect(page.locator(".kn-chat")).toContainText(target.namespace);
+    const summary = page.getByTestId("severity-accent");
+    await expect(summary).toBeVisible();
+    await expect(summary).toContainText(target.name);
+    await expect(summary).toContainText(target.namespace);
   } finally {
     stopScreenshots();
   }
