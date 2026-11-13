@@ -82,9 +82,12 @@ manifest = {
     "artifacts": entries,
     "consumptionContract": {
         "loadTool": "docker or podman load each image archive",
-        "localFleetSetupEntrypoint": "e2e/live/scripts/ci-provision-demo-infra.sh",
-        "nativeFullPipelineSetupEntrypoint": "e2e/live/scripts/ci-provision-native-fullpipeline.sh",
-        "nativeFullPipelineSetup": "github.com/jordigilh/kubernaut/test/infrastructure.SetupFullPipelineInfrastructure",
+        "setupEntrypoint": "e2e/live/scripts/ci-provision-demo-infra.sh",
+        "setupTargets": {
+            "local": "setup-local-demo-infra",
+            "fleet": "setup-fleet-demo-infra",
+            "fullpipeline": "setup-local-demo-infra",
+        },
         "setupImageRepository": "localhost",
         "setupImageTag": os.environ["ARTIFACT_TAG"],
         "consoleOverride": "KUBERNAUT_CONSOLE_IMAGE",

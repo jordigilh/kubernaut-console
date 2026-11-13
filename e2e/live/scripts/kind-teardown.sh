@@ -23,31 +23,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ "$MODE" == "local" || "$MODE" == "fleet" || "$MODE" == "fullpipeline" ]] || { echo "error: invalid mode" >&2; exit 2; }
-[[ "$HUB_CLUSTER_NAME" =~ ^[a-z0-9-]+$ ]] || { echo "error: refusing non-DNS hub cluster name" >&2; exit 1; }
-if [[ "$MODE" == "fullpipeline" ]]; then
-  [[ "$HUB_CLUSTER_NAME" == "fullpipeline-e2e" ]] || {
-    echo "error: native FullPipeline teardown may delete only the exact fullpipeline-e2e cluster" >&2
-    exit 1
-  }
-  [[ -z "$SPOKE_CLUSTER_NAME" && -z "$SPOKE_KUBECONFIG" ]] || {
-    echo "error: native FullPipeline teardown refuses spoke-cluster arguments" >&2
-    exit 1
-  }
-  if ! command -v kind >/dev/null 2>&1; then
-    echo "error: kind is required to tear down the native FullPipeline cluster" >&2
-    exit 1
-  fi
-  export KIND_EXPERIMENTAL_PROVIDER="${KIND_EXPERIMENTAL_PROVIDER:-podman}"
-  if ! kind delete cluster --name fullpipeline-e2e >/dev/null 2>&1; then
-    echo "error: failed to delete the native FullPipeline Kind cluster: fullpipeline-e2e" >&2
-    exit 1
-  fi
-  rm -f "$STATE_FILE"
-  echo "Exact native FullPipeline Kind cluster removed: fullpipeline-e2e"
-  exit 0
-fi
+[[ -n "$STATE_FILE" ]] || { echo "error: --state-file is required" >&2; exit 2; }
+[[ "$HUB_CLUSTER_NAME" =~ ^kubernaut-live-${MODE}-[0-9]+$ ]] || {
+  echo "error: refusing non-run-owned hub cluster name: ${HUB_CLUSTER_NAME}" >&2
+  exit 1
+}
 if [[ "$MODE" == "fleet" && ! "$SPOKE_CLUSTER_NAME" =~ ^[a-z0-9-]+$ ]]; then
   echo "error: refusing non-DNS spoke cluster name" >&2
+  exit 1
+fi
+if [[ "$MODE" == "fleet" && ! "$SPOKE_CLUSTER_NAME" =~ ^kubernaut-live-fleet-spoke-[0-9]+$ ]]; then
+  echo "error: refusing non-run-owned spoke cluster name: ${SPOKE_CLUSTER_NAME}" >&2
   exit 1
 fi
 

@@ -4,13 +4,8 @@ set -euo pipefail
 
 : "${MODE:?MODE is required}"
 
-if [[ "${MODE}" == "fullpipeline" ]]; then
-  bin_dir="${RUNNER_TEMP}/live-e2e-fullpipeline-bin"
-  helm_archive="${RUNNER_TEMP}/live-e2e-fullpipeline-helm.tgz"
-else
-  bin_dir="${RUNNER_TEMP}/live-e2e-bin"
-  helm_archive="${RUNNER_TEMP}/helm.tgz"
-fi
+bin_dir="${RUNNER_TEMP}/live-e2e-bin"
+helm_archive="${RUNNER_TEMP}/helm.tgz"
 mkdir -p "${bin_dir}"
 
 kind_version="v0.32.0"
@@ -41,6 +36,4 @@ echo "${bin_dir}" >> "${GITHUB_PATH}"
 "${bin_dir}/kubectl" version --client
 "${bin_dir}/helm" version
 
-if [[ "${MODE}" != "fullpipeline" ]]; then
-  echo "127.0.0.1 keycloak kubernaut-console.local" | sudo tee -a /etc/hosts >/dev/null
-fi
+echo "127.0.0.1 keycloak kubernaut-console.local" | sudo tee -a /etc/hosts >/dev/null

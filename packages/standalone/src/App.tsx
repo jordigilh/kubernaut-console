@@ -14,9 +14,9 @@ function clearUnboundState(): boolean {
 }
 let storageReady = clearUnboundState();
 
-// All standalone modes use the same host-owned auth boundary. In production
-// oauth2-proxy injects headers; the live FullPipeline Vite server does the
-// equivalent server-side. The browser never selects a bearer-token provider.
+// All standalone modes use the same host-owned auth boundary. The production
+// and disposable-demo ingress injects auth headers; the browser never selects
+// a bearer-token provider.
 const authProvider = new ProxyAuthProvider();
 
 // Populated by /runtime-config.js, a same-origin script tag (see index.html)

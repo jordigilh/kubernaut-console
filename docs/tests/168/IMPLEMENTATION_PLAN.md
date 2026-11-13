@@ -53,7 +53,7 @@ pending.
 | Component | Production path | Required integration evidence | Status |
 |---|---|---|---|
 | Storage cleanup | standalone `App.tsx` before chat render; source replacement in `KubernautChat.tsx` | IT-CONSOLE-168-003/004/014/016 | local tests pass; deployed browser storage boundary pending |
-| Verified identity and lifecycle | `ProxyAuthProvider` -> `KubernautChat` -> `AuthContext` consumers; native Vite/Dex proxy supplies sanitized userinfo without a browser bearer | UT-CONSOLE-168-023/024; IT-CONSOLE-168-001/002/014/016; native FullPipeline Playwright lane | wired and locally passing; deployed qualification pending |
+| Verified identity and lifecycle | `ProxyAuthProvider` -> `KubernautChat` -> `AuthContext` consumers; disposable Kind Console ingress supplies the host-owned session without a browser bearer | UT-CONSOLE-168-023/024; IT-CONSOLE-168-001/002/014/016; shared live Kind Playwright lane | wired and locally passing; deployed qualification pending |
 | Scoped MCP client | `ChatContainer` creates one `McpClient` per authenticated lifecycle | IT-CONSOLE-168-006/007/008/009; full UI-core suite | wired and locally passing |
 | A2A/status incarnation fencing | `useChat`, `useRRStatus`, A2A/status clients | IT-CONSOLE-168-015/018/019; full UI-core suite | wired and locally passing |
 | AF incarnation | AF `NewRouter` -> same-origin contract and A2A/MCP/status headers | IT-AF-CONSOLE-168-001/002/003; handler and command wiring suites | Kubernaut PR #2621 merged as `da031cc8232c1df5d9337d8f09ee63370fe14b97`; deploy evidence pending |
@@ -67,13 +67,13 @@ have no automatic replay; status-stream retries remain read-only status
 subscriptions. MCP session state is instance-scoped and disposed with the
 authenticated lifecycle.
 
-The native FullPipeline lane keeps this same provider selection. Vite fetches
-the synthetic Dex token in the server process, injects it only on proxy hops to
-API Frontend, and returns only display fields plus bounded `iss`, `sub`, and
-opaque `sid` claims from same-origin `/oauth2/userinfo`. The native Playwright
-spec reads the upstream runtime manifest and investigates only
-`kubernaut-system/memory-eater`; setup never reseeds or mutates the upstream
-catalog, scenarios, dynamic mappings, or target.
+The live Kind lanes keep this same provider selection. Keycloak and Traefik
+own the browser session, while the Console uses the production
+`ProxyAuthProvider`; no Vite Dex helper, synthetic bearer, or server-side token
+injection is used. The `local` and `fullpipeline` lanes use the shared local
+demo bootstrap, and `fleet` uses the shared fleet bootstrap. Console-owned
+setup seeds the catalog, derives mock-LLM scenarios from active catalog UUIDs,
+and creates only run-suffixed fixtures.
 
 CHECKPOINT W passes for the Console and AF production callers. It is not a
 deployed qualification result: the AF contract is integrated in canonical

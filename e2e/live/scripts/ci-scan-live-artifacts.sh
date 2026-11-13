@@ -14,7 +14,7 @@ scan_paths=()
 }
 
 secret_args=()
-if [[ "${MODE}" != "fullpipeline" && -n "${LIVE_E2E_LLM_CREDENTIAL_FILE:-}" && -f "${LIVE_E2E_LLM_CREDENTIAL_FILE}" ]]; then
+if [[ -n "${LIVE_E2E_LLM_CREDENTIAL_FILE:-}" && -f "${LIVE_E2E_LLM_CREDENTIAL_FILE}" ]]; then
   secret_args+=(--secret-file "${LIVE_E2E_LLM_CREDENTIAL_FILE}")
 fi
 python3 e2e/live/scripts/scan-live-artifacts.py "${secret_args[@]}" "${scan_paths[@]}"

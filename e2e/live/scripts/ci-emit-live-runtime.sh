@@ -9,33 +9,6 @@ set -euo pipefail
 : "${OPERATOR_SHA:?OPERATOR_SHA is required}"
 : "${SCENARIOS_SHA:?SCENARIOS_SHA is required}"
 
-if [[ "${MODE}" == "fullpipeline" ]]; then
-  e2e/live/scripts/kind-runtime-manifest.sh \
-    --mode fullpipeline \
-    --hub-kubeconfig "${HUB_KUBECONFIG}" \
-    --hub-cluster-name fullpipeline-e2e \
-    --output "${LIVE_E2E_SETUP_MANIFEST}" \
-    --console-url "${LIVE_E2E_CONSOLE_URL}" \
-    --api-frontend-url "${LIVE_E2E_API_FRONTEND_URL}" \
-    --dex-url "${LIVE_E2E_DEX_URL}" \
-    --native-log "${LIVE_E2E_NATIVE_LOG}" \
-    --native-setup-metadata "${LIVE_E2E_NATIVE_SETUP_METADATA}" \
-    --artifact-tag "${ARTIFACT_TAG}" \
-    --console-sha "${CONSOLE_SHA}" \
-    --kubernaut-sha "${KUBERNAUT_SHA}" \
-    --operator-sha "${OPERATOR_SHA}" \
-    --scenarios-sha "${SCENARIOS_SHA}"
-  {
-    echo "LIVE_E2E_CONSOLE_URL=$(jq -er '.urls.console' "${LIVE_E2E_SETUP_MANIFEST}")"
-    echo "LIVE_E2E_API_FRONTEND_URL=$(jq -er '.urls.apiFrontend' "${LIVE_E2E_SETUP_MANIFEST}")"
-    echo "LIVE_E2E_DEX_URL=$(jq -er '.urls.dex' "${LIVE_E2E_SETUP_MANIFEST}")"
-    echo "LIVE_E2E_TARGET_KUBECONFIG=$(jq -er '.kubeconfigs.target' "${LIVE_E2E_SETUP_MANIFEST}")"
-    echo "LIVE_E2E_NATIVE_TARGET_NAMESPACE=$(jq -er '.fullPipeline.targets.memoryEater.namespace' "${LIVE_E2E_SETUP_MANIFEST}")"
-    echo "LIVE_E2E_NATIVE_TARGET_NAME=$(jq -er '.fullPipeline.targets.memoryEater.name' "${LIVE_E2E_SETUP_MANIFEST}")"
-  } >> "${GITHUB_ENV}"
-  exit 0
-fi
-
 e2e/live/scripts/kind-runtime-manifest.sh \
   --mode "${MODE}" \
   --hub-kubeconfig "${HUB_KUBECONFIG}" \

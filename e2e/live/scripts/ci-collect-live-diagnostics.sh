@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Collect redacted diagnostics for either live topology.
+# Collect redacted diagnostics for one live topology.
 set +e
 
 args=(
@@ -9,8 +9,5 @@ args=(
 )
 if [[ "${MODE}" == "fleet" ]]; then
   args+=(--spoke-kubeconfig "${SPOKE_KUBECONFIG}")
-fi
-if [[ "${MODE}" == "fullpipeline" ]]; then
-  args+=(--native-log "${LIVE_E2E_NATIVE_LOG}")
 fi
 e2e/live/scripts/collect-kind-diagnostics.sh "${args[@]}"

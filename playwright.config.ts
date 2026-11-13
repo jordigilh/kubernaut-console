@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  // ADR-009: e2e/live/ targets a real cluster via playwright.live.config.ts
+  // ADR-009: e2e/live/ targets a real cluster via playwright.live-kind.config.ts
   // and must never run under this mocked-backend config/e2e.yml.
   testIgnore: ["**/e2e/live/**", "**/e2e/console-foundation/**"],
   fullyParallel: true,

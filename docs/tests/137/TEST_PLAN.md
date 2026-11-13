@@ -157,7 +157,7 @@ pnpm --filter @kubernaut/ui-core test
 pnpm --filter @kubernaut/ui-core lint
 pnpm --filter @kubernaut/ui-core build
 pnpm exec playwright test e2e/live/cancellation.spec.ts \
-  --config=playwright.live.config.ts
+  --config=playwright.live-kind.config.ts
 ```
 
 Pass criteria:

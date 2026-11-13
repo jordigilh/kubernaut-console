@@ -3,14 +3,14 @@ import { defineConfig, devices } from "@playwright/test";
 
 // ADR-009 §14: validates kubernaut-console `main` against a real,
 // already-deployed `release/v1.5` stack on a shared OpenShift dev cluster —
-// distinct from playwright.live.config.ts's local Kind/fullpipeline/Dex
-// suite. There is no local dev server and no local backend here: the
+// distinct from the disposable Kind suite. There is no local dev server and
+// no local backend here: the
 // console, oauth2-proxy, and every kubernaut service are already running on
 // the cluster (console overridden to this repo's `main` build via the
 // Kubernaut CR's spec.image.overrides.console). Auth is a real Keycloak
 // access token, attached to every request (including the initial page
 // navigation, which oauth2-proxy itself gates) via extraHTTPHeaders —
-// simpler than the local suite's old browser-token hack, since a real
+// simpler than the disposable Kind suite's browser-session flow, since a real
 // oauth2-proxy (--skip-jwt-bearer-tokens=true) is actually deployed here,
 // unlike the local Kind cluster which has no oauth2-proxy at all.
 //
@@ -30,14 +30,13 @@ const token = execFileSync("node", ["e2e/live/scripts/keycloak-token.mjs"], {
 
 // Real, unscripted claude-sonnet-5 investigations (real kubectl/Prometheus
 // tool calls, no mock-llm) take noticeably longer than helpers.ts's default
-// 90s (tuned for the Kind/fullpipeline mock-llm suite's scripted responses)
+// 90s (tuned for the disposable Kind mock-LLM suite's scripted responses)
 // — observed 5+ min during the 2026-08-03 preflight spike. Set before any
 // worker process is forked so it propagates via inherited env.
 process.env.LIVE_E2E_INVESTIGATION_TIMEOUT_MS ??= "300000";
 
 export default defineConfig({
   testDir: "./e2e/live",
-  testIgnore: "**/native-fullpipeline.spec.ts",
   fullyParallel: false, // shared cluster state (RRs, workflow catalog) — avoid cross-test interference
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

@@ -1,56 +1,86 @@
 # Live E2E Suite (ADR-009)
 
-Validates the console against a **real, running Kubernaut backend** — real
-KubernautAgent investigation (via mock-llm's deterministic scenarios), real
-AF, real Dex-issued JWTs, real Job-based workflow execution, real Postgres/
-Redis. See [ADR-009](../../docs/adr/009-live-e2e-real-cluster-strategy.md)
-and [issue #39](https://github.com/jordigilh/kubernaut-console/issues/39)
-for the full design and status.
+This suite validates the Console against a real Kubernaut backend: real
+KubernautAgent investigations, real API Frontend, real Job-backed workflow
+execution, and real Postgres/Valkey services. The LLM boundary is deterministic
+and local: Console deploys the verified mock-LLM image and generates its
+scenarios from the seeded workflow catalog.
 
-> **Looking for the `release/v1.5` / shared OpenShift dev cluster suite**
-> (`playwright.live-v15.config.ts`, real unscripted Sonnet 5/4.6, no
-> mock-llm)? See [`README-v15-openshift.md`](./README-v15-openshift.md)
-> instead — this file covers the local, disposable Kind `fullpipeline`
-> cluster only.
->
-> **Looking for the `release/v1.6` fleet-management suite** (hub/spoke SNO
-> clusters, multi-cluster MCP Gateway routing)? See
-> [`RUNNING-FLEET-SUITE.md`](./RUNNING-FLEET-SUITE.md) for the runbook, or
-> [`README-v16-fleet-openshift.md`](./README-v16-fleet-openshift.md) for the
-> full environment log.
+The mocked browser suite remains in `playwright.config.ts` and
+`.github/workflows/e2e.yml`. The disposable Kind lanes are defined by
+`.github/workflows/e2e-live.yml`. The separate release/v1.5 OpenShift suite is
+documented in [`README-v15-openshift.md`](./README-v15-openshift.md).
 
-This is **not** part of `playwright.config.ts` / `.github/workflows/e2e.yml`
-(the mocked suite, `VITE_MOCK_A2A=true`). The Console-owned disposable Kind
-lanes are in `.github/workflows/e2e-live.yml`: local/fleet lanes use the
-configured real LLM, while `live-fullpipeline-e2e` consumes upstream's
-deterministic mock-LLM cluster without any real-LLM credential. The older
-`playwright.live.config.ts` command below remains the manual preserved-cluster
-harness from issue #39.
+## Lanes
 
-## Native FullPipeline lane
+| Mode | Upstream bootstrap | Fixture owner | Purpose |
+|---|---|---|---|
+| `local` | `setup-local-demo-infra` | Hub | Single-cluster Console journeys |
+| `fullpipeline` | `setup-local-demo-infra` | Hub | Isolated local-demo cluster running the full Console suite |
+| `fleet` | `setup-fleet-demo-infra` | Spoke | Hub Console plus remote-cluster execution proof |
 
-The native lane first runs
-`e2e/live/scripts/ci-provision-native-fullpipeline.sh`. That setup-only adapter
-calls the pinned upstream
-`infrastructure.SetupFullPipelineInfrastructure` function through a temporary
-Go module; it does not invoke upstream's Ginkgo tests. The lane then consumes
-the upstream catalog, mock-LLM scenarios, dynamic `fp-*` mappings, and
-`kubernaut-system/memory-eater` target read-only. The Console lane does not
-reseed workflows, create a replacement workload, or mutate that target. Vite
-fetches the synthetic Dex token in its server process, injects it only on the
-server-to-AF proxy hop, and serves sanitized userinfo to the always-selected
-`ProxyAuthProvider`; the browser never receives a bearer token.
+`fullpipeline` is only a workflow-matrix label. It does not invoke upstream's
+FullPipeline Go suite, native setup API, preserved cluster, or separate auth
+stack. It uses the same isolated local-demo contract as `local`.
 
-## Console-owned disposable Kind lane
+Every lane runs in this order:
 
-The workflow builds immutable amd64 artifacts once, verifies their hashes, and
-reuses them in both topologies. Local/fleet provisioning is delegated to the
-pinned upstream Make targets through
-`e2e/live/scripts/ci-provision-demo-infra.sh`; the native lane uses the
-setup-only adapter above. The Console lane owns preflight, fixtures,
-Playwright, diagnostics, and same-job cleanup.
+1. Verify immutable artifacts and bootstrap the pinned upstream Make target.
+2. Emit the sanitized runtime manifest.
+3. Seed the ActionType and RemediationWorkflow catalogs and verify policies.
+4. Load the verified mock-LLM image and apply catalog-derived scenarios.
+5. Run read-only topology preflight checks.
+6. Create run-suffixed fault fixtures.
+7. Run the shared Playwright suite.
+8. Collect and scan sanitized diagnostics, then delete only run-owned resources.
 
-Pinned defaults:
+## Authentication and mock-LLM contract
+
+The demo uses Keycloak behind the upstream Traefik ingress. Playwright logs in
+through the browser with the disposable demo account `sre-user` / `password`.
+The browser uses the production `ProxyAuthProvider`; it never receives a
+synthetic bearer token and the Console image contains no live-E2E token helper.
+
+The live workflow always uses these fixed LLM settings:
+
+| Setting | Value |
+|---|---|
+| Provider | `openai` |
+| Model | `mock-model` |
+| Endpoint | `http://mock-llm:8080` |
+| Credential | `mock-api-key-for-e2e` |
+| Image | `localhost/mock-llm:${ARTIFACT_TAG}` |
+| Scenario path | `/config/scenarios.yaml` (read-only) |
+
+The credential file is created under the run directory with mode `0600`. Its
+contents are never printed, put in the runtime manifest, or uploaded.
+
+## Running
+
+Run the three-lane CI matrix with:
+
+```bash
+gh workflow run e2e-live.yml --repo jordigilh/kubernaut-console --ref main \
+  -f gateway_type=eaigw
+gh run watch --repo jordigilh/kubernaut-console
+```
+
+For a manually provisioned disposable demo cluster, set the Console URL and
+Keycloak credentials, then run the shared configuration:
+
+```bash
+export LIVE_E2E_CONSOLE_URL=https://kubernaut-console.local:8843
+export LIVE_E2E_KEYCLOAK_USERNAME=sre-user
+export LIVE_E2E_KEYCLOAK_PASSWORD=password
+export LIVE_E2E_IGNORE_HTTPS_ERRORS=true
+pnpm test:e2e:live
+```
+
+The manual command runs `playwright.live-kind.config.ts`; it does not create a
+cluster or mutate fixtures. CI owns bootstrap and fixture setup through the
+scripts in this directory.
+
+## Pinned inputs
 
 | Input | Value |
 |---|---|
@@ -59,230 +89,42 @@ Pinned defaults:
 | demo scenarios | `0af47027d654bc5bf9ed055790c0311642b43be1` |
 | Kind / kubectl / Helm | `v0.32.0` / `v1.36.1` / `v3.18.6` |
 | Fleet gateway | EAIGW by default; Kuadrant is a dispatch choice |
-| Browser login | `sre-user` / `password` in the disposable demo only |
 
-Configure repository variables `LIVE_E2E_LLM_PROVIDER`,
-`LIVE_E2E_LLM_MODEL`, and `LIVE_E2E_LLM_ENDPOINT`, plus the
-`LIVE_E2E_LLM_CREDENTIAL` repository secret. For Vertex AI, configure
-`LIVE_E2E_VERTEX_PROJECT` and `LIVE_E2E_VERTEX_LOCATION` instead of an
-endpoint. These values are required only by the local/fleet real-LLM matrix;
-the native FullPipeline mock-LLM lane does not read or require them.
+The workflow verifies all image, chart, and scenario archive hashes before
+loading or extracting them. `ci-write-live-provenance.py` records the selected
+source SHAs, archive digests, image contract, and Make target contract.
 
-Run the default local+fleet matrix with:
+## Fixture and fleet safety
 
-```bash
-gh workflow run e2e-live.yml --repo jordigilh/kubernaut-console --ref main \
-  -f gateway_type=eaigw
-gh run watch --repo jordigilh/kubernaut-console
-```
+`fixtures.list` is the source of truth for per-test namespaces. Fixture setup
+retargets only the pinned demo-scenario manifests and appends the run suffix;
+it never uses a shared or preserved workload. Local and fullpipeline fixtures
+are created on the hub. Fleet fixtures are created only on the spoke, and the
+fleet proof requires a successful `WorkflowExecution` with
+`spec.clusterID=remote-cluster` plus a matching successful spoke Job.
 
-The fleet proof requires a completed Job-backed WorkflowExecution with
-`spec.clusterID=remote-cluster`, a successful matching Job on the spoke, and
-the target state change on that spoke. Diagnostics are sanitized and scanned
-for bearer tokens, cookies, JWTs, kubeconfig fields, Kubernetes Secrets, and
-the configured LLM credential before upload. Traces, videos, and screenshots
-are not retained in CI; local debugging can opt in with
+The teardown script validates DNS-safe run-owned cluster names, removes only
+listed fixture namespaces, preserves its state file after a failed deletion,
+and removes the hub and (for fleet) spoke Kind clusters.
+
+## Diagnostics and browser artifacts
+
+Diagnostics redact credential-shaped values before persistence and include
+resource state, events, controller logs, and the mock-LLM ConfigMap without
+Secret data. The artifact scan checks diagnostics, reports, manifests, and the
+credential file before upload. CI does not retain traces, videos, or
+screenshots unless explicitly enabled with
 `LIVE_E2E_RETAIN_BROWSER_ARTIFACTS=1`.
-
-## Prerequisites
-
-1. A preserved kubernaut `fullpipeline` Kind cluster created by the native
-   setup-only adapter (the CI workflow creates it automatically; see ADR-009
-   §3).
-2. Its NodePorts reachable at `localhost`: DataStorage `:30081`, API
-   Frontend `:18443` (self-signed TLS), Dex `:30556` (self-signed TLS) —
-   **not** `:5556`, which is only Dex's in-cluster Service port (see
-   `e2e/live/scripts/dex-token.mjs`'s header comment for why this matters).
-   Gateway (`:30080`) and API Frontend must remain enabled for the native
-   topology contract, even though this Console spec does not exercise Gateway's
-   webhook-ingestion path.
-
-## Running locally
-
-```bash
-pnpm test:e2e:live
-```
-
-This starts the console's own dev server pointed at the real AF. The Vite
-server fetches a real Dex token and injects it on the AF proxy hop; the browser
-uses the same `ProxyAuthProvider` as production and never handles the token.
-
-Override any of these if your cluster's ports/credentials differ from the
-`fullpipeline` defaults:
-
-| Env var | Default |
-|---|---|
-| `LIVE_E2E_CONSOLE_URL` | `http://127.0.0.1:5174` |
-| `LIVE_E2E_AF_URL` | `https://127.0.0.1:18443` |
-| `LIVE_E2E_DEX_URL` | `https://127.0.0.1:30556/dex` |
 
 ## Suite layout
 
 | File | Covers |
 |---|---|
-| `contract-compliance.spec.ts` | `docs/integration-guide.md`'s Minimal Implementation Checklist, asserted against real payloads |
-| `approval-gate.spec.ts` | Real `kubernaut_approve` / `kubernaut_complete_no_action` MCP calls, real per-persona SAR authorization |
-| `full-remediation-lifecycle.spec.ts` | End-to-end: real investigation → decision → (approval) → real Job execution → real verification → complete |
-| `autonomous-fix.spec.ts` | Autonomous fire-and-forget fix (`kubernaut_remediate`, kubernaut-console#77): "Fix ..." request → zero-pause autonomous investigation/selection → (approval) → real execution → real verification → complete |
-
-## Current status: blocked on kubernaut#1853
-
-The suite's first run against a real cluster (2026-08-02) found that AF
-returns a malformed `investigation_summary` (a bare `TextPart` instead of
-the documented `DataPart`) for the console's single free-form investigate
-message — its real, only investigation entry point. This was originally
-attributed to [kubernaut#1818](https://github.com/jordigilh/kubernaut/issues/1818)
-(orphaned RCA on an autonomous/interactive session race).
-
-**#1818 is now fixed and merged upstream**
-([jordigilh/kubernaut#1844](https://github.com/jordigilh/kubernaut/pull/1844)) —
-re-validated directly the same day: built arm64 images from the fix
-commit, ran `test/e2e/fullpipeline/15_af_a2a_interactive_streaming_test.go`
-against a fresh cluster, 4/4 passed including the exact #1818 regression
-case. **This suite still failed identically afterward.** Tracing it
-further (AF pod logs + a direct curl repro against the fixed cluster)
-found a second, distinct, still-open defect:
-[kubernaut#1853](https://github.com/jordigilh/kubernaut/issues/1853).
-
-#1853 is a **mock-llm test-fixture scripting gap**, not an AF/KA
-production defect: the `fullpipeline` E2E harness's mock-llm scenarios
-(`test/infrastructure/shared_e2e.go`) only recognize the exact multi-turn
-phrase sequence upstream's own Go tests use across *separate* messages.
-The console's single message contains "investigate" but not "remediation",
-so mock-llm jumps straight to its `af_investigate` scenario — skipping
-`kubernaut_remediate` entirely — whose `rr_id` argument is a
-`$from_tool:kubernaut_remediate:rr_id` template with nothing to resolve
-from. AF calls `kubernaut_investigate` with that literal unresolved
-placeholder, fails K8s name validation, and falls back to a text-only
-reply. **This is not a console bug** — the console correctly declines to
-render the malformed fallback as a valid investigation. Every test that
-calls `waitForInvestigationSummaryOrKnownRace` is expected to fail with a
-message naming #1853 until it's fixed upstream; see ADR-009 §9 for the
-full writeup, including why a multi-turn scripted-text workaround
-(mirroring kubernaut's own Go E2E test) was tried and rejected — the
-console's real UI has no such protocol (decisions are direct MCP calls
-from button clicks, never chat text), so that would have masked the
-underlying gap behind an unrealistic test shape instead of catching it.
-
-## Scope: what this suite covers vs. upstream's job
-
-`approval-gate.spec.ts`'s real-MCP-call tests hit **AF's own** `/mcp`
-endpoint (`pkg/apifrontend/handler/mcp.go`, Dex-JWT + persona `Authorizer`)
-— architecturally distinct from KA's `/api/v1/mcp` (port `:8088`,
-ServiceAccount-token auth), which is what every existing upstream MCP E2E
-test exercises. Tracing this found AF's own MCP surface — the one
-`docs/integration-guide.md` documents for clients like this console — has
-no upstream E2E coverage at all. Filed as
-[kubernaut#1827](https://github.com/jordigilh/kubernaut/issues/1827) rather
-than building deep protocol/authorization coverage out here: verifying AF's
-own MCP dispatch/authorization/bridge-to-KA correctness is upstream's job.
-This suite stays narrowly scoped to proving the console's own production UI
-code correctly drives that real endpoint for the actions it exposes.
-
-## Current status: #1853's fix validated manually; two more issues found and resolved
-
-Upstream patched the shared cluster's `mock-llm-scenarios` ConfigMap directly
-(not yet in a merged PR) to add the combined-intent scenario #1853 needed —
-confirmed this unblocks `investigation_summary` rendering. Repeatedly running
-the full suite against it surfaced two more issues, both now resolved:
-
-1. **A real console bug**
-   ([kubernaut-console#43](https://github.com/jordigilh/kubernaut-console/issues/43),
-   fixed, backported to `release/v1.5` as
-   [#44](https://github.com/jordigilh/kubernaut-console/issues/44)): the "New
-   conversation" button didn't guarantee a fresh backend session — AF's
-   `SessionInterceptor` could silently reattach it to a stale, still-active
-   session. See ADR-009 §11.
-2. **A test-isolation gap in this suite**: KubernautAgent's own per-target
-   `session_active` dedup causes the same "no `investigation_summary`"
-   symptom when back-to-back tests share one investigation target. Fixed by
-   giving every test its own dedicated `memory-eater` target — see
-   `helpers.ts`'s `oomkillTarget` and ADR-009 §11 for the full mechanism and
-   the current namespace layout (`console-e2e-contract[-2..4]`,
-   `console-e2e-approval[-2..3]`, `console-e2e-lifecycle[-2]`).
-
-## Current status: `sre` persona RBAC gap confirmed — blocks `approval-gate.spec.ts`'s approve/decline paths
-
-With #1853 worked around and per-test isolation in place (previous section),
-`approval-gate.spec.ts`'s "approve"/"decline" tests were updated to click
-"Execute" (the real `kubernaut_select_workflow` call that makes
-RemediationOrchestrator actually evaluate `ApprovalRequired` and create the
-`RemediationApprovalRequest`) before checking for an approval gate, with a
-30s timeout for RO's async reconcile. Even with that fixed, and with
-`kubectl` confirming the RAR *was* being created correctly
-(`reason: "Production environment requires manual approval"`), the console
-never rendered an Approve/Decline card.
-
-Root cause, confirmed via live reproduction (2026-08-02), not just a
-values.yaml/rbac.go read: `charts/kubernaut/values.yaml`'s (and the
-operator's `internal/resources/rbac.go`'s) `sre` persona ACL has
-`kubernaut_approve`/`kubernaut_watch` but is missing
-`kubernaut_get_approval_request` — the tool `ChatContainer.tsx` already
-correctly calls (pre-existing product code, not something this
-investigation added) to fetch full RAR details once `/a2a/status` reports
-`AwaitingApproval`. The console's own handling of the denial is already
-correct (a friendly `.kn-approval-denied` card, "Contact a team member with
-the approver role" — not a crash or silent hang). This upgrades the
-`kubernaut_complete_no_action` finding below from "open question" to a
-confirmed pattern: the `sre` persona's *read* tools don't match its *write*
-tools. Filed as
-[jordigilh/kubernaut-operator#278](https://github.com/jordigilh/kubernaut-operator/issues/278)
-(v1.5 — the operator is the only supported production deployment path for
-v1.5) and
-[jordigilh/kubernaut#1869](https://github.com/jordigilh/kubernaut/issues/1869)
-(v1.6 only — Helm isn't a supported production path until v1.6). See
-ADR-009 §12 for the full investigation, including two ruled-out false leads
-(OPA policy config, RAR-creation timing) and why extending the mock-llm
-scenario to call `kubernaut_watch` would **not** have fixed this (that's an
-unrelated, independent path).
-
-`approval-gate.spec.ts`'s "approve"/"decline" tests now use an
-`assertApprovalGateReachable` helper that distinguishes "this run's policy
-auto-approved, nothing to test" (still a legitimate skip) from "RO required
-approval but the console was denied the details" (throws, citing both
-issues above) — re-run against the live cluster confirms both tests now
-fail loudly with the expected, attributed message instead of silently
-skipping. Expected to go green once either issue's RBAC fix lands.
-
-## Known, confirmed RBAC gap: `kubernaut_complete_no_action`
-
-`charts/kubernaut/values.yaml`'s and the operator's `sre` persona ACL also
-lists `kubernaut_approve`/`kubernaut_complete` but not
-`kubernaut_complete_no_action` — the exact tool the console's
-Dismiss/Escalate buttons call. `approval-gate.spec.ts`'s dismiss test
-asserts the real MCP response directly and fails with a clear message
-identifying this as the same confirmed ACL-gap pattern as above (both
-issues linked in the previous section cover this tool too), rather than
-skip or guess.
-
-On this scratch cluster only, `kubernaut-tool-sre` was manually
-`kubectl patch clusterrole`d to add both missing permissions so the suite
-could be validated end-to-end while
-[kubernaut-operator#278](https://github.com/jordigilh/kubernaut-operator/issues/278)/[kubernaut#1869](https://github.com/jordigilh/kubernaut/issues/1869)
-are open — **not** a committed change, and not a substitute for the real
-RBAC fix landing upstream.
-
-## Current status: full suite green (8/8)
-
-With the ACL patched above, a full run found 2 remaining failures — both
-root-caused to same-day test-repeatability artifacts, not product bugs, and
-both now resolved:
-
-- **`contract-compliance`'s "RR context metadata"**: picked up
-  [kubernaut#1859](https://github.com/jordigilh/kubernaut/pull/1859), #1853's
-  *real* upstream fix (N-deep `NextToolCall` chaining in mock-llm, merged to
-  `main` hours before this cluster's mock-llm image was built from an
-  earlier commit). Rebuilt mock-llm from current `main`, rewrote the
-  hand-patched ConfigMap to use a single native 3-deep chain per target
-  instead of the old two-scenario/`repeat_tool_call` workaround (the
-  suspected source of an intermittent cross-session cross-talk failure).
-- **`full-remediation-lifecycle`'s "full flow"**: two genuine
-  RemediationOrchestrator safety mechanisms (`IneffectiveChain`, then
-  `RecentlyRemediated`) correctly tripped by repeatedly re-running this test
-  against the same fixed `memory-eater` fixture within the same day/cooldown
-  window — confirmed via a direct `action_history.audit_events` query, not
-  inferred. Fixed for this cluster with a fresh, never-remediated target
-  (`console-e2e-lifecycle-3`); not expected to recur in real CI, where every
-  run starts from a fresh cluster with empty history.
-
-See ADR-009 §13 for the full investigation of both.
+| `contract-compliance.spec.ts` | Integration-guide contract against real payloads |
+| `approval-gate.spec.ts` | Real approval and no-action MCP calls |
+| `full-remediation-lifecycle.spec.ts` | Investigation through execution and verification |
+| `autonomous-fix.spec.ts` | Autonomous remediation through execution and verification |
+| `consent-gate-regression.spec.ts` | Interactive consent boundary |
+| `cancellation.spec.ts` | Cancellation behavior |
+| `logout.spec.ts` | Browser logout boundary |
+| `playwright.live-kind.config.ts` | Shared disposable Kind Playwright project |

@@ -6,9 +6,10 @@ Keycloak-issued OIDC tokens through a real `oauth2-proxy`, a real unscripted
 LLM (Claude Sonnet 5 or 4.6, no mock-llm), real `kubectl`/Prometheus tool
 calls, real `RemediationRequest`/`AIAnalysis`/`WorkflowExecution` CRs.
 
-This is **distinct** from [`README.md`](./README.md) / `playwright.live.config.ts`,
-which targets a local, disposable Kind `fullpipeline` cluster with mock-llm's
-scripted responses. Config file: `playwright.live-v15.config.ts` (repo root).
+This is **distinct** from [`README.md`](./README.md) /
+`playwright.live-kind.config.ts`, which targets the local, disposable Kind live
+lanes with mock-llm's scripted responses. Config file:
+`playwright.live-v15.config.ts` (repo root).
 See [ADR-009](../../docs/adr/009-live-e2e-real-cluster-strategy.md) for the
 original strategy this suite extends (as of this writing, ADR-009 itself
 covers up through the Kind-cluster suite's §13; this document and the

@@ -42,7 +42,7 @@ login redirect.
 | IT | A2A and status work fence missing/changed incarnation signals | `IT-CONSOLE-168-015/018/019`, A2A/status/component suites |
 | UT | Contract request is no-store, same-origin, credential-free and validates bounded values | `UT-CONSOLE-168-020/021/022`, backend-contract suite |
 | IT | AF serves one process value and propagates it through contract and auth responses | `IT-AF-CONSOLE-168-001/002/003`, Kubernaut PR [#2621](https://github.com/jordigilh/kubernaut/pull/2621), merged as `da031cc8232c1df5d9337d8f09ee63370fe14b97`; handler and command wiring suites pass |
-| Live browser | Native FullPipeline investigates upstream `kubernaut-system/memory-eater` with server-side Dex proxying and no browser bearer token | `.github/workflows/e2e-live.yml` `live-fullpipeline-e2e`; implementation landed, qualification rerun pending |
+| Live browser | Disposable Kind `local`, `fullpipeline`, and `fleet` lanes use Keycloak/Traefik, the Console-owned mock-LLM, run-suffixed fixtures, and the shared Playwright suite | `.github/workflows/e2e-live.yml` matrix `local`, `fullpipeline`, `fleet`; qualification rerun pending |
 | Browser/deployment | Reload, cross-tab, proxy cookies, restart and single-replica rollout | Not run; requires deployed qualification and Operator #621 |
 
 Critical lifecycle isolation scenarios must all pass; record scenario coverage
@@ -103,8 +103,8 @@ AF restart, browser reload/cross-tab fencing, deployed OAuth2 Proxy claims,
 conflicting replicas, or single-replica rollout. Those deployment checks remain
 unrun and are required before production qualification.
 
-The native FullPipeline lane is separate from production qualification: it
-consumes the upstream-preserved catalog, scenarios, dynamic namespace mappings,
-and stable target read-only; it does not provide evidence for OAuth2 Proxy
-cookies, AF restart, browser reload/cross-tab fencing, or deployment rollout.
+The live Kind lanes are separate from production qualification: they validate
+the real Console/backend topology with deterministic mock-LLM responses and
+run-suffixed fixtures, but they do not provide evidence for AF restart, browser
+reload/cross-tab fencing, or deployment rollout.
 Production acceptance remains blocked on those unrun deployment boundaries.

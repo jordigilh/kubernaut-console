@@ -130,11 +130,10 @@ test/setup files and the `main.tsx` bootstrap, not the auth logic under test.
 
 ## 11. Design / Sequencing Limitations
 
-The native FullPipeline lane keeps auth server-side: Vite fetches the Dex token
-and injects it only on its AF proxy hop. The App always selects
-`ProxyAuthProvider`; the selection test retains the legacy environment variable
-only to prove that it cannot reintroduce a browser token path. These unit tests
-do not replace a live Dex/FullPipeline run.
+The disposable Kind lanes keep auth host-owned: Keycloak and Traefik handle the
+browser session, and the App always selects `ProxyAuthProvider`. There is no
+Vite Dex token helper or browser bearer-token path. These unit tests do not
+replace a live Keycloak/Traefik run against the real backend.
 
 This checkout predates the separately tracked F-02/#89 CI-enforcement change,
 so its existing ui-core package script remains `vitest run` rather than

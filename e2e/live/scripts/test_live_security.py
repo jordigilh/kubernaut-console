@@ -168,14 +168,14 @@ class TeardownTests(unittest.TestCase):
                 "delete cluster --name kubernaut-live-fleet-spoke-123",
             ])
 
-    def test_native_fullpipeline_teardown_remains_strict(self) -> None:
+    def test_fullpipeline_teardown_uses_run_owned_cluster(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             fake_bin = root / "bin"
             fake_bin.mkdir()
             make_executable(fake_bin / "kind", "#!/usr/bin/env sh\nexit 42\n")
-            state_file = root / "native.env"
-            state_file.write_text("native state\n")
+            state_file = root / "fixtures.env"
+            state_file.write_text("export LIVE_E2E_NS_SUFFIX=r123\n")
 
             result = subprocess.run(
                 [
@@ -183,7 +183,7 @@ class TeardownTests(unittest.TestCase):
                     "--mode",
                     "fullpipeline",
                     "--hub-cluster-name",
-                    "fullpipeline-e2e",
+                    "kubernaut-live-fullpipeline-123",
                     "--state-file",
                     str(state_file),
                 ],
@@ -195,7 +195,8 @@ class TeardownTests(unittest.TestCase):
 
             self.assertNotEqual(result.returncode, 0)
             self.assertTrue(state_file.exists())
-            self.assertIn("failed to delete the native FullPipeline Kind cluster", result.stderr)
+            self.assertIn("failed to delete run-owned hub Kind cluster", result.stderr)
+            self.assertIn("kubernaut-live-fullpipeline-123", result.stderr)
 
 
 if __name__ == "__main__":

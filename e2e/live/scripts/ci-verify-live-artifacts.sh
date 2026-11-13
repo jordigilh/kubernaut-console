@@ -3,7 +3,6 @@
 # consumed by the upstream bootstrap.
 set -euo pipefail
 
-: "${MODE:?MODE is required}"
 : "${CONSOLE_SHA:?CONSOLE_SHA is required}"
 : "${KUBERNAUT_SHA:?KUBERNAUT_SHA is required}"
 : "${OPERATOR_SHA:?OPERATOR_SHA is required}"
@@ -25,17 +24,19 @@ python3 e2e/live/scripts/verify-live-artifacts.py \
   --kubernaut-sha "${KUBERNAUT_SHA}" \
   --operator-sha "${OPERATOR_SHA}" \
   --scenarios-sha "${SCENARIOS_SHA}" > "${verification_log}"
-if [[ "${MODE}" == "fullpipeline" ]]; then
-  mv "${verification_log}" "${LIVE_E2E_RUNTIME_ROOT}/verification.json"
-fi
 
 scenario_root="$(jq -er '.scenarioRoot' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
 operator_chart="$(jq -er '.operatorChartPath' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
 dependency_chart="$(jq -er '.dependencyChartPath' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
 operator_image="$(jq -er '.operatorImage' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
 operator_tar="$(find "${LIVE_E2E_ARTIFACT_ROOT}" -type f -name operator-image.tar -print -quit)"
+mock_llm_tar="$(find "${LIVE_E2E_ARTIFACT_ROOT}" -type f -name mock-llm.tar -print -quit)"
 [[ -d "${scenario_root}" && -d "${operator_chart}" && -d "${dependency_chart}" ]] || exit 1
 [[ -n "${operator_tar}" && -f "${operator_tar}" ]] || exit 1
+[[ -n "${mock_llm_tar}" && -f "${mock_llm_tar}" ]] || {
+  echo "error: verified mock-LLM archive is missing" >&2
+  exit 1
+}
 
 {
   echo "LIVE_E2E_SCENARIOS_DIR=${scenario_root}"
@@ -44,11 +45,7 @@ operator_tar="$(find "${LIVE_E2E_ARTIFACT_ROOT}" -type f -name operator-image.ta
   echo "KUBERNAUT_OPERATOR_IMAGE=${operator_image}"
   echo "KUBERNAUT_OPERATOR_IMAGE_TAR=${operator_tar}"
   echo "KUBERNAUT_OPERATOR_SHA=${OPERATOR_SHA}"
-  if [[ "${MODE}" == "fullpipeline" ]]; then
-    console_image="$(jq -er '.consoleImage' "${LIVE_E2E_RUNTIME_ROOT}/runtime.json")"
-    echo "KUBERNAUT_CONSOLE_IMAGE=${console_image}"
-    echo "KUBERNAUT_CI_ARTIFACT_TAG=${ARTIFACT_TAG}"
-  else
-    echo "KUBERNAUT_CONSOLE_IMAGE=localhost/kubernaut-console:${ARTIFACT_TAG}"
-  fi
+  echo "KUBERNAUT_MOCK_LLM_IMAGE=localhost/mock-llm:${ARTIFACT_TAG}"
+  echo "KUBERNAUT_MOCK_LLM_IMAGE_TAR=${mock_llm_tar}"
+  echo "KUBERNAUT_CONSOLE_IMAGE=localhost/kubernaut-console:${ARTIFACT_TAG}"
 } >> "${GITHUB_ENV}"

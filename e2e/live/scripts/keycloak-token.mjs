@@ -1,11 +1,10 @@
 // Fetches a Keycloak-issued OIDC access token for the shared OpenShift dev
-// cluster's `kagenti` realm — the counterpart to dex-token.mjs, used when
+// cluster's `kagenti` realm. This helper is used only when
 // LIVE_E2E_BACKEND=openshift-v15 targets a real, already-deployed
-// console+oauth2-proxy+AF stack (release/v1.5) instead of a local
-// Kind/fullpipeline cluster fronted by Dex.
+// console+oauth2-proxy+AF stack (release/v1.5), not by the disposable Kind
+// lanes.
 //
-// Unlike dex-token.mjs's hardcoded synthetic Kind fixture credentials, these
-// are real credentials for a dedicated, non-privileged test identity
+// These are real credentials for a dedicated, non-privileged test identity
 // (`console-e2e-test`, member of the `platform-engineering` Keycloak group —
 // the same group the `sre` persona's ClusterRoleBinding targets) stored in
 // the `console-e2e-keycloak-creds` Secret in the cluster's `kubernaut-system`
@@ -53,7 +52,7 @@ export async function fetchKeycloakToken(overrides = {}) {
   });
 
   // Keycloak serves a self-signed/cluster-internal-CA cert on this route —
-  // same narrowly-scoped, live-E2E-only TLS bypass as dex-token.mjs.
+  // same narrowly-scoped, live-E2E-only TLS bypass used by this helper.
   const previous = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
   let res;

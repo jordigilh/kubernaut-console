@@ -1,4 +1,4 @@
-name: Live E2E (local, fleet, and native FullPipeline Kind)
+name: Live E2E (local, fleet, and fullpipeline Kind)
 
 # The artifact jobs build immutable inputs first. The live matrix then consumes
 # those exact artifacts, provisions and tests one disposable Kind topology per
@@ -46,32 +46,6 @@ on:
           - eaigw
           - kuadrant
         default: eaigw
-      llm_provider:
-        description: LLM provider (defaults to LIVE_E2E_LLM_PROVIDER repository variable)
-        required: false
-        type: string
-        default: ""
-      llm_model:
-        description: LLM model (defaults to LIVE_E2E_LLM_MODEL repository variable)
-        required: false
-        type: string
-        default: ""
-      llm_endpoint:
-        description: LLM endpoint (defaults to LIVE_E2E_LLM_ENDPOINT repository variable)
-        required: false
-        type: string
-        default: ""
-      vertex_project:
-        description: Vertex AI project when provider is vertex_ai
-        required: false
-        type: string
-        default: ""
-      vertex_location:
-        description: Vertex AI location when provider is vertex_ai
-        required: false
-        type: string
-        default: ""
-
 permissions:
   contents: read
 
@@ -483,17 +457,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [local, fleet]
+        mode: [local, fleet, fullpipeline]
     env:
       MODE: ${{ matrix.mode }}
       ARTIFACT_TAG: ${{ needs.resolve-pins.outputs.artifact_tag }}
-      LLM_PROVIDER: ${{ inputs.llm_provider || vars.LIVE_E2E_LLM_PROVIDER }}
-      LLM_MODEL: ${{ inputs.llm_model || vars.LIVE_E2E_LLM_MODEL }}
-      LLM_ENDPOINT: ${{ inputs.llm_endpoint || vars.LIVE_E2E_LLM_ENDPOINT }}
       GATEWAY_TYPE: ${{ inputs.gateway_type || 'eaigw' }}
-      VERTEX_PROJECT: ${{ inputs.vertex_project || vars.LIVE_E2E_VERTEX_PROJECT }}
-      VERTEX_LOCATION: ${{ inputs.vertex_location || vars.LIVE_E2E_VERTEX_LOCATION }}
-      LLM_CREDENTIAL: ${{ secrets.LIVE_E2E_LLM_CREDENTIAL }}
       LIVE_E2E_KEYCLOAK_USERNAME: sre-user
       LIVE_E2E_KEYCLOAK_PASSWORD: password
       KIND_EXPERIMENTAL_PROVIDER: podman
@@ -564,7 +532,7 @@ jobs:
           SCENARIOS_SHA: ${{ needs.resolve-pins.outputs.scenarios_sha }}
         run: e2e/live/scripts/ci-verify-live-artifacts.sh
 
-      - name: Provision the approved LLM credential file
+      - name: Provision the fixed mock-LLM credential file
         run: e2e/live/scripts/ci-provision-live-credentials.sh
 
       - name: Provision Kind topology and operator application
@@ -588,9 +556,14 @@ jobs:
         if: steps.runtime.outcome == 'success'
         run: e2e/live/scripts/ci-seed-live-prerequisites.sh
 
+      - name: Deploy verified mock-LLM and catalog-derived scenarios
+        id: mock_llm
+        if: steps.seed.outcome == 'success'
+        run: e2e/live/scripts/ci-setup-mock-llm.sh
+
       - name: Preflight the running topology
         id: preflight
-        if: steps.seed.outcome == 'success'
+        if: steps.mock_llm.outcome == 'success'
         run: e2e/live/scripts/ci-preflight-live.sh
 
       - name: Create fresh live fault fixtures
@@ -637,162 +610,5 @@ jobs:
           retention-days: 7
 
       - name: Tear down run-owned Kind resources
-        if: always()
-        run: e2e/live/scripts/ci-teardown-live.sh
-
-  live-fullpipeline-e2e:
-    name: Live E2E (native FullPipeline mock LLM)
-    needs:
-      - resolve-pins
-      - publish-provenance
-    runs-on: ubuntu-latest
-    timeout-minutes: 180
-    env:
-      MODE: fullpipeline
-      ARTIFACT_TAG: ${{ needs.resolve-pins.outputs.artifact_tag }}
-      KIND_EXPERIMENTAL_PROVIDER: podman
-    steps:
-      - name: Checkout Console workflow helpers
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ github.sha }}
-          fetch-depth: 1
-
-      - name: Checkout Console source under test
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ needs.resolve-pins.outputs.console_sha }}
-          path: console-source
-          fetch-depth: 1
-
-      - name: Checkout Kubernaut at the pinned SHA
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          repository: jordigilh/kubernaut
-          ref: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
-          path: kubernaut
-          fetch-depth: 1
-
-      - name: Set up Go
-        uses: actions/setup-go@e093d1e9bb74ffc381514c57dcb7832730010598 # v6.0.0
-        with:
-          go-version-file: kubernaut/go.mod
-          cache: false
-
-      - name: Set up pnpm and Node.js
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - name: Set up Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install Console test dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install selected Console source dependencies
-        working-directory: console-source
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install chromium --with-deps
-
-      - name: Install Podman and diagnostic tools
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends podman jq ruby shellcheck uidmap slirp4netns fuse-overlayfs
-          podman info
-
-      - name: Install pinned Kubernetes tooling
-        run: e2e/live/scripts/ci-install-kubernetes-tooling.sh
-
-      - name: Define native FullPipeline runtime paths
-        run: e2e/live/scripts/ci-define-live-runtime.sh
-
-      - name: Download this run's immutable artifacts
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: live-e2e-*-${{ github.run_id }}
-          path: ${{ runner.temp }}/kubernaut-console-live-fullpipeline-${{ github.run_id }}/artifacts
-          merge-multiple: false
-
-      - name: Verify and load immutable artifacts
-        env:
-          CONSOLE_SHA: ${{ needs.resolve-pins.outputs.console_sha }}
-          KUBERNAUT_SHA: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
-          OPERATOR_SHA: ${{ needs.resolve-pins.outputs.operator_sha }}
-          SCENARIOS_SHA: ${{ needs.resolve-pins.outputs.scenarios_sha }}
-        run: e2e/live/scripts/ci-verify-live-artifacts.sh
-
-      - name: Provision native FullPipeline setup only
-        id: provision
-        env:
-          KUBERNAUT_ROOT: ${{ github.workspace }}/kubernaut
-        run: e2e/live/scripts/ci-provision-native-fullpipeline.sh
-
-      - name: Emit and consume sanitized native runtime manifest
-        id: runtime
-        if: steps.provision.outcome == 'success'
-        env:
-          CONSOLE_SHA: ${{ needs.resolve-pins.outputs.console_sha }}
-          KUBERNAUT_SHA: ${{ needs.resolve-pins.outputs.kubernaut_sha }}
-          OPERATOR_SHA: ${{ needs.resolve-pins.outputs.operator_sha }}
-          SCENARIOS_SHA: ${{ needs.resolve-pins.outputs.scenarios_sha }}
-        run: e2e/live/scripts/ci-emit-live-runtime.sh
-
-      - name: Verify native catalog and scenario prerequisites without reseeding
-        id: seed
-        if: steps.runtime.outcome == 'success'
-        run: e2e/live/scripts/ci-seed-live-prerequisites.sh
-
-      - name: Preflight the native FullPipeline topology
-        id: preflight
-        if: steps.seed.outcome == 'success'
-        run: e2e/live/scripts/ci-preflight-live.sh
-
-      - name: Consume the upstream stable fixture read-only
-        id: fixtures
-        if: steps.preflight.outcome == 'success'
-        run: e2e/live/scripts/ci-setup-live-fixtures.sh
-
-      - name: Run native Console Playwright coverage
-        id: playwright
-        if: steps.fixtures.outcome == 'success'
-        env:
-          LIVE_E2E_CONSOLE_SOURCE_DIR: console-source
-        run: pnpm exec playwright test --config=playwright.live-fullpipeline.config.ts
-
-      - name: Enforce non-empty native Playwright report
-        if: steps.playwright.outcome == 'success'
-        run: node e2e/live/scripts/assert-playwright-report.mjs "${LIVE_E2E_REPORT}" e2e/live/skip-allowlist.json
-
-      - name: Collect sanitized native diagnostics
-        if: always()
-        run: e2e/live/scripts/ci-collect-live-diagnostics.sh
-
-      - name: Scan native diagnostics and browser artifacts for credentials
-        id: artifact_scan
-        if: always()
-        run: e2e/live/scripts/ci-scan-live-artifacts.sh
-
-      - name: Upload sanitized native diagnostics
-        if: always() && steps.artifact_scan.outcome == 'success'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: live-e2e-diagnostics-fullpipeline-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/kubernaut-console-live-fullpipeline-${{ github.run_id }}/diagnostics
-            ${{ runner.temp }}/kubernaut-console-live-fullpipeline-${{ github.run_id }}/runtime/setup-runtime.json
-            ${{ runner.temp }}/kubernaut-console-live-fullpipeline-${{ github.run_id }}/live-e2e-fullpipeline.json
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Tear down exact native FullPipeline Kind cluster
         if: always()
         run: e2e/live/scripts/ci-teardown-live.sh
