@@ -51,6 +51,7 @@ if [[ "$MODE" == "fleet" && ! "$SPOKE_CLUSTER_NAME" =~ ^[a-z0-9-]+$ ]]; then
   exit 1
 fi
 
+teardown_status=0
 suffix=""
 if [[ -f "$STATE_FILE" ]]; then
   suffix="$(sed -n 's/^export LIVE_E2E_NS_SUFFIX=//p' "$STATE_FILE" | head -1)"
@@ -63,7 +64,10 @@ if [[ -n "$suffix" && "$suffix" =~ ^[a-z0-9-]+$ ]]; then
       [[ -z "$base" || "$base" == \#* || "$type" == "none" ]] && continue
       namespace="${base}-${suffix}"
       if [[ "$namespace" =~ ^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$ ]]; then
-        kubectl --kubeconfig "$target_kubeconfig" delete namespace "$namespace" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+        if ! kubectl --kubeconfig "$target_kubeconfig" delete namespace "$namespace" --ignore-not-found --wait=false >/dev/null 2>&1; then
+          echo "error: failed to delete run-owned fixture namespace: ${namespace}" >&2
+          teardown_status=1
+        fi
       fi
     done < "$FIXTURES_LIST"
   fi
@@ -71,10 +75,24 @@ fi
 
 if command -v kind >/dev/null 2>&1; then
   export KIND_EXPERIMENTAL_PROVIDER="${KIND_EXPERIMENTAL_PROVIDER:-podman}"
-  kind delete cluster --name "$HUB_CLUSTER_NAME" >/dev/null 2>&1 || true
-  if [[ "$MODE" == "fleet" ]]; then
-    kind delete cluster --name "$SPOKE_CLUSTER_NAME" >/dev/null 2>&1 || true
+  if ! kind delete cluster --name "$HUB_CLUSTER_NAME" >/dev/null 2>&1; then
+    echo "error: failed to delete run-owned hub Kind cluster: ${HUB_CLUSTER_NAME}" >&2
+    teardown_status=1
   fi
+  if [[ "$MODE" == "fleet" ]]; then
+    if ! kind delete cluster --name "$SPOKE_CLUSTER_NAME" >/dev/null 2>&1; then
+      echo "error: failed to delete run-owned spoke Kind cluster: ${SPOKE_CLUSTER_NAME}" >&2
+      teardown_status=1
+    fi
+  fi
+else
+  echo "error: kind is required to tear down run-owned ${MODE} cluster(s)" >&2
+  teardown_status=1
+fi
+
+if [[ "$teardown_status" -ne 0 ]]; then
+  echo "error: run-owned ${MODE} teardown failed; preserving state file for retry" >&2
+  exit "$teardown_status"
 fi
 
 rm -f "$STATE_FILE"

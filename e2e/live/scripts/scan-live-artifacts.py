@@ -35,7 +35,7 @@ RULES: tuple[tuple[str, re.Pattern[bytes]], ...] = (
     (
         "credential assignment",
         re.compile(
-            rb"(?i)\b(?:password|passwd|secret|token|api[_-]?key|client[_-]?secret|private[_-]?key|credential(?:s)?|access[_-]?token|refresh[_-]?token|id[_-]?token)\b"
+            rb"(?i)\b(?:password|passwd|secret|token|api[_-]?key|client[_-]?secret|private[_-]?key|credential(?:s)?|auth[_-]?token|access[_-]?token|refresh[_-]?token|id[_-]?token)\b"
             rb"\s*[:=]\s*[\"']?(?!<REDACTED>|null|none|true|false|\[\]|\{\})[A-Za-z0-9._~+/=-]{8,}"
         ),
     ),
