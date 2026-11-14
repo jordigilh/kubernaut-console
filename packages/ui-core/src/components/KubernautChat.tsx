@@ -5,7 +5,7 @@ import { checkConsoleAccess } from "../lib/access-check";
 import { notifyAuthLifecycleChanged, subscribeAuthLifecycleNotifications } from "../lib/auth-notifications";
 import { BackendContractUnavailableError, readBackendIncarnation } from "../lib/backend-contract";
 import { clearConsoleSessionState } from "../lib/session-state";
-import { ChatContainer } from "./ChatContainer";
+import { ChatPresenter, PageLifetimeChatOwnerProvider } from "./ChatContainer";
 
 export interface KubernautChatProps {
   authProvider: KubernautAuthProvider;
@@ -384,7 +384,9 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
   return (
     <ConfigContext.Provider value={config}>
       <AuthContext.Provider value={{ provider: authProvider, user, isLoading: false, error: null, lifecycle: lifecycle ?? undefined }}>
-        <ChatContainer />
+        <PageLifetimeChatOwnerProvider>
+          <ChatPresenter />
+        </PageLifetimeChatOwnerProvider>
       </AuthContext.Provider>
     </ConfigContext.Provider>
   );

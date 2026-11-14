@@ -109,6 +109,39 @@ describe("KubernautChat Integration", () => {
     expect(streamOpts.token).toBe("mock-bearer-token-xyz");
   });
 
+  it("IT-CONSOLE-170-PROD-001: KubernautChat mounts the page-memory owner without adopting legacy chat state", async () => {
+    const legacyMessages = JSON.stringify([{ id: "legacy", role: "user", text: "legacy transcript", timestamp: 1 }]);
+    sessionStorage.setItem("kubernaut-console-messages", legacyMessages);
+    sessionStorage.setItem("kubernaut-console-context", "legacy-context");
+    sessionStorage.setItem("kubernaut-pending-context", JSON.stringify(["legacy pending"]));
+
+    mockStreamA2A.mockImplementation(async (_request, options) => {
+      options.onComplete?.();
+    });
+
+    render(
+      <KubernautChat
+        authProvider={makeAuthProvider("page-memory-token")}
+        config={{ backendUrl: "https://kubernaut.example.com" }}
+      />,
+    );
+
+    const input = await screen.findByRole("textbox", { name: /type your message/i });
+    expect(screen.queryByText("legacy transcript")).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "production owner prompt" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => expect(mockStreamA2A).toHaveBeenCalled());
+    expect(screen.getByText("production owner prompt")).toBeInTheDocument();
+    expect(sessionStorage.getItem("kubernaut-console-messages")).toBe(legacyMessages);
+    expect(sessionStorage.getItem("kubernaut-console-context")).toBe("legacy-context");
+    expect(sessionStorage.getItem("kubernaut-pending-context")).toBe(JSON.stringify(["legacy pending"]));
+  });
+
   /**
    * IT-CONSOLE-PROVIDER-002
    * FedRAMP Controls: AC-3 (Access Enforcement), IA-2 (Identification & Authentication)

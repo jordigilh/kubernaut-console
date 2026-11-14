@@ -1,8 +1,10 @@
-# Stage 4 — investigation and chat source-only readiness
+# Stage 4 — investigation and chat production-path readiness
 
-**Status: source mapping, fixture-only recorded presentation, and a bounded
-single-chat owner/presenter extraction.** No live adapter, production route,
-multi-investigation owner or acceptance gate is implemented.
+**Status: source mapping, fixture-only recorded presentation, a bounded
+single-chat owner/presenter extraction, a page-memory owner wired through the
+real `KubernautChat` path, and a separate source-only MCP seam.** No live
+backend adapter, qualified multi-investigation owner, deployed lifecycle or
+acceptance gate is closed.
 The rollout plan's Stage 4 remains open. Live RAR Stage 3 is
 parked pending upstream qualification; the Stage 4 work does not resolve its
 UID/content-binding contract conflict. Local labels below are handoff labels,
@@ -15,9 +17,75 @@ the draft and accepts a synthetic stream and status update without an additional
 send, status subscription, cancellation or MCP call. Disposing the provider
 aborts its subscriptions. This is a single-owner structural seam, not scoped
 identity, multi-investigation isolation, live concurrency, or recovery evidence.
-The new shell does not yet mount this presenter. Existing browser/session and
-MCP state behavior is unchanged; all applicable ownership, logout, transport,
-semantic-projection and acceptance gates remain open.
+`KubernautChat` now mounts `PageLifetimeChatOwnerProvider` and `ChatPresenter`
+after its auth/access gate. The existing public `ChatContainer` retains its
+legacy owner/storage behavior, while the mounted page-memory path uses the
+merged #168 lifecycle-aware `McpClient`. The separate scoped MCP seam is not
+connected to the owner or host. Local production-path integration and browser
+evidence now exist; identity, deployed logout/source-change, transport-auth,
+semantic-projection and broader acceptance gates remain open.
+
+### Page-memory owner and production-path evidence
+
+`PageLifetimeChatOwnerProvider` is an internal entry point used by
+`KubernautChat`. It creates one `page-chat-session.ts` memory store per mounted
+provider; the existing `ChatOwnerProvider`, `ChatContainer` and public
+no-argument `useChat` retain legacy persistence. The new owner neither reads,
+writes nor deletes the tab-global transcript, context, pending-context, phase or
+workflow-resolution keys. Its raw-thinking preference is owner-memory-only.
+The standalone `App` still clears unbound legacy state at document startup per
+#168; it does not migrate that state into the page-memory store.
+
+New and reset page-memory conversations use a fresh non-empty local A2A context.
+If generation fails, repeats or returns a malformed value, sending is blocked,
+the draft is retained and an error is shown; a successful explicit reset does
+not send anything. A context ID is not verified identity, authorization or proof
+of backend isolation. Reload discards page-memory content; it does not stop or
+recover backend work. No replay or resume is introduced.
+
+`KubernautChat` owns the auth/access lifecycle around the page-memory provider:
+invalidating or replacing that host lifecycle unmounts the provider and its
+memory store. The local production integration and standalone browser test
+prove this mounted path with synthetic transport; they do **not** prove
+verified identity claims, deployed logout/source-change behavior, server-side
+authorization, cross-user concurrency or every delayed callback fence. See
+[the test plan](../../tests/170/TEST_PLAN.md) for source, production-path and
+synthetic-browser evidence and the coverage limits.
+
+### Source-only MCP client seam
+
+`scoped-mcp-client.ts` is internal and unwired: neither chat owner, the shell,
+standalone nor the public package uses it. Each instance captures its base URL,
+explicit transport-auth mode, transport function and, in bearer mode, token
+provider. It owns its initialization, request IDs and session header. It
+coalesces concurrent initialization and permanently invalidates and aborts an
+instance on an explicit `invalidate()`; late token, response and body
+completions are fenced. Client invalidation does not fence arbitrary consumer
+callbacks after a result has already been returned.
+
+The scoped seam does not replay tool calls. On a recognized expired-session
+response it returns the error, discards that instance's expired session and
+handshakes only for a **later explicit call**; stale responses cannot reset the
+new session. It rejects redirects for native fetch, checks JSON-RPC version and
+response ID, and handles SSE progress before the correlated result. Explicit
+proxy mode permits only same-origin HTTP(S) targets, requests same-origin browser
+credentials, and does not call a browser token provider. Explicit bearer mode
+requires a nonempty token and requests omission of ambient browser credentials.
+Missing/invalid mode and bearer-token failure fail closed; there is no automatic
+fallback between modes. The shared wire decoder preserves the existing
+standalone singleton's behavior, including its legacy retry; that singleton
+still has global state.
+
+Captured functions, browser cookies and URLs are **not verified identity**: a
+provider can return a different principal later, and an injected transport can
+ignore request options. A qualified host must select and replace instances at
+the appropriate source/auth-session boundary and fence its own effects. An
+abort, timeout, redirect error or lost response cannot undo an already-dispatched
+backend action or establish its outcome. Transport behavior, server response
+compatibility, authorization, logout and deployed concurrency remain unqualified.
+In addition to synthetic responses, an opt-in loopback test exercises a local AF
+MCP handler with a stub tool and no auth or backend; it does not qualify deployed
+behavior or close #168 or #170.
 
 At the review-evidence checkpoint before the scroll-position follow-up, the full
 UI-core suite reported 731 tests passed. A six-test-file coverage run applied thresholds to the **aggregate of two
@@ -36,8 +104,8 @@ approach is complete or approved for live deployment.
 | | Page-lifetime, memory-only owner | Verified-scope, reload-capable owner |
 | --- | --- | --- |
 | Intended behavior | Keep the active conversation and draft while navigating within one authenticated page lifetime. Do not promise recovery after reload or logout. | Restore bounded browser-owned snapshots after the host verifies the applicable source, identity and session. Restored content is disconnected, not a live stream or driver. |
-| Completed evidence | Single-owner/presenter extraction and controlled hide/show test; an independent in-memory lease primitive and synthetic tests. Neither is wired to the new shell. | Host requirements proposal and source preflight only. No qualified identity/session source or scoped snapshot implementation exists. |
-| Next implementation work | Explicitly disable or isolate the existing tab-global transcript/context/phase/pending/workflow storage for this mode; isolate MCP by source and auth lifetime; fence stream, status, action and storage callbacks. Invalidate and abort before clearing or allowing a successor. | Qualify the host contract below; approve legacy-cache handling, retention and privacy policy; implement bounded, validated scoped snapshots, unique IDs, safe storage-failure handling and async write fencing. |
+| Completed evidence | Single-owner/presenter extraction, page-memory storage wired through `KubernautChat`, production integration and standalone browser evidence, separate MCP client seam, controlled hide/show tests and an independent in-memory lease primitive. The host lifecycle and backend remain only locally/synthetically qualified. | Host requirements proposal and source preflight only. No qualified identity/session source or scoped snapshot implementation exists. |
+| Next implementation work | Move deployed/auth/bootstrap/concurrency qualification to #184 or a dedicated issue; separately qualify the scoped MCP transport before any host wiring. Invalidate and abort before clearing or allowing a successor. | Qualify the host contract below; approve legacy-cache handling, retention and privacy policy; implement bounded, validated scoped snapshots, unique IDs, safe storage-failure handling and async write fencing. |
 | Required evidence | Auth/loading/logout/source-change and delayed-callback tests, same-user re-login, MCP initialization/retry isolation and no implicit actions on view changes. Test the integrated owner, not just the lease primitive. | All memory-only evidence, plus cross-user/session/source/conversation isolation, reload and partial-stream restore, legacy-cache rejection/migration, quota/denial, stale writes and separately qualified deployed concurrency. |
 
 The first option still requires a trustworthy way to detect authentication and
@@ -140,12 +208,12 @@ gate. Auth/further CR changes and #2570/parameter editing/V8 remain held.
 
 | Boundary | Source at Console baseline | Consequence for Stage 4 |
 | --- | --- | --- |
-| Entry and exports | `packages/standalone/src/App.tsx` mounts `KubernautChat`; `packages/ui-core/src/index.ts` exports `KubernautChat`, `ChatContainer`, `useChat`, providers and types, plus the newer source-only foundation. `useRRStatus` is internal, not an index export. | Preserve existing consumers and standalone mounting. Screen IDs in `console/registry.ts` are purposes, not routes or authorization. |
-| Authentication | `components/KubernautChat.tsx` obtains a user and, outside mock mode, requires a successful coarse access check before mounting `ChatContainer`. `providers/auth.ts` user fields are name/email/initials. | A successful check is not case, workspace, per-tool or cross-user authorization. Display identity is not a trusted owner key. Source inspection does not qualify logout safety. |
-| Owner and presenter | `components/ChatContainer.tsx` now places the existing `useChat`, `useRRStatus`, draft and action handlers in a single owner above `ChatPresenter`. `useRRStatus.ts` starts a status subscription in an effect and aborts it on cleanup. | The extracted provider can outlive its presenter in the controlled test; it is not yet a scoped multi-investigation owner or mounted in the new shell. Do not create a second chat. |
+| Entry and exports | `packages/standalone/src/App.tsx` mounts `KubernautChat`; `packages/ui-core/src/index.ts` exports `KubernautChat`, `ChatContainer`, `useChat`, providers and types. The newer page-memory and scoped-MCP foundations remain internal and are not public package exports; `useRRStatus` is also internal. | Preserve existing consumers and standalone mounting. Screen IDs in `console/registry.ts` are purposes, not routes or authorization. |
+| Authentication | `components/KubernautChat.tsx` obtains a user and, outside mock mode, requires a successful coarse access check before mounting the chat owner/presenter. `providers/auth.ts` user fields are name/email/initials. | A successful check is not case, workspace, per-tool or cross-user authorization. Display identity is not a trusted owner key. Source inspection does not qualify logout safety. |
+| Owner and presenter | `components/ChatContainer.tsx` places the existing `useChatWithSession`, `useRRStatus`, draft and action handlers in a single owner above `ChatPresenter`. `KubernautChat` mounts `PageLifetimeChatOwnerProvider` above that presenter after its auth/access gate. `useRRStatus.ts` starts a status subscription in an effect and aborts it on cleanup. | The page-memory owner is mounted in the local production path, but it is not a scoped multi-investigation owner or deployed lifecycle qualification. Do not create a second chat. |
 | Stream and status | `lib/a2a-client.ts` retries eligible failures but reports a disconnected live stream as interrupted rather than automatically repeating it. `lib/a2a-status-client.ts` separately subscribes/retries RR status. `useRRStatus` exposes idle/connected/reconnecting/error/not-found and terminal state. | RR lifecycle, response stream and status observation are distinct; a status reconnect is not permission to replay a prompt or claim a driver. Initial failures have their own current hook behavior and require parity review. |
 | MCP and actions | `lib/mcp-client.ts` has module-level initialization/session state and can reinitialize and repeat a tool call for specific errors. `ChatContainer.tsx` calls `kubernaut_cancel` separately from response Stop and also contains existing workflow and approval handlers. | Preserve current consumer behavior while qualifying source/auth-scoped MCP state and ambiguous dispatch. The planned new conversation projection must keep RAR discovery/decisions outside chat; merely hiding existing controls is not semantic redaction. No action wiring is authorized here. |
-| Browser state | `useChat.ts` loads JSON messages from a tab-global session key; its save path clears `isStreaming`, limits thinking on normal save and falls back to the last ten messages on storage failure. `lib/session-state.ts` manages global phase/context/workflow keys and rotates context on cleanup. | These are existing behaviors, not validated multi-owner snapshots or logout fences. Stored text is not a live stream/driver; a fresh context alone does not prove isolation. |
+| Browser state | The legacy `useChat` path loads JSON messages from a tab-global session key; its save path clears `isStreaming`, limits thinking on normal save and falls back to the last ten messages on storage failure. `lib/session-state.ts` manages global phase/context/workflow keys and rotates context on cleanup. The mounted `KubernautChat` path supplies an in-memory store instead. | Legacy `ChatContainer` behavior is unchanged; the page-memory path is locally mounted and reload-discarding, not a validated reload snapshot or deployed logout fence. Stored text is not a live stream/driver; a fresh context alone does not prove isolation. |
 | Field shapes | `useChat.ts` `ChatMessage` contains RR, Alert-like scope, RCA, workflow and verification data; `RCAData` has separate optional scope and metrics, while `WorkflowOption` has no version field. | Do not join Alert and RCA scope, infer an absent version, conflate missing metrics with zero or expose raw thinking. These types are not an approved recorded-case projection. |
 
 ## Fixture implementation and proposed live seam

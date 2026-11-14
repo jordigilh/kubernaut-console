@@ -102,12 +102,6 @@ test.describe("Standalone Mode E2E", () => {
     await input.fill(previousText);
     await page.locator("button[aria-label='Send message']").click();
     await expect(page.getByText(previousText)).toBeVisible();
-    await expect
-      .poll(
-        () => page.evaluate(() => sessionStorage.getItem("kubernaut-console-messages") ?? ""),
-        { timeout: 10_000 },
-      )
-      .toContain(previousText);
 
     await page.getByRole("link", { name: /sign out/i }).click();
     await page.goto("/");
