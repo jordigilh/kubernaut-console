@@ -46,6 +46,7 @@ describe("ChatContainer — Banner Status Stream Separation", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mockStreamA2A.mockReset();
     mockSubscribeStatus.mockReset();
+    mockCallMcpTool.mockReset().mockResolvedValue({ error: { code: -1, message: "mock" } });
   });
 
   afterEach(() => {
@@ -635,5 +636,77 @@ describe("ChatContainer — Banner Status Stream Separation", () => {
     // Still exactly one card: path A converged onto the same message path B
     // already updated, instead of appending a second one.
     expect(screen.getAllByText("Approval Required")).toHaveLength(1);
+  });
+
+  it("IT-CONSOLE-CHAT-170-011: clearing history fences a pending approval fetch from the old conversation", async () => {
+    let resolveApproval: ((value: Awaited<ReturnType<typeof callMcpTool>>) => void) | undefined;
+    mockCallMcpTool.mockImplementation((toolName) => {
+      if (toolName === "kubernaut_get_approval_request") {
+        return new Promise((resolve) => { resolveApproval = resolve; });
+      }
+      return Promise.resolve({ error: { code: -1, message: "unexpected tool" } });
+    });
+
+    mockStreamA2A.mockImplementation(async (_req, opts) => {
+      opts.onEvent({
+        kind: "status-update",
+        taskId: "t1",
+        contextId: "ctx-1",
+        status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Investigating..." }] } },
+        metadata: { type: "status", rr_id: "rr-test-001", phase: "Investigating", alert_name: "KubePodCrashLooping", namespace: "demo" },
+      });
+      opts.onComplete();
+    });
+
+    mockSubscribeStatus.mockImplementation(async (_rrId, opts) => {
+      opts.onPhaseChange("AwaitingApproval", { approval_request_name: "kubernaut-system/rar-stale" });
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+      vi.advanceTimersByTime(100);
+    });
+
+    await waitFor(() => {
+      expect(mockCallMcpTool).toHaveBeenCalledWith(
+        "kubernaut_get_approval_request",
+        { rar_id: "kubernaut-system/rar-stale" },
+        expect.anything(),
+      );
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("New conversation"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Clear history" }));
+    });
+
+    // The old status phase may still be present for one render, but clearing
+    // history must not start a second fetch for that old RR.
+    expect(mockCallMcpTool).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveApproval?.({
+        result: {
+          content: [{ type: "text", text: JSON.stringify({
+            metadata: { name: "rar-stale", namespace: "kubernaut-system" },
+            spec: {
+              confidence: 0.95,
+              confidenceLevel: "High",
+              reason: "Production approval required",
+              requiredBy: new Date(Date.now() + 300_000).toISOString(),
+            },
+          }) }],
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText("Approval Required")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Production approval required/)).not.toBeInTheDocument();
   });
 });

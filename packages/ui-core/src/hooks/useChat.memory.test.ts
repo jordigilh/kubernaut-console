@@ -77,6 +77,47 @@ it("UT-CONSOLE-170-008: missing and failed reset contexts block sends and ignore
   expect(session.storage.getItem("kubernaut-console-context")).toBe(ID_B);
 });
 
+it("UT-CONSOLE-170-011: clearHistory fences late stream callbacks from the prior conversation", async () => {
+  let streamOptions: Parameters<typeof streamA2A>[1] | undefined;
+  vi.mocked(streamA2A).mockImplementation((_request, options) => {
+    streamOptions = options;
+    return new Promise<void>(() => {});
+  });
+
+  const { result } = renderHook(() => useChat());
+  await act(async () => {
+    void result.current.sendMessage("old investigation");
+    await Promise.resolve();
+  });
+
+  expect(streamOptions).toBeDefined();
+  expect(result.current.messages).toHaveLength(2);
+
+  act(() => { result.current.clearHistory(); });
+  expect(result.current.messages).toEqual([]);
+
+  act(() => {
+    streamOptions!.onEvent({
+      kind: "status-update",
+      taskId: "old-task",
+      contextId: "old-context",
+      status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "late response" }] } },
+      metadata: { type: "status", rr_id: "old-rr", phase: "Executing" },
+    });
+    streamOptions!.onError(new Error("late stream error"));
+    streamOptions!.onConnectionLost?.();
+    streamOptions!.onReconnecting?.(1);
+    streamOptions!.onStreamInterrupted?.();
+    streamOptions!.onComplete();
+  });
+
+  expect(result.current.messages).toEqual([]);
+  expect(result.current.error).toBeNull();
+  expect(result.current.currentPhase).toBeUndefined();
+  expect(result.current.isStreaming).toBe(false);
+  expect(result.current.connectionStatus).toBe("idle");
+});
+
 it("UT-CONSOLE-170-009: standalone keeps its bounded fallback when transcript storage is full", () => {
   const messages = Array.from({ length: 12 }, (_, index) => ({
     id: `legacy-${index}`, role: "agent", text: `message ${index}`, timestamp: index,

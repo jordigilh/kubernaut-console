@@ -17,11 +17,11 @@ COPY packages/standalone/ packages/standalone/
 RUN pnpm --filter @kubernaut/ui-core build \
     && pnpm --filter @kubernaut/standalone build
 
-# registry.access.redhat.com/ubi9/nginx-126:1-1793251909 (linux/amd64, linux/arm64)
-FROM registry.access.redhat.com/ubi9/nginx-126:1793640017@sha256:ab7d3522224f774b4df6480934c1b8f900714ab42b1faf30d267d3c15c5247b3
-# The vendor image predates current curl, glibc, and util-linux advisory fixes.
-# Patch only the affected RPMs at image build time; the running container
-# remains USER 1001 below.
+# registry.access.redhat.com/ubi9/nginx-126:1-1794514156 (linux/amd64, linux/arm64)
+FROM registry.access.redhat.com/ubi9/nginx-126:1-1794514156@sha256:f50ae8fe82e271456779c175015ac2e57576784de3ccd413460c69e55d89e137
+# Keep package-family upgrades at build time so rebuilds consume current UBI
+# advisory fixes between vendor image refreshes; the running container remains
+# USER 1001 below.
 USER 0
 RUN dnf -y upgrade --refresh \
     curl-minimal \

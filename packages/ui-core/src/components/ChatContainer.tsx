@@ -27,7 +27,7 @@ const PHASE_MAP: Record<string, ChatMessage["phase"]> = {
 };
 
 function useChatOwner(session?: PageChatSession) {
-  const { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext, canSendMessage } = useChatWithSession(session);
+  const { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext, canSendMessage, getConversationGeneration, isConversationCurrent } = useChatWithSession(session);
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
   const investigationEngaged = isInvestigationEngaged(messages);
@@ -144,18 +144,33 @@ function useChatOwner(session?: PageChatSession) {
 
   const [approvalDenied, setApprovalDenied] = useState(false);
   const approvalFetchedRef = useRef<string | null>(null);
+  const clearConversation = useCallback(() => {
+    const result = clearHistory();
+    if (result !== false) {
+      approvalFetchedRef.current = null;
+      setApprovalDenied(false);
+    }
+    return result;
+  }, [clearHistory]);
 
   useEffect(() => {
     if (statusPhase !== "AwaitingApproval") {
+      return;
+    }
+    // During clearHistory(), useRRStatus may still expose the previous phase
+    // for one render before its rrId cleanup effect runs. Never fetch or
+    // inject approval data without an RR belonging to the current transcript.
+    if (!effectiveRrId) {
       return;
     }
 
     const rarName = (statusMetadata?.approval_request_name as string) ?? undefined;
     if (!rarName || approvalFetchedRef.current === rarName) return;
     approvalFetchedRef.current = rarName;
+    const conversationGeneration = getConversationGeneration();
 
     callMcpTool("kubernaut_get_approval_request", { rar_id: rarName }, mcpOptions).then((res) => {
-      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true) || !isConversationCurrent(conversationGeneration)) return;
       if (res.error) {
         // #57: a permission gap and a backend bad-request/validation error both
         // arrive as the same generic isError shape — branch on AF's stable
@@ -234,7 +249,7 @@ function useChatOwner(session?: PageChatSession) {
       setCurrentPhase("decision");
       userScrolledUpRef.current = false;
     });
-  }, [statusPhase, statusMetadata, setMessages, setCurrentPhase, setError, mcpOptions, effectiveRrId, lifecycle]);
+  }, [statusPhase, statusMetadata, setMessages, setCurrentPhase, setError, mcpOptions, effectiveRrId, lifecycle, getConversationGeneration, isConversationCurrent]);
 
   useEffect(() => {
     if (statusPhase && PHASE_MAP[statusPhase]) {
@@ -486,28 +501,28 @@ function useChatOwner(session?: PageChatSession) {
   const handleClearHistory = useCallback(() => {
     if (messages.length === 0) {
       try {
-        if (clearHistory() !== false) setError(null);
+        if (clearConversation() !== false) setError(null);
       } catch {
         setError("Unable to clear console session storage. Retry clearing history.");
       }
     } else {
       setClearConfirmOpen(true);
     }
-  }, [messages.length, clearHistory, setError]);
+  }, [messages.length, clearConversation, setError]);
 
   const confirmClear = useCallback(() => {
     setClearConfirmOpen(false);
     try {
-      if (clearHistory() !== false) setError(null);
+      if (clearConversation() !== false) setError(null);
     } catch {
       setError("Unable to clear console session storage. Retry clearing history.");
     }
-  }, [clearHistory, setError]);
+  }, [clearConversation, setError]);
 
   const handleSignOut = useCallback((event: MouseEvent<HTMLAnchorElement>) => {
     cancelStream();
     try {
-      if (clearHistory() === false) {
+      if (clearConversation() === false) {
         event.preventDefault();
         return;
       }
@@ -516,7 +531,7 @@ function useChatOwner(session?: PageChatSession) {
       event.preventDefault();
       setError("Unable to clear console session storage. Retry sign out.");
     }
-  }, [cancelStream, clearHistory, setError]);
+  }, [cancelStream, clearConversation, setError]);
 
   return {
     messages, isStreaming, error, connectionStatus, cancelStream, investigationStartTime,

@@ -336,6 +336,12 @@ export function useChatWithSession(session?: PageChatSession) {
   const lastSendRef = useRef(0);
   const terminalReceivedRef = useRef(false);
   const pendingContextRef = useRef<string[]>(loadPendingContext(storage));
+  const conversationGenerationRef = useRef(0);
+  const getConversationGeneration = useCallback(() => conversationGenerationRef.current, []);
+  const isConversationCurrent = useCallback(
+    (generation: number) => conversationGenerationRef.current === generation,
+    [],
+  );
   const [investigationStartTime, setInvestigationStartTime] = useState<number | undefined>(undefined);
   const [currentPhase, setCurrentPhase] = useState<ChatMessage["phase"]>(() => loadPersistedPhase(storage));
 
@@ -381,6 +387,8 @@ export function useChatWithSession(session?: PageChatSession) {
       setError(FRESH_CONTEXT_ERROR);
       return;
     }
+    const conversationGeneration = conversationGenerationRef.current;
+    const isCurrentConversation = () => isConversationCurrent(conversationGeneration);
     const now = Date.now();
     if (now - lastSendRef.current < 500) return;
     lastSendRef.current = now;
@@ -433,7 +441,7 @@ export function useChatWithSession(session?: PageChatSession) {
     abortRef.current = controller;
 
     const updateAgent = (updates: Partial<ChatMessage>) => {
-      if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
+      if (!(authCtx?.lifecycle?.isCurrent() ?? true) || !isCurrentConversation()) return;
       setMessages((prev) =>
         prev.map((m) => (m.id === agentMsgId ? { ...m, ...updates } : m))
       );
@@ -442,7 +450,7 @@ export function useChatWithSession(session?: PageChatSession) {
     const DISCOVERY_PHASE_PATTERN = /discover.*workflow|remediation option|available workflow|searching.*workflow/i;
 
     const handleEvent = (event: A2AEvent) => {
-      if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
+      if (!(authCtx?.lifecycle?.isCurrent() ?? true) || !isCurrentConversation()) return;
       if (!session && !contextIdRef.current && event.contextId) {
         contextIdRef.current = event.contextId;
         saveContextId(event.contextId, storage);
@@ -1019,6 +1027,7 @@ export function useChatWithSession(session?: PageChatSession) {
 
     if (USE_MOCK) {
       await mockStreamA2A(text, handleEvent, controller.signal);
+      if (!isCurrentConversation()) return;
       updateAgent({ isStreaming: false });
       setIsStreaming(false);
       setConnectionStatus("idle");
@@ -1029,6 +1038,7 @@ export function useChatWithSession(session?: PageChatSession) {
     try {
       token = authCtx?.provider ? await authCtx.provider.getToken() : undefined;
     } catch { /* proceed without token */ }
+    if (!isCurrentConversation()) return;
 
     await streamA2A(request, {
       baseUrl: configCtx?.backendUrl,
@@ -1036,44 +1046,48 @@ export function useChatWithSession(session?: PageChatSession) {
       token,
       onEvent: handleEvent,
       onAuthenticationRequired: authCtx?.lifecycle
-        ? () => authCtx.lifecycle?.invalidate("authentication-required")
+        ? () => {
+            if (isCurrentConversation()) authCtx.lifecycle?.invalidate("authentication-required");
+          }
         : undefined,
       onError: (err) => {
-        if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
+        if (!(authCtx?.lifecycle?.isCurrent() ?? true) || !isCurrentConversation()) return;
         setError(friendlyError(err.message));
         updateAgent({ isStreaming: false });
         setIsStreaming(false);
         setConnectionStatus("idle");
       },
       onComplete: () => {
-        if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
+        if (!(authCtx?.lifecycle?.isCurrent() ?? true) || !isCurrentConversation()) return;
         updateAgent({ isStreaming: false });
         setIsStreaming(false);
         setConnectionStatus("idle");
       },
       onConnectionLost: () => {
-        if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
+        if (!(authCtx?.lifecycle?.isCurrent() ?? true) || !isCurrentConversation()) return;
         if (terminalReceivedRef.current) return;
         setConnectionStatus("lost");
       },
       onReconnecting: () => {
-        if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
+        if (!(authCtx?.lifecycle?.isCurrent() ?? true) || !isCurrentConversation()) return;
         if (terminalReceivedRef.current) return;
         setConnectionStatus("reconnecting");
       },
       onStreamInterrupted: () => {
-        if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
+        if (!(authCtx?.lifecycle?.isCurrent() ?? true) || !isCurrentConversation()) return;
         setConnectionStatus("interrupted");
         setError(STREAM_INTERRUPTED_MESSAGE);
         updateAgent({ isStreaming: false });
         setIsStreaming(false);
       },
-      isCurrent: () => authCtx?.lifecycle?.isCurrent() ?? true,
+      isCurrent: () => (authCtx?.lifecycle?.isCurrent() ?? true) && isCurrentConversation(),
       requireBackendIncarnation: configCtx?.requireBackendIncarnation,
-      onBackendIncarnation: (incarnation) => authCtx?.lifecycle?.observeBackendIncarnation?.(incarnation),
+      onBackendIncarnation: (incarnation) => {
+        if (isCurrentConversation()) authCtx?.lifecycle?.observeBackendIncarnation?.(incarnation);
+      },
       signal: controller.signal,
     });
-  }, [authCtx, configCtx, session, storage, canSendMessage]);
+  }, [authCtx, configCtx, session, storage, canSendMessage, isConversationCurrent]);
 
   const cancelStream = useCallback(() => {
     abortRef.current?.abort();
@@ -1098,6 +1112,12 @@ export function useChatWithSession(session?: PageChatSession) {
   // clearConsoleSessionState() also rotates the context ID, so an explicit
   // reset cannot be silently reattached to the prior user session.
   const clearHistory = useCallback(() => {
+    conversationGenerationRef.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    activeAgentMsgIdRef.current = null;
+    setIsStreaming(false);
+    setConnectionStatus("idle");
     setMessages([]);
     setCurrentPhase(undefined);
     setInvestigationStartTime(undefined);
@@ -1114,5 +1134,23 @@ export function useChatWithSession(session?: PageChatSession) {
     contextIdRef.current = clearConsoleSessionState();
   }, [session]);
 
-  return { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext, canSendMessage };
+  return {
+    messages,
+    setMessages,
+    isStreaming,
+    error,
+    setError,
+    connectionStatus,
+    sendMessage,
+    cancelStream,
+    clearHistory,
+    investigationStartTime,
+    currentPhase,
+    setCurrentPhase,
+    resetContext,
+    addPendingContext,
+    canSendMessage,
+    getConversationGeneration,
+    isConversationCurrent,
+  };
 }
