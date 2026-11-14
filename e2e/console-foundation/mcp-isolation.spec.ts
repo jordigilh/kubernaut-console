@@ -29,7 +29,10 @@ for (const status of [307, 308] as const) {
     const origin = `http://127.0.0.1:${Number(process.env.CONSOLE_FOUNDATION_PORT || 43871)}`;
     const methods: string[] = [];
     const unexpected: string[] = [];
-    let redirected = 0;
+    const targetRequests: string[] = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/mcp-redirect-target") targetRequests.push(request.url());
+    });
     await page.route("**/*", async (route) => {
       const url = new URL(route.request().url());
       if (url.origin !== origin) { unexpected.push(url.href); return route.abort(); }
@@ -42,7 +45,6 @@ for (const status of [307, 308] as const) {
         return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ jsonrpc: "2.0", id: body.id, result: {} }) });
       }
       if (url.pathname === "/mcp-redirect-target") {
-        redirected++;
         return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
       }
       if (/^\/(api|a2a)(\/|$)/.test(url.pathname)) { unexpected.push(url.href); return route.abort(); }
@@ -53,7 +55,7 @@ for (const status of [307, 308] as const) {
     const result = await page.evaluate(() => window.mcpIsolationFixture.runRedirect());
     expect(result.error).toBeDefined();
     expect(methods).toEqual(["initialize", "notifications/initialized", "tools/call"]);
-    expect(redirected).toBe(0);
+    expect(targetRequests).toEqual([]);
     expect(unexpected).toEqual([]);
   });
 }

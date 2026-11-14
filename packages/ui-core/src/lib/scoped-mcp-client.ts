@@ -192,10 +192,12 @@ export function createScopedMcpClient(options: ScopedMcpClientOptions) {
   return {
     async call(name: string, args: Record<string, string>): Promise<McpResult> {
       const capturedArgs = { ...args };
+      const epoch = sessionEpoch;
       const initError = await ensureInitialized();
       if (!active) return invalidated();
       if (initError) return initError;
-      const epoch = sessionEpoch;
+      const initializationFence = fenceError(epoch);
+      if (initializationFence) return initializationFence;
       const capture: SessionCapture = { sessionAtDispatch: undefined };
       const result = await send("tools/call", { name, arguments: capturedArgs }, epoch, capture);
       const resultFence = fenceError(epoch);

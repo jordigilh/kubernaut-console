@@ -34,6 +34,18 @@ it("UT-CONSOLE-170-MCP-021: SSE progress preceding an action error cannot be int
   expect((await action).error).toEqual({ code: -32000, message: "synthetic action rejected" });
 });
 
+it("UT-CONSOLE-170-MCP-036: a correlated response in a batched SSE event is accepted", async () => {
+  const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    const current = read(init).body;
+    if (current.method !== "tools/call") return Promise.resolve(success(current.id));
+    const response = [{ jsonrpc: "2.0", id: current.id, result: { batched: true } }];
+    return Promise.resolve(new Response(`data: ${JSON.stringify(response)}\n\n`, { headers: { "Content-Type": "text/event-stream" } }));
+  });
+  const pending = createScopedMcpClient({ authMode: "proxy", fetchFn }).call("action", {});
+  await vi.runAllTimersAsync();
+  expect((await pending).result).toEqual({ batched: true });
+});
+
 it.each([
   { label: "wrong id", make: (id: number) => ({ jsonrpc: "2.0", id: id + 1, result: { ok: true } }) },
   { label: "missing id", make: () => ({ jsonrpc: "2.0", result: { ok: true } }) },

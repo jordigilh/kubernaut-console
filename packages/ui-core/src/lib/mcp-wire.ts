@@ -37,7 +37,11 @@ function readScopedMessages(text: string): unknown[] {
   let data: string[] = [];
   const flush = () => {
     const payload = data.join("\n");
-    if (payload.trim()) messages.push(JSON.parse(payload));
+    if (payload.trim()) {
+      const parsed = JSON.parse(payload);
+      if (Array.isArray(parsed)) messages.push(...parsed);
+      else messages.push(parsed);
+    }
     data = [];
   };
   for (const line of text.split(/\r\n|\r|\n/)) {
