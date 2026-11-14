@@ -246,3 +246,30 @@ it("UT-CONSOLE-170-MCP-035: SSE tool errors remain errors without replay", async
   expect((await pending).error).toEqual({ code: -32000, message: "permission denied: fixture; action rejected" });
   expect(requests.filter((entry) => entry.body.method === "tools/call")).toHaveLength(1);
 });
+
+it("UT-CONSOLE-170-MCP-037: concurrent expiry supersedes a waiting action without dispatch", async () => {
+  const token = deferred<string>();
+  let tokenCalls = 0;
+  const requests: Captured[] = [];
+  const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    const current = read(init);
+    requests.push(current);
+    if (current.body.method === "initialize") return Promise.resolve(success(current.body.id, "fixture-session"));
+    if (current.body.method === "tools/call" && current.body.params?.name === "expires") {
+      return Promise.resolve(new Response("expired", { status: 404 }));
+    }
+    return Promise.resolve(success(current.body.id));
+  });
+  const getToken = vi.fn(() => {
+    tokenCalls++;
+    return tokenCalls === 3 ? token.promise : Promise.resolve("fixture-token");
+  });
+  const client = createScopedMcpClient({ authMode: "bearer", getToken, fetchFn });
+  const waiting = client.call("waiting", {});
+  const expired = client.call("expires", {});
+  await vi.runAllTimersAsync();
+  expect((await expired).error?.code).toBe(404);
+  token.resolve("fixture-token");
+  expect((await waiting).error?.message).toMatch(/superseded/i);
+  expect(requests.filter((entry) => entry.body.method === "tools/call").map((entry) => entry.body.params?.name)).toEqual(["expires"]);
+});
