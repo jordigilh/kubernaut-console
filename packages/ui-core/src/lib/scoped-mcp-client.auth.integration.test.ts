@@ -1,5 +1,7 @@
 import { createScopedMcpClient } from "./scoped-mcp-client";
 
+const INITIALIZE_RESULT = { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "fixture", version: "1.0.0" } };
+
 it("IT-CONSOLE-170-MCP-002: explicit proxy and bearer transports keep synthetic sessions separate", async () => {
   vi.useFakeTimers();
   try {
@@ -16,7 +18,8 @@ it("IT-CONSOLE-170-MCP-002: explicit proxy and bearer transports keep synthetic 
       if (mode === "bearer" && init?.credentials !== "omit") return Promise.resolve(new Response("denied", { status: 401 }));
       if (body.method !== "initialize" && session !== `synthetic-${mode}`) return Promise.resolve(new Response("wrong session", { status: 403 }));
       if (body.method === "notifications/initialized") return Promise.resolve(new Response(null, { status: 202 }));
-      const message = JSON.stringify({ jsonrpc: "2.0", id: body.id, result: { mode } });
+       const result = body.method === "initialize" ? INITIALIZE_RESULT : { mode };
+       const message = JSON.stringify({ jsonrpc: "2.0", id: body.id, result });
       return Promise.resolve(new Response(`event: message\ndata: ${message}\n\n`, {
         headers: { "content-type": "text/event-stream", ...(body.method === "initialize" ? { "mcp-session-id": `synthetic-${mode}` } : {}) },
       }));

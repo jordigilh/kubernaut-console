@@ -1,5 +1,7 @@
 import { createScopedMcpClient } from "./scoped-mcp-client";
 
+const INITIALIZE_RESULT = { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "fixture", version: "1.0.0" } };
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: unknown) => void;
@@ -11,6 +13,10 @@ function response(result: unknown = {}, session?: string, id = 1) {
   return new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), {
     status: 200, headers: session ? { "mcp-session-id": session } : {},
   });
+}
+
+function responseFor(method: string, result: unknown = {}, session?: string, id = 1) {
+  return response(method === "initialize" ? INITIALIZE_RESULT : result, session, id);
 }
 
 type Request = { id?: number; method: string; headers: Record<string, string>; signal: AbortSignal; args?: Record<string, string> };
@@ -44,7 +50,7 @@ it.each(["initialize", "notifications/initialized"])("UT-CONSOLE-170-MCP-007: fa
       fail = false;
       return Promise.resolve(new Response("unavailable", { status: 503 }));
     }
-    return Promise.resolve(response({ ok: true }, current.method === "initialize" ? "fresh-session" : undefined, current.id));
+    return Promise.resolve(responseFor(current.method, { ok: true }, current.method === "initialize" ? "fresh-session" : undefined, current.id));
   });
   const client = createScopedMcpClient({ authMode: "proxy", fetchFn });
   const first = client.call("first_action", {});
@@ -82,7 +88,7 @@ it.each(["initialize", "notifications/initialized", "tools/call"])("UT-CONSOLE-1
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = request(init);
     requests.push(current);
-    return current.method === delayedMethod ? delayed.promise : Promise.resolve(response({}, current.method === "initialize" ? "fixture-session" : undefined, current.id));
+    return current.method === delayedMethod ? delayed.promise : Promise.resolve(responseFor(current.method, {}, current.method === "initialize" ? "fixture-session" : undefined, current.id));
   });
   const client = createScopedMcpClient({ authMode: "proxy", fetchFn });
   const pending = client.call("explicit_action", {});
@@ -103,8 +109,9 @@ it("UT-CONSOLE-170-MCP-010: invalidation during response-body parsing rejects th
   const requests: Request[] = [];
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     requests.push(request(init));
-    const slow = response({}, "stale-session");
-    Object.defineProperty(slow, "text", { value: () => body.promise });
+   const slow = response({}, "stale-session");
+    Object.defineProperty(slow, "body", { value: null });
+   Object.defineProperty(slow, "text", { value: () => body.promise });
     return Promise.resolve(slow);
   });
   const client = createScopedMcpClient({ authMode: "proxy", fetchFn });
@@ -122,7 +129,7 @@ it("UT-CONSOLE-170-MCP-011: invalidation during the handshake delay never dispat
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = request(init);
     requests.push(current);
-    return Promise.resolve(response({}, "fixture-session", current.id));
+    return Promise.resolve(responseFor(current.method, {}, "fixture-session", current.id));
   });
   const client = createScopedMcpClient({ authMode: "proxy", fetchFn });
   const pending = client.call("explicit_action", {});
@@ -142,8 +149,8 @@ it("UT-CONSOLE-170-MCP-012: older concurrent responses cannot replace a newer se
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = request(init);
     requests.push(current);
-    if (current.method === "initialize") return Promise.resolve(response({}, "initial-session", current.id));
-    if (current.method !== "tools/call") return Promise.resolve(response({}, undefined, current.id));
+    if (current.method === "initialize") return Promise.resolve(responseFor(current.method, {}, "initial-session", current.id));
+    if (current.method !== "tools/call") return Promise.resolve(responseFor(current.method, {}, undefined, current.id));
     tools += 1;
     if (tools === 1) return first.promise;
     if (tools === 2) return second.promise;
@@ -170,13 +177,13 @@ it("UT-CONSOLE-170-MCP-013: snapshots action arguments before asynchronous initi
   const fetchFn = vi.fn((_input: RequestInfo | URL, options?: RequestInit) => {
     const current = request(options);
     requests.push(current);
-    return current.method === "initialize" ? init.promise : Promise.resolve(response({ ok: true }, undefined, current.id));
+    return current.method === "initialize" ? init.promise : Promise.resolve(responseFor(current.method, { ok: true }, undefined, current.id));
   });
   const client = createScopedMcpClient({ authMode: "proxy", fetchFn });
   const args = { rr_id: "original", action: "cancel" };
   const pending = client.call("explicit_action", args);
   args.rr_id = "changed";
-  init.resolve(response());
+   init.resolve(responseFor("initialize"));
   await vi.runAllTimersAsync();
   expect((await pending).result).toEqual({ ok: true });
   expect(requests.at(-1)?.args).toEqual({ rr_id: "original", action: "cancel" });
@@ -203,8 +210,9 @@ it("UT-CONSOLE-170-MCP-015: response-reading failures stop the action without re
   const fetchFn = vi.fn((_input: RequestInfo | URL, options?: RequestInit) => {
     const current = request(options);
     requests.push(current);
-    const reply = response({}, "fixture-session", current.id);
-    if (current.method === "tools/call") Object.defineProperty(reply, "text", { value: () => Promise.reject(new Error("synthetic read failure")) });
+   const reply = responseFor(current.method, {}, "fixture-session", current.id);
+    if (current.method === "tools/call") Object.defineProperty(reply, "body", { value: null });
+   if (current.method === "tools/call") Object.defineProperty(reply, "text", { value: () => Promise.reject(new Error("synthetic read failure")) });
     return Promise.resolve(reply);
   });
   const client = createScopedMcpClient({ authMode: "proxy", fetchFn });
@@ -215,8 +223,14 @@ it("UT-CONSOLE-170-MCP-015: response-reading failures stop the action without re
 });
 
 it("UT-CONSOLE-170-MCP-016: the default fetch is captured at construction rather than changed by a later global replacement", async () => {
-  const originalTransport = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => Promise.resolve(response({ owner: "original" }, undefined, request(init).id)));
-  const successorTransport = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => Promise.resolve(response({ owner: "successor" }, undefined, request(init).id)));
+  const originalTransport = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    const current = request(init);
+    return Promise.resolve(responseFor(current.method, { owner: "original" }, undefined, current.id));
+  });
+  const successorTransport = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    const current = request(init);
+    return Promise.resolve(responseFor(current.method, { owner: "successor" }, undefined, current.id));
+  });
   vi.stubGlobal("fetch", originalTransport);
   const client = createScopedMcpClient({ authMode: "proxy", baseUrl: "/synthetic" });
   vi.stubGlobal("fetch", successorTransport);
@@ -238,7 +252,7 @@ it("UT-CONSOLE-170-MCP-017: a later token failure abandons a partial handshake w
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = request(init);
     requests.push(current);
-    return Promise.resolve(response({}, "fixture-session", current.id));
+    return Promise.resolve(responseFor(current.method, {}, "fixture-session", current.id));
   });
   const client = createScopedMcpClient({ authMode: "bearer", getToken, fetchFn });
   const first = client.call("first_action", {});
@@ -260,7 +274,7 @@ it("UT-CONSOLE-170-MCP-018: an explicit later action is separate from a failed a
     const current = request(init);
     requests.push(current);
     if (current.method === "tools/call" && ++actions === 1) return Promise.resolve(new Response("unavailable", { status: 503 }));
-    return Promise.resolve(response({ ok: true }, current.method === "initialize" ? "fixture-session" : undefined, current.id));
+    return Promise.resolve(responseFor(current.method, { ok: true }, current.method === "initialize" ? "fixture-session" : undefined, current.id));
   });
   const client = createScopedMcpClient({ authMode: "proxy", fetchFn });
   const first = client.call("action_one", { rr_id: "one" });
@@ -283,7 +297,7 @@ it("UT-CONSOLE-170-MCP-019: a timed-out mutation is reported once and never repl
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = request(init);
     requests.push(current);
-    if (current.method !== "tools/call") return Promise.resolve(response({}, undefined, current.id));
+    if (current.method !== "tools/call") return Promise.resolve(responseFor(current.method, {}, undefined, current.id));
     return new Promise<Response>((_resolve, reject) => {
       current.signal.addEventListener("abort", () => reject(new Error("synthetic timeout")), { once: true });
     });
@@ -328,7 +342,7 @@ it.each(["resolve", "reject"] as const)("UT-CONSOLE-170-MCP-028: a token that wi
     const name = JSON.parse(String(init?.body)).params?.name as string | undefined;
     requests.push({ ...current, name });
     if (name === "expired_action") return expired.promise;
-    return Promise.resolve(response({ ok: true }, current.method === "initialize" ? "old-session" : undefined, current.id));
+    return Promise.resolve(responseFor(current.method, { ok: true }, current.method === "initialize" ? "old-session" : undefined, current.id));
   });
   const client = createScopedMcpClient({ authMode: "bearer", getToken, fetchFn });
   const warm = client.call("warm", {});
@@ -354,10 +368,11 @@ it("UT-CONSOLE-170-MCP-029: an old response body cannot overwrite the replacemen
     const current = request(init);
     const name = JSON.parse(String(init?.body)).params?.name as string | undefined;
     requests.push({ ...current, name });
-    if (current.method === "initialize") return Promise.resolve(response({}, ++initializations === 1 ? "old-session" : "new-session", current.id));
+    if (current.method === "initialize") return Promise.resolve(responseFor(current.method, {}, ++initializations === 1 ? "old-session" : "new-session", current.id));
     if (name === "expired") return expired.promise;
     if (name === "late") {
       const slow = response({}, "late-session", current.id);
+      Object.defineProperty(slow, "body", { value: null });
       Object.defineProperty(slow, "text", { value: () => lateBody.promise });
       return Promise.resolve(slow);
     }

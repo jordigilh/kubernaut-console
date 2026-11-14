@@ -18,7 +18,7 @@ export class ProxyAuthProvider implements KubernautAuthProvider {
 
   async getUser(): Promise<KubernautUser> {
     if (USE_MOCK) {
-      return { name: "Dev User", email: "dev@localhost", initials: "DU" };
+      return { name: "Dev User", email: "dev@localhost", initials: "DU", principalKey: "mock:dev-user" };
     }
 
     const revision = ++this.revision;
@@ -57,7 +57,7 @@ export class ProxyAuthProvider implements KubernautAuthProvider {
       : typeof record?.user === "string" ? record.user
         : typeof record?.name === "string" ? record.name : "";
     const email = typeof record?.email === "string" ? record.email : "";
-    return { name, email, initials: getInitials(name, email) };
+    return { name, email, initials: getInitials(name, email), principalKey: `${claims.iss}\u0000${claims.sub}` };
   }
 }
 

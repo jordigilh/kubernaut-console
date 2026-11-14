@@ -3,6 +3,7 @@ import type { McpResult } from "./mcp-client";
 
 type RpcRequest = { id?: number; method: string; params?: { name: string } };
 type Captured = { body: RpcRequest; headers: Record<string, string>; redirect: RequestRedirect | undefined };
+const INITIALIZE_RESULT = { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "fixture", version: "1.0.0" } };
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -18,13 +19,17 @@ function success(id?: number, session?: string, result: unknown = { ok: true }) 
   return new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), { headers: session ? { "mcp-session-id": session } : {} });
 }
 
+function responseFor(body: RpcRequest, session?: string) {
+  return success(body.id, session, body.method === "initialize" ? INITIALIZE_RESULT : { ok: true });
+}
+
 beforeEach(() => { vi.useFakeTimers(); });
 afterEach(() => { vi.useRealTimers(); });
 
 it("UT-CONSOLE-170-MCP-021: SSE progress preceding an action error cannot be interpreted as success", async () => {
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const { body } = read(init);
-    if (body.method !== "tools/call") return Promise.resolve(success(body.id));
+    if (body.method !== "tools/call") return Promise.resolve(responseFor(body));
     const notification = { jsonrpc: "2.0", method: "notifications/progress", params: { progress: 1 } };
     const failure = { jsonrpc: "2.0", id: body.id, error: { code: -32000, message: "synthetic action rejected" } };
     return Promise.resolve(new Response(`data: ${JSON.stringify(notification)}\n\ndata: ${JSON.stringify(failure)}\n\n`, { headers: { "Content-Type": "text/event-stream" } }));
@@ -37,7 +42,7 @@ it("UT-CONSOLE-170-MCP-021: SSE progress preceding an action error cannot be int
 it("UT-CONSOLE-170-MCP-036: a correlated response in a batched SSE event is accepted", async () => {
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = read(init).body;
-    if (current.method !== "tools/call") return Promise.resolve(success(current.id));
+    if (current.method !== "tools/call") return Promise.resolve(responseFor(current));
     const response = [{ jsonrpc: "2.0", id: current.id, result: { batched: true } }];
     return Promise.resolve(new Response(`data: ${JSON.stringify(response)}\n\n`, { headers: { "Content-Type": "text/event-stream" } }));
   });
@@ -53,7 +58,7 @@ it.each([
 ])("UT-CONSOLE-170-MCP-022: a response with $label fails closed", async ({ make }) => {
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const { body } = read(init);
-    if (body.method !== "tools/call") return Promise.resolve(success(body.id));
+    if (body.method !== "tools/call") return Promise.resolve(responseFor(body));
     return Promise.resolve(new Response(JSON.stringify(make(body.id!))));
   });
   const action = createScopedMcpClient({ authMode: "proxy", fetchFn }).call("action", {});
@@ -66,7 +71,7 @@ it("UT-CONSOLE-170-MCP-023: the transport rejects redirects instead of following
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = read(init);
     requests.push(current);
-    return Promise.resolve(success(current.body.id));
+    return Promise.resolve(responseFor(current.body));
   });
   const action = createScopedMcpClient({ authMode: "proxy", fetchFn }).call("action", {});
   await vi.runAllTimersAsync();
@@ -82,10 +87,10 @@ it("UT-CONSOLE-170-MCP-024: an expired session reinitializes only for the next e
     requests.push(current);
     if (current.body.method === "initialize") {
       initialization++;
-      return Promise.resolve(success(current.body.id, initialization === 1 ? "old-session" : "new-session"));
+      return Promise.resolve(success(current.body.id, initialization === 1 ? "old-session" : "new-session", INITIALIZE_RESULT));
     }
     if (current.body.method === "tools/call" && current.body.params?.name === "first_action") return Promise.resolve(new Response("expired", { status: 404 }));
-    return Promise.resolve(success(current.body.id));
+    return Promise.resolve(responseFor(current.body));
   });
   const client = createScopedMcpClient({ authMode: "proxy", fetchFn });
   const first = client.call("first_action", {});
@@ -108,10 +113,10 @@ it("UT-CONSOLE-170-MCP-025: late expiry from an old session cannot reset its suc
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = read(init);
     requests.push(current);
-    if (current.body.method === "initialize") return Promise.resolve(success(current.body.id, ++initializations === 1 ? "old-session" : "new-session"));
+    if (current.body.method === "initialize") return Promise.resolve(success(current.body.id, ++initializations === 1 ? "old-session" : "new-session", INITIALIZE_RESULT));
     if (current.body.params?.name === "old_first") return first.promise;
     if (current.body.params?.name === "old_late") return late.promise;
-    return Promise.resolve(success(current.body.id));
+    return Promise.resolve(responseFor(current.body));
   });
   const client = createScopedMcpClient({ authMode: "proxy", fetchFn });
   const firstCall = client.call("old_first", {});
@@ -139,7 +144,7 @@ it("UT-CONSOLE-170-MCP-026: a synchronously reentrant transport joins one handsh
     const current = read(init);
     requests.push(current);
     if (current.body.method === "initialize" && !reentered) { reentered = true; inner = client.call("inner", {}); }
-    return Promise.resolve(success(current.body.id));
+    return Promise.resolve(responseFor(current.body));
   });
   const client = createScopedMcpClient({ authMode: "proxy", fetchFn });
   const outer = client.call("outer", {});
@@ -158,7 +163,7 @@ it.each([
 ])("UT-CONSOLE-170-MCP-031: $label cannot masquerade as a successful result", async ({ body }) => {
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = read(init).body;
-    if (current.method !== "tools/call") return Promise.resolve(success(current.id));
+    if (current.method !== "tools/call") return Promise.resolve(responseFor(current));
     return Promise.resolve(new Response(body(current.id!)));
   });
   const pending = createScopedMcpClient({ authMode: "proxy", fetchFn }).call("action", {});
@@ -169,7 +174,7 @@ it.each([
 it("UT-CONSOLE-170-MCP-032: a multi-line SSE result after progress is correlated to its action", async () => {
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = read(init).body;
-    if (current.method !== "tools/call") return Promise.resolve(success(current.id));
+    if (current.method !== "tools/call") return Promise.resolve(responseFor(current));
     const progress = JSON.stringify({ jsonrpc: "2.0", method: "notifications/progress" });
     const payload = `: heartbeat\r\ndata: \r\n\r\nevent: message\r\ndata: ${progress}\r\n\r\ndata: {"jsonrpc":"2.0",\r\ndata: "id":${current.id},"result":{"ok":true}}\r\n\r\n`;
     return Promise.resolve(new Response(payload, { headers: { "Content-Type": "text/event-stream" } }));
@@ -186,10 +191,10 @@ it("UT-CONSOLE-170-MCP-033: a late 404 for an older session header cannot evict 
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = read(init);
     requests.push(current);
-    if (current.body.method === "initialize") return Promise.resolve(success(current.body.id, "old-session"));
+    if (current.body.method === "initialize") return Promise.resolve(success(current.body.id, "old-session", INITIALIZE_RESULT));
     if (current.body.params?.name === "old_request") return old.promise;
     if (current.body.params?.name === "replacement_header") return replacement.promise;
-    return Promise.resolve(success(current.body.id));
+    return Promise.resolve(responseFor(current.body));
   });
   const client = createScopedMcpClient({ authMode: "proxy", fetchFn });
   const oldCall = client.call("old_request", {});
@@ -219,7 +224,7 @@ it("UT-CONSOLE-170-MCP-034: reentrant abort callbacks cannot dispatch another ac
       }, { once: true });
       return new Promise<Response>(() => {});
     }
-    return Promise.resolve(success(current.body.id, current.body.method === "initialize" ? "fixture-session" : undefined));
+    return Promise.resolve(responseFor(current.body, current.body.method === "initialize" ? "fixture-session" : undefined));
   });
   const client = createScopedMcpClient({ authMode: "proxy", fetchFn });
   const pending = client.call("explicit_action", {});
@@ -237,7 +242,7 @@ it("UT-CONSOLE-170-MCP-035: SSE tool errors remain errors without replay", async
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = read(init);
     requests.push(current);
-    if (current.body.method !== "tools/call") return Promise.resolve(success(current.body.id));
+    if (current.body.method !== "tools/call") return Promise.resolve(responseFor(current.body));
     const event = { jsonrpc: "2.0", id: current.body.id, result: { isError: true, content: [{ text: "permission denied: fixture" }, { text: "action rejected" }] } };
     return Promise.resolve(new Response(`data: ${JSON.stringify(event)}\n\n`, { headers: { "Content-Type": "text/event-stream" } }));
   });
@@ -254,11 +259,11 @@ it("UT-CONSOLE-170-MCP-037: concurrent expiry supersedes a waiting action withou
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = read(init);
     requests.push(current);
-    if (current.body.method === "initialize") return Promise.resolve(success(current.body.id, "fixture-session"));
+    if (current.body.method === "initialize") return Promise.resolve(success(current.body.id, "fixture-session", INITIALIZE_RESULT));
     if (current.body.method === "tools/call" && current.body.params?.name === "expires") {
       return Promise.resolve(new Response("expired", { status: 404 }));
     }
-    return Promise.resolve(success(current.body.id));
+    return Promise.resolve(responseFor(current.body));
   });
   const getToken = vi.fn(() => {
     tokenCalls++;
@@ -272,4 +277,94 @@ it("UT-CONSOLE-170-MCP-037: concurrent expiry supersedes a waiting action withou
   token.resolve("fixture-token");
   expect((await waiting).error?.message).toMatch(/superseded/i);
   expect(requests.filter((entry) => entry.body.method === "tools/call").map((entry) => entry.body.params?.name)).toEqual(["expires"]);
+});
+
+it("UT-CONSOLE-170-MCP-038: handles server requests and answers them on the scoped session", async () => {
+  const requests: Array<Record<string, unknown>> = [];
+  const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    requests.push(body);
+    if (body.method === "initialize") return Promise.resolve(success(body.id as number, "fixture-session", INITIALIZE_RESULT));
+    if (body.method === "notifications/initialized") return Promise.resolve(new Response(null, { status: 202 }));
+    if (body.method === "tools/call") {
+      const ping = { jsonrpc: "2.0", id: 77, method: "ping", params: {} };
+      const response = { jsonrpc: "2.0", id: body.id, result: { ok: true } };
+      return Promise.resolve(new Response(
+        `data: ${JSON.stringify(ping)}\n\ndata: ${JSON.stringify(response)}\n\n`,
+        { headers: { "Content-Type": "text/event-stream" } },
+      ));
+    }
+    return Promise.resolve(new Response(null, { status: 202 }));
+  });
+
+  const result = createScopedMcpClient({ authMode: "proxy", fetchFn }).call("action", {});
+  await vi.runAllTimersAsync();
+
+  expect((await result).result).toEqual({ ok: true });
+  expect(requests).toContainEqual({ jsonrpc: "2.0", id: 77, result: {} });
+});
+
+it("UT-CONSOLE-170-MCP-041: handles a server request in a JSON batch before the correlated response", async () => {
+  const responses: Array<Record<string, unknown>> = [];
+  const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    if (body.method === "initialize") return Promise.resolve(success(body.id as number, "fixture-session", INITIALIZE_RESULT));
+    if (body.method === "notifications/initialized") return Promise.resolve(new Response(null, { status: 202 }));
+    if (body.method === "tools/call") {
+      return Promise.resolve(new Response(JSON.stringify([
+        { jsonrpc: "2.0", id: 88, method: "roots/list", params: {} },
+        { jsonrpc: "2.0", id: body.id, result: { batched: true } },
+      ])));
+    }
+    responses.push(body);
+    return Promise.resolve(new Response(null, { status: 202 }));
+  });
+
+  const result = createScopedMcpClient({
+    authMode: "proxy",
+    fetchFn,
+    onServerRequest: () => ({ result: { roots: [] } }),
+  }).call("action", {});
+  await vi.runAllTimersAsync();
+
+  expect((await result).result).toEqual({ batched: true });
+  expect(responses).toContainEqual({ jsonrpc: "2.0", id: 88, result: { roots: [] } });
+});
+
+it("UT-CONSOLE-170-MCP-039: resolves a correlated response before an open SSE body closes", async () => {
+  let cancelled = false;
+  const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    if (body.method === "initialize") return Promise.resolve(success(body.id as number, "fixture-session", INITIALIZE_RESULT));
+    if (body.method === "notifications/initialized") return Promise.resolve(new Response(null, { status: 202 }));
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ jsonrpc: "2.0", id: body.id, result: { streamed: true } })}\n\n`));
+      },
+      cancel() { cancelled = true; },
+    });
+    return Promise.resolve(new Response(stream, { headers: { "Content-Type": "text/event-stream" } }));
+  });
+
+  const result = createScopedMcpClient({ authMode: "proxy", fetchFn }).call("action", {});
+  await vi.runAllTimersAsync();
+
+  await expect(result).resolves.toMatchObject({ result: { streamed: true } });
+  expect(cancelled).toBe(true);
+});
+
+it("UT-CONSOLE-170-MCP-040: rejects an initialize response without the negotiated contract", async () => {
+  const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    if (body.method === "initialize") {
+      return Promise.resolve(new Response(JSON.stringify({ jsonrpc: "2.0", id: body.id, result: {} })));
+    }
+    return Promise.resolve(new Response(null, { status: 202 }));
+  });
+
+  const result = createScopedMcpClient({ authMode: "proxy", fetchFn }).call("action", {});
+  await vi.runAllTimersAsync();
+
+  expect((await result).error).toEqual({ code: -32602, message: "Invalid or unsupported MCP initialize result" });
+  expect(fetchFn.mock.calls.some(([, init]) => JSON.parse(String(init?.body)).method === "tools/call")).toBe(false);
 });

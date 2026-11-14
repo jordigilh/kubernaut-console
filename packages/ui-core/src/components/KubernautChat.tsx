@@ -29,6 +29,10 @@ type Phase = "loading" | "auth-error" | "access-denied" | "access-error" | "read
 // in ProxyAuthProvider.getUser() / useChat.ts / useRRStatus.ts.
 const USE_MOCK = import.meta.env.VITE_MOCK_A2A === "true";
 
+function hasTrustedPrincipalKey(user: KubernautUser): boolean {
+  return typeof user?.principalKey === "string" && user.principalKey.trim().length > 0;
+}
+
 export function KubernautChat({ authProvider, config }: KubernautChatProps) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [user, setUser] = useState<KubernautUser | null>(null);
@@ -41,6 +45,7 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
   const lifecycleActiveRef = useRef(false);
   const sourceRef = useRef<{ provider: KubernautAuthProvider; backendUrl: string } | null>(null);
   const cleanupPendingRef = useRef(false);
+  const principalKeyRef = useRef<string | undefined>(undefined);
 
   const backendIncarnationRef = useRef<string | undefined>(undefined);
   const isGenerationCurrent = useCallback((generation: number) => (
@@ -53,6 +58,7 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
     if (generation === undefined || !isGenerationCurrent(generation)) return;
     lifecycleActiveRef.current = false;
     backendIncarnationRef.current = undefined;
+    principalKeyRef.current = undefined;
     setLifecycle(null);
     setUser(null);
     setVerifiedSource(null);
@@ -123,6 +129,7 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
     activeGenerationRef.current = generation;
     lifecycleActiveRef.current = false;
     backendIncarnationRef.current = undefined;
+    principalKeyRef.current = undefined;
     cleanupPendingRef.current = true;
     sourceRef.current = { provider: authProvider, backendUrl: config.backendUrl };
   }, [authProvider, config.backendUrl]);
@@ -136,6 +143,7 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
     sourceRef.current = { provider: authProvider, backendUrl: config.backendUrl };
     lifecycleActiveRef.current = false;
     backendIncarnationRef.current = undefined;
+    principalKeyRef.current = undefined;
     const isCurrent = () => isGenerationCurrent(generation);
     const invalidateForGeneration = (reason?: string, message?: string) => {
       invalidateLifecycle(reason, message, generation);
@@ -193,6 +201,10 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
         return;
       }
       if (!isCurrent()) return;
+      if (!hasTrustedPrincipalKey(resolvedUser)) {
+        invalidateForGeneration("authentication-unavailable", "Authentication provider returned no trusted principal identity");
+        return;
+      }
 
       if (config.requireBackendIncarnation && !USE_MOCK) {
         try {
@@ -213,6 +225,7 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
       }
 
       if (!isCurrent()) return;
+      principalKeyRef.current = resolvedUser.principalKey;
       setUser(resolvedUser);
 
       if (USE_MOCK) {
@@ -273,10 +286,14 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
       }
       revalidationPending = true;
       try {
-        const verifiedUser = await authProvider.getUser();
-        if (!isCurrent()) return;
+         const verifiedUser = await authProvider.getUser();
+         if (!isCurrent()) return;
+         if (!hasTrustedPrincipalKey(verifiedUser)) {
+           invalidateForGeneration("authentication-unavailable", "Authentication provider returned no trusted principal identity");
+           return;
+         }
 
-        if (config.requireBackendIncarnation && !USE_MOCK) {
+         if (config.requireBackendIncarnation && !USE_MOCK) {
           const incarnation = await readBackendIncarnation({
             baseUrl: config.backendUrl,
             fetchFn: config.fetchFn,
@@ -287,6 +304,14 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
         }
 
         if (revalidationRequested) return;
+        if (verifiedUser.principalKey !== principalKeyRef.current) {
+          // A revalidation result with a different verified principal must
+          // never replace the user in a still-mounted page owner. Invalidate
+          // first so the old owner unmounts, aborts in-flight work, and drops
+          // its page-memory context before a successor lifecycle starts.
+          invalidateForGeneration("principal-replaced");
+          return;
+        }
         setUser(verifiedUser);
       } catch (err) {
         if (!isCurrent() || err instanceof AuthenticationSupersededError) return;
@@ -384,7 +409,7 @@ export function KubernautChat({ authProvider, config }: KubernautChatProps) {
   return (
     <ConfigContext.Provider value={config}>
       <AuthContext.Provider value={{ provider: authProvider, user, isLoading: false, error: null, lifecycle: lifecycle ?? undefined }}>
-        <PageLifetimeChatOwnerProvider>
+        <PageLifetimeChatOwnerProvider key={user!.principalKey}>
           <ChatPresenter />
         </PageLifetimeChatOwnerProvider>
       </AuthContext.Provider>

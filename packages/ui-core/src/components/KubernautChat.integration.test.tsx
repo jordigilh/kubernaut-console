@@ -47,6 +47,7 @@ function makeAuthProvider(token: string): KubernautAuthProvider {
       name: "Jane Doe",
       email: "jane@example.com",
       initials: "JD",
+      principalKey: "test:jane",
     } satisfies KubernautUser),
   };
 }

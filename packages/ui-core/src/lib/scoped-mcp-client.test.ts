@@ -2,6 +2,7 @@ import { _resetSession } from "./mcp-client";
 import { createScopedMcpClient } from "./scoped-mcp-client";
 
 type CapturedRequest = { url: string; body: { id?: number; method: string; params?: unknown }; headers: Record<string, string>; signal: AbortSignal };
+const INITIALIZE_RESULT = { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "fixture", version: "1.0.0" } };
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -43,12 +44,16 @@ it("UT-CONSOLE-170-MCP-001: concurrent clients capture distinct transport inputs
   const fetchA = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const request = capture(input, init);
     aRequests.push(request);
-    return request.body.method === "initialize" ? initA.promise : Promise.resolve(success(undefined, undefined, request.body.id));
+    return request.body.method === "initialize" ? initA.promise : Promise.resolve(success(undefined, { value: "ok" }, request.body.id));
   });
   const fetchB = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const request = capture(input, init);
     bRequests.push(request);
-    return Promise.resolve(success(request.body.method === "initialize" ? "session-b" : undefined, undefined, request.body.id));
+    return Promise.resolve(success(
+      request.body.method === "initialize" ? "session-b" : undefined,
+      request.body.method === "initialize" ? INITIALIZE_RESULT : { value: "ok" },
+      request.body.id,
+    ));
   });
   // The legacy baseline uses global fetch; the new clients must use captured transports.
   vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
@@ -63,7 +68,7 @@ it("UT-CONSOLE-170-MCP-001: concurrent clients capture distinct transport inputs
   const callA = a.call("read_a", { rr_id: "a" });
   const callB = b.call("read_b", { rr_id: "b" });
   await vi.advanceTimersByTimeAsync(0);
-  initA.resolve(success("session-a"));
+  initA.resolve(success("session-a", INITIALIZE_RESULT));
   await vi.runAllTimersAsync();
   const [resultA, resultB] = await Promise.all([callA, callB]);
 
@@ -83,14 +88,14 @@ it("UT-CONSOLE-170-MCP-002: one client's simultaneous calls share only its own h
   const fetchFn = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const request = capture(input, init);
     requests.push(request);
-    return request.body.method === "initialize" ? initialization.promise : Promise.resolve(success(undefined, undefined, request.body.id));
+    return request.body.method === "initialize" ? initialization.promise : Promise.resolve(success(undefined, { value: "ok" }, request.body.id));
   });
   vi.stubGlobal("fetch", fetchFn);
   const client = createScopedMcpClient({ authMode: "proxy", fetchFn });
   const first = client.call("one", { id: "1" });
   const second = client.call("two", { id: "2" });
   await vi.advanceTimersByTimeAsync(0);
-  initialization.resolve(success("one-session"));
+  initialization.resolve(success("one-session", INITIALIZE_RESULT));
   await vi.runAllTimersAsync();
   const results = await Promise.all([first, second]);
   expect(results.every((result) => !result.error)).toBe(true);
@@ -105,7 +110,11 @@ it("UT-CONSOLE-170-MCP-003: invalidation fences delayed initialization and canno
     const request = capture(input, init);
     requests.push(request);
     if (request.url.startsWith("https://old.invalid") && request.body.method === "initialize") return oldInitialization.promise;
-    return Promise.resolve(success(request.body.method === "initialize" ? "new-session" : undefined, undefined, request.body.id));
+    return Promise.resolve(success(
+      request.body.method === "initialize" ? "new-session" : undefined,
+      request.body.method === "initialize" ? INITIALIZE_RESULT : { value: "ok" },
+      request.body.id,
+    ));
   });
   vi.stubGlobal("fetch", fetchFn);
   const old = createScopedMcpClient({ authMode: "bearer", baseUrl: "https://old.invalid", getToken: async () => "fixture-token", fetchFn });
@@ -114,7 +123,7 @@ it("UT-CONSOLE-170-MCP-003: invalidation fences delayed initialization and canno
   await vi.advanceTimersByTimeAsync(0);
   old.invalidate();
   const newCall = newClient.call("read_new", {});
-  oldInitialization.resolve(success("old-session"));
+  oldInitialization.resolve(success("old-session", INITIALIZE_RESULT));
   await vi.runAllTimersAsync();
   const [oldResult, newResult] = await Promise.all([oldCall, newCall]);
 
@@ -149,7 +158,9 @@ it.each([
   const fetchFn = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const request = capture(input, init);
     requests.push(request);
-    return Promise.resolve(request.body.method === "tools/call" ? response(request.body.id) : success("fixture-session", undefined, request.body.id));
+    return Promise.resolve(request.body.method === "tools/call"
+      ? response(request.body.id)
+      : success("fixture-session", request.body.method === "initialize" ? INITIALIZE_RESULT : { value: "ok" }, request.body.id));
   });
   vi.stubGlobal("fetch", fetchFn);
   const client = createScopedMcpClient({ authMode: "proxy", fetchFn });

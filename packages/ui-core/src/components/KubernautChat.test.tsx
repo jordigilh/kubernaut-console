@@ -41,6 +41,7 @@ function makeMockAuthProvider(overrides?: Partial<KubernautAuthProvider>): Kuber
       name: "Jane Doe",
       email: "jane@example.com",
       initials: "JD",
+      principalKey: "test:jane",
     } satisfies KubernautUser),
     ...overrides,
   };
@@ -206,6 +207,25 @@ describe("KubernautChat", () => {
     expect(screen.getByTestId("chat-container")).toBeInTheDocument();
   });
 
+  it("IT-CONSOLE-170-012: a changed verified principal fences the old owner before reauthentication", async () => {
+    vi.stubGlobal("BroadcastChannel", TestBroadcastChannel);
+    const provider = makeMockAuthProvider({
+      getUser: vi.fn()
+        .mockResolvedValueOnce({ name: "Old", email: "old@example.com", initials: "OL", principalKey: "test:old" })
+        .mockResolvedValueOnce({ name: "New", email: "new@example.com", initials: "NE", principalKey: "test:new" })
+        .mockResolvedValue({ name: "New", email: "new@example.com", initials: "NE", principalKey: "test:new" }),
+    });
+
+    render(<KubernautChat authProvider={provider} config={makeMockConfig()} />);
+    await waitFor(() => expect(screen.getByTestId("ctx-user")).toHaveTextContent("Old"));
+
+    (await activeAuthChannel()).emit({ type: "kubernaut-console-auth-changed" });
+
+    await waitFor(() => expect(screen.getByTestId("ctx-user")).toHaveTextContent("New"));
+    expect(provider.getUser).toHaveBeenCalledTimes(3);
+    expect(screen.queryByText("Old")).not.toBeInTheDocument();
+  });
+
   it("IT-CONSOLE-168-035: changed host identity from a cross-tab notification fences, clears, and redirects", async () => {
     vi.stubGlobal("BroadcastChannel", TestBroadcastChannel);
     sessionStorage.setItem("kubernaut-console-messages", "private successor data");
@@ -221,7 +241,7 @@ describe("KubernautChat", () => {
     }));
     const provider = makeMockAuthProvider({
       getUser: vi.fn()
-        .mockResolvedValueOnce({ name: "Jane Doe", email: "jane@example.com", initials: "JD" })
+        .mockResolvedValueOnce({ name: "Jane Doe", email: "jane@example.com", initials: "JD", principalKey: "test:jane" })
         .mockRejectedValueOnce(new AuthenticationRequiredError()),
     });
 
@@ -238,11 +258,11 @@ describe("KubernautChat", () => {
     let resolveRevalidation!: (user: KubernautUser) => void;
     const oldProvider = makeMockAuthProvider({
       getUser: vi.fn()
-        .mockResolvedValueOnce({ name: "Old", email: "old@example.com", initials: "OL" })
+        .mockResolvedValueOnce({ name: "Old", email: "old@example.com", initials: "OL", principalKey: "test:old" })
         .mockReturnValueOnce(new Promise<KubernautUser>((resolve) => { resolveRevalidation = resolve; })),
     });
     const nextProvider = makeMockAuthProvider({
-      getUser: vi.fn().mockResolvedValue({ name: "New", email: "new@example.com", initials: "NE" }),
+      getUser: vi.fn().mockResolvedValue({ name: "New", email: "new@example.com", initials: "NE", principalKey: "test:new" }),
     });
     const view = render(<KubernautChat authProvider={oldProvider} config={makeMockConfig()} />);
     await screen.findByTestId("chat-container");
@@ -252,7 +272,7 @@ describe("KubernautChat", () => {
     view.rerender(<KubernautChat authProvider={nextProvider} config={makeMockConfig()} />);
     await waitFor(() => expect(screen.getByTestId("ctx-user")).toHaveTextContent("New"));
     sessionStorage.setItem("kubernaut-console-messages", "successor messages");
-    resolveRevalidation({ name: "Old", email: "old@example.com", initials: "OL" });
+    resolveRevalidation({ name: "Old", email: "old@example.com", initials: "OL", principalKey: "test:old" });
 
     await act(async () => {});
     expect(sessionStorage.getItem("kubernaut-console-messages")).toBe("successor messages");
@@ -297,7 +317,7 @@ describe("KubernautChat", () => {
   it("IT-CONSOLE-168-014: clears old source storage before mounting a successor", async () => {
     const oldProvider = makeMockAuthProvider();
     const nextProvider = makeMockAuthProvider({
-      getUser: vi.fn().mockResolvedValue({ name: "Successor", email: "successor@example.com", initials: "SU" }),
+      getUser: vi.fn().mockResolvedValue({ name: "Successor", email: "successor@example.com", initials: "SU", principalKey: "test:successor" }),
     });
     const view = render(<KubernautChat authProvider={oldProvider} config={makeMockConfig()} />);
     await screen.findByTestId("chat-container");
@@ -481,7 +501,7 @@ describe("KubernautChat", () => {
       expect(screen.getByText("Authenticating...")).toBeInTheDocument();
       expect(fetchMock).not.toHaveBeenCalled();
 
-      resolveUser({ name: "Jane Doe", email: "jane@example.com", initials: "JD" });
+      resolveUser({ name: "Jane Doe", email: "jane@example.com", initials: "JD", principalKey: "test:jane" });
 
       await waitFor(() => {
         expect(fetchMock).toHaveBeenCalled();

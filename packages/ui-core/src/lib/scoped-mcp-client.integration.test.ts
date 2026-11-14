@@ -1,6 +1,8 @@
 import { _resetSession } from "./mcp-client";
 import { createScopedMcpClient } from "./scoped-mcp-client";
 
+const INITIALIZE_RESULT = { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "fixture", version: "1.0.0" } };
+
 it("IT-CONSOLE-170-MCP-001: a delayed old action cannot publish into a separate synthetic consumer", async () => {
   vi.useFakeTimers();
   _resetSession();
@@ -19,7 +21,7 @@ it("IT-CONSOLE-170-MCP-001: a delayed old action cannot publish into a separate 
       const session = headers["Mcp-Session-Id"];
       sent.push({ token, session, method: body.method, action: body.params?.name });
       const expected = token === "Bearer old-fixture" ? "old-session" : "new-session";
-      if (body.method === "initialize") return Promise.resolve(respond({ result: {} }, expected, body.id));
+       if (body.method === "initialize") return Promise.resolve(respond({ result: INITIALIZE_RESULT }, expected, body.id));
       if (session !== expected) return Promise.resolve(new Response("mismatched session", { status: 403 }));
       if (body.method === "tools/call" && token === "Bearer old-fixture") { oldToolId = body.id; return delayedOld; }
       return Promise.resolve(respond({ result: { owner: "new" } }, undefined, body.id));

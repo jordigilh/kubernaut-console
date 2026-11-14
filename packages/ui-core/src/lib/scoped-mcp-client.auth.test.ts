@@ -1,14 +1,15 @@
 import { createScopedMcpClient, type ScopedMcpClientOptions } from "./scoped-mcp-client";
 
 type Request = { method: string; id?: number; headers: Record<string, string>; credentials?: RequestCredentials };
+const INITIALIZE_RESULT = { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "fixture", version: "1.0.0" } };
 
 function capture(init?: RequestInit): Request {
   const body = JSON.parse(String(init?.body));
   return { method: body.method, id: body.id, headers: init?.headers as Record<string, string>, credentials: init?.credentials };
 }
 
-function ok(id?: number) {
-  return new Response(JSON.stringify({ jsonrpc: "2.0", id, result: { ok: true } }), { status: 200 });
+function ok(id?: number, result: unknown = { ok: true }) {
+  return new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), { status: 200 });
 }
 
 // Exercise invalid runtime input that TypeScript callers would normally reject.
@@ -24,7 +25,7 @@ it.each(["proxy", "bearer"] as const)("UT-CONSOLE-170-MCP-043: %s requests adver
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const request = capture(init);
     requests.push(request);
-    return Promise.resolve(ok(request.id));
+    return Promise.resolve(ok(request.id, request.method === "initialize" ? INITIALIZE_RESULT : undefined));
   });
   const pending = create({ authMode, getToken: async () => "synthetic-token", fetchFn }).call("action", {});
   await vi.runAllTimersAsync();
@@ -44,7 +45,7 @@ it.each([
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = capture(init);
     requests.push(current);
-    return Promise.resolve(ok(current.id));
+    return Promise.resolve(ok(current.id, current.method === "initialize" ? INITIALIZE_RESULT : undefined));
   });
   const client = create({ authMode: "proxy", getToken, fetchFn });
   const pending = client.call("explicit_action", {});
@@ -62,7 +63,10 @@ it.each([
   { name: "bearer mode without a token provider", options: { authMode: "bearer" } },
   { name: "bearer mode with an invalid token provider", options: { authMode: "bearer", getToken: "invalid" } },
 ])("UT-CONSOLE-170-MCP-037: $name never dispatches an unauthenticated request", async ({ options }) => {
-  const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => Promise.resolve(ok(capture(init).id)));
+   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+     const current = capture(init);
+     return Promise.resolve(ok(current.id, current.method === "initialize" ? INITIALIZE_RESULT : undefined));
+   });
   const pending = create({ ...options, fetchFn }).call("action", {});
   await vi.runAllTimersAsync();
   expect((await pending).error?.message).toMatch(/authorization unavailable/i);
@@ -75,7 +79,10 @@ it.each([
   "http://[",
   `blob:${globalThis.location.origin}/synthetic`,
 ])("UT-CONSOLE-170-MCP-038: proxy mode rejects an unqualified target %s", async (baseUrl) => {
-  const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => Promise.resolve(ok(capture(init).id)));
+   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+     const current = capture(init);
+     return Promise.resolve(ok(current.id, current.method === "initialize" ? INITIALIZE_RESULT : undefined));
+   });
   const pending = create({ authMode: "proxy", baseUrl, fetchFn }).call("action", {});
   await vi.runAllTimersAsync();
   expect((await pending).error?.message).toMatch(/proxy.*origin/i);
@@ -98,7 +105,7 @@ it("UT-CONSOLE-170-MCP-040: auth mode is captured at construction rather than in
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = capture(init);
     requests.push(current);
-    return Promise.resolve(ok(current.id));
+    return Promise.resolve(ok(current.id, current.method === "initialize" ? INITIALIZE_RESULT : undefined));
   });
   const options = { authMode: "proxy", getToken, fetchFn };
   const client = create(options);
@@ -115,7 +122,7 @@ it.each(["", "/synthetic-proxy", globalThis.location.origin])("UT-CONSOLE-170-MC
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = capture(init);
     requests.push(current);
-    return Promise.resolve(ok(current.id));
+    return Promise.resolve(ok(current.id, current.method === "initialize" ? INITIALIZE_RESULT : undefined));
   });
   const pending = create({ authMode: "proxy", baseUrl, fetchFn }).call("action", {});
   await vi.runAllTimersAsync();
@@ -128,7 +135,7 @@ it("UT-CONSOLE-170-MCP-042: bearer mode does not mix its token with browser cook
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const current = capture(init);
     requests.push(current);
-    return Promise.resolve(ok(current.id));
+    return Promise.resolve(ok(current.id, current.method === "initialize" ? INITIALIZE_RESULT : undefined));
   });
   const pending = create({ authMode: "bearer", getToken: async () => "synthetic-token", fetchFn }).call("action", {});
   await vi.runAllTimersAsync();

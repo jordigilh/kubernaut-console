@@ -28,6 +28,11 @@ export interface KubernautUser {
   name: string;
   email: string;
   initials: string;
+  /**
+   * Stable, non-credential key from the host's verified auth contract. The
+   * chat owner must never derive lifecycle identity from display fields.
+   */
+  principalKey: string;
 }
 
 export interface KubernautAuthProvider {

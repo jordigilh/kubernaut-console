@@ -530,10 +530,11 @@ function useChatOwner(session?: PageChatSession) {
   const handleSignOut = useCallback((event: MouseEvent<HTMLAnchorElement>) => {
     cancelStream();
     try {
-      if (clearConversation() === false) {
-        event.preventDefault();
-        return;
-      }
+      // clearConversation() invalidates the old transcript before attempting
+      // to allocate its successor context. A failed allocation must not trap
+      // the user in the old authenticated page: the server-side sign-out and
+      // lifecycle fence still need to proceed after local state is erased.
+      clearConversation();
       notifyAuthLifecycleChanged("signout-started");
     } catch {
       event.preventDefault();

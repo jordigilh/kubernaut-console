@@ -12,14 +12,14 @@ import {
 function makeMockProvider(): KubernautAuthProvider {
   return {
     getToken: async () => "mock-token",
-    getUser: async () => ({ name: "Test User", email: "test@example.com", initials: "TU" }),
+    getUser: async () => ({ name: "Test User", email: "test@example.com", initials: "TU", principalKey: "test:principal" }),
   };
 }
 
 function makeMockAuthValue(overrides?: Partial<AuthContextValue>): AuthContextValue {
   return {
     provider: makeMockProvider(),
-    user: { name: "Test User", email: "test@example.com", initials: "TU" },
+    user: { name: "Test User", email: "test@example.com", initials: "TU", principalKey: "test:principal" },
     isLoading: false,
     error: null,
     ...overrides,

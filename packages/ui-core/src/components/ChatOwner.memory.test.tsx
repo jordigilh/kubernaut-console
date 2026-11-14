@@ -16,8 +16,13 @@ vi.mock("../lib/mcp-client", async (importOriginal) => ({
   ...await importOriginal<typeof import("../lib/mcp-client")>(),
   callMcpTool: vi.fn(),
 }));
+vi.mock("../lib/auth-notifications", () => ({
+  notifyAuthLifecycleChanged: vi.fn(),
+  subscribeAuthLifecycleNotifications: vi.fn(() => () => {}),
+}));
 
 const MemoryOwner = Chat.PageLifetimeChatOwnerProvider;
+import { notifyAuthLifecycleChanged } from "../lib/auth-notifications";
 const ID_A = "11111111-1111-4111-8111-111111111111";
 const ID_B = "22222222-2222-4222-8222-222222222222";
 const LEGACY: Record<string, string> = {
@@ -135,6 +140,21 @@ it("IT-CONSOLE-170-004: a failed New conversation reset retains the draft and re
   fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
   await waitFor(() => expect(streamA2A).toHaveBeenCalledOnce());
   expect(vi.mocked(buildStreamRequest).mock.calls[0][1]).toBe(ID_B);
+});
+
+it("IT-CONSOLE-170-013: sign-out proceeds after old state is cleared but successor context allocation fails", () => {
+  vi.spyOn(crypto, "randomUUID")
+    .mockReturnValueOnce(ID_A)
+    .mockReturnValueOnce("" as ReturnType<Crypto["randomUUID"]>);
+  render(<MemoryOwner><Chat.ChatPresenter /></MemoryOwner>);
+  const signOut = screen.getByRole("link", { name: /sign out/i });
+  const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+
+  act(() => signOut.dispatchEvent(click));
+
+  expect(click.defaultPrevented).toBe(false);
+  expect(vi.mocked(notifyAuthLifecycleChanged)).toHaveBeenCalledWith("signout-started");
+  expect(screen.getByRole("heading", { name: "Kubernaut Agent" })).toBeInTheDocument();
 });
 
 it("IT-CONSOLE-170-005: works without accessing denied browser-storage getters", async () => {
