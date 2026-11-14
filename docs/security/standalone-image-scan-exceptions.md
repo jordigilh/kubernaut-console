@@ -1,10 +1,10 @@
 # Standalone image scan exception record
 
-## Current triage — 2026-11-14
+## Current triage and temporary exception — 2026-11-14
 
 PR #190's `security-scan` failure is a fresh runtime-image result, not stale
-SARIF. Trivy `0.70.0` analysis `2168521886` scanned merge commit
-`36cf9edba878c3ffdade887c1f32ec30b1267d7a` and reported 29 results: 20
+SARIF. Trivy `0.70.0` analysis `2168564588` scanned merge commit
+`42c7195d3f6129a635acb3ea0d04cb623041a345` and reported 29 results: 20
 gate-level HIGH and 9 MEDIUM. The filesystem scan in the same job reported
 zero results.
 
@@ -30,10 +30,16 @@ they are not currently available from public UBI repositories.
 
 The registry's newest numeric `1-*` `ubi9/nginx-126` tag at triage time was
 the already-pinned `1-1794514156`; no newer vendor image was available to
-replace it. Therefore this is a package-provenance blocker for the image
-maintainer or Red Hat UBI publication pipeline. Do not add RHEL-only RPMs,
-Trivy ignores, or severity/reporting changes. Re-run the scan after the fixed
-packages become available in public UBI or a newer UBI image is published.
+replace it. This remains a package-provenance blocker for the image maintainer
+or Red Hat UBI publication pipeline.
+
+As a temporary, explicitly expiring exception, `.trivyignore` records these 21
+CVEs with Trivy's native `exp:2026-11-29` syntax. This 15-day waiver gives the
+UBI publication pipeline time to produce a refreshed image; it is not a
+vulnerability fix. Trivy will stop honoring the entries after the expiration
+date. Remove the entries when public UBI publishes the fixed packages/image,
+or renew only after a new package-availability review. Do not add RHEL-only
+RPMs or change severity/reporting settings.
 
 ## Current review — 2026-10-31
 
