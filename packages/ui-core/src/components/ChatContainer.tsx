@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import { useChat, type ChatMessage, type ApprovalRequest } from "../hooks/useChat";
+import { FRESH_CONTEXT_ERROR, useChatWithSession, type ChatMessage, type ApprovalRequest } from "../hooks/useChat";
 import { useRRStatus } from "../hooks/useRRStatus";
 import { callMcpTool, isPermissionDeniedError, isStaleMcpResult, McpClient, type McpClientOptions } from "../lib/mcp-client";
 import { isPastDecisionPhase, isWorkflowResolved, markWorkflowResolved } from "../lib/session-state";
-import { getShowRawThinking, setShowRawThinking } from "../lib/preferences";
+import { DEFAULT_SHOW_RAW_THINKING, getShowRawThinking, setShowRawThinking } from "../lib/preferences";
+import { createPageChatSession, type PageChatSession } from "../lib/page-chat-session";
 import { isInvestigationEngaged } from "../lib/query-intent";
 import { findApprovalMessageIndex } from "../lib/approval-dedup";
 import { maxChatPhase } from "../lib/phase-rank";
@@ -25,8 +26,8 @@ const PHASE_MAP: Record<string, ChatMessage["phase"]> = {
   Blocked: "failed", Completed: "complete", Failed: "failed", TimedOut: "timed_out", Skipped: "complete", Cancelled: "complete",
 };
 
-function useChatOwner() {
-  const { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext } = useChat();
+function useChatOwner(session?: PageChatSession) {
+  const { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext, canSendMessage } = useChatWithSession(session);
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
   const investigationEngaged = isInvestigationEngaged(messages);
@@ -36,7 +37,7 @@ function useChatOwner() {
   const chatPhase = currentPhase ?? lastAgentPhase;
   const statusMapped = statusPhase ? PHASE_MAP[statusPhase] : undefined;
   const rawBannerPhase = maxChatPhase(statusMapped, chatPhase) ?? chatPhase;
-  const workflowResolved = isWorkflowResolved(rrId);
+  const workflowResolved = isWorkflowResolved(rrId, session?.storage);
   const bannerPhase = !investigationEngaged
     ? undefined
     : ((!statusPhase && !workflowResolved && rawBannerPhase === "decision") ? "investigation" : rawBannerPhase);
@@ -121,12 +122,12 @@ function useChatOwner() {
   // comment). Only an explicit `false` turns the feature off.
   const rawThinkingEnabled = configCtx?.enableRawThinking !== false;
   const showRawThinkingToggle = import.meta.env.VITE_SHOW_RAW_THINKING_TOGGLE === "true";
-  const [showRawThinkingPref, setShowRawThinkingState] = useState(getShowRawThinking);
+  const [showRawThinkingPref, setShowRawThinkingState] = useState(() => session ? DEFAULT_SHOW_RAW_THINKING : getShowRawThinking());
   const showRawThinking = rawThinkingEnabled && showRawThinkingPref;
   const handleToggleRawThinking = () => {
     setShowRawThinkingState((prev) => {
       const next = !prev;
-      setShowRawThinking(next);
+      if (!session) setShowRawThinking(next);
       return next;
     });
   };
@@ -261,6 +262,10 @@ function useChatOwner() {
   }, [isTerminal, effectiveRrId, statusPhase, statusMetadata, addPendingContext, resetContext]);
 
   const submitInput = (text: string) => {
+    if (!canSendMessage()) {
+      setError(FRESH_CONTEXT_ERROR);
+      return;
+    }
     setInvestigationCancelled(false);
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto";
@@ -364,7 +369,7 @@ function useChatOwner() {
         setError(res.error.message);
         return;
       }
-      markWorkflowResolved(rrId);
+      markWorkflowResolved(rrId, session?.storage);
       setCurrentPhase((prev) => maxChatPhase(prev, "remediation") ?? "remediation");
       const resBody = res.result as { phase?: string } | undefined;
       if (resBody?.phase && PHASE_MAP[resBody.phase]) {
@@ -372,7 +377,7 @@ function useChatOwner() {
         setCurrentPhase((prev) => maxChatPhase(prev, mapped) ?? mapped);
       }
     },
-    [rrId, workflowActionTaken, setCurrentPhase, setError, mcpOptions, lifecycle],
+    [rrId, workflowActionTaken, setCurrentPhase, setError, mcpOptions, lifecycle, session],
   );
 
   const handleApprove = useCallback(
@@ -437,7 +442,7 @@ function useChatOwner() {
         setError(res.error.message);
         return;
       }
-      markWorkflowResolved(rrId);
+      markWorkflowResolved(rrId, session?.storage);
       setMessages((prev) => [...prev, {
         id: `msg-${Date.now()}`,
         role: "agent" as const,
@@ -446,7 +451,7 @@ function useChatOwner() {
       }]);
       setCurrentPhase("complete");
     },
-    [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions, lifecycle],
+    [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions, lifecycle, session],
   );
 
   const handleEscalate = useCallback(async (reason: string) => {
@@ -468,7 +473,7 @@ function useChatOwner() {
       setError(res.error.message);
       return;
     }
-    markWorkflowResolved(rrId);
+    markWorkflowResolved(rrId, session?.storage);
     setMessages((prev) => [...prev, {
       id: `msg-${Date.now()}`,
       role: "agent" as const,
@@ -476,13 +481,12 @@ function useChatOwner() {
       timestamp: Date.now(),
     }]);
     setCurrentPhase("complete");
-  }, [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions, lifecycle]);
+  }, [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions, lifecycle, session]);
 
   const handleClearHistory = useCallback(() => {
     if (messages.length === 0) {
       try {
-        clearHistory();
-        setError(null);
+        if (clearHistory() !== false) setError(null);
       } catch {
         setError("Unable to clear console session storage. Retry clearing history.");
       }
@@ -492,10 +496,9 @@ function useChatOwner() {
   }, [messages.length, clearHistory, setError]);
 
   const confirmClear = useCallback(() => {
+    setClearConfirmOpen(false);
     try {
-      clearHistory();
-      setClearConfirmOpen(false);
-      setError(null);
+      if (clearHistory() !== false) setError(null);
     } catch {
       setError("Unable to clear console session storage. Retry clearing history.");
     }
@@ -504,7 +507,10 @@ function useChatOwner() {
   const handleSignOut = useCallback((event: MouseEvent<HTMLAnchorElement>) => {
     cancelStream();
     try {
-      clearHistory();
+      if (clearHistory() === false) {
+        event.preventDefault();
+        return;
+      }
       notifyAuthLifecycleChanged("signout-started");
     } catch {
       event.preventDefault();
@@ -531,6 +537,13 @@ const ChatOwnerContext = createContext<ReturnType<typeof useChatOwner> | null>(n
 /** Internal single-chat lifecycle boundary; not a scoped multi-user owner or live integration. */
 export function ChatOwnerProvider({ children }: { children: ReactNode }) {
   const owner = useChatOwner();
+  return <ChatOwnerContext.Provider value={owner}>{children}</ChatOwnerContext.Provider>;
+}
+
+/** Page-memory owner used by KubernautChat; the host owns auth lifecycle fencing. */
+export function PageLifetimeChatOwnerProvider({ children }: { children: ReactNode }) {
+  const [session] = useState(() => createPageChatSession());
+  const owner = useChatOwner(session);
   return <ChatOwnerContext.Provider value={owner}>{children}</ChatOwnerContext.Provider>;
 }
 

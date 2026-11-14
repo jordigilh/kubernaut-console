@@ -6,8 +6,8 @@ import { ConfigContext } from "../providers/config";
 import type { KubernautAuthProvider, KubernautUser } from "../providers/auth";
 import type { KubernautConfig } from "../providers/config";
 
-vi.mock("./ChatContainer", () => ({
-  ChatContainer: function MockChatContainer() {
+vi.mock("./ChatContainer", () => {
+  function MockChatPresenter() {
     const auth = useContext(AuthContext);
     const config = useContext(ConfigContext);
     return React.createElement("div", { "data-testid": "chat-container" },
@@ -19,8 +19,18 @@ vi.mock("./ChatContainer", () => ({
       React.createElement("span", { "data-testid": "ctx-has-fetch" }, config?.fetchFn ? "yes" : "no"),
       React.createElement("button", { "data-testid": "simulate-backend-change", onClick: () => auth?.lifecycle?.observeBackendIncarnation?.("replacement-incarnation") }, "simulate backend change"),
     );
-  },
-}));
+  }
+
+  function MockPageLifetimeChatOwnerProvider({ children }: { children: React.ReactNode }) {
+    return React.createElement(React.Fragment, null, children);
+  }
+
+  return {
+    ChatContainer: MockChatPresenter,
+    ChatPresenter: MockChatPresenter,
+    PageLifetimeChatOwnerProvider: MockPageLifetimeChatOwnerProvider,
+  };
+});
 
 import { KubernautChat } from "./KubernautChat";
 

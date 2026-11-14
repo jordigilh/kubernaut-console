@@ -11,7 +11,9 @@ import {
   CONSOLE_PENDING_CONTEXT_KEY,
   loadPersistedPhase,
   savePersistedPhase,
+  type ChatStorage,
 } from "../lib/session-state";
+import type { PageChatSession } from "../lib/page-chat-session";
 import { maxChatPhase } from "../lib/phase-rank";
 import { isRecord } from "../lib/type-guards";
 import { isInvestigationSummary, type InvestigationSummary } from "../lib/schemas/investigation-summary";
@@ -202,9 +204,9 @@ export interface ChatMessage {
 
 export type ConnectionStatus = "idle" | "connected" | "reconnecting" | "lost" | "interrupted";
 
-function loadMessages(): ChatMessage[] {
+function loadMessages(storage?: ChatStorage): ChatMessage[] {
   try {
-    const raw = sessionStorage.getItem(CONSOLE_MESSAGES_KEY);
+    const raw = (storage ?? sessionStorage).getItem(CONSOLE_MESSAGES_KEY);
     if (!raw) return [];
     return JSON.parse(raw);
   } catch {
@@ -212,14 +214,14 @@ function loadMessages(): ChatMessage[] {
   }
 }
 
-function saveMessages(messages: ChatMessage[]) {
+function saveMessages(messages: ChatMessage[], storage?: ChatStorage) {
   try {
     const toSave = messages.map((m) => ({
       ...m,
       isStreaming: false,
       thinking: m.thinking?.slice(-20),
     }));
-    sessionStorage.setItem(CONSOLE_MESSAGES_KEY, JSON.stringify(toSave));
+    (storage ?? sessionStorage).setItem(CONSOLE_MESSAGES_KEY, JSON.stringify(toSave));
   } catch {
     try {
       const trimmed = messages.slice(-10).map((m) => ({
@@ -227,28 +229,28 @@ function saveMessages(messages: ChatMessage[]) {
         isStreaming: false,
         thinking: undefined,
       }));
-      sessionStorage.setItem(CONSOLE_MESSAGES_KEY, JSON.stringify(trimmed));
+      (storage ?? sessionStorage).setItem(CONSOLE_MESSAGES_KEY, JSON.stringify(trimmed));
     } catch {
       // Storage completely unavailable
     }
   }
 }
 
-function loadContextId(): string | undefined {
-  return sessionStorage.getItem(CONSOLE_CONTEXT_KEY) || undefined;
+function loadContextId(storage?: ChatStorage): string | undefined {
+  return (storage ?? sessionStorage).getItem(CONSOLE_CONTEXT_KEY) || undefined;
 }
 
-function saveContextId(id: string) {
+function saveContextId(id: string, storage?: ChatStorage) {
   try {
-    sessionStorage.setItem(CONSOLE_CONTEXT_KEY, id);
+    (storage ?? sessionStorage).setItem(CONSOLE_CONTEXT_KEY, id);
   } catch {
     // Storage unavailable
   }
 }
 
-function loadPendingContext(): string[] {
+function loadPendingContext(storage?: ChatStorage): string[] {
   try {
-    const raw = sessionStorage.getItem(CONSOLE_PENDING_CONTEXT_KEY);
+    const raw = (storage ?? sessionStorage).getItem(CONSOLE_PENDING_CONTEXT_KEY);
     if (!raw) return [];
     return JSON.parse(raw);
   } catch {
@@ -256,12 +258,12 @@ function loadPendingContext(): string[] {
   }
 }
 
-function savePendingContext(entries: string[]) {
+function savePendingContext(entries: string[], storage?: ChatStorage) {
   try {
     if (entries.length === 0) {
-      sessionStorage.removeItem(CONSOLE_PENDING_CONTEXT_KEY);
+      (storage ?? sessionStorage).removeItem(CONSOLE_PENDING_CONTEXT_KEY);
     } else {
-      sessionStorage.setItem(CONSOLE_PENDING_CONTEXT_KEY, JSON.stringify(entries));
+      (storage ?? sessionStorage).setItem(CONSOLE_PENDING_CONTEXT_KEY, JSON.stringify(entries));
     }
   } catch {
     // Storage unavailable
@@ -299,16 +301,31 @@ function parseDuration(value: string | number): number {
   return num;
 }
 
+export const FRESH_CONTEXT_ERROR = "Unable to create a fresh conversation context. Try New conversation again.";
+
 export function useChat() {
+  return useChatWithSession();
+}
+
+/** Internal seam: callers of the public no-argument hook keep legacy behavior. */
+export function useChatWithSession(session?: PageChatSession) {
   const authCtx = useContext(AuthContext);
   const configCtx = useContext(ConfigContext);
+  if (session !== undefined && (!session || !session.storage ||
+    typeof session.storage.getItem !== "function" || typeof session.storage.setItem !== "function" ||
+    typeof session.storage.removeItem !== "function" || typeof session.rotateContext !== "function" ||
+    typeof session.clearConversation !== "function")) {
+    throw new Error("Invalid page chat session");
+  }
+  const storage = session?.storage;
 
-  const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages(storage));
   const [isStreaming, setIsStreaming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const initialContext = loadContextId(storage);
+  const contextIdRef = useRef<string | undefined>(initialContext);
+  const [error, setError] = useState<string | null>(() => session && !initialContext ? FRESH_CONTEXT_ERROR : null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("idle");
 
-  const contextIdRef = useRef<string | undefined>(loadContextId());
   const abortRef = useRef<AbortController | null>(null);
   const activeAgentMsgIdRef = useRef<string | null>(null);
   const activeRrIdRef = useRef<string | undefined>(undefined);
@@ -318,19 +335,19 @@ export function useChat() {
   const messageIdRef = useRef(0);
   const lastSendRef = useRef(0);
   const terminalReceivedRef = useRef(false);
-  const pendingContextRef = useRef<string[]>(loadPendingContext());
+  const pendingContextRef = useRef<string[]>(loadPendingContext(storage));
   const [investigationStartTime, setInvestigationStartTime] = useState<number | undefined>(undefined);
-  const [currentPhase, setCurrentPhase] = useState<ChatMessage["phase"]>(() => loadPersistedPhase());
+  const [currentPhase, setCurrentPhase] = useState<ChatMessage["phase"]>(() => loadPersistedPhase(storage));
 
   useEffect(() => {
     if (!isStreaming) {
-      saveMessages(messages);
+      saveMessages(messages, storage);
     }
-  }, [messages, isStreaming]);
+  }, [messages, isStreaming, storage]);
 
   useEffect(() => {
-    savePersistedPhase(currentPhase);
-  }, [currentPhase]);
+    savePersistedPhase(currentPhase, storage);
+  }, [currentPhase, storage]);
 
   useEffect(() => {
     return () => {
@@ -339,20 +356,31 @@ export function useChat() {
   }, []);
 
   const resetContext = useCallback(() => {
+    if (session) {
+      contextIdRef.current = session.rotateContext();
+      if (!contextIdRef.current) setError(FRESH_CONTEXT_ERROR);
+      return;
+    }
     const freshId = crypto.randomUUID();
     contextIdRef.current = freshId;
     saveContextId(freshId);
-  }, []);
+  }, [session]);
 
   const addPendingContext = useCallback((text: string) => {
     pendingContextRef.current = [...pendingContextRef.current, text];
-    savePendingContext(pendingContextRef.current);
-  }, []);
+    savePendingContext(pendingContextRef.current, storage);
+  }, [storage]);
+
+  const canSendMessage = useCallback(() => !session || Boolean(contextIdRef.current), [session]);
 
   const nextId = () => `msg-${++messageIdRef.current}`;
 
   const sendMessage = useCallback(async (text: string, options?: { silent?: boolean }) => {
     if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
+    if (!canSendMessage()) {
+      setError(FRESH_CONTEXT_ERROR);
+      return;
+    }
     const now = Date.now();
     if (now - lastSendRef.current < 500) return;
     lastSendRef.current = now;
@@ -397,7 +425,7 @@ export function useChat() {
       const ctx = pendingContextRef.current.join('\n');
       effectiveText = `${ctx}\n\n${text}`;
       pendingContextRef.current = [];
-      savePendingContext([]);
+      savePendingContext([], storage);
     }
 
     const request = buildStreamRequest(effectiveText, contextIdRef.current);
@@ -415,9 +443,9 @@ export function useChat() {
 
     const handleEvent = (event: A2AEvent) => {
       if (!(authCtx?.lifecycle?.isCurrent() ?? true)) return;
-      if (!contextIdRef.current && event.contextId) {
+      if (!session && !contextIdRef.current && event.contextId) {
         contextIdRef.current = event.contextId;
-        saveContextId(event.contextId);
+        saveContextId(event.contextId, storage);
       }
 
       if (event.kind === "artifact-update") {
@@ -1045,7 +1073,7 @@ export function useChat() {
       onBackendIncarnation: (incarnation) => authCtx?.lifecycle?.observeBackendIncarnation?.(incarnation),
       signal: controller.signal,
     });
-  }, [authCtx, configCtx]);
+  }, [authCtx, configCtx, session, storage, canSendMessage]);
 
   const cancelStream = useCallback(() => {
     abortRef.current?.abort();
@@ -1070,14 +1098,21 @@ export function useChat() {
   // clearConsoleSessionState() also rotates the context ID, so an explicit
   // reset cannot be silently reattached to the prior user session.
   const clearHistory = useCallback(() => {
-    const freshContext = clearConsoleSessionState();
     setMessages([]);
     setCurrentPhase(undefined);
     setInvestigationStartTime(undefined);
     activeRrIdRef.current = undefined;
     pendingContextRef.current = [];
-    contextIdRef.current = freshContext;
-  }, []);
+    if (session) {
+      contextIdRef.current = session.clearConversation();
+      if (!contextIdRef.current) {
+        setError(FRESH_CONTEXT_ERROR);
+        return false;
+      }
+      return true;
+    }
+    contextIdRef.current = clearConsoleSessionState();
+  }, [session]);
 
-  return { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext };
+  return { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext, canSendMessage };
 }
