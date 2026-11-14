@@ -1,5 +1,40 @@
 # Standalone image scan exception record
 
+## Current triage — 2026-11-14
+
+PR #190's `security-scan` failure is a fresh runtime-image result, not stale
+SARIF. Trivy `0.70.0` analysis `2168521886` scanned merge commit
+`36cf9edba878c3ffdade887c1f32ec30b1267d7a` and reported 29 results: 20
+gate-level HIGH and 9 MEDIUM. The filesystem scan in the same job reported
+zero results.
+
+The findings are inherited from the pinned runtime image
+`registry.access.redhat.com/ubi9/nginx-126:1-1794514156` at manifest-list
+digest
+`sha256:f50ae8fe82e271456779c175015ac2e57576784de3ccd413460c69e55d89e137`:
+
+| Package family | Installed | Trivy fixed version | Findings |
+|---|---|---|---:|
+| `krb5-libs` | `1.21.1-10.el9_8.1` | `1.21.1-10.el9_9.2` | 19 (10 HIGH, 9 MEDIUM) |
+| `rpm`, `rpm-libs`, `rpm-build-libs`, `rpm-sign-libs`, `python3-rpm` | `4.16.1.3-40.el9` | `4.16.1.3-43.el9_9` | 10 HIGH |
+
+Verification on the x86_64 `helios08` build host pulled the exact pinned
+digest and refreshed the image's public UBI repositories. They expose only
+`krb5-libs 1.21.1-10.el9_8.1` and the RPM family at `4.16.1.3-40.el9`.
+Direct requests to the public UBI CDN returned HTTP 404 for the fixed
+`krb5-libs-1.21.1-10.el9_9.2.x86_64.rpm` and
+`rpm-4.16.1.3-43.el9_9.x86_64.rpm` objects. Red Hat publishes those versions
+for subscribed RHEL 9 repositories in [RHSA-2026:99715](https://access.redhat.com/errata/RHSA-2026:99715)
+and [RHSA-2026:99593](https://access.redhat.com/errata/RHSA-2026:99593), but
+they are not currently available from public UBI repositories.
+
+The registry's newest numeric `1-*` `ubi9/nginx-126` tag at triage time was
+the already-pinned `1-1794514156`; no newer vendor image was available to
+replace it. Therefore this is a package-provenance blocker for the image
+maintainer or Red Hat UBI publication pipeline. Do not add RHEL-only RPMs,
+Trivy ignores, or severity/reporting changes. Re-run the scan after the fixed
+packages become available in public UBI or a newer UBI image is published.
+
 ## Current review — 2026-10-31
 
 PR #160 refreshes the runtime base to
