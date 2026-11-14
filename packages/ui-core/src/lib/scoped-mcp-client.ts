@@ -131,8 +131,9 @@ export function createScopedMcpClient(options: ScopedMcpClientOptions) {
     request: ScopedMcpServerRequest,
     result: McpResult,
     epoch: number,
+    responseSession?: string,
   ): Promise<McpResult | undefined> {
-    const sentSession = sessionId;
+    const sentSession = responseSession ?? sessionId;
     const headers = await buildHeaders(epoch, sentSession);
     if (!("Content-Type" in headers)) return headers;
     const body = result.error
@@ -159,9 +160,10 @@ export function createScopedMcpClient(options: ScopedMcpClientOptions) {
     }
   }
 
-  async function consumeResponse(response: Response, expectedId: number, epoch: number): Promise<McpResult> {
+  async function consumeResponse(response: Response, expectedId: number, epoch: number, responseSession?: string): Promise<McpResult> {
     const declaredLength = Number(response.headers.get("content-length"));
     if (Number.isFinite(declaredLength) && declaredLength > MAX_SCOPED_RESPONSE_BYTES) {
+      try { await response.body?.cancel(); } catch { /* best effort */ }
       return { error: { code: -1, message: "MCP response exceeds the configured size limit" } };
     }
 
@@ -187,15 +189,21 @@ export function createScopedMcpClient(options: ScopedMcpClientOptions) {
           if (requestFence) return { kind: "failure", value: requestFence };
           let requestResult: McpResult;
           try {
-            requestResult = parsed.envelope.method === "ping"
-              ? { result: {} }
-              : onServerRequest
-                ? await onServerRequest(parsed.envelope)
-                : { error: { code: -32601, message: `Unsupported MCP server request: ${parsed.envelope.method}` } };
+            if (parsed.envelope.method === "ping") {
+              requestResult = { result: {} };
+            } else if (onServerRequest) {
+              const callbackResult = await whileActive(Promise.resolve().then(() => onServerRequest(parsed.envelope)));
+              if (callbackResult === STOPPED) return { kind: "failure", value: invalidated() };
+              requestResult = callbackResult;
+            } else {
+              requestResult = { error: { code: -32601, message: `Unsupported MCP server request: ${parsed.envelope.method}` } };
+            }
           } catch (error) {
             requestResult = { error: { code: -32603, message: error instanceof Error ? error.message : "MCP server request failed" } };
           }
-          const dispatchError = await sendServerResponse(parsed.envelope, requestResult, epoch);
+          const callbackFence = fenceError(epoch);
+          if (callbackFence) return { kind: "failure", value: callbackFence };
+          const dispatchError = await sendServerResponse(parsed.envelope, requestResult, epoch, responseSession);
           if (dispatchError) return { kind: "failure", value: dispatchError };
           continue;
         }
@@ -227,6 +235,13 @@ export function createScopedMcpClient(options: ScopedMcpClientOptions) {
       if (text === STOPPED) return invalidated();
       return consumeCompleteBody(text);
     }
+    let streamDone = false;
+    let readerCancelled = false;
+    const cancelReader = async () => {
+      if (streamDone || readerCancelled) return;
+      readerCancelled = true;
+      try { await reader.cancel(); } catch { /* best effort */ }
+    };
 
     const parseEvent = (frame: string): unknown[] | undefined => {
       const data: string[] = [];
@@ -284,7 +299,7 @@ export function createScopedMcpClient(options: ScopedMcpClientOptions) {
             return { error: { code: -1, message: "MCP SSE event exceeds the configured size limit" } };
           }
           if (pendingResponse) {
-            await reader.cancel();
+            await cancelReader();
             return pendingResponse;
           }
         } else if (encoder.encode(buffer).byteLength > MAX_SCOPED_RESPONSE_BYTES) {
@@ -292,6 +307,7 @@ export function createScopedMcpClient(options: ScopedMcpClientOptions) {
         }
 
         if (done) {
+          streamDone = true;
           buffer += decoder.decode();
           if (isSse) {
             if (buffer.trim()) {
@@ -306,6 +322,7 @@ export function createScopedMcpClient(options: ScopedMcpClientOptions) {
         }
       }
     } finally {
+      await cancelReader();
       reader.releaseLock();
     }
   }
@@ -341,12 +358,12 @@ export function createScopedMcpClient(options: ScopedMcpClientOptions) {
       if (responseFence) return responseFence;
       if (!response.ok) return { error: { code: response.status, message: `HTTP ${response.status}: ${response.statusText}` } };
 
-      const nextSession = response.headers.get("mcp-session-id");
+      const nextSession = response.headers.get("mcp-session-id") ?? undefined;
       if (notification) {
         if (nextSession && epoch === sessionEpoch && sessionId === sentSession) sessionId = nextSession;
         return { result: null };
       }
-      const result = await consumeResponse(response, id!, epoch);
+      const result = await consumeResponse(response, id!, epoch, nextSession);
       if (result.error) return result;
       // Do not publish a session header until its correlated body has been
       // accepted. A concurrent old response may otherwise replace the

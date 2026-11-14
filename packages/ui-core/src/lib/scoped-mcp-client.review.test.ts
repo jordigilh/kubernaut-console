@@ -281,9 +281,12 @@ it("UT-CONSOLE-170-MCP-037: concurrent expiry supersedes a waiting action withou
 
 it("UT-CONSOLE-170-MCP-038: handles server requests and answers them on the scoped session", async () => {
   const requests: Array<Record<string, unknown>> = [];
+  const responseHeaders: Array<Record<string, string>> = [];
   const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
     requests.push(body);
+    const headers = init?.headers as Record<string, string>;
+    if (body.id === 77) responseHeaders.push(headers);
     if (body.method === "initialize") return Promise.resolve(success(body.id as number, "fixture-session", INITIALIZE_RESULT));
     if (body.method === "notifications/initialized") return Promise.resolve(new Response(null, { status: 202 }));
     if (body.method === "tools/call") {
@@ -302,6 +305,35 @@ it("UT-CONSOLE-170-MCP-038: handles server requests and answers them on the scop
 
   expect((await result).result).toEqual({ ok: true });
   expect(requests).toContainEqual({ jsonrpc: "2.0", id: 77, result: {} });
+  expect(responseHeaders[0]?.["Mcp-Session-Id"]).toBe("fixture-session");
+});
+
+it("UT-CONSOLE-170-MCP-045: uses the initialize response session for an early server request", async () => {
+  const responseHeaders: Array<Record<string, string>> = [];
+  const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    const headers = init?.headers as Record<string, string>;
+    if (body.method === "initialize") {
+      const ping = { jsonrpc: "2.0", id: "server-1", method: "ping", params: {} };
+      const response = { jsonrpc: "2.0", id: body.id, result: INITIALIZE_RESULT };
+      return Promise.resolve(new Response(
+        `data: ${JSON.stringify(ping)}\n\ndata: ${JSON.stringify(response)}\n\n`,
+        { headers: { "Content-Type": "text/event-stream", "Mcp-Session-Id": "initialize-session" } },
+      ));
+    }
+    if (body.id === "server-1") {
+      responseHeaders.push(headers);
+      return Promise.resolve(new Response(null, { status: 202 }));
+    }
+    if (body.method === "notifications/initialized") return Promise.resolve(new Response(null, { status: 202 }));
+    return Promise.resolve(responseFor(body as RpcRequest));
+  });
+
+  const result = createScopedMcpClient({ authMode: "proxy", fetchFn }).call("action", {});
+  await vi.runAllTimersAsync();
+
+  expect((await result).result).toEqual({ ok: true });
+  expect(responseHeaders[0]?.["Mcp-Session-Id"]).toBe("initialize-session");
 });
 
 it("UT-CONSOLE-170-MCP-041: handles a server request in a JSON batch before the correlated response", async () => {
@@ -367,4 +399,72 @@ it("UT-CONSOLE-170-MCP-040: rejects an initialize response without the negotiate
 
   expect((await result).error).toEqual({ code: -32602, message: "Invalid or unsupported MCP initialize result" });
   expect(fetchFn.mock.calls.some(([, init]) => JSON.parse(String(init?.body)).method === "tools/call")).toBe(false);
+});
+
+it("UT-CONSOLE-170-MCP-042: invalidation interrupts a pending server-request callback", async () => {
+  const callback = deferred<McpResult>();
+  let toolRequestSeen = false;
+  const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    if (body.method === "initialize") return Promise.resolve(success(body.id as number, "fixture-session", INITIALIZE_RESULT));
+    if (body.method === "notifications/initialized") return Promise.resolve(new Response(null, { status: 202 }));
+    if (body.method === "tools/call") {
+      toolRequestSeen = true;
+      return Promise.resolve(new Response(`data: ${JSON.stringify({ jsonrpc: "2.0", id: 77, method: "roots/list", params: {} })}\n\n`, { headers: { "Content-Type": "text/event-stream" } }));
+    }
+    return Promise.resolve(new Response(null, { status: 202 }));
+  });
+  const client = createScopedMcpClient({ authMode: "proxy", fetchFn, onServerRequest: () => callback.promise });
+  const pending = client.call("action", {});
+  await vi.runAllTimersAsync();
+  expect(toolRequestSeen).toBe(true);
+
+  client.invalidate();
+
+  expect((await pending).error?.message).toMatch(/invalidated/i);
+  callback.resolve({ result: { roots: [] } });
+  expect(fetchFn.mock.calls.filter(([, request]) => JSON.parse(String(request?.body)).id === 77)).toHaveLength(0);
+});
+
+it("UT-CONSOLE-170-MCP-043: cancels an open SSE stream when decoding rejects it", async () => {
+  let cancelled = false;
+  const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    if (body.method === "initialize") return Promise.resolve(success(body.id as number, "fixture-session", INITIALIZE_RESULT));
+    if (body.method === "notifications/initialized") return Promise.resolve(new Response(null, { status: 202 }));
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new TextEncoder().encode("data: not-json\n\n")); },
+      cancel() { cancelled = true; },
+    });
+    return Promise.resolve(new Response(stream, { headers: { "Content-Type": "text/event-stream" } }));
+  });
+  const result = createScopedMcpClient({ authMode: "proxy", fetchFn }).call("action", {});
+  await vi.runAllTimersAsync();
+
+  expect((await result).error?.message).toMatch(/invalid or uncorrelated/i);
+  expect(cancelled).toBe(true);
+});
+
+it("UT-CONSOLE-170-MCP-044: cancels a declared-over-limit response before reading it", async () => {
+  let cancelled = false;
+  const stream = new ReadableStream<Uint8Array>({
+    start() { /* remain open until the client cancels */ },
+    cancel() { cancelled = true; },
+  });
+  const fetchFn = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    if (body.method === "initialize") return Promise.resolve(success(body.id as number, "fixture-session", INITIALIZE_RESULT));
+    if (body.method === "notifications/initialized") return Promise.resolve(new Response(null, { status: 202 }));
+    return Promise.resolve(new Response(stream, {
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": String(2 * 1024 * 1024 + 1),
+      },
+    }));
+  });
+  const result = createScopedMcpClient({ authMode: "proxy", fetchFn }).call("action", {});
+  await vi.runAllTimersAsync();
+
+  expect((await result).error?.message).toMatch(/size limit/i);
+  expect(cancelled).toBe(true);
 });
