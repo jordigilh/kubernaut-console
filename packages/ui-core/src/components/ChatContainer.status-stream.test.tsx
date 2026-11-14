@@ -37,6 +37,7 @@ const mockCallMcpTool = vi.mocked(callMcpTool);
 
 beforeAll(() => {
   Element.prototype.scrollTo = vi.fn();
+  Element.prototype.scrollIntoView = vi.fn();
 });
 
 describe("ChatContainer — Banner Status Stream Separation", () => {
@@ -148,6 +149,120 @@ describe("ChatContainer — Banner Status Stream Separation", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("permission denied: active driver required");
     expect(screen.getByRole("button", { name: "Cancel investigation" })).toBeInTheDocument();
+  });
+
+  it("IT-CONSOLE-CHAT-170-012: a late cancellation cannot abort the successor conversation", async () => {
+    let resolveCancel: ((value: Awaited<ReturnType<typeof callMcpTool>>) => void) | undefined;
+    const streams: Array<Parameters<typeof streamA2A>[1]> = [];
+    mockCallMcpTool.mockImplementation((toolName) => {
+      if (toolName === "kubernaut_cancel") {
+        return new Promise((resolve) => { resolveCancel = resolve; });
+      }
+      return Promise.resolve({ error: { code: -1, message: "unexpected tool" } });
+    });
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: Parameters<typeof streamA2A>[1]) => {
+      streams.push(opts);
+      opts.onEvent?.({
+        kind: "status-update",
+        taskId: `task-${streams.length}`,
+        contextId: `ctx-${streams.length}`,
+        status: { state: "working", message: { role: "agent", parts: [{ kind: "text", text: "Investigating..." }] } },
+        metadata: { type: "status", rr_id: `rr-test-${streams.length}`, phase: "Investigating" },
+      });
+      return new Promise(() => {});
+    });
+    mockSubscribeStatus.mockImplementation(async (_rrId, opts) => {
+      opts.onPhaseChange("Investigating", {});
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate the old workload" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    });
+
+    const cancelButton = await screen.findByRole("button", { name: "Cancel investigation" });
+    await act(async () => {
+      fireEvent.click(cancelButton);
+    });
+    await waitFor(() => expect(resolveCancel).toBeDefined());
+
+    fireEvent.click(screen.getByLabelText("New conversation"));
+    fireEvent.click(screen.getByRole("button", { name: "Clear history" }));
+
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      fireEvent.change(input, { target: { value: "investigate the new workload" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    });
+    await waitFor(() => expect(streams).toHaveLength(2));
+
+    await act(async () => {
+      resolveCancel?.({ result: { status: "cancelled" } });
+      await Promise.resolve();
+    });
+
+    expect(streams[1].signal?.aborted).toBe(false);
+    expect(screen.getByRole("button", { name: "Cancel investigation" })).toBeInTheDocument();
+  });
+
+  it("IT-CONSOLE-CHAT-170-013: a late dismiss cannot restore state in the successor conversation", async () => {
+    let resolveDismiss: ((value: Awaited<ReturnType<typeof callMcpTool>>) => void) | undefined;
+    let streamCount = 0;
+    mockCallMcpTool.mockImplementation((toolName) => {
+      if (toolName === "kubernaut_complete_no_action") {
+        return new Promise((resolve) => { resolveDismiss = resolve; });
+      }
+      return Promise.resolve({ error: { code: -1, message: "unexpected tool" } });
+    });
+    mockStreamA2A.mockImplementation(async (_req: unknown, opts: Parameters<typeof streamA2A>[1]) => {
+      const rrId = `rr-test-${++streamCount}`;
+      opts.onEvent?.({
+        kind: "artifact-update",
+        taskId: `task-${streamCount}`,
+        contextId: `ctx-${streamCount}`,
+        lastChunk: true,
+        artifact: {
+          artifactId: `artifact-${streamCount}`,
+          parts: [{ kind: "data", data: {
+            session_id: `session-${streamCount}`,
+            rr_id: rrId,
+            signal_name: "FixtureAlert",
+            rca: { severity: "high", confidence: 0.8, target: "fixture", causal_chain: ["fixture"] },
+            options: [],
+          } }],
+          metadata: { type: "investigation_summary" },
+        },
+      });
+      opts.onComplete?.();
+    });
+    mockSubscribeStatus.mockImplementation(async (_rrId, opts) => {
+      opts.onPhaseChange("Investigating", {});
+    });
+
+    render(<ChatContainer />);
+    const input = screen.getByRole("textbox", { name: /type your message/i });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "investigate the old workload" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    });
+
+    const dismissButton = await screen.findByRole("button", { name: /no action needed/i });
+    fireEvent.click(dismissButton);
+    await waitFor(() => expect(resolveDismiss).toBeDefined());
+
+    fireEvent.click(screen.getByLabelText("New conversation"));
+    fireEvent.click(screen.getByRole("button", { name: "Clear history" }));
+
+    await act(async () => {
+      resolveDismiss?.({ result: {} });
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText("Investigation dismissed. No remediation action taken.")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Send a message...")).toBeInTheDocument();
+    expect(sessionStorage.getItem("kubernaut-console-workflow-resolved")).toBeNull();
   });
 
   it("IT-CONSOLE-BANNER-002: chat stream 'Reconnecting...' does NOT affect banner phase display", async () => {

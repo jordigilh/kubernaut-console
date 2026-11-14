@@ -149,6 +149,8 @@ function useChatOwner(session?: PageChatSession) {
     if (result !== false) {
       approvalFetchedRef.current = null;
       setApprovalDenied(false);
+      setCancellingInvestigation(false);
+      setInvestigationCancelled(false);
     }
     return result;
   }, [clearHistory]);
@@ -339,9 +341,10 @@ function useChatOwner(session?: PageChatSession) {
   const handleCancelInvestigation = useCallback(async () => {
     if (!effectiveRrId || cancellingInvestigation || investigationCancelled) return;
 
+    const conversationGeneration = getConversationGeneration();
     setCancellingInvestigation(true);
     const res = await callMcpTool("kubernaut_cancel", { rr_id: effectiveRrId }, mcpOptions);
-    if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
+    if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true) || !isConversationCurrent(conversationGeneration)) return;
 
     if (res.error) {
       setError(res.error.message);
@@ -353,7 +356,7 @@ function useChatOwner(session?: PageChatSession) {
     setInvestigationCancelled(true);
     setCurrentPhase("complete");
     setCancellingInvestigation(false);
-  }, [effectiveRrId, cancellingInvestigation, investigationCancelled, mcpOptions, setError, cancelStream, setCurrentPhase, lifecycle]);
+  }, [effectiveRrId, cancellingInvestigation, investigationCancelled, mcpOptions, setError, cancelStream, setCurrentPhase, lifecycle, getConversationGeneration, isConversationCurrent]);
 
   // The handlers below no longer call a local emitAuditEvent(). That helper
   // only ever wrote to console.log (gated behind
@@ -375,11 +378,12 @@ function useChatOwner(session?: PageChatSession) {
         setError("Workflow action already taken for this remediation.");
         return;
       }
+      const conversationGeneration = getConversationGeneration();
       const res = await callMcpTool("kubernaut_select_workflow", {
         rr_id: rrId,
         workflow_id: workflowId,
       }, mcpOptions);
-      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true) || !isConversationCurrent(conversationGeneration)) return;
       if (res.error) {
         setError(res.error.message);
         return;
@@ -392,17 +396,18 @@ function useChatOwner(session?: PageChatSession) {
         setCurrentPhase((prev) => maxChatPhase(prev, mapped) ?? mapped);
       }
     },
-    [rrId, workflowActionTaken, setCurrentPhase, setError, mcpOptions, lifecycle, session],
+    [rrId, workflowActionTaken, setCurrentPhase, setError, mcpOptions, lifecycle, session, getConversationGeneration, isConversationCurrent],
   );
 
   const handleApprove = useCallback(
     async (rarName: string, reason: string) => {
+      const conversationGeneration = getConversationGeneration();
       const res = await callMcpTool("kubernaut_approve", {
         rar_name: rarName,
         decision: "Approved",
         reason,
       }, mcpOptions);
-      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true) || !isConversationCurrent(conversationGeneration)) return;
       if (res.error) {
         setError(res.error.message);
         return;
@@ -413,17 +418,18 @@ function useChatOwner(session?: PageChatSession) {
           : msg,
       ));
     },
-    [setMessages, setError, user.name, user.email, mcpOptions, lifecycle],
+    [setMessages, setError, user.name, user.email, mcpOptions, lifecycle, getConversationGeneration, isConversationCurrent],
   );
 
   const handleDecline = useCallback(
     async (rarName: string, reason: string) => {
+      const conversationGeneration = getConversationGeneration();
       const res = await callMcpTool("kubernaut_approve", {
         rar_name: rarName,
         decision: "Rejected",
         reason,
       }, mcpOptions);
-      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true) || !isConversationCurrent(conversationGeneration)) return;
       if (res.error) {
         setError(res.error.message);
         return;
@@ -435,7 +441,7 @@ function useChatOwner(session?: PageChatSession) {
       ));
       setCurrentPhase("failed");
     },
-    [setMessages, setCurrentPhase, setError, user.name, user.email, mcpOptions, lifecycle],
+    [setMessages, setCurrentPhase, setError, user.name, user.email, mcpOptions, lifecycle, getConversationGeneration, isConversationCurrent],
   );
 
   const handleDismiss = useCallback(
@@ -448,11 +454,12 @@ function useChatOwner(session?: PageChatSession) {
         setError("Workflow action already taken for this remediation.");
         return;
       }
+      const conversationGeneration = getConversationGeneration();
       const res = await callMcpTool("kubernaut_complete_no_action", {
         rr_id: rrId,
         reason: "Dismissed by operator: no action needed",
       }, mcpOptions);
-      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true) || !isConversationCurrent(conversationGeneration)) return;
       if (res.error) {
         setError(res.error.message);
         return;
@@ -466,7 +473,7 @@ function useChatOwner(session?: PageChatSession) {
       }]);
       setCurrentPhase("complete");
     },
-    [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions, lifecycle, session],
+    [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions, lifecycle, session, getConversationGeneration, isConversationCurrent],
   );
 
   const handleEscalate = useCallback(async (reason: string) => {
@@ -478,12 +485,13 @@ function useChatOwner(session?: PageChatSession) {
       setError("Workflow action already taken for this remediation.");
       return;
     }
+    const conversationGeneration = getConversationGeneration();
     const res = await callMcpTool("kubernaut_complete_no_action", {
       rr_id: rrId,
       reason: "Escalated by operator",
       escalation_reason: reason,
     }, mcpOptions);
-    if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
+    if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true) || !isConversationCurrent(conversationGeneration)) return;
     if (res.error) {
       setError(res.error.message);
       return;
@@ -496,7 +504,7 @@ function useChatOwner(session?: PageChatSession) {
       timestamp: Date.now(),
     }]);
     setCurrentPhase("complete");
-  }, [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions, lifecycle, session]);
+  }, [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions, lifecycle, session, getConversationGeneration, isConversationCurrent]);
 
   const handleClearHistory = useCallback(() => {
     if (messages.length === 0) {
