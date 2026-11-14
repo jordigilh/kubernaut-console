@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+const INITIALIZE_RESULT = {
+  protocolVersion: "2025-03-26",
+  capabilities: {},
+  serverInfo: { name: "fixture", version: "1.0.0" },
+};
+
 test("E2E-CONSOLE-170-MCP-001: invalidating an old client cannot dispatch into a successor", async ({ page }) => {
   const unexpected: string[] = [];
   const origin = `http://127.0.0.1:${Number(process.env.CONSOLE_FOUNDATION_PORT || 43871)}`;
@@ -42,7 +48,8 @@ for (const status of [307, 308] as const) {
         if (body.method === "tools/call") {
           return route.fulfill({ status, headers: { location: `${origin}/mcp-redirect-target` }, body: "" });
         }
-        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ jsonrpc: "2.0", id: body.id, result: {} }) });
+        const result = body.method === "initialize" ? INITIALIZE_RESULT : {};
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ jsonrpc: "2.0", id: body.id, result }) });
       }
       if (url.pathname === "/mcp-redirect-target") {
         return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
@@ -73,7 +80,8 @@ test("E2E-CONSOLE-170-MCP-003: explicit proxy mode sends a same-origin request w
       const accepted = (route.request().headers().accept ?? "").split(",").map((value) => value.trim());
       if (!accepted.includes("application/json") || !accepted.includes("text/event-stream")) return route.fulfill({ status: 400, body: "unacceptable" });
       if (route.request().headers().authorization) return route.fulfill({ status: 401, body: "unexpected browser token" });
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ jsonrpc: "2.0", id: body.id, result: { proxy: "synthetic" } }) });
+      const result = body.method === "initialize" ? INITIALIZE_RESULT : { proxy: "synthetic" };
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ jsonrpc: "2.0", id: body.id, result }) });
     }
     if (/^\/(api|a2a|mcp)(\/|$)/.test(url.pathname)) { unexpected.push(url.href); return route.abort(); }
     return route.continue();

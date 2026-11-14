@@ -2,6 +2,12 @@ import { createScopedMcpClient } from "../lib/scoped-mcp-client";
 
 type RequestRecord = { url: string; method: string; session: string | undefined; aborted: boolean };
 
+const INITIALIZE_RESULT = {
+  protocolVersion: "2025-03-26",
+  capabilities: {},
+  serverInfo: { name: "fixture", version: "1.0.0" },
+};
+
 declare global {
   interface Window {
     mcpIsolationFixture: {
@@ -34,7 +40,7 @@ window.mcpIsolationFixture = {
     const oldStarted = new Promise<void>((resolve) => { signalOldStarted = resolve; });
     const requests: RequestRecord[] = [];
     const signals: AbortSignal[] = [];
-    const response = (session?: string, id = 1) => new Response(JSON.stringify({ jsonrpc: "2.0", id, result: { owner: "successor" } }), {
+    const response = (session?: string, id = 1, result: unknown = { owner: "successor" }) => new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), {
       status: 200, headers: session ? { "mcp-session-id": session } : {},
     });
     const fetchFn = async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -45,7 +51,7 @@ window.mcpIsolationFixture = {
       requests.push({ url, method: body.method, session: headers["Mcp-Session-Id"], aborted: false });
       signals.push(signal);
       if (url.startsWith("https://old.invalid") && body.method === "initialize") { signalOldStarted(); return oldInitialization; }
-      return response(body.method === "initialize" ? "new-session" : undefined, body.id);
+      return response(body.method === "initialize" ? "new-session" : undefined, body.id, body.method === "initialize" ? INITIALIZE_RESULT : undefined);
     };
     // The RED baseline uses global fetch; every request still stays synthetic.
     const originalFetch = globalThis.fetch;
