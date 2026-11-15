@@ -1,14 +1,16 @@
 import type { ChatMessage } from "../hooks/useChat";
 
+export type ChatStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
 const PHASE_KEY = "kubernaut-console-phase"; // pre-commit:allow-sensitive (storage key name)
 const WORKFLOW_RESOLVED_KEY = "kubernaut-console-workflow-resolved"; // pre-commit:allow-sensitive (storage key name)
 export const CONSOLE_MESSAGES_KEY = "kubernaut-console-messages"; // pre-commit:allow-sensitive (storage key name)
 export const CONSOLE_CONTEXT_KEY = "kubernaut-console-context"; // pre-commit:allow-sensitive (storage key name)
 export const CONSOLE_PENDING_CONTEXT_KEY = "kubernaut-pending-context"; // pre-commit:allow-sensitive (storage key name)
 
-export function loadPersistedPhase(): ChatMessage["phase"] | undefined {
+export function loadPersistedPhase(storage?: ChatStorage): ChatMessage["phase"] | undefined {
   try {
-    const raw = sessionStorage.getItem(PHASE_KEY);
+    const raw = (storage ?? sessionStorage).getItem(PHASE_KEY);
     if (!raw) return undefined;
     return raw as ChatMessage["phase"];
   } catch {
@@ -16,21 +18,21 @@ export function loadPersistedPhase(): ChatMessage["phase"] | undefined {
   }
 }
 
-export function savePersistedPhase(phase: ChatMessage["phase"] | undefined): void {
+export function savePersistedPhase(phase: ChatMessage["phase"] | undefined, storage?: ChatStorage): void {
   try {
     if (phase) {
-      sessionStorage.setItem(PHASE_KEY, phase);
+      (storage ?? sessionStorage).setItem(PHASE_KEY, phase);
     } else {
-      sessionStorage.removeItem(PHASE_KEY);
+      (storage ?? sessionStorage).removeItem(PHASE_KEY);
     }
   } catch {
     // Storage unavailable
   }
 }
 
-export function loadWorkflowResolvedIds(): Set<string> {
+export function loadWorkflowResolvedIds(storage?: ChatStorage): Set<string> {
   try {
-    const raw = sessionStorage.getItem(WORKFLOW_RESOLVED_KEY);
+    const raw = (storage ?? sessionStorage).getItem(WORKFLOW_RESOLVED_KEY);
     if (!raw) return new Set();
     const ids = JSON.parse(raw) as string[];
     return new Set(ids);
@@ -39,25 +41,25 @@ export function loadWorkflowResolvedIds(): Set<string> {
   }
 }
 
-export function markWorkflowResolved(rrId: string): void {
+export function markWorkflowResolved(rrId: string, storage?: ChatStorage): void {
   try {
-    const ids = loadWorkflowResolvedIds();
+    const ids = loadWorkflowResolvedIds(storage);
     ids.add(rrId);
-    sessionStorage.setItem(WORKFLOW_RESOLVED_KEY, JSON.stringify([...ids]));
+    (storage ?? sessionStorage).setItem(WORKFLOW_RESOLVED_KEY, JSON.stringify([...ids]));
   } catch {
     // Storage unavailable
   }
 }
 
-export function isWorkflowResolved(rrId: string | undefined): boolean {
+export function isWorkflowResolved(rrId: string | undefined, storage?: ChatStorage): boolean {
   if (!rrId) return false;
-  return loadWorkflowResolvedIds().has(rrId);
+  return loadWorkflowResolvedIds(storage).has(rrId);
 }
 
-export function clearSessionState(): void {
+export function clearSessionState(storage?: ChatStorage): void {
   try {
-    sessionStorage.removeItem(PHASE_KEY);
-    sessionStorage.removeItem(WORKFLOW_RESOLVED_KEY);
+    (storage ?? sessionStorage).removeItem(PHASE_KEY);
+    (storage ?? sessionStorage).removeItem(WORKFLOW_RESOLVED_KEY);
   } catch {
     // Storage unavailable
   }

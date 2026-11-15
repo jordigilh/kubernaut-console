@@ -6,6 +6,9 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 
 export default defineConfig({
   testDir: "./e2e/console-foundation",
+  // Production-entrypoint specs use playwright.console-production.config.ts;
+  // keep them out of the source-only fixture server lane.
+  testIgnore: "**/*.production.spec.ts",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

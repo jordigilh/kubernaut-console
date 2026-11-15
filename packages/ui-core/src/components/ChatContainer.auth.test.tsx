@@ -10,12 +10,14 @@ const authValue: AuthContextValue = {
       name: "sre-user",
       email: "sre-user@kubernaut.ai",
       initials: "SR",
+      principalKey: "test:sre-user",
     }),
   },
-  user: {
-    name: "sre-user",
-    email: "sre-user@kubernaut.ai",
-    initials: "SR",
+    user: {
+      name: "sre-user",
+      email: "sre-user@kubernaut.ai",
+      initials: "SR",
+      principalKey: "test:sre-user",
   },
   isLoading: false,
   error: null,

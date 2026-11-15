@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import { useChat, type ChatMessage, type ApprovalRequest } from "../hooks/useChat";
+import { FRESH_CONTEXT_ERROR, useChatWithSession, type ChatMessage, type ApprovalRequest } from "../hooks/useChat";
 import { useRRStatus } from "../hooks/useRRStatus";
 import { callMcpTool, isPermissionDeniedError, isStaleMcpResult, McpClient, type McpClientOptions } from "../lib/mcp-client";
 import { isPastDecisionPhase, isWorkflowResolved, markWorkflowResolved } from "../lib/session-state";
-import { getShowRawThinking, setShowRawThinking } from "../lib/preferences";
+import { DEFAULT_SHOW_RAW_THINKING, getShowRawThinking, setShowRawThinking } from "../lib/preferences";
+import { createPageChatSession, type PageChatSession } from "../lib/page-chat-session";
 import { isInvestigationEngaged } from "../lib/query-intent";
 import { findApprovalMessageIndex } from "../lib/approval-dedup";
 import { maxChatPhase } from "../lib/phase-rank";
@@ -25,8 +26,8 @@ const PHASE_MAP: Record<string, ChatMessage["phase"]> = {
   Blocked: "failed", Completed: "complete", Failed: "failed", TimedOut: "timed_out", Skipped: "complete", Cancelled: "complete",
 };
 
-function useChatOwner() {
-  const { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext } = useChat();
+function useChatOwner(session?: PageChatSession) {
+  const { messages, setMessages, isStreaming, error, setError, connectionStatus, sendMessage, cancelStream, clearHistory, investigationStartTime, currentPhase, setCurrentPhase, resetContext, addPendingContext, canSendMessage, getConversationGeneration, isConversationCurrent } = useChatWithSession(session);
   const lastRca = messages.findLast(m => m.role === "agent" && m.rca)?.rca;
   const rrId = messages.findLast(m => m.role === "agent" && m.rrId)?.rrId ?? lastRca?.rrId;
   const investigationEngaged = isInvestigationEngaged(messages);
@@ -36,7 +37,7 @@ function useChatOwner() {
   const chatPhase = currentPhase ?? lastAgentPhase;
   const statusMapped = statusPhase ? PHASE_MAP[statusPhase] : undefined;
   const rawBannerPhase = maxChatPhase(statusMapped, chatPhase) ?? chatPhase;
-  const workflowResolved = isWorkflowResolved(rrId);
+  const workflowResolved = isWorkflowResolved(rrId, session?.storage);
   const bannerPhase = !investigationEngaged
     ? undefined
     : ((!statusPhase && !workflowResolved && rawBannerPhase === "decision") ? "investigation" : rawBannerPhase);
@@ -121,12 +122,12 @@ function useChatOwner() {
   // comment). Only an explicit `false` turns the feature off.
   const rawThinkingEnabled = configCtx?.enableRawThinking !== false;
   const showRawThinkingToggle = import.meta.env.VITE_SHOW_RAW_THINKING_TOGGLE === "true";
-  const [showRawThinkingPref, setShowRawThinkingState] = useState(getShowRawThinking);
+  const [showRawThinkingPref, setShowRawThinkingState] = useState(() => session ? DEFAULT_SHOW_RAW_THINKING : getShowRawThinking());
   const showRawThinking = rawThinkingEnabled && showRawThinkingPref;
   const handleToggleRawThinking = () => {
     setShowRawThinkingState((prev) => {
       const next = !prev;
-      setShowRawThinking(next);
+      if (!session) setShowRawThinking(next);
       return next;
     });
   };
@@ -143,18 +144,35 @@ function useChatOwner() {
 
   const [approvalDenied, setApprovalDenied] = useState(false);
   const approvalFetchedRef = useRef<string | null>(null);
+  const clearConversation = useCallback(() => {
+    const result = clearHistory();
+    if (result !== false) {
+      approvalFetchedRef.current = null;
+      setApprovalDenied(false);
+      setCancellingInvestigation(false);
+      setInvestigationCancelled(false);
+    }
+    return result;
+  }, [clearHistory]);
 
   useEffect(() => {
     if (statusPhase !== "AwaitingApproval") {
+      return;
+    }
+    // During clearHistory(), useRRStatus may still expose the previous phase
+    // for one render before its rrId cleanup effect runs. Never fetch or
+    // inject approval data without an RR belonging to the current transcript.
+    if (!effectiveRrId) {
       return;
     }
 
     const rarName = (statusMetadata?.approval_request_name as string) ?? undefined;
     if (!rarName || approvalFetchedRef.current === rarName) return;
     approvalFetchedRef.current = rarName;
+    const conversationGeneration = getConversationGeneration();
 
     callMcpTool("kubernaut_get_approval_request", { rar_id: rarName }, mcpOptions).then((res) => {
-      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true) || !isConversationCurrent(conversationGeneration)) return;
       if (res.error) {
         // #57: a permission gap and a backend bad-request/validation error both
         // arrive as the same generic isError shape — branch on AF's stable
@@ -233,7 +251,7 @@ function useChatOwner() {
       setCurrentPhase("decision");
       userScrolledUpRef.current = false;
     });
-  }, [statusPhase, statusMetadata, setMessages, setCurrentPhase, setError, mcpOptions, effectiveRrId, lifecycle]);
+  }, [statusPhase, statusMetadata, setMessages, setCurrentPhase, setError, mcpOptions, effectiveRrId, lifecycle, getConversationGeneration, isConversationCurrent]);
 
   useEffect(() => {
     if (statusPhase && PHASE_MAP[statusPhase]) {
@@ -261,6 +279,10 @@ function useChatOwner() {
   }, [isTerminal, effectiveRrId, statusPhase, statusMetadata, addPendingContext, resetContext]);
 
   const submitInput = (text: string) => {
+    if (!canSendMessage()) {
+      setError(FRESH_CONTEXT_ERROR);
+      return;
+    }
     setInvestigationCancelled(false);
     setInput("");
     if (inputRef.current) inputRef.current.style.height = "auto";
@@ -319,9 +341,10 @@ function useChatOwner() {
   const handleCancelInvestigation = useCallback(async () => {
     if (!effectiveRrId || cancellingInvestigation || investigationCancelled) return;
 
+    const conversationGeneration = getConversationGeneration();
     setCancellingInvestigation(true);
     const res = await callMcpTool("kubernaut_cancel", { rr_id: effectiveRrId }, mcpOptions);
-    if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
+    if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true) || !isConversationCurrent(conversationGeneration)) return;
 
     if (res.error) {
       setError(res.error.message);
@@ -333,7 +356,7 @@ function useChatOwner() {
     setInvestigationCancelled(true);
     setCurrentPhase("complete");
     setCancellingInvestigation(false);
-  }, [effectiveRrId, cancellingInvestigation, investigationCancelled, mcpOptions, setError, cancelStream, setCurrentPhase, lifecycle]);
+  }, [effectiveRrId, cancellingInvestigation, investigationCancelled, mcpOptions, setError, cancelStream, setCurrentPhase, lifecycle, getConversationGeneration, isConversationCurrent]);
 
   // The handlers below no longer call a local emitAuditEvent(). That helper
   // only ever wrote to console.log (gated behind
@@ -355,16 +378,17 @@ function useChatOwner() {
         setError("Workflow action already taken for this remediation.");
         return;
       }
+      const conversationGeneration = getConversationGeneration();
       const res = await callMcpTool("kubernaut_select_workflow", {
         rr_id: rrId,
         workflow_id: workflowId,
       }, mcpOptions);
-      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true) || !isConversationCurrent(conversationGeneration)) return;
       if (res.error) {
         setError(res.error.message);
         return;
       }
-      markWorkflowResolved(rrId);
+      markWorkflowResolved(rrId, session?.storage);
       setCurrentPhase((prev) => maxChatPhase(prev, "remediation") ?? "remediation");
       const resBody = res.result as { phase?: string } | undefined;
       if (resBody?.phase && PHASE_MAP[resBody.phase]) {
@@ -372,17 +396,18 @@ function useChatOwner() {
         setCurrentPhase((prev) => maxChatPhase(prev, mapped) ?? mapped);
       }
     },
-    [rrId, workflowActionTaken, setCurrentPhase, setError, mcpOptions, lifecycle],
+    [rrId, workflowActionTaken, setCurrentPhase, setError, mcpOptions, lifecycle, session, getConversationGeneration, isConversationCurrent],
   );
 
   const handleApprove = useCallback(
     async (rarName: string, reason: string) => {
+      const conversationGeneration = getConversationGeneration();
       const res = await callMcpTool("kubernaut_approve", {
         rar_name: rarName,
         decision: "Approved",
         reason,
       }, mcpOptions);
-      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true) || !isConversationCurrent(conversationGeneration)) return;
       if (res.error) {
         setError(res.error.message);
         return;
@@ -393,17 +418,18 @@ function useChatOwner() {
           : msg,
       ));
     },
-    [setMessages, setError, user.name, user.email, mcpOptions, lifecycle],
+    [setMessages, setError, user.name, user.email, mcpOptions, lifecycle, getConversationGeneration, isConversationCurrent],
   );
 
   const handleDecline = useCallback(
     async (rarName: string, reason: string) => {
+      const conversationGeneration = getConversationGeneration();
       const res = await callMcpTool("kubernaut_approve", {
         rar_name: rarName,
         decision: "Rejected",
         reason,
       }, mcpOptions);
-      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true) || !isConversationCurrent(conversationGeneration)) return;
       if (res.error) {
         setError(res.error.message);
         return;
@@ -415,7 +441,7 @@ function useChatOwner() {
       ));
       setCurrentPhase("failed");
     },
-    [setMessages, setCurrentPhase, setError, user.name, user.email, mcpOptions, lifecycle],
+    [setMessages, setCurrentPhase, setError, user.name, user.email, mcpOptions, lifecycle, getConversationGeneration, isConversationCurrent],
   );
 
   const handleDismiss = useCallback(
@@ -428,16 +454,17 @@ function useChatOwner() {
         setError("Workflow action already taken for this remediation.");
         return;
       }
+      const conversationGeneration = getConversationGeneration();
       const res = await callMcpTool("kubernaut_complete_no_action", {
         rr_id: rrId,
         reason: "Dismissed by operator: no action needed",
       }, mcpOptions);
-      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
+      if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true) || !isConversationCurrent(conversationGeneration)) return;
       if (res.error) {
         setError(res.error.message);
         return;
       }
-      markWorkflowResolved(rrId);
+      markWorkflowResolved(rrId, session?.storage);
       setMessages((prev) => [...prev, {
         id: `msg-${Date.now()}`,
         role: "agent" as const,
@@ -446,7 +473,7 @@ function useChatOwner() {
       }]);
       setCurrentPhase("complete");
     },
-    [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions, lifecycle],
+    [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions, lifecycle, session, getConversationGeneration, isConversationCurrent],
   );
 
   const handleEscalate = useCallback(async (reason: string) => {
@@ -458,17 +485,18 @@ function useChatOwner() {
       setError("Workflow action already taken for this remediation.");
       return;
     }
+    const conversationGeneration = getConversationGeneration();
     const res = await callMcpTool("kubernaut_complete_no_action", {
       rr_id: rrId,
       reason: "Escalated by operator",
       escalation_reason: reason,
     }, mcpOptions);
-    if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true)) return;
+    if (isStaleMcpResult(res) || !(lifecycle?.isCurrent() ?? true) || !isConversationCurrent(conversationGeneration)) return;
     if (res.error) {
       setError(res.error.message);
       return;
     }
-    markWorkflowResolved(rrId);
+    markWorkflowResolved(rrId, session?.storage);
     setMessages((prev) => [...prev, {
       id: `msg-${Date.now()}`,
       role: "agent" as const,
@@ -476,41 +504,43 @@ function useChatOwner() {
       timestamp: Date.now(),
     }]);
     setCurrentPhase("complete");
-  }, [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions, lifecycle]);
+  }, [rrId, workflowActionTaken, setMessages, setCurrentPhase, setError, mcpOptions, lifecycle, session, getConversationGeneration, isConversationCurrent]);
 
   const handleClearHistory = useCallback(() => {
     if (messages.length === 0) {
       try {
-        clearHistory();
-        setError(null);
+        if (clearConversation() !== false) setError(null);
       } catch {
         setError("Unable to clear console session storage. Retry clearing history.");
       }
     } else {
       setClearConfirmOpen(true);
     }
-  }, [messages.length, clearHistory, setError]);
+  }, [messages.length, clearConversation, setError]);
 
   const confirmClear = useCallback(() => {
+    setClearConfirmOpen(false);
     try {
-      clearHistory();
-      setClearConfirmOpen(false);
-      setError(null);
+      if (clearConversation() !== false) setError(null);
     } catch {
       setError("Unable to clear console session storage. Retry clearing history.");
     }
-  }, [clearHistory, setError]);
+  }, [clearConversation, setError]);
 
   const handleSignOut = useCallback((event: MouseEvent<HTMLAnchorElement>) => {
     cancelStream();
     try {
-      clearHistory();
+      // clearConversation() invalidates the old transcript before attempting
+      // to allocate its successor context. A failed allocation must not trap
+      // the user in the old authenticated page: the server-side sign-out and
+      // lifecycle fence still need to proceed after local state is erased.
+      clearConversation();
       notifyAuthLifecycleChanged("signout-started");
     } catch {
       event.preventDefault();
       setError("Unable to clear console session storage. Retry sign out.");
     }
-  }, [cancelStream, clearHistory, setError]);
+  }, [cancelStream, clearConversation, setError]);
 
   return {
     messages, isStreaming, error, connectionStatus, cancelStream, investigationStartTime,
@@ -531,6 +561,13 @@ const ChatOwnerContext = createContext<ReturnType<typeof useChatOwner> | null>(n
 /** Internal single-chat lifecycle boundary; not a scoped multi-user owner or live integration. */
 export function ChatOwnerProvider({ children }: { children: ReactNode }) {
   const owner = useChatOwner();
+  return <ChatOwnerContext.Provider value={owner}>{children}</ChatOwnerContext.Provider>;
+}
+
+/** Page-memory owner used by KubernautChat; the host owns auth lifecycle fencing. */
+export function PageLifetimeChatOwnerProvider({ children }: { children: ReactNode }) {
+  const [session] = useState(() => createPageChatSession());
+  const owner = useChatOwner(session);
   return <ChatOwnerContext.Provider value={owner}>{children}</ChatOwnerContext.Provider>;
 }
 

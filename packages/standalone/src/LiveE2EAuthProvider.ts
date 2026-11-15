@@ -37,6 +37,6 @@ export class LiveE2EAuthProvider implements KubernautAuthProvider {
   }
 
   async getUser(): Promise<KubernautUser> {
-    return { name: "sre-user", email: "sre@kubernaut.ai", initials: "SR" };
+    return { name: "sre-user", email: "sre@kubernaut.ai", initials: "SR", principalKey: "live-e2e:sre-user" };
   }
 }

@@ -39,6 +39,7 @@ describe("ProxyAuthProvider", () => {
       name: "Dev User",
       email: "dev@localhost",
       initials: "DU",
+      principalKey: "mock:dev-user",
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -102,32 +103,32 @@ describe("ProxyAuthProvider", () => {
     [
       "preferredUsername with a full name",
       { preferredUsername: "Jane Doe", email: "jane@example.com" },
-      { name: "Jane Doe", email: "jane@example.com", initials: "JD" },
+      { name: "Jane Doe", email: "jane@example.com", initials: "JD", principalKey: "issuer\u0000subject" },
     ],
     [
       "user with a single name",
       { user: "alice", email: "" },
-      { name: "alice", email: "", initials: "AL" },
+      { name: "alice", email: "", initials: "AL", principalKey: "issuer\u0000subject" },
     ],
     [
       "name with a full name",
       { name: "Alice Smith", email: "" },
-      { name: "Alice Smith", email: "", initials: "AS" },
+      { name: "Alice Smith", email: "", initials: "AS", principalKey: "issuer\u0000subject" },
     ],
     [
       "email-only identity",
       { email: "bob@example.com" },
-      { name: "", email: "bob@example.com", initials: "BO" },
+      { name: "", email: "bob@example.com", initials: "BO", principalKey: "issuer\u0000subject" },
     ],
     [
       "same name and email",
       { name: "same@example.com", email: "same@example.com" },
-      { name: "same@example.com", email: "same@example.com", initials: "SA" },
+      { name: "same@example.com", email: "same@example.com", initials: "SA", principalKey: "issuer\u0000subject" },
     ],
     [
       "empty identity",
       {},
-      { name: "", email: "", initials: "??" },
+      { name: "", email: "", initials: "??", principalKey: "issuer\u0000subject" },
     ],
   ])(
     "UT-CONSOLE-AUTH-092-004: maps %s from /oauth2/userinfo",
@@ -212,6 +213,7 @@ describe("LiveE2EAuthProvider", () => {
       name: "sre-user",
       email: "sre@kubernaut.ai",
       initials: "SR",
+      principalKey: "live-e2e:sre-user",
     });
   });
 });

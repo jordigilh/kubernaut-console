@@ -1,0 +1,31 @@
+# Temporary PR #190 exception for vulnerabilities inherited from the pinned
+# public UBI nginx runtime. Red Hat has published RHEL fixes, but the fixed
+# RPMs are not yet available from public UBI repositories.
+# Added: 2026-11-14
+# Expires: 2026-11-29 (15 days; remove when the UBI image is refreshed.)
+# Trivy 0.70.0 enforces each exp: date. Do not extend without rechecking UBI.
+
+# krb5-libs
+CVE-2026-107364 exp:2026-11-29
+CVE-2026-107708 exp:2026-11-29
+CVE-2026-107778 exp:2026-11-29
+CVE-2026-107884 exp:2026-11-29
+CVE-2026-111423 exp:2026-11-29
+CVE-2026-112314 exp:2026-11-29
+CVE-2026-112315 exp:2026-11-29
+CVE-2026-112316 exp:2026-11-29
+CVE-2026-112317 exp:2026-11-29
+CVE-2026-112318 exp:2026-11-29
+CVE-2026-112319 exp:2026-11-29
+CVE-2026-112320 exp:2026-11-29
+CVE-2026-112321 exp:2026-11-29
+CVE-2026-112322 exp:2026-11-29
+CVE-2026-112323 exp:2026-11-29
+CVE-2026-118380 exp:2026-11-29
+CVE-2026-119079 exp:2026-11-29
+CVE-2026-71199 exp:2026-11-29
+CVE-2026-71200 exp:2026-11-29
+
+# rpm family
+CVE-2026-78367 exp:2026-11-29
+CVE-2026-84837 exp:2026-11-29
