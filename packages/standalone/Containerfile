@@ -1,5 +1,5 @@
 # registry.access.redhat.com/ubi9/nodejs-22-minimal:1-1791924375 (linux/amd64, linux/arm64)
-FROM registry.access.redhat.com/ubi9/nodejs-22-minimal:1794243225@sha256:7c28182428503c3e98be630ac8d8c6582c39bb7d4bce34bb862de0cee0f00b25 AS build
+FROM registry.access.redhat.com/ubi9/nodejs-22-minimal:1794501027@sha256:0cc4ae118138dd07280d5abaa12b6a018e5bc82c048296f3c3676e62d3a1d8a8 AS build
 # Root is limited to build-time dependency installation; the runtime stage is non-root.
 USER 0
 WORKDIR /build
