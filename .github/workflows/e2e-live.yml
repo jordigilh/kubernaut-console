@@ -699,7 +699,7 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Go
-        uses: actions/setup-go@802e89cd7394b98352d79117a8b463bbfc2fdacf # v6.0.0
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v6.0.0
         with:
           go-version-file: kubernaut/go.mod
           cache: false
