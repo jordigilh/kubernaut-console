@@ -1,5 +1,5 @@
 # registry.access.redhat.com/ubi9/nodejs-22-minimal:1-1791924375 (linux/amd64, linux/arm64)
-FROM registry.access.redhat.com/ubi9/nodejs-22-minimal:1794501027@sha256:0cc4ae118138dd07280d5abaa12b6a018e5bc82c048296f3c3676e62d3a1d8a8 AS build
+FROM registry.access.redhat.com/ubi9/nodejs-22-minimal:1795236167@sha256:b90855a16ee7e7e94fc9e70d1d83b7be048f2fa5dc273304d1e8dfbc3f2a5e09 AS build
 # Root is limited to build-time dependency installation; the runtime stage is non-root.
 USER 0
 WORKDIR /build
@@ -18,7 +18,7 @@ RUN pnpm --filter @kubernaut/ui-core build \
     && pnpm --filter @kubernaut/standalone build
 
 # registry.access.redhat.com/ubi9/nginx-126:1-1794514156 (linux/amd64, linux/arm64)
-FROM registry.access.redhat.com/ubi9/nginx-126:1-1794514156@sha256:f50ae8fe82e271456779c175015ac2e57576784de3ccd413460c69e55d89e137
+FROM registry.access.redhat.com/ubi9/nginx-126:1795267071@sha256:a9948e4d1f7a5cd6e70e30e6c3a9746c6b5521eec93c41f1312fb083d3f7a677
 # Keep package-family upgrades at build time so rebuilds consume current UBI
 # advisory fixes between vendor image refreshes; the running container remains
 # USER 1001 below.
