@@ -23,8 +23,10 @@ zero renders as 0%; the qualitative level qualifies workflow selection only;
 the browser never computes a score — it only rounds a supplied 0–1 fraction
 for display, and non-finite or out-of-range values surface as unknown rather
 than being coerced. A partial read that omits the required workflow
-confidence blocks Approve/Reject with a dedicated guard message; a missing
-optional RCA confidence alone never blocks a decision. The
+confidence blocks Approve/Reject with a dedicated guard message; a
+contract-omitted RCA confidence in a ready read never blocks a decision (a
+partial read that names `rcaConfidence` in `missingFields` still blocks via
+the pre-existing generic partial-read guard — conservative fail-closed). The
 `ApprovalDecisionSnapshot`/confirmation dialog intentionally does not
 duplicate the confidence values: the decision snapshot records identity and
 reason, and the review panel is the pre-decision evidence surface.
@@ -34,7 +36,7 @@ reason, and the review panel is the pre-decision evidence surface.
 | Tier | Test IDs | Business behavior |
 | --- | --- | --- |
 | Unit | `UT-CONSOLE-CONF-001`–`005` | `ApprovalConfidencePanel` keeps the two confidences separately labeled; unknown ≠ 0%; level qualifies workflow selection; a partially-read missing workflow confidence surfaces as unknown; policy-evaluation explainer copy renders. |
-| Unit | `UT-CONSOLE-APPROVAL-013`–`015` | `ApprovalCard` renders labeled `RCA:`/`Workflow:` values replacing (not supplementing) the legacy unlabeled score when a breakdown is supplied; unknown vs zero stay distinct; legacy rendering unchanged when absent. |
+| Unit | `UT-CONSOLE-APPROVAL-013`–`016` | `ApprovalCard` renders labeled `RCA:`/`Workflow:` values replacing (not supplementing) the legacy unlabeled score when a breakdown is supplied; unknown vs zero stay distinct; legacy rendering unchanged when absent; an unrecognized level renders with the neutral fallback, never a borrowed severity color. |
 | Unit | confidence-formatting cases in `approval-review.test.ts` | `formatConfidenceScore` pins the 0–1 scale contract: null/negative/>1/NaN → `Unknown`, `0` → `0%`, `0.999`/`1` → `100%`; the four fixture reviews carry the contract cases (high/high, low-RCA/high-workflow, missing, explicit zero). |
 | Component integration | `ApprovalReviewPage confidence display (#180)` describe | Page-level: low RCA + high workflow shown separately on rar-demo-02; missing RCA as Unknown on rar-demo-03 with decisions still available; explicit zero as 0% on rar-demo-04; a partial read missing `workflowConfidence` blocks decisions with the dedicated guard; the recorded approval rationale is presented on the review surface. |
 | Synthetic browser | `e2e/console-foundation/approval-confidence.spec.ts` | Real Chromium against the fixture page with the agreed backend contract: separate labels, unknown-vs-zero distinctness and the policy-evaluation note, with zero backend requests. |
@@ -48,8 +50,8 @@ console, card, panel, confirmation):
 | --- | ---: | ---: | ---: | ---: |
 | `ApprovalConfidencePanel.tsx` (new) | 100% | 100% | 100% | 100% |
 | `approval-review.ts` | 88.88% | 74.28% | 100% | 94.28% |
-| `ApprovalCard.tsx` | 91.42% | 87.5% | 91.66% | 92.59% |
-| `ApprovalReviewPage.tsx` | 85.82% | 81.64% | 97.61% | 91.22% |
+| `ApprovalCard.tsx` | 91.42% | 90% | 91.66% | 92.59% |
+| `ApprovalReviewPage.tsx` | 85.82% | 81.92% | 97.61% | 91.23% |
 
 The new file and all changed files meet the 90% line threshold. The
 whole-file branch figures below 90% are pre-existing on `main`

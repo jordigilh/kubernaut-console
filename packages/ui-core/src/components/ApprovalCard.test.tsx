@@ -270,4 +270,23 @@ describe("AC-6: ApprovalCard component", () => {
     expect(screen.getByText("Medium")).toBeInTheDocument();
     expect(screen.getByText("72%")).toBeInTheDocument();
   });
+
+  it("UT-CONSOLE-APPROVAL-016: renders an unrecognized level with the neutral fallback instead of fabricating a severity color", () => {
+    render(
+      <ApprovalCard
+        request={baseRequest}
+        onApprove={onApprove}
+        onDecline={onDecline}
+        userName="admin"
+        confidenceBreakdown={{ workflowConfidence: 0.9, rcaConfidence: 0.42, level: "Unrecognized" }}
+      />
+    );
+
+    const levelLabel = screen.getByTitle("Qualifies workflow-selection confidence");
+    expect(levelLabel).toHaveTextContent("Unrecognized");
+    // unmapped level renders without a borrowed severity color class (grey is PatternFly's default)
+    for (const severity of ["pf-m-green", "pf-m-red", "pf-m-orange", "pf-m-yellow"]) {
+      expect(levelLabel.className).not.toContain(severity);
+    }
+  });
 });
