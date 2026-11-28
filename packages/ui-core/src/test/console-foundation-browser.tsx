@@ -29,7 +29,7 @@ export function ReadStatesFixture() {
 }
 
 createRoot(document.getElementById("root")!).render(
-  params.get("view") === "routing" ? <FixtureConsole topology={topologyParam === null ? "fleet" : topology} theme={theme} /> : params.get("view") === "read-states" ? <ReadStatesFixture /> : params.get("view") === "approvals" ? <FixtureApprovalWorkspace /> : (
+  params.get("view") === "routing" ? <FixtureConsole topology={topologyParam === null ? "fleet" : topology} theme={theme} /> : params.get("view") === "read-states" ? <ReadStatesFixture /> : params.get("view") === "approvals" ? <FixtureApprovalWorkspace initialRequestId={params.get("requestId") ?? undefined} /> : (
     <ConsoleShell
       access={["approvals", "investigations", "overview", "workflows", "resources", "clusters", "policies", "administration"]}
       topology={topology}

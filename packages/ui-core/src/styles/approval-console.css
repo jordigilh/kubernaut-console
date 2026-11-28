@@ -722,3 +722,21 @@
   .kn-approval-console[data-fixture="true"] .kn-approval-actions .kn-approval-approve { color: #09292A; }
   .kn-foundation[data-theme="light"] .kn-approval-console[data-fixture="true"] .kn-approval-actions .kn-approval-approve { color: #fff; }
 }
+
+.kn-approval-confidence h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.5rem;
+}
+
+.kn-approval-confidence-ledger {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.kn-approval-confidence-unknown {
+  color: var(--kn-approval-muted);
+  font-style: italic;
+}
+
+.kn-approval-confidence-note {
+  margin: 0.5rem 0 0;
+}

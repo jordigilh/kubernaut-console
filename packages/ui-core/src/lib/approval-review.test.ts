@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   FIXTURE_REVIEWER,
   createApprovalFixtureAdapter,
+  formatConfidenceLevel,
+  formatConfidenceScore,
   type ApprovalDecisionInput,
   type ApprovalReadState,
   type ApprovalReview,
@@ -201,5 +203,55 @@ describe("approval review fixture model", () => {
     if (!submitter) return;
     expect(submitter.principal).toBe("operator-a");
     expect(review.reviewer).toBeNull();
+  });
+});
+
+// #180 / kubernaut #2586: RCA confidence and workflow-selection confidence
+// are distinct contract values. Missing RCA confidence is unknown, never 0%;
+// an explicit 0 stays 0%. The browser never computes a score — formatConfidenceScore
+// only rounds a backend-supplied 0–1 fraction for display. FedRAMP AC-3/AU-6
+// intent: the human approver's decision evidence keeps the two signals separate.
+describe("confidence score formatting (#180)", () => {
+  it.each([
+    ["null as unknown", null, "Unknown"],
+    ["explicit zero stays 0%", 0, "0%"],
+    ["fraction rounds to percent", 0.9, "90%"],
+    ["low fraction rounds down", 0.42, "42%"],
+    ["upper boundary", 1, "100%"],
+    ["rounds 0.999 to 100%", 0.999, "100%"],
+    ["negative is not a fabricated score", -0.1, "Unknown"],
+    ["above 1 is not a fabricated score", 1.5, "Unknown"],
+    ["NaN is not a fabricated score", Number.NaN, "Unknown"],
+  ] as const)("formats %s as %s", (_label, value, expected) => {
+    expect(formatConfidenceScore(value)).toBe(expected);
+  });
+
+  it("formats a blank level as unknown and a supplied level verbatim", () => {
+    expect(formatConfidenceLevel(null)).toBe("Unknown");
+    expect(formatConfidenceLevel("  ")).toBe("Unknown");
+    expect(formatConfidenceLevel("High")).toBe("High");
+  });
+
+  it("keeps RCA and workflow confidence distinct across the fixture contract cases", async () => {
+    const adapter = createApprovalFixtureAdapter();
+    const cases: ReadonlyArray<[string, number, number | null, string | null]> = [
+      // normal: high RCA certainty and high workflow fit recorded separately
+      ["rar-demo-01", 0.94, 0.91, "High"],
+      // low RCA certainty with high workflow fit — the misleading combination #180 targets
+      ["rar-demo-02", 0.9, 0.42, "High"],
+      // RCA confidence not supplied: unknown, not zero
+      ["rar-demo-03", 0.76, null, "Medium"],
+      // explicit zero RCA confidence stays zero
+      ["rar-demo-04", 0.88, 0, "High"],
+    ];
+
+    for (const [requestId, workflowConfidence, rcaConfidence, confidenceLevel] of cases) {
+      const result = await adapter.read(requestId);
+      expect(result.status, `${requestId} should be readable`).toBe("ready");
+      if (result.status !== "ready") continue;
+      expect(result.data.workflowConfidence).toBe(workflowConfidence);
+      expect(result.data.rcaConfidence).toBe(rcaConfidence);
+      expect(result.data.confidenceLevel).toBe(confidenceLevel);
+    }
   });
 });

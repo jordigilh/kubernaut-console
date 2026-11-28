@@ -6,6 +6,11 @@ import {
   TextInput,
 } from "@patternfly/react-core";
 import type { ApprovalRequest, ApprovalResolution } from "../hooks/useChat";
+import {
+  formatConfidenceLevel,
+  formatConfidenceScore,
+  type ApprovalConfidenceBreakdown,
+} from "../lib/approval-review";
 
 interface Props {
   request: ApprovalRequest;
@@ -13,6 +18,12 @@ interface Props {
   onApprove: (reason: string) => void;
   onDecline: (reason: string) => void;
   userName?: string;
+  /**
+   * Distinct RCA/workflow confidences per the kubernaut #2586 / console #180
+   * contract. When present it REPLACES the legacy single-confidence labels;
+   * removing those legacy labels is #167's to do when it rewires producers.
+   */
+  confidenceBreakdown?: ApprovalConfidenceBreakdown;
 }
 
 const CONFIDENCE_COLORS: Record<string, "green" | "yellow" | "red" | "grey"> = {
@@ -30,7 +41,7 @@ function formatTimeRemaining(ms: number): string {
   return `${Math.ceil(ms / 1000)}s remaining`;
 }
 
-export function ApprovalCard({ request, resolution, onApprove, onDecline, userName }: Props) {
+export function ApprovalCard({ request, resolution, onApprove, onDecline, userName, confidenceBreakdown }: Props) {
   const [timeRemaining, setTimeRemaining] = useState<number>(() => {
     return new Date(request.requiredBy).getTime() - Date.now();
   });
@@ -65,12 +76,30 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline, userNa
         <CardTitle>
           <Flex spaceItems={{ default: "spaceItemsSm" }} alignItems={{ default: "alignItemsCenter" }}>
             <FlexItem>Approval Required</FlexItem>
-            <FlexItem>
-              <Label color={confidenceColor} isCompact>{request.confidenceLevel}</Label>
-            </FlexItem>
-            <FlexItem>
-              <Label color="grey" isCompact>{confidencePercent}</Label>
-            </FlexItem>
+            {confidenceBreakdown ? (
+              <>
+                <FlexItem>
+                  <Label color={CONFIDENCE_COLORS[formatConfidenceLevel(confidenceBreakdown.level)] ?? "grey"} isCompact>
+                    {formatConfidenceLevel(confidenceBreakdown.level)}
+                  </Label>
+                </FlexItem>
+                <FlexItem>
+                  <Label color="grey" isCompact>RCA: {formatConfidenceScore(confidenceBreakdown.rcaConfidence)}</Label>
+                </FlexItem>
+                <FlexItem>
+                  <Label color="grey" isCompact>Workflow: {formatConfidenceScore(confidenceBreakdown.workflowConfidence)}</Label>
+                </FlexItem>
+              </>
+            ) : (
+              <>
+                <FlexItem>
+                  <Label color={confidenceColor} isCompact>{request.confidenceLevel}</Label>
+                </FlexItem>
+                <FlexItem>
+                  <Label color="grey" isCompact>{confidencePercent}</Label>
+                </FlexItem>
+              </>
+            )}
           </Flex>
         </CardTitle>
       </CardHeader>

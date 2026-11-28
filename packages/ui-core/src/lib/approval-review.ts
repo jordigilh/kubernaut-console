@@ -53,6 +53,22 @@ export interface ApprovalWorkflowReference {
   parameters: Readonly<Record<string, string>> | null;
 }
 
+/**
+ * Confidence breakdown per the kubernaut#2586 / PR#2610 approval contract
+ * (console #180). Workflow-selection confidence and RCA confidence are
+ * distinct values and are never merged or borrowed (BR-KA-016 lineage).
+ * All scores are 0–1 fractions supplied by the backend; the browser never
+ * computes a score.
+ */
+export interface ApprovalConfidenceBreakdown {
+  /** Required workflow-selection confidence, 0–1. */
+  workflowConfidence: number;
+  /** Optional RCA confidence, 0–1; null means unknown (the contract omits the field). An explicit 0 stays 0. */
+  rcaConfidence: number | null;
+  /** Qualitative level of the workflow-selection confidence, when supplied. */
+  level: string | null;
+}
+
 export interface ApprovalEvidenceItem {
   id: string | null;
   occurredAt: string | null;
@@ -94,6 +110,16 @@ export interface ApprovalReview {
   approvalRationale: string | null;
   investigationSummary: string | null;
   workflow: ApprovalWorkflowReference | null;
+  /**
+   * Required workflow-selection confidence (0–1). A read that does not
+   * supply it surfaces as a `partial` read state whose missingFields names
+   * "workflowConfidence"; the required type is not loosened.
+   */
+  workflowConfidence: number;
+  /** Optional RCA confidence (0–1); null is the only "unknown". */
+  rcaConfidence: number | null;
+  /** Qualitative level of the workflow-selection confidence. */
+  confidenceLevel: string | null;
   reviewedContentVersion: string;
   relatedEvidence: ApprovalReadState<readonly ApprovalEvidenceItem[]>;
   decision: ApprovalDecisionState;
@@ -238,6 +264,9 @@ const FIXTURE_REVIEWS: Record<string, ApprovalReview> = {
     deadline: "2026-10-31T14:21:00Z",
     approvalRationale: "The production namespace requires human approval under the recorded policy decision.",
     investigationSummary: "The recorded investigation reports OOMKilled restarts and memory pressure in checkout-api.",
+    workflowConfidence: 0.94,
+    rcaConfidence: 0.91,
+    confidenceLevel: "High",
     workflow: {
       id: "wf-demo-01",
       version: "1.0.7",
@@ -271,6 +300,11 @@ const FIXTURE_REVIEWS: Record<string, ApprovalReview> = {
     deadline: "2026-10-31T14:13:00Z",
     approvalRationale: "A reviewed Git change respects the target's Argo CD desired-state path. A direct live patch could be reconciled away.",
     investigationSummary: "The operator continues to OOM after an earlier memory increase. The investigation reassesses the mechanism using current observations and prior outcomes.",
+    // Low RCA confidence paired with high workflow-selection confidence: the
+    // combination #180 exists to keep visible and distinct (#2586 evidence).
+    workflowConfidence: 0.9,
+    rcaConfidence: 0.42,
+    confidenceLevel: "High",
     workflow: {
       id: "wf-demo-01",
       version: "1.0.7",
@@ -303,6 +337,10 @@ const FIXTURE_REVIEWS: Record<string, ApprovalReview> = {
     deadline: "2026-10-31T14:27:00Z",
     approvalRationale: "Recorded evidence describes a database workload incident.",
     investigationSummary: "Exact remediation and parameter detail is not supplied in this fixture read.",
+    // RCA confidence not supplied by this read: unknown, not zero.
+    workflowConfidence: 0.76,
+    rcaConfidence: null,
+    confidenceLevel: "Medium",
     workflow: {
       id: "wf-demo-03",
       version: "1.0.0",
@@ -315,6 +353,42 @@ const FIXTURE_REVIEWS: Record<string, ApprovalReview> = {
       status: "partial",
       data: FIXTURE_EVIDENCE["rar-demo-03"],
       missingFields: ["relatedEvidence[0].id"],
+      observedAt: OBSERVED_AT,
+    },
+    decision: {
+      status: "pending",
+      decision: null,
+      actor: null,
+      reason: null,
+      decidedAt: null,
+    },
+  },
+  "rar-demo-04": {
+    id: "rar-demo-04",
+    uid: "rar-demo-04-uid",
+    parentRequestId: "rr-demo-04",
+    target: { kind: "Deployment", name: "search-api", namespace: "search" },
+    source: { clusterId: "spoke-b", environment: "Production" },
+    submitter: FIXTURE_INITIATOR_A,
+    reviewer: null,
+    createdAt: "2026-10-31T14:01:00Z",
+    deadline: "2026-10-31T14:29:00Z",
+    approvalRationale: "The recorded policy requires a human decision for this change.",
+    investigationSummary: "The recorded investigation connects the search-api errors to a recent configuration change with an explicitly recorded low RCA certainty.",
+    workflow: {
+      id: "wf-demo-04",
+      version: "2.1.0",
+      displayName: "rollback-configuration-change",
+      rationale: "The recorded recommendation supplies an exact rollback reference.",
+      parameters: null,
+    },
+    // Explicit zero RCA confidence: a recorded 0, distinct from unknown.
+    workflowConfidence: 0.88,
+    rcaConfidence: 0,
+    confidenceLevel: "High",
+    reviewedContentVersion: "rar-demo-04/review-v1",
+    relatedEvidence: {
+      status: "empty",
       observedAt: OBSERVED_AT,
     },
     decision: {
@@ -484,6 +558,23 @@ export function createApprovalFixtureAdapter(options: ApprovalFixtureAdapterOpti
 
 export function formatUnknown(value: string | null | undefined): string {
   return value?.trim() ? value : "Unknown";
+}
+
+/**
+ * Formats a backend-supplied confidence fraction (0–1). `null` means the
+ * contract omitted the value: unknown, never 0%. An explicit 0 renders as
+ * "0%". Non-finite or out-of-range values are surfaced as unknown rather
+ * than coerced into a fabricated number. The browser never computes a score;
+ * this only rounds a supplied value for display.
+ */
+export function formatConfidenceScore(value: number | null): string {
+  if (value === null || !Number.isFinite(value) || value < 0 || value > 1) return "Unknown";
+  return `${Math.round(value * 100)}%`;
+}
+
+/** Formats the qualitative confidence level; it qualifies workflow-selection confidence. */
+export function formatConfidenceLevel(level: string | null): string {
+  return formatUnknown(level);
 }
 
 export function formatTarget(target: ApprovalTarget): string {
