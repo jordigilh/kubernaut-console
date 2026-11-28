@@ -79,8 +79,12 @@ export function ApprovalCard({ request, resolution, onApprove, onDecline, userNa
             {confidenceBreakdown ? (
               <>
                 <FlexItem>
-                  <Label color={CONFIDENCE_COLORS[formatConfidenceLevel(confidenceBreakdown.level)] ?? "grey"} isCompact>
-                    {formatConfidenceLevel(confidenceBreakdown.level)}
+                  <Label
+                    color={CONFIDENCE_COLORS[formatConfidenceLevel(confidenceBreakdown.level)] ?? "grey"}
+                    isCompact
+                    title="Qualifies workflow-selection confidence"
+                  >
+                    {formatConfidenceLevel(confidenceBreakdown.level)}<span className="kn-approval-visually-hidden"> (workflow selection)</span>
                   </Label>
                 </FlexItem>
                 <FlexItem>

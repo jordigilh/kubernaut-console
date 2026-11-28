@@ -86,6 +86,13 @@ SOC 2 attestation or OWASP ASVS certification.
 
 - Full UI-core suite, mocked console-foundation browser suite, UI-core build
   and targeted lint run separately before the PR.
+- Known decisions: the card's `RCA:`/`Workflow:` value Labels render grey on
+  purpose — threshold-based coloring would be browser-side score
+  interpretation; the qualitative level Label carries a
+  "Qualifies workflow-selection confidence" title and screen-reader suffix.
+  Out-of-range or non-finite confidence values surface as unknown (never
+  coerced); distinguishing them from contract-omitted values is a backend
+  data-quality concern, not a console fabrication risk.
 - UI-core `tsc --noEmit` baseline: 94 diagnostics on `main`, 91 with this
   change (all pre-existing, in #167-owned chat test files); none added here.
 - Chat producer wiring of `workflowConfidence`/`rcaConfidence` event fields

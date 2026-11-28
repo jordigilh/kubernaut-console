@@ -41,6 +41,7 @@ test("missing RCA confidence reads as unknown, never 0%", async ({ page }) => {
   await expect(rca).toContainText("RCA confidence");
   await expect(rca).toContainText("Unknown");
   await expect(rca).not.toContainText("0%");
+  await expect(rca).toHaveAttribute("data-known", "false");
   await expect(page.getByTestId("kn-approval-workflow-confidence")).toContainText("76%");
   await assertNoBackend();
 });
@@ -53,11 +54,14 @@ test("explicit zero RCA confidence reads as 0%, distinct from unknown", async ({
   await expect(rca).toContainText("RCA confidence");
   await expect(rca).toContainText("0%");
   await expect(rca).not.toContainText("Unknown");
+  await expect(rca).toHaveAttribute("data-known", "true");
   await expect(page.getByTestId("kn-approval-workflow-confidence")).toContainText("88%");
   await assertNoBackend();
 });
 
 test("review page states that interactive selection does not bypass policy evaluation", async ({ page }) => {
+  const assertNoBackend = await noBackendRequests(page);
   await page.goto(`${fixture}?view=approvals&requestId=rar-demo-02`);
   await expect(page.getByText(/does not bypass policy evaluation/i)).toBeVisible();
+  await assertNoBackend();
 });

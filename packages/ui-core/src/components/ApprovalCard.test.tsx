@@ -227,6 +227,8 @@ describe("AC-6: ApprovalCard component", () => {
 
     expect(screen.getByText("RCA: 42%")).toBeInTheDocument();
     expect(screen.getByText("Workflow: 90%")).toBeInTheDocument();
+    // the level qualifies workflow selection, never RCA confidence
+    expect(screen.getByTitle("Qualifies workflow-selection confidence")).toHaveTextContent("High");
     // legacy unlabeled confidence labels are replaced, not supplemented
     expect(screen.queryByText("72%")).not.toBeInTheDocument();
     expect(screen.queryByText("Medium")).not.toBeInTheDocument();

@@ -330,6 +330,30 @@ describe("ApprovalReviewPage confidence display (#180)", () => {
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
   });
 
+  it("does not show the workflow-confidence guard for a partial read missing an unrelated field", async () => {
+    const base = createApprovalFixtureAdapter();
+    const ready = await base.read("rar-demo-02");
+    if (ready.status !== "ready") throw new Error("Fixture read was not ready.");
+    const adapter = createApprovalFixtureAdapter({
+      reviewStates: {
+        "rar-demo-02": {
+          status: "partial",
+          data: ready.data,
+          missingFields: ["relatedEvidence[0].id"],
+          observedAt: "2026-10-31T14:00:00Z",
+        },
+      },
+    });
+
+    renderReview(adapter, "rar-demo-02");
+    await screen.findByText("Deployment/demo-operator");
+    expect(screen.queryByText("Workflow-selection confidence is missing from this read.")).not.toBeInTheDocument();
+    // the generic partial-read guard still blocks, and the supplied workflow confidence still renders
+    expect(screen.getByText(/not fresh enough for a decision/i)).toBeInTheDocument();
+    expect(screen.getByTestId("kn-approval-workflow-confidence")).toHaveTextContent("90%");
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+  });
+
   it("presents the recorded approval rationale on the review surface", async () => {
     renderReview(createApprovalFixtureAdapter(), "rar-demo-02");
     await screen.findByText("Deployment/demo-operator");
