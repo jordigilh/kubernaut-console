@@ -1,0 +1,60 @@
+// Screen-purpose presentation metadata for the production console (#169),
+// sourced from docs/design/console/screen-inventory.json and the readiness
+// register in implementation-readiness.md. Data only — no components, so it
+// can be shared across component files without breaking fast refresh.
+
+/** Visible heading per screen purpose (screen-inventory headingHint). */
+export const screenHeadings: Readonly<Record<string, string>> = {
+  "overview": "Overview",
+  "approvals.inbox": "Approvals",
+  "approvals.review": "Review remediation",
+  "investigations.list": "Recorded remediation cases",
+  "investigations.case": "Recorded case",
+  "investigations.workspace": "Interactive workspace",
+  "workflows.catalog": "Workflows",
+  "workflows.detail": "Workflow detail",
+  "workflows.executions": "Execution history",
+  "executions.detail": "Execution detail",
+  "outcomes.verification": "Verification & outcome",
+  "resources.list": "Managed resources",
+  "resources.detail": "Resource detail",
+  "clusters.list": "Clusters",
+  "clusters.detail": "Cluster context",
+  "governance.policies": "Policies & audit",
+  "policies.approval": "Policy context",
+  "policies.scope": "Policy context",
+  "governance.audit": "Audit trail",
+  "audit.event": "Audit event",
+  "administration": "Administration",
+  "settings.console": "Settings detail",
+  "settings.platform": "Settings detail",
+  "settings.access": "Settings detail",
+};
+
+/** Pending upstream contract per screen group, from the readiness register. */
+export const screenReadinessReasons: Readonly<Record<string, string>> = {
+  "approvals.inbox": "Independent approval discovery needs the upstream RAR list and evidence-projection contracts (kubernaut#2565).",
+  "approvals.review": "Independent review and decisions need the upstream decision-consistency contract (kubernaut#2564) and RAR evidence projection (kubernaut#2565).",
+  "investigations.list": "Recorded investigation reads are not yet qualified; typed case reads remain a gated contract.",
+  "investigations.case": "Recorded case lifecycle reads are not yet qualified; no workspace relationship is supplied.",
+  "investigations.workspace": "The interactive investigation workspace integration is tracked separately (#170); source-parity gates G1–G5 remain open.",
+  "overview": "Overview needs authorized sanitized projections with explicit freshness and completeness; no dashboard aggregate is authorized.",
+  "workflows.catalog": "An authorized read-only catalog summary read is not yet qualified.",
+  "workflows.detail": "The exact-version workflow definition read is synthetic/unqualified, not a shipping endpoint.",
+  "workflows.executions": "Scoped execution history reads are not yet qualified.",
+  "executions.detail": "Execution detail and assessment provenance reads are not yet qualified.",
+  "outcomes.verification": "Verification and effectiveness reads are not yet qualified.",
+  "resources.list": "Shared inventory needs an authoritative topology/bootstrap and sanitized scoped read.",
+  "resources.detail": "Authorized resource metadata and scope relationships are not yet qualified.",
+  "clusters.list": "The fleet registry needs an authoritative topology plus scoped registry read.",
+  "clusters.detail": "Scoped registry detail reads are not yet qualified.",
+  "governance.policies": "Effective sanitized policy projections are not yet qualified.",
+  "policies.approval": "Recorded policy evaluation reads are not yet qualified.",
+  "policies.scope": "Server-derived scope precedence and provenance reads are not yet qualified.",
+  "governance.audit": "Scoped, typed and redacted audit reads are not yet qualified (kubernaut#2565).",
+  "audit.event": "Sanitized event attribution reads are not yet qualified.",
+  "administration": "Effective platform and access context reads are not yet qualified.",
+  "settings.console": "Console settings detail is presentation-only in this phase; persistence is a separate host contract.",
+  "settings.platform": "Authorized sanitized effective-configuration reads are not yet qualified.",
+  "settings.access": "A trusted identity/capability source is not yet wired (#168).",
+};

@@ -1,4 +1,5 @@
 import { KubernautChat, ErrorBoundary, clearConsoleSessionState } from "@kubernaut/ui-core";
+import { ConsoleApp } from "./console/ConsoleApp";
 import { ProxyAuthProvider } from "./ProxyAuthProvider";
 import { LiveE2EAuthProvider } from "./LiveE2EAuthProvider";
 import { useMemo, useState } from "react";
@@ -54,15 +55,18 @@ function App() {
     return <div role="alert">Unable to clear session storage. <button onClick={() => { storageReady = clearUnboundState(); setReady(storageReady); }}>Retry</button></div>;
   }
 
-  return (
-    <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "var(--kn-surface)", padding: 0 }}>
-      <div style={{ height: "100%", width: "100%", maxWidth: 820, maxHeight: 750 }}>
-        <ErrorBoundary>
-          <KubernautChat authProvider={authProvider} config={config} />
-        </ErrorBoundary>
-      </div>
-    </div>
+  // Console #169: the accepted shared shell owns production routing; the chat
+  // stays mounted at "/" through the host-owned slot with its existing auth,
+  // transport and session behavior unchanged (no iframe, no second
+  // transport). A view change is not cancellation, so the chat is hidden
+  // rather than unmounted on other routes.
+  const chat = (
+    <ErrorBoundary>
+      <KubernautChat authProvider={authProvider} config={config} />
+    </ErrorBoundary>
   );
+
+  return <ConsoleApp chat={chat} />;
 }
 
 export default App;

@@ -15,6 +15,28 @@ vi.mock("@kubernaut/ui-core", () => ({
   KubernautChat: mockKubernautChat,
   ErrorBoundary: ({ children }: { children: ReactNode }) => children,
   clearConsoleSessionState,
+  // Console #169: minimal production-router mocks so these chat-gate tests
+  // stay focused on App's auth/storage behavior.
+  ConsoleShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ConsoleRouteNotFound: () => null,
+  NotLiveReadyScreen: () => null,
+  formatConsoleRoute: () => "/",
+  sectionForScreen: () => undefined,
+  sectionScreens: {
+    approvals: "approvals.inbox",
+    investigations: "investigations.list",
+    overview: "overview",
+    workflows: "workflows.catalog",
+    resources: "resources.list",
+    clusters: "clusters.list",
+    policies: "governance.policies",
+    administration: "administration",
+  },
+  useConsoleRoute: () => ({
+    route: { screenId: "chat" as const, params: {}, query: {} },
+    location: { pathname: "/", search: "" },
+    navigate: () => {},
+  }),
 }));
 
 async function renderAppWithToken(token: string) {

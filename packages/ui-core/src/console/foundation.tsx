@@ -1,8 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import consoleLogo from "../assets/console-logo.svg";
-import { ApprovalsPage } from "../pages/ApprovalsPage";
-import { ApprovalReviewPage } from "../pages/ApprovalReviewPage";
-import { createApprovalFixtureAdapter, FIXTURE_REVIEWER } from "../lib/approval-review";
 import { navigationFor, type NavigationId, type NavigationItem, type Topology } from "./registry";
 
 export type ReadStatus = "loading" | "ready" | "empty" | "partial" | "stale" | "unavailable" | "forbidden" | "missing";
@@ -30,10 +27,16 @@ export interface ConsoleShellProps {
   theme?: "light" | "dark";
   /** Only for the isolated synthetic preview; never enables production routes. */
   fixtureNavigation?: boolean;
+  /** Production routing (#169): link every in-scope section to its real route. */
+  productionLinks?: boolean;
+  /** Host SPA navigation for ordinary unmodified link clicks; undefined keeps native anchor behavior. */
+  onNavigate?: (href: string) => void;
+  /** Optional host-supplied controls rendered in the shell header. */
+  headerActions?: ReactNode;
   children: ReactNode;
 }
 
-export function ConsoleShell({ access, topology, current, hrefs, theme = "light", fixtureNavigation = false, children }: ConsoleShellProps) {
+export function ConsoleShell({ access, topology, current, hrefs, theme = "light", fixtureNavigation = false, productionLinks = false, onNavigate, headerActions, children }: ConsoleShellProps) {
   const [open, setOpen] = useState(false);
   const more = useRef<HTMLButtonElement>(null);
   const moreWasFocused = useRef(false);
@@ -79,15 +82,15 @@ export function ConsoleShell({ access, topology, current, hrefs, theme = "light"
       breakpoint.removeEventListener("change", onChange);
     };
   }, []);
-  const items = navigationFor(access, topology);
+  const items = navigationFor(access, topology, { productionLinks });
   const secondary = items.filter((item) => item.group !== "Operate");
   const currentSecondary = secondary.find((item) => item.id === current);
   function renderItem(item: NavigationItem) {
     const href = item.availability === "available" || (fixtureNavigation && item.availability === "deferred") ? hrefs[item.id] : undefined;
-    return href ? <a key={item.id} href={href} aria-current={current === item.id ? "page" : undefined} onClick={(event) => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) setOpen(false); }}>{item.label}</a> : <span key={item.id} className="kn-foundation-deferred">{item.label}<small>{item.availability === "topology-unknown" ? "Topology unavailable" : "Deferred"}</small></span>;
+    return href ? <a key={item.id} href={href} aria-current={current === item.id ? "page" : undefined} onClick={(event) => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) { setOpen(false); if (onNavigate) { event.preventDefault(); onNavigate(href); } } }}>{item.label}</a> : <span key={item.id} className="kn-foundation-deferred">{item.label}<small>{item.availability === "topology-unknown" ? "Topology unavailable" : "Deferred"}</small></span>;
   }
   return <div className="kn-foundation" data-theme={theme}>
-    <header className="kn-foundation-header"><img src={consoleLogo} alt="Kubernaut" /><strong>Kubernaut</strong></header>
+    <header className="kn-foundation-header"><img src={consoleLogo} alt="Kubernaut" /><strong>Kubernaut</strong>{headerActions && <div className="kn-foundation-header-actions">{headerActions}</div>}</header>
     <div className="kn-foundation-layout">
       <nav ref={nav} aria-label="Console navigation" className="kn-foundation-nav" onKeyDown={(event) => { if (event.key === "Escape" && open) { event.preventDefault(); setOpen(false); more.current?.focus(); } }} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
         <div className="kn-foundation-priority"><h2>Operate</h2>{items.filter((item) => item.group === "Operate").map(renderItem)}</div>
@@ -102,15 +105,4 @@ export function ConsoleShell({ access, topology, current, hrefs, theme = "light"
 /** Removes the fixture's own chrome only when composed by the isolated preview. */
 export function FixtureShell({ embedded, children, ...props }: ConsoleShellProps & { embedded?: boolean }) {
   return embedded ? <>{children}</> : <ConsoleShell {...props}>{children}</ConsoleShell>;
-}
-
-/** Explicit fixture composition; no live adapter can be supplied. */
-export function FixtureApprovalWorkspace({ initialRequestId, embedded = false }: { initialRequestId?: string; embedded?: boolean }) {
-  const adapter = useMemo(() => createApprovalFixtureAdapter(), []);
-  const [requestId, setRequestId] = useState<string | null>(initialRequestId ?? null);
-  const [refresh, setRefresh] = useState(0);
-  const back = () => { setRequestId(null); setRefresh((value) => value + 1); };
-  return <FixtureShell embedded={embedded} access={["approvals", "investigations", "overview", "workflows", "resources", "clusters", "policies", "administration"]} topology="unknown" current="approvals" hrefs={{}}>
-    <div className="kn-approval-console" data-fixture="true"><div role="note" className="kn-approval-fixture-banner">Fixture preview — no live decision is submitted</div>{requestId ? <ApprovalReviewPage adapter={adapter} reviewer={FIXTURE_REVIEWER} requestId={requestId} onBack={back} /> : <ApprovalsPage adapter={adapter} onOpenRequest={setRequestId} refreshToken={refresh} />}</div>
-  </FixtureShell>;
 }
