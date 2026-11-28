@@ -18,7 +18,18 @@ const items: Omit<NavigationItem, "availability">[] = [
   { id: "administration", label: "Administration", group: "Manage" },
 ];
 
-export function navigationFor(access: readonly NavigationId[], topology: Topology): NavigationItem[] {
+export function navigationFor(
+  access: readonly NavigationId[],
+  topology: Topology,
+  options?: { productionLinks?: boolean },
+): NavigationItem[] {
   return items.filter((item) => access.includes(item.id) && !(item.id === "clusters" && topology === "local"))
-    .map((item) => ({ ...item, availability: item.id === "clusters" && topology === "unknown" ? "topology-unknown" : item.id === "approvals" ? "available" : "deferred" }));
+    .map((item) => {
+      if (item.id === "clusters" && topology === "unknown") return { ...item, availability: "topology-unknown" as const };
+      // Production routing (#169) links every in-scope section to its real
+      // route; each screen still fails closed on its own reads. Presentation
+      // visibility only — never authorization.
+      if (options?.productionLinks) return { ...item, availability: "available" as const };
+      return { ...item, availability: item.id === "approvals" ? "available" as const : "deferred" as const };
+    });
 }

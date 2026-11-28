@@ -1,7 +1,8 @@
 // Test-only Vite entry. This is not imported by the standalone application.
 import { createRoot } from "react-dom/client";
 import { useState } from "react";
-import { ConsoleShell, FixtureApprovalWorkspace, ReadStatePanel, type ReadStatus } from "../console/foundation";
+import { ConsoleShell, ReadStatePanel, type ReadStatus } from "../console/foundation";
+import { FixtureApprovalWorkspace } from "../console/fixture-approval";
 import { FixtureConsole } from "../console/fixture-console";
 import type { Topology } from "../console/registry";
 import "../console/foundation.css";

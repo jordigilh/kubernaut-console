@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ConsoleShell, FixtureApprovalWorkspace } from "./foundation";
+import { ConsoleShell } from "./foundation";
+import { FixtureApprovalWorkspace } from "./fixture-approval";
 import { FixtureInvestigations } from "./fixture-investigations";
 import { FixtureWorkflows } from "./fixture-workflows";
 import { FixtureScope } from "./fixture-scope";
