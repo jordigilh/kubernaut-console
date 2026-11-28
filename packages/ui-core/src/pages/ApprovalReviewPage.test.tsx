@@ -273,6 +273,122 @@ describe("ApprovalReviewPage decision boundaries", () => {
   });
 });
 
+describe("ApprovalReviewPage confidence display (#180)", () => {
+  // kubernaut #2586 / console #180: a reviewer must be able to distinguish
+  // RCA certainty from workflow fit before approving; unknown and zero stay
+  // distinct. FedRAMP AC-3/AU-6, SOC2 CC4.1 intent.
+  it("keeps a low RCA confidence visibly separate from a high workflow-selection confidence", async () => {
+    renderReview(createApprovalFixtureAdapter(), "rar-demo-02");
+    await screen.findByText("Deployment/demo-operator");
+    const rca = screen.getByTestId("kn-approval-rca-confidence");
+    const workflow = screen.getByTestId("kn-approval-workflow-confidence");
+    expect(rca).toHaveTextContent("42%");
+    expect(workflow).toHaveTextContent("90%");
+    expect(screen.getByTestId("kn-approval-confidence-level")).toHaveTextContent("High");
+    expect(screen.getByTestId("kn-approval-confidence-level")).toHaveTextContent("qualifies workflow selection");
+  });
+
+  it("shows a missing RCA confidence as unknown, not 0%, and keeps decisions available", async () => {
+    renderReview(createApprovalFixtureAdapter(), "rar-demo-03");
+    await screen.findByText("StatefulSet/orders-db");
+    const rca = screen.getByTestId("kn-approval-rca-confidence");
+    expect(rca).toHaveTextContent("Unknown");
+    expect(rca).not.toHaveTextContent("0%");
+    expect(screen.getByTestId("kn-approval-workflow-confidence")).toHaveTextContent("76%");
+    // RCA confidence is optional: its absence alone must not gate the decision.
+    expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
+  });
+
+  it("shows an explicit zero RCA confidence as 0%, distinct from unknown", async () => {
+    renderReview(createApprovalFixtureAdapter(), "rar-demo-04");
+    await screen.findByText("Deployment/search-api");
+    const rca = screen.getByTestId("kn-approval-rca-confidence");
+    expect(rca).toHaveTextContent("0%");
+    expect(rca).not.toHaveTextContent("Unknown");
+    expect(screen.getByTestId("kn-approval-workflow-confidence")).toHaveTextContent("88%");
+  });
+
+  it("blocks decisions with a dedicated guard when a partial read omits the required workflow confidence", async () => {
+    const base = createApprovalFixtureAdapter();
+    const ready = await base.read("rar-demo-02");
+    if (ready.status !== "ready") throw new Error("Fixture read was not ready.");
+    const adapter = createApprovalFixtureAdapter({
+      reviewStates: {
+        "rar-demo-02": {
+          status: "partial",
+          data: ready.data,
+          missingFields: ["workflowConfidence"],
+          observedAt: "2026-10-31T14:00:00Z",
+        },
+      },
+    });
+
+    renderReview(adapter, "rar-demo-02");
+    await screen.findByText("Deployment/demo-operator");
+    expect(screen.getByText("Workflow-selection confidence is missing from this read.")).toBeInTheDocument();
+    expect(screen.getByTestId("kn-approval-workflow-confidence")).toHaveTextContent("Unknown");
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+  });
+
+  it("does not show the workflow-confidence guard for a partial read missing an unrelated field", async () => {
+    const base = createApprovalFixtureAdapter();
+    const ready = await base.read("rar-demo-02");
+    if (ready.status !== "ready") throw new Error("Fixture read was not ready.");
+    const adapter = createApprovalFixtureAdapter({
+      reviewStates: {
+        "rar-demo-02": {
+          status: "partial",
+          data: ready.data,
+          missingFields: ["relatedEvidence[0].id"],
+          observedAt: "2026-10-31T14:00:00Z",
+        },
+      },
+    });
+
+    renderReview(adapter, "rar-demo-02");
+    await screen.findByText("Deployment/demo-operator");
+    expect(screen.queryByText("Workflow-selection confidence is missing from this read.")).not.toBeInTheDocument();
+    // the generic partial-read guard still blocks, and the supplied workflow confidence still renders
+    expect(screen.getByText(/not fresh enough for a decision/i)).toBeInTheDocument();
+    expect(screen.getByTestId("kn-approval-workflow-confidence")).toHaveTextContent("90%");
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+  });
+
+  it("renders RCA confidence as unknown when a partial read marks it missing, not the retained value", async () => {
+    const base = createApprovalFixtureAdapter();
+    const ready = await base.read("rar-demo-02");
+    if (ready.status !== "ready") throw new Error("Fixture read was not ready.");
+    const adapter = createApprovalFixtureAdapter({
+      reviewStates: {
+        "rar-demo-02": {
+          status: "partial",
+          // data still retains the previously supplied 0.42 RCA confidence;
+          // the partial read says the field is missing, so it must not render.
+          data: ready.data,
+          missingFields: ["rcaConfidence"],
+          observedAt: "2026-10-31T14:00:00Z",
+        },
+      },
+    });
+
+    renderReview(adapter, "rar-demo-02");
+    await screen.findByText("Deployment/demo-operator");
+    const rca = screen.getByTestId("kn-approval-rca-confidence");
+    expect(rca).toHaveTextContent("Unknown");
+    expect(rca).not.toHaveTextContent("42%");
+    expect(rca).toHaveAttribute("data-known", "false");
+    // the supplied workflow confidence still renders; it is not marked missing
+    expect(screen.getByTestId("kn-approval-workflow-confidence")).toHaveTextContent("90%");
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+  });
+
+  it("presents the recorded approval rationale on the review surface", async () => {
+    renderReview(createApprovalFixtureAdapter(), "rar-demo-02");
+    await screen.findByText("Deployment/demo-operator");
+    expect(screen.getByTestId("kn-approval-rationale")).toHaveTextContent(/Argo CD desired-state path/);
+  });
+});
+
 describe("ApprovalReviewPage scope fencing", () => {
   it("ignores a decision receipt from an earlier visit after navigating A to B to A", async () => {
     const base = createApprovalFixtureAdapter();

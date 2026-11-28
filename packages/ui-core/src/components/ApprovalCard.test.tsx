@@ -209,4 +209,84 @@ describe("AC-6: ApprovalCard component", () => {
     const [reasonSent] = onDecline.mock.calls[0] as [string];
     expect(reasonSent).not.toMatch(/approved/i);
   });
+
+  // #180 / kubernaut #2586: when a confidence breakdown is supplied it
+  // REPLACES the legacy single-confidence labels and keeps RCA and
+  // workflow-selection confidence separately labeled. Missing RCA confidence
+  // is unknown, not 0%.
+  it("UT-CONSOLE-APPROVAL-013: renders labeled RCA and workflow confidences instead of the legacy unlabeled score", () => {
+    render(
+      <ApprovalCard
+        request={baseRequest}
+        onApprove={onApprove}
+        onDecline={onDecline}
+        userName="admin"
+        confidenceBreakdown={{ workflowConfidence: 0.9, rcaConfidence: 0.42, level: "High" }}
+      />
+    );
+
+    expect(screen.getByText("RCA: 42%")).toBeInTheDocument();
+    expect(screen.getByText("Workflow: 90%")).toBeInTheDocument();
+    // the level qualifies workflow selection, never RCA confidence
+    expect(screen.getByTitle("Qualifies workflow-selection confidence")).toHaveTextContent("High");
+    // legacy unlabeled confidence labels are replaced, not supplemented
+    expect(screen.queryByText("72%")).not.toBeInTheDocument();
+    expect(screen.queryByText("Medium")).not.toBeInTheDocument();
+  });
+
+  it("UT-CONSOLE-APPROVAL-014: keeps missing RCA confidence distinct from an explicit zero", () => {
+    const { rerender } = render(
+      <ApprovalCard
+        request={baseRequest}
+        onApprove={onApprove}
+        onDecline={onDecline}
+        userName="admin"
+        confidenceBreakdown={{ workflowConfidence: 0.76, rcaConfidence: null, level: "Medium" }}
+      />
+    );
+
+    expect(screen.getByText("RCA: Unknown")).toBeInTheDocument();
+    expect(screen.queryByText("RCA: 0%")).not.toBeInTheDocument();
+
+    rerender(
+      <ApprovalCard
+        request={baseRequest}
+        onApprove={onApprove}
+        onDecline={onDecline}
+        userName="admin"
+        confidenceBreakdown={{ workflowConfidence: 0.88, rcaConfidence: 0, level: "High" }}
+      />
+    );
+
+    expect(screen.getByText("RCA: 0%")).toBeInTheDocument();
+    expect(screen.queryByText("RCA: Unknown")).not.toBeInTheDocument();
+  });
+
+  it("UT-CONSOLE-APPROVAL-015: falls back to the legacy single-confidence labels when no breakdown is supplied", () => {
+    render(
+      <ApprovalCard request={baseRequest} onApprove={onApprove} onDecline={onDecline} userName="admin" />
+    );
+
+    expect(screen.getByText("Medium")).toBeInTheDocument();
+    expect(screen.getByText("72%")).toBeInTheDocument();
+  });
+
+  it("UT-CONSOLE-APPROVAL-016: renders an unrecognized level with the neutral fallback instead of fabricating a severity color", () => {
+    render(
+      <ApprovalCard
+        request={baseRequest}
+        onApprove={onApprove}
+        onDecline={onDecline}
+        userName="admin"
+        confidenceBreakdown={{ workflowConfidence: 0.9, rcaConfidence: 0.42, level: "Unrecognized" }}
+      />
+    );
+
+    const levelLabel = screen.getByTitle("Qualifies workflow-selection confidence");
+    expect(levelLabel).toHaveTextContent("Unrecognized");
+    // unmapped level renders without a borrowed severity color class (grey is PatternFly's default)
+    for (const severity of ["pf-m-green", "pf-m-red", "pf-m-orange", "pf-m-yellow"]) {
+      expect(levelLabel.className).not.toContain(severity);
+    }
+  });
 });

@@ -51,10 +51,13 @@ export { useUser } from "./hooks/useUser";
 export { clearConsoleSessionState } from "./lib/session-state";
 export { ApprovalsPage } from "./pages/ApprovalsPage";
 export { ApprovalReviewPage } from "./pages/ApprovalReviewPage";
+export { ApprovalConfidencePanel } from "./components/ApprovalConfidencePanel";
 export {
   FIXTURE_REVIEWER,
   createApprovalFixtureAdapter,
   formatApprovalTimestamp,
+  formatConfidenceLevel,
+  formatConfidenceScore,
   formatTarget,
   formatUnknown,
 } from "./lib/approval-review";
@@ -79,6 +82,7 @@ export { McpClient, isStaleMcpResult } from "./lib/mcp-client";
 export type { McpClientOptions, McpLifecycle } from "./lib/mcp-client";
 export type {
   ApprovalActor,
+  ApprovalConfidenceBreakdown,
   ApprovalDataState,
   ApprovalDecision,
   ApprovalDecisionInput,

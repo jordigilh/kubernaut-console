@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ApprovalDecisionConfirmation } from "../components/ApprovalDecisionConfirmation";
+import { ApprovalConfidencePanel } from "../components/ApprovalConfidencePanel";
 import { ApprovalReadStatePanel } from "../components/ApprovalReadState";
 import {
   formatApprovalTimestamp,
@@ -160,6 +161,9 @@ function getDecisionGuardMessages(
   if (state.data.id !== requestId) messages.push("The current read does not match this request.");
   if (!hasReviewerIdentity(reviewer)) messages.push("A non-blank reviewer identity is required before deciding.");
   if (!hasRequestUid(state.data)) messages.push("The server-issued RAR UID is unknown.");
+  if (state.status === "partial" && state.missingFields.includes("workflowConfidence")) {
+    messages.push("Workflow-selection confidence is missing from this read.");
+  }
   if (!hasExactWorkflow(state.data)) messages.push("Exact workflow ID and version are unknown.");
   if (!state.data.deadline) {
     messages.push("Approval deadline is unknown.");
@@ -497,8 +501,23 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
           <div>
             <section className="kn-approval-panel" aria-labelledby="review-decide-heading">
               <h2 id="review-decide-heading">Review and decide</h2>
-              <p>{review.approvalRationale ?? "Approval rationale: Unknown"}</p>
+              <p data-testid="kn-approval-rationale">{review.approvalRationale ?? "Approval rationale: Unknown"}</p>
               <p>{review.investigationSummary ?? "Investigation summary: Unknown"}</p>
+
+              <ApprovalConfidencePanel
+                breakdown={{
+                  workflowConfidence: review.workflowConfidence,
+                  rcaConfidence:
+                    currentReviewState.status === "partial" && currentReviewState.missingFields.includes("rcaConfidence")
+                      ? null
+                      : review.rcaConfidence,
+                  level: review.confidenceLevel,
+                }}
+                workflowConfidenceMissing={
+                  currentReviewState.status === "partial" &&
+                  currentReviewState.missingFields.includes("workflowConfidence")
+                }
+              />
 
               <section aria-labelledby="workflow-heading">
                 <h3 id="workflow-heading">Proposed workflow · read only</h3>
