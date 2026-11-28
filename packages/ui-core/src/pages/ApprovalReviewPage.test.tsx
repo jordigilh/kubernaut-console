@@ -354,6 +354,34 @@ describe("ApprovalReviewPage confidence display (#180)", () => {
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
   });
 
+  it("renders RCA confidence as unknown when a partial read marks it missing, not the retained value", async () => {
+    const base = createApprovalFixtureAdapter();
+    const ready = await base.read("rar-demo-02");
+    if (ready.status !== "ready") throw new Error("Fixture read was not ready.");
+    const adapter = createApprovalFixtureAdapter({
+      reviewStates: {
+        "rar-demo-02": {
+          status: "partial",
+          // data still retains the previously supplied 0.42 RCA confidence;
+          // the partial read says the field is missing, so it must not render.
+          data: ready.data,
+          missingFields: ["rcaConfidence"],
+          observedAt: "2026-10-31T14:00:00Z",
+        },
+      },
+    });
+
+    renderReview(adapter, "rar-demo-02");
+    await screen.findByText("Deployment/demo-operator");
+    const rca = screen.getByTestId("kn-approval-rca-confidence");
+    expect(rca).toHaveTextContent("Unknown");
+    expect(rca).not.toHaveTextContent("42%");
+    expect(rca).toHaveAttribute("data-known", "false");
+    // the supplied workflow confidence still renders; it is not marked missing
+    expect(screen.getByTestId("kn-approval-workflow-confidence")).toHaveTextContent("90%");
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+  });
+
   it("presents the recorded approval rationale on the review surface", async () => {
     renderReview(createApprovalFixtureAdapter(), "rar-demo-02");
     await screen.findByText("Deployment/demo-operator");

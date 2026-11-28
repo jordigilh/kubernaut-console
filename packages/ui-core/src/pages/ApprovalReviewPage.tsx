@@ -507,7 +507,10 @@ export function ApprovalReviewPage({ adapter, requestId, reviewer, onBack }: Pro
               <ApprovalConfidencePanel
                 breakdown={{
                   workflowConfidence: review.workflowConfidence,
-                  rcaConfidence: review.rcaConfidence,
+                  rcaConfidence:
+                    currentReviewState.status === "partial" && currentReviewState.missingFields.includes("rcaConfidence")
+                      ? null
+                      : review.rcaConfidence,
                   level: review.confidenceLevel,
                 }}
                 workflowConfidenceMissing={
